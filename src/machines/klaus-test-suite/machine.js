@@ -3,8 +3,7 @@ import Disc from "./disc";
 import Sound from "./sound";
 import Video from "./video";
 
-const machine= {
-
+const machine = {
 	name: "Klaus Test Suite",
 
 	debuggerOnBRK: false,
@@ -16,21 +15,21 @@ const machine= {
 			{
 				bank: 0,
 				addr: 0x0000,
-				data: RAM
+				data: RAM,
 			},
 			{
 				bank: 0,
-				addr: 0xFFFA,
+				addr: 0xfffa,
 				// data: "16 27 1C 27 24 27"
-				data: "16 27 00 04 24 27"
-			}
+				data: "16 27 00 04 24 27",
+			},
 		],
 	},
 
 	busSrcFile: "klaus-test-suite/bus.js",
 	Video,
 	Sound,
-	Disc
+	Disc,
 };
 
 export default machine;

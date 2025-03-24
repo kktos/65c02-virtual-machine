@@ -3,7 +3,7 @@
 https://github.com/Klaus2m5/6502_65C02_functional_tests/blob/master/bin_files/65C02_extended_opcodes_test.lst
 
  */
-const RAM= `
+const RAM = `
 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
 00 00 00 C3 82 41 00 7F 00 1F 71 80 0F FF 7F 80
 FF 0F 8F 8F 10 02 11 02 12 02 13 02 14 02 18 01
