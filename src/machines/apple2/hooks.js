@@ -1,12 +1,10 @@
 // import { TEXT_LINES } from "../ram_map.js";
 
 export default async function processHooks(vm, cpu) {
+	let wannaKeepItRunning = true;
+	let data = null;
 
-	let wannaKeepItRunning= true;
-	let data= null;
-
-	switch(cpu.PC) {
-
+	switch (cpu.PC) {
 		// case 0xCABA: {
 		// 	const line= TEXT_LINES[ cpu.A ];
 		// 	console.log({line:line.toString(16)});
@@ -15,8 +13,7 @@ export default async function processHooks(vm, cpu) {
 		// 	break;
 		// }
 
-		case 0xC600: {
-
+		case 0xc600: {
 			// if(vm.diskImages[0])
 			// 	readSector(vm, vm.diskImages[0], 0, 0, 0x800, true);
 
@@ -25,60 +22,59 @@ export default async function processHooks(vm, cpu) {
 			// await vm.waitMessage("register", {PC: 0x801});
 
 			// slot 6 * 16
-			await vm.memWriteBin(0, 0x2B, [0x60]);
+			await vm.memWriteBin(0, 0x2b, [0x60]);
 			// PT2BTBUFHI 8+1=9 as inc after $800 was just loaded
 			await vm.memWriteBin(0, 0x27, [0x09]);
 
-			data= {PC: 0x801};
+			data = { PC: 0x801 };
 			break;
 		}
 
-		case 0xC65C: {
-			const bytes= await vm.waitMessage("memReadBytes", {addr: 0x26, end: 0x41});
+		case 0xc65c: {
+			const bytes = await vm.waitMessage("memReadBytes", { addr: 0x26, end: 0x41 });
 
-			const BOOTSEC= bytes[0x3D-0x26]; //0x3D
-			const BOOTRK= bytes[0x41-0x26]; //0x41
-			const PT2BTBUF= bytes[0x26-0x26] + bytes[0x27-0x26]*256; /*0x26 0x27*/
+			const BOOTSEC = bytes[0x3d - 0x26]; //0x3D
+			const BOOTRK = bytes[0x41 - 0x26]; //0x41
+			const PT2BTBUF = bytes[0x26 - 0x26] + bytes[0x27 - 0x26] * 256; /*0x26 0x27*/
 
 			vm.disk.readSector(0, BOOTRK, BOOTSEC, PT2BTBUF, true);
 			// if(vm.diskImages[0])
 			// 	readSector(vm, vm.diskImages[0], BOOTRK, BOOTSEC, PT2BTBUF, true);
 
 			// await vm.waitMessage("register", {PC: 0x801});
-			data= {PC: 0x801};
+			data = { PC: 0x801 };
 
 			break;
 		}
 
-		case 0xBD00: {
-			const iobAddr= 256*cpu.A + (1*cpu.Y);
-			const bytes= await vm.waitMessage("memReadBytes", {addr: iobAddr, count: 16});
+		case 0xbd00: {
+			const iobAddr = 256 * cpu.A + 1 * cpu.Y;
+			const bytes = await vm.waitMessage("memReadBytes", { addr: iobAddr, count: 16 });
 
-			const track= bytes[0x04];
-			const sector= bytes[0x05];
-			const buffer= bytes[0x08] + bytes[0x09]*256;
+			const track = bytes[0x04];
+			const sector = bytes[0x05];
+			const buffer = bytes[0x08] + bytes[0x09] * 256;
 
 			console.log("RWTS", {
-				A:cpu.A.toString(16),
-				Y:cpu.Y.toString(16),
-				bytes: bytes.reduce((acc, curr)=> acc+curr.toString(16)+" ", ""),
+				A: cpu.A.toString(16),
+				Y: cpu.Y.toString(16),
+				bytes: bytes.reduce((acc, curr) => `${acc + curr.toString(16)} `, ""),
 			});
 
-			if(buffer)
-				vm.disk.readSector(0, track, sector, buffer, false);
+			if (buffer) vm.disk.readSector(0, track, sector, buffer, false);
 			// if(buffer && vm.diskImages[0])
 			// 	readSector(vm, vm.diskImages[0], track, sector, buffer, false);
 
 			// need to CLC
 			// need to return where we came
 			// await vm.waitMessage("register", {c: 0, meta:{RTS:1}});
-			data= {c: 0, meta:{RTS:1}};
+			data = { c: 0, meta: { RTS: 1 } };
 
 			break;
 		}
 
 		default:
-			wannaKeepItRunning= false;
+			wannaKeepItRunning = false;
 			break;
 	}
 

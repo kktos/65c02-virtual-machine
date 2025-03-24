@@ -31,8 +31,7 @@ You do not need to check them to conclusively identify an Apple II.
 
 */
 
-const machine= {
-
+const machine = {
 	name: "Apple //e",
 
 	memory: {
@@ -42,49 +41,48 @@ const machine= {
 			{
 				bank: 2,
 				addr: 0x0000,
-				data: `02 02 02 02 02 02 02`
+				data: "02 02 02 02 02 02 02",
 			},
 			{
 				bank: 3,
 				addr: 0x0000,
-				data: `03 03 03 03 03 03 03`
+				data: "03 03 03 03 03 03 03",
 			},
 			{
 				bank: 1,
-				addr: 0xC100,
-				data: C1_C7_INTROM
+				addr: 0xc100,
+				data: C1_C7_INTROM,
 			},
 			{
 				bank: 1,
-				addr: 0xC800,
-				data: C8_CF_INTROM
+				addr: 0xc800,
+				data: C8_CF_INTROM,
 			},
 			{
 				bank: 0,
-				addr: 0xC100,
-				data: CxSLOTROM
+				addr: 0xc100,
+				data: CxSLOTROM,
 			},
 			{
 				bank: 0,
 				addr: 0, //0xD000,
 				data: LG_CARD_ROM,
-				type: "lgcard"
+				type: "lgcard",
 			},
 			{
 				bank: 0,
-				addr: 0xD000,
+				addr: 0xd000,
 				data: "01 01 01 01",
 			},
 			{
 				bank: 1,
-				addr: 0xD000,
+				addr: 0xd000,
 				data: "02 02 02 02",
 			},
 			{
 				bank: 0,
 				addr: 0x0300,
-				data:
-				`
+				data: `
 				8D BF C0 60 A2 00 BD 1F
 				03 F0 08 09 80 20 00 03
 				E8 D0 F3 AD 10 C0 AD 00
@@ -101,7 +99,7 @@ const machine= {
 				20 ED FD C8 D0 F5 60 1B
 				58 59 18 58 59 00
 
-				`
+				`,
 				// `
 				// 42 FF
 				// 64 72 61 77 49 6D 67 20 69 64 3A 25	79 20 61 64 64 72 3A 25 77 20 77 69	64 74 68 3A 25 62 20 68 65 69 67 68	74 3A 25 62 00
@@ -113,13 +111,13 @@ const machine= {
 			{
 				bank: 0,
 				addr: 0x0800,
-				data: basicprog
+				data: basicprog,
 			},
 			{
 				bank: 0,
 				addr: 0x02000,
-				data: HGR_IMG
-			}
+				data: HGR_IMG,
+			},
 		],
 	},
 
@@ -128,7 +126,7 @@ const machine= {
 	hooks: processHooks,
 	Video,
 	Sound,
-	Disk
+	Disk,
 };
 
 export default machine;

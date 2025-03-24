@@ -1,5 +1,5 @@
 // https://github.com/CodingTrain/Nebula-AppleSoft-Basic/blob/main/cube/cube-perspective.a
-export const basicprog= `
+export const basicprog = `
 00 09 08 0A 00 91 3A 90 00 19 08 64 00 B2 20 44
 52 41 57 20 4C 4F 4F 50 00 24 08 E8 03 53 43 D0
 C6 53 43 00 35 08 F2 03 B9 34 39 32 33 36 C8 C6

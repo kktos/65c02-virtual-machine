@@ -25,61 +25,60 @@ import { disasm } from "./disasm";
 //*GLOBAL VARIABLES*
 //******************
 
-const registers= ["A", "X", "Y", "PC", "SP", "c", "z", "i", "d", "b", "v", "n"];
+const registers = ["A", "X", "Y", "PC", "SP", "c", "z", "i", "d", "b", "v", "n"];
 
 const CYCLES_COUNT_FOR_1MHZ = 5000;
-let speedMHz = 3; //4.1MHz = 4.35; //2.8MHz(IIgs) = 3; //2MHz = 2.08;
-let cyclesCountForSpeed = speedMHz * CYCLES_COUNT_FOR_1MHZ;
+const speedMHz = 3; //4.1MHz = 4.35; //2.8MHz(IIgs) = 3; //2MHz = 2.08;
+const cyclesCountForSpeed = speedMHz * CYCLES_COUNT_FOR_1MHZ;
 
-let loaded= 0;
-let NMOS_mode;
-let debugflag;
-let debugBuffer= [];
-let cycleLog= "";
-let cycleLogActivated= false;
+// const loaded= 0;
+// let NMOS_mode;
+// let debugflag;
+// const debugBuffer= [];
+let cycleLog = "";
+// const cycleLogActivated= false;
 
-let keyBuffer= [];
+let keyBuffer = [];
 
-const hooks= {};
-const breakpoints= [];
-let tempBP= -1;
-let jsrLevel= 0;
-let stopAtjsrLevel= 0;
-let wannaStopOnRTS= false;
+const hooks = new Map();
+const breakpoints = [];
+let tempBP = -1;
+let jsrLevel = 0;
+let stopAtjsrLevel = 0;
+let wannaStopOnRTS = false;
 
 // let wannaLogAllSteps= false;
 
-self.addEventListener('message', OnMessage , false);
-self.core= core;
-self.halt= () => { core.running= 0; };
-self.unhalt= () => {
-	if(!core.running) {
-		core.running= 1;
+self.addEventListener("message", OnMessage, false);
+self.core = core;
+self.halt = () => {
+	core.running = 0;
+};
+self.unhalt = () => {
+	if (!core.running) {
+		core.running = 1;
 		cycleFunc();
 	}
-}
-
+};
 
 //**********************************
 //*FUNCTIONS FOR RUNNING CPU CYCLES*
 //**********************************
 
 //https://stackoverflow.com/questions/31439286/does-javascript-have-anything-similar-to-vbas-doevents
-function* cycle10_6()
-{
+function* cycle10_6() {
 	let op;
 
-	do
-	{
-		const startCount= core.cycle_count;
+	do {
+		const startCount = core.cycle_count;
 		// for(let i=0; i<17_030; i++)
-		while(core.running && (core.cycle_count-startCount < cyclesCountForSpeed)) {
-			core.calcAddress= -1;
+		while (core.running && core.cycle_count - startCount < cyclesCountForSpeed) {
+			core.calcAddress = -1;
 
 			//
 			// we need to read first because apple2 bank mem depends on addr
 			//
-			op= core.bus.read(core.PC);
+			op = core.bus.read(core.PC);
 
 			// self.postMessage({cmd:"log", data: {
 			// 	label:"CPU run 1",
@@ -95,58 +94,69 @@ function* cycle10_6()
 			// 	}});
 			// }
 
-			if(hooks.hasOwnProperty(core.PC) && hooks[core.PC][core.bus.lastBankUsed]) {
-				core.running= 0;
-				const hookAddr= core.PC;
-				self.postMessage({cmd:"hooked", data: {
-					caller: "run",
-					BANK: core.bus.lastBankUsed,
-					PC: core.PC,
-					A: core.A,
-					X: core.X,
-					Y: core.Y,
-					SP: core.SP,
-				}});
+			if (hooks.get(core.PC)?.[core.bus.lastBankUsed]) {
+				core.running = 0;
+				const hookAddr = core.PC;
+				self.postMessage({
+					cmd: "hooked",
+					data: {
+						caller: "run",
+						BANK: core.bus.lastBankUsed,
+						PC: core.PC,
+						A: core.A,
+						X: core.X,
+						Y: core.Y,
+						SP: core.SP,
+					},
+				});
 				yield;
 
 				// console.log("RETURN FROM HOOK",  hexword(core.PC));
 
-				self.postMessage({cmd:"log", data: {
-					label:"[CPU] RESUME FROM HOOK",
-					HOOK: hexword(hookAddr),
-					PC: hexword(core.PC),
-					tempBP: hexword(tempBP),
-				}});
+				self.postMessage({
+					cmd: "log",
+					data: {
+						label: "[CPU] RESUME FROM HOOK",
+						HOOK: hexword(hookAddr),
+						PC: hexword(core.PC),
+						tempBP: hexword(tempBP),
+					},
+				});
 
 				// read again as the hook may have changed the PC
-				op= core.bus.read(core.PC);
+				op = core.bus.read(core.PC);
 			}
 
 			// if (cycleLogActivated) recordCycle();
 			// else
-			if(core.PC === tempBP || breakpoints.includes(core.PC)) {
+			if (core.PC === tempBP || breakpoints.includes(core.PC)) {
+				const bpAddr = core.PC;
 
-				const bpAddr= core.PC;
+				self.postMessage({
+					cmd: "log",
+					data: {
+						label: "CPU BP STOP",
+						PC: hexword(bpAddr),
+					},
+				});
 
-				self.postMessage({cmd:"log", data: {
-					label:"CPU BP STOP",
-					PC: hexword(bpAddr),
-				}});
-
-				tempBP= -1;
-				core.running= 0;
-				self.postMessage({cmd:"stopped", PC: bpAddr, op:"BP"});
+				tempBP = -1;
+				core.running = 0;
+				self.postMessage({ cmd: "stopped", PC: bpAddr, op: "BP" });
 				yield;
 
 				// read again as the PC may have been changed
-				op= core.bus.read(core.PC);
+				op = core.bus.read(core.PC);
 
-				self.postMessage({cmd:"log", data: {
-					label:"[CPU] RESUME FROM BP",
-					BP: hexword(bpAddr),
-					PC: hexword(core.PC),
-					tempBP: hexword(tempBP),
-				}});
+				self.postMessage({
+					cmd: "log",
+					data: {
+						label: "[CPU] RESUME FROM BP",
+						BP: hexword(bpAddr),
+						PC: hexword(core.PC),
+						tempBP: hexword(tempBP),
+					},
+				});
 			}
 
 			// if(wannaLogAllSteps) {
@@ -157,18 +167,17 @@ function* cycle10_6()
 			// 	}});
 			// }
 
-			if(op === 0x20) {
+			if (op === 0x20) {
 				jsrLevel++;
 			}
 
-			if(op === 0x60) {
-				if(wannaStopOnRTS && stopAtjsrLevel === jsrLevel) {
-					wannaStopOnRTS= false;
-					core.running= 0;
-					self.postMessage({cmd:"stopped", PC: core.PC, op:"RTS"});
+			if (op === 0x60) {
+				if (wannaStopOnRTS && stopAtjsrLevel === jsrLevel) {
+					wannaStopOnRTS = false;
+					core.running = 0;
+					self.postMessage({ cmd: "stopped", PC: core.PC, op: "RTS" });
 					yield;
 					console.log("CPU LOOP 3");
-
 				}
 				jsrLevel--;
 			}
@@ -178,85 +187,76 @@ function* cycle10_6()
 		}
 		yield;
 		// console.log("CPU LOOP 4");
-
-	} while(true);
+	} while (true);
 }
 
+const cycleGen = cycle10_6();
+let startTime = performance.now();
+let deltaTime = 0;
 
-const cycleGen= cycle10_6();
-let startTime= performance.now();
-let deltaTime= 0;
+function cycleFunc() {
+	const startCount = core.cycle_count;
+	const newTime = performance.now();
+	deltaTime = newTime - startTime;
 
-function cycleFunc()
-{
-	const startCount= core.cycle_count;
-	const newTime= performance.now();
-	deltaTime= newTime - startTime;
+	const obj = cycleGen.next();
 
-	const obj= cycleGen.next();
+	startTime = newTime;
 
-	startTime= newTime;
+	const cycle_count = core.cycle_count - startCount;
+	if (deltaTime) core.mhz = cycle_count / deltaTime;
 
-	const cycle_count= core.cycle_count - startCount;
-	if(deltaTime)
-		core.mhz= cycle_count / deltaTime;
-
-	if(!obj.done && core.running)
-		setTimeout(cycleFunc, 0);
+	if (!obj.done && core.running) setTimeout(cycleFunc, 0);
 }
 
-function recordCycle()
-{
+function recordCycle() {
 	//cycleLog+=core.cycle_count.toString().toUpperCase().padStart(12,"0")+"  ";
-	cycleLog+=core.PC.toString(16).toUpperCase().padStart(4,"0")+"  ";
-	const PC_start=core.PC;
-	const op=core.bus.read(core.PC);
+	cycleLog += `${core.PC.toString(16).toUpperCase().padStart(4, "0")}  `;
+	const PC_start = core.PC;
+	const op = core.bus.read(core.PC);
 	opcodes[core.bus.read(core.PC++)]();
-	let cycleTemp="";
-	let cycleBytes=[];
-	for (let i=0;i<opLens[core.bus.read(PC_start)];i++)
-	{
-		cycleBytes.push(core.bus.read(PC_start+i));
-		cycleTemp+=core.bus.read(PC_start+i).toString(16).padStart(2,"0")+" ";
+	let cycleTemp = "";
+	const cycleBytes = [];
+	for (let i = 0; i < opLens[core.bus.read(PC_start)]; i++) {
+		cycleBytes.push(core.bus.read(PC_start + i));
+		cycleTemp += `${core.bus
+			.read(PC_start + i)
+			.toString(16)
+			.padStart(2, "0")} `;
 	}
-	cycleLog+=cycleTemp.toUpperCase().padEnd(10," ");
-	cycleLog+=disassemble(cycleBytes);
-	cycleLog+="core.A:"+core.A.toString(16).toUpperCase().padStart(2,"0")+" ";
-	if ((core.A>=" ".charCodeAt(0))&&(core.A<="~".charCodeAt(0))) cycleLog+="("+String.fromCharCode(core.A)+") ";
-	else cycleLog+="( ) ";
-	cycleLog+="core.X:"+core.X.toString(16).toUpperCase().padStart(2,"0")+" ";
-	cycleLog+="core.Y:"+core.Y.toString(16).toUpperCase().padStart(2,"0")+" ";
-	cycleLog+="core.SP:"+core.SP.toString(16).toUpperCase().padStart(2,"0")+" ";
-	if (core.calcAddress==-1) cycleLog+="                 ";
-	else
-	{
-		cycleLog+="CA:"+core.calcAddress.toString(16).toUpperCase().padStart(4,"0")+" ";
-		cycleLog+="("+(CalcBanked>>16).toString(16).toUpperCase().padStart(2,"0")+":";
-		cycleLog+=(CalcBanked&0xFFFF).toString(16).toUpperCase().padStart(4,"0")+")";
+	cycleLog += cycleTemp.toUpperCase().padEnd(10, " ");
+	cycleLog += disassemble(cycleBytes);
+	cycleLog += `core.A:${core.A.toString(16).toUpperCase().padStart(2, "0")} `;
+	if (core.A >= " ".charCodeAt(0) && core.A <= "~".charCodeAt(0)) cycleLog += `(${String.fromCharCode(core.A)}) `;
+	else cycleLog += "( ) ";
+	cycleLog += `core.X:${core.X.toString(16).toUpperCase().padStart(2, "0")} `;
+	cycleLog += `core.Y:${core.Y.toString(16).toUpperCase().padStart(2, "0")} `;
+	cycleLog += `core.SP:${core.SP.toString(16).toUpperCase().padStart(2, "0")} `;
+	if (core.calcAddress === -1) cycleLog += "                 ";
+	else {
+		cycleLog += `CA:${core.calcAddress.toString(16).toUpperCase().padStart(4, "0")} `;
+		cycleLog += `(${(CalcBanked >> 16).toString(16).toUpperCase().padStart(2, "0")}:`;
+		cycleLog += `${(CalcBanked & 0xffff).toString(16).toUpperCase().padStart(4, "0")})`;
 	}
-	cycleLog+=" "+core.cycle_count;
-	cycleLog+="\n";
-	if (op==0) cycleLog+="\n";
+	cycleLog += ` ${core.cycle_count}`;
+	cycleLog += "\n";
+	if (op === 0) cycleLog += "\n";
 }
-
 
 //**************
 //*MESSAGE LOOP*
 //**************
 
-async function OnMessage({ports, data:{cmd, id, data}})
-{
-	const recipient= ports?.[0];
+async function OnMessage({ ports, data: { cmd, id, data } }) {
+	const recipient = ports?.[0];
 
 	// console.log("worker onMessage", cmd, id, recipient);
 
-
-	debugflag= '';
-	switch(cmd) {
-
-		case 'setup':
+	// debugflag = "";
+	switch (cmd) {
+		case "setup":
 			await setup(data);
-			recipient?.postMessage({cmd: "setup", id: id, data: "done" });
+			recipient?.postMessage({ cmd: "setup", id: id, data: "done" });
 			break;
 
 		// case 'debug':
@@ -268,36 +268,33 @@ async function OnMessage({ports, data:{cmd, id, data}})
 		// 	break;
 
 		case "initBP":
-			breakpoints.length= 0;
+			breakpoints.length = 0;
 			breakpoints.push(...data.list);
-			recipient?.postMessage({cmd: "initBP", id: id, data: breakpoints });
+			recipient?.postMessage({ cmd: "initBP", id: id, data: breakpoints });
 			break;
 
 		case "listBP":
-			recipient?.postMessage({cmd: "listBP", id: id, data: breakpoints });
+			recipient?.postMessage({ cmd: "listBP", id: id, data: breakpoints });
 			break;
 
 		case "addBP":
-			if(!breakpoints.includes(data.addr))
-				breakpoints.push(data.addr);
+			if (!breakpoints.includes(data.addr)) breakpoints.push(data.addr);
 			break;
 
 		case "removeBP": {
-			const idx= breakpoints.indexOf(data.addr);
-			if(idx>=0)
-				breakpoints.splice(idx, 1);
+			const idx = breakpoints.indexOf(data.addr);
+			if (idx >= 0) breakpoints.splice(idx, 1);
 			break;
 		}
 
 		case "addHook":
-			if(!hooks.hasOwnProperty(data.addr))
-				hooks[data.addr]= {};
-			hooks[data.addr][data.bank]= true;
+			if (!hooks.has(data.addr)) hooks.set(data.addr, {});
+			hooks.get(data.addr)[data.bank] = true;
 			break;
 
 		case "removeHook": {
-			if(hooks.hasOwnProperty(data.addr)) {
-				delete hooks[data.addr][data.bank];
+			if (hooks.has(data.addr)) {
+				delete hooks.get(data.addr)[data.bank];
 			}
 			break;
 		}
@@ -308,17 +305,17 @@ async function OnMessage({ports, data:{cmd, id, data}})
 
 		case "memWriteBin":
 			core.bus.writeBin(data.bank, data.addr, data.values);
-			recipient?.postMessage({cmd, id });
+			recipient?.postMessage({ cmd, id });
 			break;
 
 		case "memWrite":
 			core.bus.write(data.addr, data.value);
-			recipient?.postMessage({cmd, id });
+			recipient?.postMessage({ cmd, id });
 			break;
 
 		case "memSearch":
 			core.bus.search(data.from, data.to, data.value);
-			recipient?.postMessage({cmd, id });
+			recipient?.postMessage({ cmd, id });
 			break;
 
 		/*
@@ -329,22 +326,22 @@ async function OnMessage({ports, data:{cmd, id, data}})
 			end: mem to addr
 		*/
 		case "memReadBytes": {
-			const count= data.count ? data.count : (data.end ? data.end-data.addr+1 : 1);
-			const bytes= [];
-			for(let idx= 0; idx<count; idx++) {
+			const count = data.count ? data.count : data.end ? data.end - data.addr + 1 : 1;
+			const bytes = [];
+			for (let idx = 0; idx < count; idx++) {
 				bytes.push(core.bus.read(data.addr + idx));
 			}
-			recipient?.postMessage({cmd, id, data: bytes });
+			recipient?.postMessage({ cmd, id, data: bytes });
 			break;
 		}
 
 		case "dbgReadBytes": {
-			const count= data.count ? data.count : (data.end ? data.end-data.addr+1 : 1);
-			const bytes= [];
-			for(let idx= 0; idx<count; idx++) {
+			const count = data.count ? data.count : data.end ? data.end - data.addr + 1 : 1;
+			const bytes = [];
+			for (let idx = 0; idx < count; idx++) {
 				bytes.push(core.bus.read(data.addr + idx, true));
 			}
-			recipient?.postMessage({cmd, id, data: bytes });
+			recipient?.postMessage({ cmd, id, data: bytes });
 			break;
 		}
 
@@ -352,16 +349,16 @@ async function OnMessage({ports, data:{cmd, id, data}})
 			dumpMem(data.addr);
 			break;
 
-		case 'step':
+		case "step":
 			// console.log('step', core.PC.toString(16), jsrLevel);
 			step();
-			recipient?.postMessage({cmd: "step", id: id });
+			recipient?.postMessage({ cmd: "step", id: id });
 			break;
 
-		case 'stepOver': {
-			if(0x20 == core.bus.read(core.PC)) {
+		case "stepOver": {
+			if (0x20 === core.bus.read(core.PC)) {
 				// const addr= core.bus.read(core.PC+1)+core.bus.read(core.PC+2)*256;
-				tempBP= core.PC + 3;
+				tempBP = core.PC + 3;
 
 				// console.log("stepOver", {
 				// 	PC:hexword(core.PC),
@@ -369,23 +366,23 @@ async function OnMessage({ports, data:{cmd, id, data}})
 				// 	BP: hexword(tempBP)
 				// });
 
-				recipient?.postMessage({cmd: "running", id: id });
+				recipient?.postMessage({ cmd: "running", id: id });
 				run();
 			} else {
 				// console.log("stepOver", {
 				// 	PC:hexword(core.PC),
 				// });
-				recipient?.postMessage({cmd: "stepOver", id: id });
+				recipient?.postMessage({ cmd: "stepOver", id: id });
 				step();
 			}
 			break;
 		}
 
-		case 'stepOut': {
-			wannaStopOnRTS= true;
-			stopAtjsrLevel= jsrLevel;
+		case "stepOut": {
+			wannaStopOnRTS = true;
+			stopAtjsrLevel = jsrLevel;
 			// console.log('stepOut', core.PC.toString(16), jsrLevel);
-			recipient?.postMessage({cmd: "stepOut", id: id });
+			recipient?.postMessage({ cmd: "stepOut", id: id });
 			run();
 			break;
 		}
@@ -396,73 +393,77 @@ async function OnMessage({ports, data:{cmd, id, data}})
 		*/
 		case "register": {
 			setRegisters(data);
-			if(data.meta)
-				execMeta(data.meta);
-			recipient?.postMessage({cmd: "register", id });
+			if (data.meta) execMeta(data.meta);
+			recipient?.postMessage({ cmd: "register", id });
 			break;
 		}
 
-		case 'update': {
-			const P= {
+		case "update": {
+			const P = {
 				c: core.FlagC,
 				z: core.FlagZ,
 				i: core.FlagI,
 				d: core.FlagD,
 				b: core.FlagB,
 				v: core.FlagV,
-				n: core.FlagN
+				n: core.FlagN,
 			};
-			const updateData= {
-				PC: core.PC, A: core.A, X: core.X, Y: core.Y, SP: core.SP, P,
-				cycle_count: core.cycle_count, calcAddress: core.calcAddress
+			const updateData = {
+				PC: core.PC,
+				A: core.A,
+				X: core.X,
+				Y: core.Y,
+				SP: core.SP,
+				P,
+				cycle_count: core.cycle_count,
+				calcAddress: core.calcAddress,
 			};
-			recipient?.postMessage({cmd: "update", id, data: updateData });
+			recipient?.postMessage({ cmd: "update", id, data: updateData });
 			break;
 		}
 
-		case 'cycles':
-			recipient?.postMessage({cmd: "cycles", id, data: core.cycle_count});
+		case "cycles":
+			recipient?.postMessage({ cmd: "cycles", id, data: core.cycle_count });
 			break;
 
-		case 'mhz':
-			recipient?.postMessage({cmd: "mhz", id, data: core.mhz});
+		case "mhz":
+			recipient?.postMessage({ cmd: "mhz", id, data: core.mhz });
 			break;
 
-		case 'run':
-			if(data) {
+		case "run":
+			if (data) {
 				setRegisters(data);
-				if(data.meta)
-					execMeta(data.meta);
+				if (data.meta) execMeta(data.meta);
 			}
 			run();
 			break;
 
-		case 'halt':
-		case 'stop':
-			core.running= 0;
-			recipient?.postMessage({cmd, id, data: core.cycle_count});
+		case "halt":
+		case "stop":
+			core.running = 0;
+			recipient?.postMessage({ cmd, id, data: core.cycle_count });
 			break;
 
-		case 'unhalt':
-			if(!core.running) {
-				core.running= 1;
+		case "unhalt":
+			if (!core.running) {
+				core.running = 1;
 				cycleFunc();
 			}
-			recipient?.postMessage({cmd, id, data: core.cycle_count});
+			recipient?.postMessage({ cmd, id, data: core.cycle_count });
 			break;
 
-		case 'reset':
+		case "reset":
 			// debugger;
 			core.bus.reset();
-			core.PC= core.bus.read(0xFFFC)+(core.bus.read(0xFFFD)<<8);
-			core.A= 0xAA;
-			core.FlagD= 0;
+			core.PC = core.bus.read(0xfffc) + (core.bus.read(0xfffd) << 8);
+			core.A = 0xaa;
+			core.FlagD = 0;
 			//What other flags get set at startup? I? B?
-			recipient?.postMessage({cmd:"reset", id});
+			recipient?.postMessage({ cmd: "reset", id });
 			break;
 
-		case 'keys':
-			keyBuffer= keyBuffer.concat(data.keys);
+		case "keys":
+			keyBuffer = keyBuffer.concat(data.keys);
 			break;
 
 		case "keydown":
@@ -471,8 +472,8 @@ async function OnMessage({ports, data:{cmd, id, data}})
 			break;
 
 		case "disasm": {
-			const lines= disasm(data.bank, data.addr, data.lineCount);
-			recipient?.postMessage({cmd: "mhz", id, data: lines});
+			const lines = disasm(data.bank, data.addr, data.lineCount);
+			recipient?.postMessage({ cmd: "mhz", id, data: lines });
 			break;
 		}
 
@@ -491,90 +492,107 @@ async function OnMessage({ports, data:{cmd, id, data}})
 }
 
 function setRegisters(data) {
-	const regs= registers.filter(reg => data?.hasOwnProperty(reg));
-	regs.forEach(reg => {
-		switch(reg) {
-			case "A":
-			case "X":
-			case "Y":
-			case "SP":
-				core[reg]= data[reg] & 0xFF;
-				break;
-			case "PC":
-				core[reg]= data[reg] & 0xFFFF;
-				break;
-			case "c":	core.FlagC= !!data[reg]; break;
-			case "z":	core.FlagZ= !!data[reg]; break;
-			case "i":	core.FlagI= !!data[reg]; break;
-			case "d":	core.FlagD= !!data[reg]; break;
-			case "b":	core.FlagB= !!data[reg]; break;
-			case "v":	core.FlagV= !!data[reg]; break;
-			case "n":	core.FlagN= !!data[reg]; break;
+	for (const reg of registers) {
+		if (data?.[reg]) {
+			switch (reg) {
+				case "A":
+				case "X":
+				case "Y":
+				case "SP":
+					core[reg] = data[reg] & 0xff;
+					break;
+				case "PC":
+					core[reg] = data[reg] & 0xffff;
+					break;
+				case "c":
+					core.FlagC = !!data[reg];
+					break;
+				case "z":
+					core.FlagZ = !!data[reg];
+					break;
+				case "i":
+					core.FlagI = !!data[reg];
+					break;
+				case "d":
+					core.FlagD = !!data[reg];
+					break;
+				case "b":
+					core.FlagB = !!data[reg];
+					break;
+				case "v":
+					core.FlagV = !!data[reg];
+					break;
+				case "n":
+					core.FlagN = !!data[reg];
+					break;
+			}
 		}
-	});
+	}
 }
 
 function execMeta(meta) {
-	if(meta.RTS) {
+	if (meta.RTS) {
 		// need to pop return addr
-		const SP= core.SP + 0x100;
-		const retAddr= 	core.bus.read(SP+2)*256
-						+
-						core.bus.read(SP+1);
-		core.SP+= 2;
+		const SP = core.SP + 0x100;
+		const retAddr = core.bus.read(SP + 2) * 256 + core.bus.read(SP + 1);
+		core.SP += 2;
 		// set PC (jsr pushed retaddr-1)
-		core.PC= retAddr+1;
+		core.PC = retAddr + 1;
 	}
 }
 
 function run() {
-
 	console.log("run", core.PC);
 
-	self.postMessage({cmd:"log", data: {
-		label:"CPU run",
-		PC: hexword(core.PC),
-		A: hexbyte(core.A),
-		X: hexbyte(core.X),
-		Y: hexbyte(core.Y),
-	}});
-	if(!core.running) {
-		core.running= 1;
+	self.postMessage({
+		cmd: "log",
+		data: {
+			label: "CPU run",
+			PC: hexword(core.PC),
+			A: hexbyte(core.A),
+			X: hexbyte(core.X),
+			Y: hexbyte(core.Y),
+		},
+	});
+	if (!core.running) {
+		core.running = 1;
 		cycleFunc();
 	}
 }
 function step() {
+	self.postMessage({
+		cmd: "log",
+		data: {
+			label: "CPU step",
+			PC: hexword(core.PC),
+			op: hexbyte(core.bus.read(core.PC)),
+		},
+	});
 
-	self.postMessage({cmd:"log", data: {
-		label:"CPU step",
-		PC: hexword(core.PC),
-		op: hexbyte(core.bus.read(core.PC))
-	}});
-
-	if(hooks.hasOwnProperty(core.PC) && hooks[core.PC][core.bus.lastBankUsed]) {
-		core.running= 0;
-		self.postMessage({cmd:"hooked", data: {
-			caller: "step",
-			BANK: core.bus.lastBankUsed,
-			PC: core.PC,
-			A: core.A,
-			X: core.X,
-			Y: core.Y,
-			SP: core.SP,
-		}});
+	if (hooks.has(core.PC) && hooks.get(core.PC)[core.bus.lastBankUsed]) {
+		core.running = 0;
+		self.postMessage({
+			cmd: "hooked",
+			data: {
+				caller: "step",
+				BANK: core.bus.lastBankUsed,
+				PC: core.PC,
+				A: core.A,
+				X: core.X,
+				Y: core.Y,
+				SP: core.SP,
+			},
+		});
 		return;
 	}
 
-	let op= core.bus.read(core.PC++);
+	let op = core.bus.read(core.PC++);
 	// if stopped on BRK, just skip it
-	if(op == 0x00)
-		op= core.bus.read(core.PC++);
+	if (op === 0x00) op = core.bus.read(core.PC++);
 
-	if(op == 0x20)
-		jsrLevel++;
-	if(op == 0x60)
-		jsrLevel--;
-	core.calcAddress=-1;
+	if (op === 0x20) jsrLevel++;
+	if (op === 0x60) jsrLevel--;
+	core.calcAddress = -1;
 	opcodes[op]();
 }
 
@@ -587,10 +605,10 @@ function hexbyte(value) {
 }
 
 function dumpMem(addr) {
-	let dumpStr= `${hexword(addr)}:`;
-	for(let column= 0; column<16; column++) {
-		const char= hexbyte(core.bus.ram[addr+column]);
-		dumpStr+= " "+char;
+	let dumpStr = `${hexword(addr)}:`;
+	for (let column = 0; column < 16; column++) {
+		const char = hexbyte(core.bus.ram[addr + column]);
+		dumpStr += ` ${char}`;
 	}
 	console.log(dumpStr);
 	// return dumpStr;
@@ -600,16 +618,17 @@ function dumpMem(addr) {
 //*SETUP FUNCTION*
 //****************
 
-function setup({busSrcFile, memory, NMOS, debuggerOnBRK}) {
-	return new Promise(resolve => {
-		function onLoaded({default: Bus}) {
-			core.bus= new Bus(self, memory);
-			NMOS_mode= NMOS;
-			core.debuggerOnBRK= debuggerOnBRK;
+function setup({ busSrcFile, memory, NMOS, debuggerOnBRK }) {
+	return new Promise((resolve) => {
+		function onLoaded({ default: Bus }) {
+			core.bus = new Bus(self, memory);
+			// NMOS_mode = NMOS;
+			core.debuggerOnBRK = debuggerOnBRK;
 			resolve();
-		};
+		}
 
 		// this trickery because vitejs is not able to deal with dynamic variable imports
+		// biome-ignore lint/security/noGlobalEval: <explanation>
 		eval(`import("/src/machines/${busSrcFile}").then(onLoaded)`);
 	});
 }
@@ -987,9 +1006,6 @@ function setup({busSrcFile, memory, NMOS, debuggerOnBRK}) {
 	});
 */
 
-
-
-
 //*********************************************
 //*FUNCTIONS FOR LOADING HEX AND LISTING FILES*
 //*********************************************
@@ -1160,5 +1176,3 @@ function peripheral_read(data)
 	else return data;
 }
 */
-
-

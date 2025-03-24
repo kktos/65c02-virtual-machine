@@ -1,14 +1,12 @@
 export default class KeyMap {
 	constructor() {
-		this.map= new Map();
+		this.map = new Map();
 	}
 
 	get(key) {
-		if(!this.map.has(key))
-			this.map.set(key, false);
-		const state= this.map.get(key);
-		if(state)
-			this.map.set(key, false);
+		if (!this.map.has(key)) this.map.set(key, false);
+		const state = this.map.get(key);
+		if (state) this.map.set(key, false);
 		return state;
 	}
 
