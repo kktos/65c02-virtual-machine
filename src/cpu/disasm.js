@@ -15,6 +15,13 @@ function formatJumpAddr(addr) {
 	return utils.hexword(addr);
 }
 
+function resolveAddr(addr, symbols) {
+	const label= utils.hexword(addr);
+	if(typeof symbols?.[label] === "string") {
+		return symbols[label];
+	}
+}
+
 function readbyte(bank, addr, readingOpcode = false) {
 	return core.bus.read(addr, !readingOpcode);
 	// addr&= 0xFFFF;
@@ -27,12 +34,12 @@ function readword(bank, addr, readingOpcode = false) {
 	// return (this.memory[base+((addr+1)&0xFFFF)]<<8) | this.memory[base+(addr&0xFFFF)];
 }
 
-function disassemble(bank, addr) {
+function disassemble(bank, addr, symbols) {
 	let len = 1;
 	let temp_str;
 	let ret_str = "";
 
-	const instrTemplate = instructions[readbyte(bank, addr, true)];
+	const instrTemplate = instructions[readbyte(bank, addr, true)] || "???";
 
 	// if(!temp_str) {
 	// 	console.log(bank, addr);
@@ -129,7 +136,8 @@ function disassemble(bank, addr) {
 				}
 				if (finalAddr) comment = `$${finalAddr}`;
 
-				ret_str += isFnCall ? formatJumpAddr(destAddr) : formatAddr(destAddr);
+				// ret_str += isFnCall ? formatJumpAddr(destAddr) : formatAddr(destAddr);
+				ret_str += resolveAddr(destAddr, symbols) ?? utils.hexword(destAddr);
 				len += 2;
 
 				break;
@@ -170,19 +178,24 @@ function getPrevInstrAddr(bank, addr) {
 	return bestAddr;
 }
 
-export function disasm(bank, addr, lineCount) {
+export function disasm(bank, addr, lineCount, symbols) {
 	const lines = [];
 	let startAddr = addr;
+	let label= null;
 	for (let lineIdx = 0; lineIdx < lineCount / 2; lineIdx++) {
-		const rez = disassemble(bank, startAddr);
-		lines.push({ addr: startAddr, disasm: rez[0], comment: rez[2], selected: startAddr === core.PC });
+		const rez = disassemble(bank, startAddr, symbols);
+		label= resolveAddr(startAddr, symbols);
+		lines.push({ label, addr: startAddr, disasm: rez[0], comment: rez[2], selected: startAddr === core.PC });
 		startAddr = rez[1];
+		label= null;
 	}
 	let prevAddr = addr;
 	for (let lineIdx = 0; lineIdx < lineCount / 2; lineIdx++) {
 		prevAddr = getPrevInstrAddr(bank, prevAddr);
-		const rez = disassemble(bank, prevAddr);
-		lines.unshift({ addr:prevAddr, disasm: rez[0], comment: rez[2], selected: prevAddr === core.PC });
+		label= resolveAddr(prevAddr, symbols);
+		const rez = disassemble(bank, prevAddr, symbols);
+		lines.unshift({ label, addr:prevAddr, disasm: rez[0], comment: rez[2], selected: prevAddr === core.PC });
+		label= null;
 	}
 	return lines;
 }

@@ -46,6 +46,7 @@ let tempBP = -1;
 let jsrLevel = 0;
 let stopAtjsrLevel = 0;
 let wannaStopOnRTS = false;
+let disasmSymbols;
 
 // let wannaLogAllSteps= false;
 
@@ -472,7 +473,7 @@ async function OnMessage({ ports, data: { cmd, id, data } }) {
 			break;
 
 		case "disasm": {
-			const lines = disasm(data.bank, data.addr, data.lineCount);
+			const lines = disasm(data.bank, data.addr, data.lineCount, disasmSymbols);
 			recipient?.postMessage({ cmd: "mhz", id, data: lines });
 			break;
 		}
@@ -618,12 +619,12 @@ function dumpMem(addr) {
 //*SETUP FUNCTION*
 //****************
 
-function setup({ busSrcFile, memory, NMOS, debuggerOnBRK }) {
+function setup({ busSrcFile, memory, debuggerOnBRK, symbols }) {
 	return new Promise((resolve) => {
 		function onLoaded({ default: Bus }) {
 			core.bus = new Bus(self, memory);
-			// NMOS_mode = NMOS;
 			core.debuggerOnBRK = debuggerOnBRK;
+			disasmSymbols = symbols;
 			resolve();
 		}
 

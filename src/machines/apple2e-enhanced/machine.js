@@ -121,7 +121,7 @@ const machine = {
 		],
 	},
 
-	debuggerOnBRK: false,
+	debuggerOnBRK: true,
 	busSrcFile: "apple2/bus.js",
 	hooks: processHooks,
 	Video,

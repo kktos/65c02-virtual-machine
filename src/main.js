@@ -1,32 +1,48 @@
-// import machine from "./machines/apple2e-enhanced/machine.js";
-import {hexbyte} from "./utils.js";
+import { GridStack } from 'gridstack';
+import { hexbyte } from "./utils.js";
 import VM from "./vm.js";
 
-import machine from "./machines/klaus-test-suite/machine.js";
-// import machine from "./machines/apple2-plus/machine.js";
+// import machine from "./machines/klaus-test-suite/machine.js";
+import machine from "./machines/apple2e-enhanced/machine.js";
+// import machine from apple2-plus/machine.js";
+
+// import diskUrl from '../../conan/dist/conan.bin?url';
+const diskUrl = "http://localhost:3000/conan.bin";
+const symbolsUrl = "http://localhost:3000/conan.dict";
 
 async function main() {
-	const canvas= document.getElementById("screen");
-	const vm= new VM(canvas, machine);
-	await vm.setup();
+
+	GridStack.init({
+		cellHeight: 100,
+	});
+
+	const symbols= await fetch(symbolsUrl).then(r=>r.json());
+
+	const canvas = document.getElementById("screen");
+	const vm = new VM(canvas, machine);
+	await vm.setup(symbols);
 	vm.start();
 
-	window.R= async (bank, addr, isDebug) => {
-		const rez= await vm.DBG_memRead(bank, addr, isDebug);
+	const disk = new Uint8Array(await (await fetch(diskUrl)).arrayBuffer());
+	vm.setDisk(0, disk);
+
+	window.R = async (bank, addr, isDebug) => {
+		const rez = await vm.DBG_memRead(bank, addr, isDebug);
 		console.log(hexbyte(rez));
 	};
-	window.W= async (bank, addr, value) => {
+	window.W = async (bank, addr, value) => {
 		await vm.DBG_memWrite(bank, addr, value);
 	};
-	window.S= async (from, to, value) => {
+	window.S = async (from, to, value) => {
 		await vm.DBG_memSearch(from, to, value);
 	};
-}
 
+}
 
 main();
 
-const src=`
+/*
+const src = `
 	.cpu "65c02"
 
 	.macro log fmt, parm1
@@ -248,4 +264,6 @@ text 	.cstr "THIS IS A TEST"
 ads 	.pstr "GUINNESS IS GOOD FOR YOU"
 
 `;
-document.getElementById("editor").innerText= src;
+document.getElementById("editor").innerText = src;
+
+*/

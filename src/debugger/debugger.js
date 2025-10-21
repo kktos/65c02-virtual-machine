@@ -399,12 +399,13 @@ export default class Debugger {
 
 	// TODO : test syntax.js -> https://github.com/williamtroup/Syntax.js/tree/main
 	async updateDisasm(cpuState) {
-		const buildLine = ({ lineID, addr, disasm, comment, selected }) => {
+		const buildLine = ({ lineID, label, addr, disasm, comment, selected }) => {
 			const bank = utils.hexbyte(this.mem?.dumpMemBank);
 			addr = utils.hexword(addr);
 			return `
-				<div class="line ${selected ? "selected" : ""}">
-					<div class="instruction" id="inst${lineID}">
+			<div class="line ${selected ? "selected" : ""}">
+			${label ? `<div class="label">${label}</div>` : ""}
+					<div class="instruction">
 						<div class="bank" data-bank="${bank}"></div>
 						<div class="addr" data-addr="${addr}"></div>
 						<div class="disasm">${disasm}</div>

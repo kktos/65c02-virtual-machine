@@ -7,6 +7,10 @@ settings:
 importers:
 
   .:
+    dependencies:
+      gridstack:
+        specifier: ^11.5.0
+        version: 11.5.0
     devDependencies:
       '@biomejs/biome':
         specifier: ^1.9.4
@@ -379,6 +383,9 @@ packages:
     resolution: {integrity: sha512-DyFP3BM/3YHTQOCUL/w0OZHR0lpKeGrxotcHWcqNEdnltqFwXVfhEBQ94eIo34AfQpo0rGki4cyIiftY06h2Fg==}
     engines: {node: 6.* || 8.* || >= 10.*}
 
+  gridstack@11.5.0:
+    resolution: {integrity: sha512-SE1a/aC2K8VKQr5cqV7gSJ+r/xIYghijIjHzkZ3Xo3aS1/4dvwIgPYT7QqgV1z+d7XjKYUPEizcgVQ5HhdFTng==}
+
   is-fullwidth-code-point@3.0.0:
     resolution: {integrity: sha512-zymm5+u+sCsSWyD9qNaejV3DFvhCKclKdizYaJUuHA83RLjb7nSuGnddCHGv0hk+KY7BMAlsWeK4Ueg6EV6XQg==}
     engines: {node: '>=8'}
@@ -715,6 +722,8 @@ snapshots:
     optional: true
 
   get-caller-file@2.0.5: {}
+
+  gridstack@11.5.0: {}
 
   is-fullwidth-code-point@3.0.0: {}
 

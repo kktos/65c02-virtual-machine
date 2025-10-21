@@ -9,7 +9,10 @@
     "serve": "vite preview",
     "asm:basic": "c:\\devtools\\cc65\\bin\\ca65.exe .\\tools\\basic\\strToHex.asm",
     "parse": "node tools/basic/test/main.mjs parser",
-    "run": "node tools/basic/test/main.mjs run"
+    "run": "node tools/basic/test/main.mjs run",
+    "lint:ci": "biome ci ./src",
+    "lint:fix": "biome check --write --unsafe ./src",
+    "format:fix": "biome format --write ./src"
   },
   "author": "",
   "license": "ISC",
@@ -26,5 +29,8 @@
       "@biomejs/biome",
       "esbuild"
     ]
+  },
+  "dependencies": {
+    "gridstack": "^11.5.0"
   }
 }

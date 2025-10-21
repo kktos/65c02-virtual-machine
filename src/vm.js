@@ -5,24 +5,23 @@ import KeyMap from "./keymap.js";
 
 let lastTime;
 let acc;
-const inc= ENV.FPS;
-let msgcounter= 0;
-const speeds= [0,0];
-let speedIdx= 0;
+const inc = ENV.FPS;
+let msgcounter = 0;
+const speeds = [0, 0];
+let speedIdx = 0;
 
-const OneMHz= 1_000_000 * ENV.FPS | 0;
+const OneMHz = (1_000_000 * ENV.FPS) | 0;
 export default class VM {
-
 	constructor(canvas, machine) {
-		this.machine= machine;
-		this.canvas= canvas;
-		this.isRunning= true;
+		this.machine = machine;
+		this.canvas = canvas;
+		this.isRunning = true;
 
 		console.log("machine:", machine.name, machine);
 
 		// this.diskImages= [];
 
-		this.gc= {
+		this.gc = {
 			viewport: {
 				canvas,
 				ctx: canvas.getContext("2d", { alpha: false }),
@@ -32,16 +31,16 @@ export default class VM {
 			tick: 0,
 			mhz: 0,
 
-			mouse: {x: 0, y: 0, down: false},
+			mouse: { x: 0, y: 0, down: false },
 			keys: new KeyMap(),
 		};
 
-		this.cpuWorker= new MyWorker();
+		this.cpuWorker = new MyWorker();
 		// this.worker= new Worker(new URL('./cpu/controller.mjs', import.meta.url));
 		// this.worker= new Worker('/js/cpu/controller.js');
-		this.cpuWorker.addEventListener('message', (e) => this.handleMessage(e), false);
+		this.cpuWorker.addEventListener("message", (e) => this.handleMessage(e), false);
 
-		this.memory= new SharedArrayBuffer(machine.memory.size);
+		this.memory = new SharedArrayBuffer(machine.memory.size);
 
 		// this.sendMessage("setup", {
 		// 	buffer: this.memory,
@@ -52,46 +51,45 @@ export default class VM {
 
 		this.setSpeed(1);
 
-		this.debugger= new Debugger(this, this.memory);
+		this.debugger = new Debugger(this, this.memory);
 
-		this.video= new machine.Video(this.memory, this);
+		this.video = new machine.Video(this.memory, this);
 
-		this.sound= new machine.Sound(this.memory, this);
+		this.sound = new machine.Sound(this.memory, this);
 
-		if(machine.Disk)
-			this.disk= new machine.Disk(this);
+		if (machine.Disk) this.disk = new machine.Disk(this);
 
-		this.canvas.width= this.video.width;
-		this.canvas.height= this.video.height;
+		this.canvas.width = this.video.width;
+		this.canvas.height = this.video.height;
 		this.gc.viewport.ctx.imageSmoothingEnabled = false; // magic!
 		this.gc.viewport.ctx.msImageSmoothingEnabled = false; // magic!
 
-		window.VM= this;
+		window.VM = this;
 	}
 
-	async setup() {
+	async setup(symbols) {
 		await this.sound.setup();
 
 		await this.waitMessage("setup", {
 			memory: this.memory,
 			busSrcFile: this.machine.busSrcFile,
-			debuggerOnBRK: this.machine.debuggerOnBRK===false ? false : true,
-			NMOS_mode: true
+			debuggerOnBRK: this.machine.debuggerOnBRK !== false,
+			// NMOS_mode: true,
+			symbols
 		});
 
 		this.setupMemoryMap();
 
-		this.sendMessage("addHook", {bank:0, addr: 0xC600});
-		this.sendMessage("addHook", {bank:0, addr: 0xC65C});
-		this.sendMessage("addHook", {bank:0, addr: 0xBD00});
+		this.sendMessage("addHook", { bank: 0, addr: 0xc600 });
+		this.sendMessage("addHook", { bank: 0, addr: 0xc65c });
+		this.sendMessage("addHook", { bank: 0, addr: 0xbd00 });
 		// this.sendMessage("addHook", {bank:1, addr: 0xCABA});
-
 	}
 
 	setupMemoryMap() {
-		this.machine.memory.map.forEach(({bank, addr, data, type}) => {
+		for (const { bank, addr, data, type } of this.machine.memory.map) {
 			this.memWriteHexa(bank, addr, data, type);
-		});
+		}
 	}
 
 	memWriteHexa(bank, addr, hexString, type) {
@@ -99,7 +97,7 @@ export default class VM {
 			bank,
 			addr,
 			hexString,
-			type
+			type,
 		});
 	}
 
@@ -107,29 +105,29 @@ export default class VM {
 		return this.waitMessage("memWriteBin", {
 			bank,
 			addr,
-			values
+			values,
 		});
 	}
 
 	DBG_memRead(bank, addr, isDebug) {
-		return this.waitMessage((isDebug ? "dbgReadBytes" : "memReadBytes"), {
+		return this.waitMessage(isDebug ? "dbgReadBytes" : "memReadBytes", {
 			bank,
 			addr,
-			count: 1
+			count: 1,
 		});
 	}
 	DBG_memWrite(bank, addr, value) {
 		return this.waitMessage("memWrite", {
 			bank,
 			addr,
-			value
+			value,
 		});
 	}
 	DBG_memSearch(from, to, value) {
 		return this.waitMessage("memSearch", {
 			from,
 			to,
-			value
+			value,
 		});
 	}
 
@@ -148,40 +146,39 @@ export default class VM {
 		// this.cpuMultiplier= multiplier;
 		// this.cyclesPerFrame= multiplier * OneMHz;
 		this.sendMessage("setSpeed", {
-			speed: multiplier
+			speed: multiplier,
 		});
 	}
 
-	async loop(dt= 0) {
-		acc+= (dt - lastTime) / 1000;
-		while(acc > inc) {
+	async loop(dt = 0) {
+		acc += (dt - lastTime) / 1000;
+		while (acc > inc) {
 			this.video.update(this.gc, !this.isRunning);
 			this.gc.tick++;
-			this.sound.doTick( await this.waitMessage("cycles") );
-			acc-= inc;
+			this.sound.doTick(await this.waitMessage("cycles"));
+			acc -= inc;
 		}
-		lastTime= dt;
+		lastTime = dt;
 
-		requestAnimationFrame((dt)=> this.loop(dt));
+		requestAnimationFrame((dt) => this.loop(dt));
 
-		if(this.isRunning) {
-			this.waitMessage("mhz").then(data=>{
-				speedIdx= speedIdx+1 % speeds.length;
-				speeds[speedIdx]= data/1_000;
-				const avg= speeds.reduce((acc, cur)=>acc+cur, 0) / speeds.length;
-				this.gc.mhz= Math.round((avg + Number.EPSILON) * 100) / 100
+		if (this.isRunning) {
+			this.waitMessage("mhz").then((data) => {
+				speedIdx = speedIdx + (1 % speeds.length);
+				speeds[speedIdx] = data / 1_000;
+				const avg = speeds.reduce((acc, cur) => acc + cur, 0) / speeds.length;
+				this.gc.mhz = Math.round((avg + Number.EPSILON) * 100) / 100;
 			});
 		}
-
 	}
 
 	async handleMessage(evt) {
-		const msg= evt.data;
-		const sender= evt.ports[0];
+		const msg = evt.data;
+		const sender = evt.ports[0];
 
 		// sender && console.log("VM.handleMessage", msg, sender);
 
-		switch(msg.cmd) {
+		switch (msg.cmd) {
 			case "clog":
 				console.clog(msg.data.color, "### WORKER", msg.data);
 				break;
@@ -195,10 +192,10 @@ export default class VM {
 				this.sound.handleMessage(msg.data);
 				break;
 			case "disk":
-				this.disk.handleMessage(msg.data).then(()=> {
+				this.disk.handleMessage(msg.data).then(() => {
 					this.sendMessage("memWrite", {
-						addr: 0xC0FF,
-						value: 1
+						addr: 0xc0ff,
+						value: 1,
 					});
 				});
 
@@ -215,9 +212,9 @@ export default class VM {
 				break;
 
 			case "hooked": {
-				const res= await this.machine.hooks?.(this, msg.data);
-				if(res.wannaKeepItRunning) {
-					setTimeout( () => this.sendMessage(msg.data.caller, res.data), 0);
+				const res = await this.machine.hooks?.(this, msg.data);
+				if (res.wannaKeepItRunning) {
+					setTimeout(() => this.sendMessage(msg.data.caller, res.data), 0);
 				} else {
 					this.debugger.pause();
 					this.debugger.update();
@@ -227,23 +224,22 @@ export default class VM {
 		}
 	}
 
-	waitMessage(cmd, data= null) {
-		const msgID= msgcounter++;
-		return new Promise(resolve => {
-			const {port1, port2}= new MessageChannel();
-			port1.onmessage= ({data:{cmd, id, data}}) => {
-				// console.error("waitMessage", cmd, id, data);
+	waitMessage(cmd, data = null) {
+		const msgID = msgcounter++;
+		return new Promise((resolve) => {
+			const { port1, port2 } = new MessageChannel();
+			port1.onmessage = ({ data: { cmd, id, data } }) => {
 				resolve(data);
 			};
 
 			// console.log("waitMessage", cmd, msgID, data);
 
-			this.cpuWorker.postMessage({cmd, id: msgID, data}, [port2]);
+			this.cpuWorker.postMessage({ cmd, id: msgID, data }, [port2]);
 		});
 	}
 
-	sendMessage(cmd, data= null) {
-		this.cpuWorker.postMessage({cmd, id: msgcounter++, data});
+	sendMessage(cmd, data = null) {
+		this.cpuWorker.postMessage({ cmd, id: msgcounter++, data });
 	}
 
 	getCPUCycles() {
@@ -255,7 +251,7 @@ export default class VM {
 	}
 
 	updateCPUregister(register, value) {
-		this.sendMessage("register", {[register]: value});
+		this.sendMessage("register", { [register]: value });
 	}
 
 	updateVideo() {
@@ -265,32 +261,32 @@ export default class VM {
 	async pause() {
 		await this.waitMessage("stop");
 		// console.log( "stopped at", (await this.waitMessage("stop")).toString(16) );
-		this.isRunning= false;
+		this.isRunning = false;
 	}
 
 	play() {
-		this.isRunning= true;
-		lastTime= 0;
-		acc= 0;
-		requestAnimationFrame((dt)=> this.loop(dt));
+		this.isRunning = true;
+		lastTime = 0;
+		acc = 0;
+		requestAnimationFrame((dt) => this.loop(dt));
 		this.sendMessage("run");
 	}
 
 	step() {
-		return this.waitMessage("step").then(()=>{
-			setTimeout(()=>this.video.update(this.gc),0);
+		return this.waitMessage("step").then(() => {
+			setTimeout(() => this.video.update(this.gc), 0);
 		});
 	}
 
 	stepOut() {
-		return this.waitMessage("stepOut").then(()=>{
-			setTimeout(()=>this.video.update(this.gc),0);
+		return this.waitMessage("stepOut").then(() => {
+			setTimeout(() => this.video.update(this.gc), 0);
 		});
 	}
 
 	stepOver() {
-		return this.waitMessage("stepOver").then(()=>{
-			setTimeout(()=>this.video.update(this.gc),0);
+		return this.waitMessage("stepOver").then(() => {
+			setTimeout(() => this.video.update(this.gc), 0);
 		});
 	}
 
@@ -300,25 +296,22 @@ export default class VM {
 	}
 
 	handleEvent(e) {
-		if(!e.isTrusted)
-			return;
+		if (!e.isTrusted) return;
 
-		switch(e.type) {
+		switch (e.type) {
 			case "keyup":
 			case "keydown":
 				// console.log(e);
-				this.sendMessage(e.type, {key: e.key});
+				this.sendMessage(e.type, { key: e.key });
 				break;
 		}
-
 	}
 
 	async start() {
-
-		const machine= document.getElementById("machine");
-		[
-			"keyup", "keydown",
-		].forEach(type=> machine.addEventListener(type, this));
+		const machine = document.getElementById("machine");
+		for (const type of ["keyup", "keydown"]) {
+			machine.addEventListener(type, this);
+		}
 
 		await this.waitMessage("reset");
 
@@ -326,7 +319,5 @@ export default class VM {
 		this.debugger.pause();
 
 		// this.play();
-
 	}
-
 }
