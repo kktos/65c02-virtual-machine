@@ -25,20 +25,7 @@ import { disasm } from "./disasm";
 //*GLOBAL VARIABLES*
 //******************
 
-const registers = [
-	"A",
-	"X",
-	"Y",
-	"PC",
-	"SP",
-	"c",
-	"z",
-	"i",
-	"d",
-	"b",
-	"v",
-	"n",
-];
+const registers = ["A", "X", "Y", "PC", "SP", "c", "z", "i", "d", "b", "v", "n"];
 
 const CYCLES_COUNT_FOR_1MHZ = 5000;
 const speedMHz = 3; //4.1MHz = 4.35; //2.8MHz(IIgs) = 3; //2MHz = 2.08;
@@ -86,10 +73,7 @@ function* cycle10_6() {
 	do {
 		const startCount = core.cycle_count;
 		// for(let i=0; i<17_030; i++)
-		while (
-			core.running &&
-			core.cycle_count - startCount < cyclesCountForSpeed
-		) {
+		while (core.running && core.cycle_count - startCount < cyclesCountForSpeed) {
 			core.calcAddress = -1;
 
 			//
@@ -244,8 +228,7 @@ function _recordCycle() {
 	_cycleLog += cycleTemp.toUpperCase().padEnd(10, " ");
 	_cycleLog += disassemble(cycleBytes);
 	_cycleLog += `core.A:${core.A.toString(16).toUpperCase().padStart(2, "0")} `;
-	if (core.A >= " ".charCodeAt(0) && core.A <= "~".charCodeAt(0))
-		_cycleLog += `(${String.fromCharCode(core.A)}) `;
+	if (core.A >= " ".charCodeAt(0) && core.A <= "~".charCodeAt(0)) _cycleLog += `(${String.fromCharCode(core.A)}) `;
 	else _cycleLog += "( ) ";
 	_cycleLog += `core.X:${core.X.toString(16).toUpperCase().padStart(2, "0")} `;
 	_cycleLog += `core.Y:${core.Y.toString(16).toUpperCase().padStart(2, "0")} `;
@@ -342,11 +325,7 @@ async function OnMessage({ ports, data: { cmd, id, data } }) {
 			end: mem to addr
 		*/
 		case "memReadBytes": {
-			const count = data.count
-				? data.count
-				: data.end
-					? data.end - data.addr + 1
-					: 1;
+			const count = data.count ? data.count : data.end ? data.end - data.addr + 1 : 1;
 			const bytes = [];
 			for (let idx = 0; idx < count; idx++) {
 				bytes.push(core.bus.read(data.addr + idx));
@@ -356,11 +335,7 @@ async function OnMessage({ ports, data: { cmd, id, data } }) {
 		}
 
 		case "dbgReadBytes": {
-			const count = data.count
-				? data.count
-				: data.end
-					? data.end - data.addr + 1
-					: 1;
+			const count = data.count ? data.count : data.end ? data.end - data.addr + 1 : 1;
 			const bytes = [];
 			for (let idx = 0; idx < count; idx++) {
 				bytes.push(core.bus.read(data.addr + idx, true));
@@ -625,9 +600,7 @@ function hexword(value) {
 }
 
 function hexbyte(value) {
-	return (
-		((value >>> 4) & 0xf).toString(16) + (value & 0xf).toString(16)
-	).toUpperCase();
+	return (((value >>> 4) & 0xf).toString(16) + (value & 0xf).toString(16)).toUpperCase();
 }
 
 function dumpMem(addr) {

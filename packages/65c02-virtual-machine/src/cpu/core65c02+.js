@@ -50,8 +50,7 @@ function memIMMED() {
 function memIX() {
 	//No banking for pointer since always in ZP
 	const t0 = (core.bus.read(core.PC++) + core.X) & 0xff;
-	core.calcAddress =
-		(core.bus.read(t0) + (core.bus.read(t0 + 1) << 8)) & 0xffff;
+	core.calcAddress = (core.bus.read(t0) + (core.bus.read(t0 + 1) << 8)) & 0xffff;
 	return core.bus.read(core.calcAddress);
 }
 function memIY() {
@@ -133,9 +132,7 @@ function doOUT() {
 				outStr += hexbyte(core.X);
 				break;
 			case "%w": {
-				const v =
-					core.bus.read(parms[curParm]) +
-					0x100 * core.bus.read(parms[curParm] + 1);
+				const v = core.bus.read(parms[curParm]) + 0x100 * core.bus.read(parms[curParm] + 1);
 				outStr += hexword(v);
 				curParm++;
 				break;
@@ -157,9 +154,7 @@ function doOUT() {
 			case "%D":
 				{
 					const len = W * H;
-					const addr =
-						core.bus.read(parms[curParm]) +
-						0x100 * core.bus.read(parms[curParm] + 1);
+					const addr = core.bus.read(parms[curParm]) + 0x100 * core.bus.read(parms[curParm] + 1);
 					outStr += `\n[${hexword(addr)}.${hexword(addr + len - 1)}]`;
 					outStr += `\n${hexword(addr)}: `;
 					let curW = 0;
@@ -223,9 +218,7 @@ function doDISK_READ() {
 }
 
 function hexbyte(value) {
-	return (
-		((value >>> 4) & 0xf).toString(16) + (value & 0xf).toString(16)
-	).toUpperCase();
+	return (((value >>> 4) & 0xf).toString(16) + (value & 0xf).toString(16)).toUpperCase();
 }
 function hexword(value) {
 	return hexbyte(value >>> 8) + hexbyte(value & 0xff);
@@ -256,8 +249,7 @@ function doADC(oper) {
 		core.FlagC = 1;
 	} else core.FlagC = 0;
 	if (core.A < 0x80 && operand < 0x80 && tempResult >= 0x80) core.FlagV = 1;
-	else if (core.A >= 0x80 && operand >= 0x80 && tempResult < 0x80)
-		core.FlagV = 1;
+	else if (core.A >= 0x80 && operand >= 0x80 && tempResult < 0x80) core.FlagV = 1;
 	else core.FlagV = 0;
 	core.A = tempResult;
 	setZN(core.A);
@@ -1046,8 +1038,7 @@ function opPLY() {
 //function opNOP()													//0x7B
 function opJMP_IADDRESSX() {
 	//0x7C
-	const t0 =
-		core.bus.read(core.PC) + 0x100 * core.bus.read(core.PC + 1) + core.X;
+	const t0 = core.bus.read(core.PC) + 0x100 * core.bus.read(core.PC + 1) + core.X;
 	core.PC = core.bus.read(t0) + 0x100 * core.bus.read(t0 + 1);
 	core.cycle_count += 6;
 }
@@ -1603,15 +1594,12 @@ function opBBS7() {
 } //0xFF
 
 const _opLens = [
-	2, 2, 2, 1, 2, 2, 2, 2, 1, 2, 1, 1, 3, 3, 3, 3, 2, 2, 2, 1, 2, 2, 2, 2, 1, 3,
-	1, 1, 3, 3, 3, 3, 3, 2, 2, 1, 2, 2, 2, 2, 1, 2, 1, 1, 3, 3, 3, 3, 2, 2, 2, 1,
-	2, 2, 2, 2, 1, 3, 1, 1, 3, 3, 3, 3, 1, 2, 2, 1, 2, 2, 2, 2, 1, 2, 1, 1, 3, 3,
-	3, 3, 2, 2, 2, 1, 2, 2, 2, 2, 1, 3, 1, 1, 3, 3, 3, 3, 1, 2, 2, 1, 2, 2, 2, 2,
-	1, 2, 1, 1, 3, 3, 3, 3, 2, 2, 2, 1, 2, 2, 2, 2, 1, 3, 1, 1, 3, 3, 3, 3, 2, 2,
-	2, 1, 2, 2, 2, 2, 1, 2, 1, 1, 3, 3, 3, 3, 2, 2, 2, 1, 2, 2, 2, 2, 1, 2, 1, 1,
-	3, 3, 3, 3, 2, 2, 2, 1, 2, 2, 2, 2, 1, 2, 1, 1, 3, 3, 3, 3, 2, 2, 2, 1, 2, 2,
-	2, 2, 1, 3, 1, 1, 3, 3, 3, 3, 2, 2, 2, 1, 2, 2, 2, 2, 1, 2, 1, 1, 3, 3, 3, 3,
-	2, 2, 2, 1, 2, 2, 2, 2, 1, 3, 1, 1, 3, 3, 3, 3, 2, 2, 2, 1, 2, 2, 2, 2, 1, 2,
+	2, 2, 2, 1, 2, 2, 2, 2, 1, 2, 1, 1, 3, 3, 3, 3, 2, 2, 2, 1, 2, 2, 2, 2, 1, 3, 1, 1, 3, 3, 3, 3, 3, 2, 2, 1, 2, 2, 2,
+	2, 1, 2, 1, 1, 3, 3, 3, 3, 2, 2, 2, 1, 2, 2, 2, 2, 1, 3, 1, 1, 3, 3, 3, 3, 1, 2, 2, 1, 2, 2, 2, 2, 1, 2, 1, 1, 3, 3,
+	3, 3, 2, 2, 2, 1, 2, 2, 2, 2, 1, 3, 1, 1, 3, 3, 3, 3, 1, 2, 2, 1, 2, 2, 2, 2, 1, 2, 1, 1, 3, 3, 3, 3, 2, 2, 2, 1, 2,
+	2, 2, 2, 1, 3, 1, 1, 3, 3, 3, 3, 2, 2, 2, 1, 2, 2, 2, 2, 1, 2, 1, 1, 3, 3, 3, 3, 2, 2, 2, 1, 2, 2, 2, 2, 1, 2, 1, 1,
+	3, 3, 3, 3, 2, 2, 2, 1, 2, 2, 2, 2, 1, 2, 1, 1, 3, 3, 3, 3, 2, 2, 2, 1, 2, 2, 2, 2, 1, 3, 1, 1, 3, 3, 3, 3, 2, 2, 2,
+	1, 2, 2, 2, 2, 1, 2, 1, 1, 3, 3, 3, 3, 2, 2, 2, 1, 2, 2, 2, 2, 1, 3, 1, 1, 3, 3, 3, 3, 2, 2, 2, 1, 2, 2, 2, 2, 1, 2,
 	1, 1, 3, 3, 3, 3, 2, 2, 2, 1, 3, 2, 2, 2, 1, 3, 1, 1, 3, 3, 3, 3,
 ];
 

@@ -62,9 +62,7 @@ export default class Debugger {
 		el.id = `${id}Widget`;
 
 		const content = el.querySelector(".grid-stack-item-content");
-		content.appendChild(
-			document.querySelector(`#${id}Tmpl`).content.cloneNode(true),
-		);
+		content.appendChild(document.querySelector(`#${id}Tmpl`).content.cloneNode(true));
 		const closeBtn = content.querySelector("#close");
 		closeBtn?.addEventListener("click", () => {
 			grid.removeWidget(el);
@@ -118,18 +116,10 @@ export default class Debugger {
 		this.stackLinecount = Math.floor(height / 8);
 		this.UIstack = document.querySelector("#stack");
 
-		this.addWidget(
-			this.grid,
-			{ x: 10, y: 0, w: 1, h: 1, noResize: true },
-			"bps",
-		);
+		this.addWidget(this.grid, { x: 10, y: 0, w: 1, h: 1, noResize: true }, "bps");
 		this.UIbps = document.querySelector("#bps");
 
-		this.addWidget(
-			this.grid,
-			{ x: 10, y: 0, w: 1, h: 1, noResize: true },
-			"registers",
-		);
+		this.addWidget(this.grid, { x: 10, y: 0, w: 1, h: 1, noResize: true }, "registers");
 		this.registers = {
 			pc: document.querySelector("#registers #PC"),
 			a: document.querySelector("#registers #A"),
@@ -138,15 +128,9 @@ export default class Debugger {
 			sp: document.querySelector("#registers #SP"),
 			p: document.querySelector("#registers #P"),
 		};
-		document
-			.querySelector("#registers")
-			.addEventListener("click", (e) => this.onClickRegister(e));
+		document.querySelector("#registers").addEventListener("click", (e) => this.onClickRegister(e));
 
-		this.addWidget(
-			this.grid,
-			{ x: 7, y: 0, w: 3, h: 1, noResize: true },
-			"btns",
-		);
+		this.addWidget(this.grid, { x: 7, y: 0, w: 3, h: 1, noResize: true }, "btns");
 
 		this.UIbps.addEventListener("click", (e) => this.onClickBreakpoints(e));
 
@@ -323,19 +307,10 @@ export default class Debugger {
 
 	onClickDisasm(e) {
 		const instructionID = e.target.parentElement.id;
-		const bank = Number.parseInt(
-			document.querySelector(`#${instructionID} .bank`).attributes["data-bank"]
-				?.value,
-			16,
-		);
-		const addr = Number.parseInt(
-			document.querySelector(`#${instructionID} .addr`).attributes["data-addr"]
-				?.value,
-			16,
-		);
+		const bank = Number.parseInt(document.querySelector(`#${instructionID} .bank`).attributes["data-bank"]?.value, 16);
+		const addr = Number.parseInt(document.querySelector(`#${instructionID} .addr`).attributes["data-addr"]?.value, 16);
 
-		if (!Number.isNaN(bank) && !Number.isNaN(addr))
-			this.toggleBreakpoint(bank * 0x10000 + addr);
+		if (!Number.isNaN(bank) && !Number.isNaN(addr)) this.toggleBreakpoint(bank * 0x10000 + addr);
 	}
 
 	onClickRegister(e) {
@@ -345,10 +320,7 @@ export default class Debugger {
 		} else {
 			const target = e.target.parentElement;
 			if (target.className !== "status") return;
-			this.vm.updateCPUregister(
-				target.id,
-				1 - target.querySelector(".flag").innerText,
-			);
+			this.vm.updateCPUregister(target.id, 1 - target.querySelector(".flag").innerText);
 		}
 		this.update();
 	}
@@ -363,12 +335,8 @@ export default class Debugger {
 				break;
 			}
 			case "bpa": {
-				const currentValue =
-					bpIdx < this.breakpoints.length ? this.breakpoints[bpIdx] : null;
-				let value = prompt(
-					"Enter Breakpoint address",
-					currentValue ? utils.hexword(currentValue) : "",
-				);
+				const currentValue = bpIdx < this.breakpoints.length ? this.breakpoints[bpIdx] : null;
+				let value = prompt("Enter Breakpoint address", currentValue ? utils.hexword(currentValue) : "");
 				value = Number.parseInt(value, 16);
 				if (!Number.isNaN(value) && value !== currentValue) {
 					if (currentValue) this.toggleBreakpoint(currentValue);
@@ -408,24 +376,13 @@ export default class Debugger {
 		address &= 0xffff;
 		let bestAddr = address - 1;
 		let bestScore = 0;
-		for (
-			let startingPoint = address - 20;
-			startingPoint !== address;
-			startingPoint++
-		) {
+		for (let startingPoint = address - 20; startingPoint !== address; startingPoint++) {
 			let score = 0;
 			let startAddr = startingPoint & 0xffff;
 			while (startAddr < address) {
-				const result = await this.disassembler.disassemble(
-					this.mem.dumpMemBank,
-					startAddr,
-					cpuState,
-				);
+				const result = await this.disassembler.disassemble(this.mem.dumpMemBank, startAddr, cpuState);
 				if (result[0] === cpuState.PC) score += 10; // huge boost if this instruction was executed
-				if (
-					result[0].match(commonInstructions) &&
-					!result[0].match(uncommonInstrucions)
-				) {
+				if (result[0].match(commonInstructions) && !result[0].match(uncommonInstrucions)) {
 					score++;
 				}
 				if (result[1] === address) {
