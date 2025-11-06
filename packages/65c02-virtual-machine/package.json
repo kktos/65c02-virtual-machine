@@ -1,0 +1,30 @@
+{
+	"name": "65c02-virtual-machine",
+	"version": "1.0.0",
+	"description": "",
+	"main": "main.js",
+	"scripts": {
+		"dev": "vite -c ./config.vite.js",
+		"build": "vite build",
+		"serve": "vite preview",
+		"asm:basic": "c:\\devtools\\cc65\\bin\\ca65.exe .\\tools\\basic\\strToHex.asm",
+		"parse": "node tools/basic/test/main.mjs parser",
+		"run": "node tools/basic/test/main.mjs run",
+		"lint:ci": "biome ci ./src",
+		"lint:fix": "biome check --write --unsafe ./src",
+		"format:fix": "biome format --write ./src"
+	},
+	"author": "",
+	"license": "ISC",
+	"devDependencies": {
+		"@biomejs/biome": "^2.2.6",
+		"@types/node": "^24.9.1",
+		"@types/yargs": "^17.0.33",
+		"typescript": "^5.9.3",
+		"vite": "^7.1.11",
+		"yargs": "^18.0.0"
+	},
+	"dependencies": {
+		"gridstack": "^12.3.3"
+	}
+}

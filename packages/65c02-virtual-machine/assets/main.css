@@ -1,0 +1,270 @@
+@font-face { font-family: PrintChar21; src: url("/assets/fonts/PrintChar21.ttf"); }
+@font-face { font-family: PRNumber3; src: url("/assets/fonts/PRNumber3.ttf"); }
+BODY {
+	font-family: PrintChar21;
+	/* position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	margin: 0;
+	display: grid;
+	grid-auto-flow: column;
+	grid-template-columns: 1fr 1fr; */
+	background-color: #353535;
+}
+.grid-stack {
+	background: #182e40e6;
+	color: #29f529;
+	font-size: 8px;
+}
+.grid-stack-item-content {
+	background-color: #FFFFFF05;
+}
+.center {
+	place-content: center;
+	text-align: center;
+}
+#screen {
+    width: 800px;
+    aspect-ratio: 280/192;
+}
+
+.log {
+	display: none;
+    grid-area: log;
+    background: black;
+    padding: 5px;
+    overflow-y: scroll;
+	font-family: monospace;
+    white-space: pre;
+    font-size: 16px;
+}
+.log-disk {
+	color: #e54e4e;
+    text-align: end;
+}
+.log-cpu {
+	color: rgb(35, 99, 173);
+}
+/* #screen {
+	width: 100%;;
+	height: 100%;;
+} */
+
+#disasm {
+	/* grid-area: disasm; */
+	display: grid;
+	grid-gap: 3px;
+	grid-template-columns: 350px;
+	grid-auto-rows: min-content;
+}
+#disasm .line {
+	display: grid;
+	grid-template-columns: 1fr auto;
+}
+#disasm .label {
+	grid-column: span 2;
+	margin-block: 4px;
+}
+#disasm .label:after {
+	content: ":";
+}
+#disasm .instruction {
+	display: grid;
+	grid-template: "bank addr disasm" auto/auto auto 1fr;
+}
+#disasm .bank:before {
+	content: attr(data-bank);
+}
+#disasm .addr:before {
+	content: attr(data-addr);
+}
+#disasm .bank {
+	cursor: pointer;
+	grid-area: bank;
+}
+#disasm .addr {
+	cursor: pointer;
+	grid-area: addr;
+}
+#disasm .disasm {
+	grid-area: disasm;
+	padding-left: 10px;
+}
+#disasm .comment {
+	color: #afafaf;
+}
+#disasm .comment:before {
+	content: ";";
+}
+
+#btns {
+	grid-area: btns;
+	color: white;
+	display: grid;
+	grid-template-columns: repeat(2,min-content);
+	grid-gap: 5px;
+}
+.btn-group {
+	display: grid;
+	grid-auto-flow: column;
+	grid-gap: 5px;
+}
+.btn {
+	padding: 5px 10px;
+    border: 1px solid gray;
+    min-height: 20px;
+    place-content: center;
+	white-space: nowrap;
+}
+.btn.small {
+	padding: 0;
+    border: 0;
+}
+.btn:hover {
+	background-color: #ffffff3f;
+}
+.icn {
+	width: 20px;
+}
+.btn.running.paused {
+	cursor: default;
+	opacity: .3;
+}
+.btn.running.play {
+	display: none;
+}
+.right {
+	float: right;
+}
+
+#registers {
+	display: grid;
+	grid-template-rows: repeat(5,13px);
+	grid-template-columns: 30px auto;
+	grid-auto-rows: min-content;
+	justify-items: center;
+	align-items: center;
+	grid-gap: 3px;
+}
+.registersX_Y {
+	grid-column: span 2;
+	display: grid;
+	grid-auto-flow: column;
+	grid-gap: 5px;
+	place-items: center;
+}
+.register {
+	cursor: pointer;
+	outline: 1px solid;
+	padding: 2px;
+}
+.register:hover {
+	outline: 1px solid white;
+}
+.p.register {
+	display: grid;
+	grid-auto-flow: column;
+	grid-column: span 2;
+	grid-row: span 2;
+	grid-gap: 2px;
+}
+#mem {
+	/* grid-area: mem; */
+	display: grid;
+	grid-gap: 3px;
+	grid-auto-rows: min-content;
+	/* background-color: #182e40e6;
+	color: #29f529;
+	font-size: 8px; */
+}
+#mem .addr {
+	display: grid;
+    grid-auto-flow: column;
+    justify-content: left;
+    grid-gap: 6px;
+	cursor: pointer;
+	white-space: nowrap;
+}
+#mem .addr.real {
+		color: red;
+}
+#mem .value:hover {
+	outline: 1px solid white;
+}
+#stack {
+	align-self: center;
+	justify-self: center;
+}
+#stack .selected::after {
+	content: "";
+	border-bottom: 5px solid transparent;
+	border-top: 5px solid transparent;
+	border-right: 10px solid;
+	position: absolute;
+	margin-left: 2px;
+	margin-top: -2px;
+}
+#stack .selected::before {
+	content: "";
+	border-bottom: 5px solid transparent;
+	border-top: 5px solid transparent;
+	border-left: 10px solid;
+	position: absolute;
+	margin-left: -11px;
+	margin-top: -2px;
+}
+#bps {
+	cursor: pointer;
+}
+#bps>div {
+    display: grid;
+    grid-auto-flow: column;
+	grid-template-columns: auto 1fr;
+	grid-gap: 5px;
+}
+.selected {
+	color: white;
+}
+INPUT {
+	width: 40px;
+	text-align: right;
+}
+#asm {
+	visibility: hidden;
+    background: black;
+    margin: 0;
+	display: grid;
+	grid-template:
+        "btns" 30px
+        "src"/auto;
+	z-index: 1;
+}
+#editor {
+	font-size: 1em;
+	margin-inline: 10px;
+	color: white;
+}
+.asm-src {
+    grid-area: src;
+	position: absolute;
+    top: 5px;
+    bottom: 5px;
+    left: 5px;
+    right: 5px;
+	overflow-y: scroll;
+}
+[contenteditable]:focus {
+    outline: 0px solid transparent;
+}
+
+/* [window] {
+	outline: white solid 1px;
+}
+[window].resizing {
+	outline: red solid 1px;
+}
+[window-title] {
+	position: relative;
+} */
