@@ -1,5 +1,5 @@
 import { Bus } from "../machines/apple2/bus.class";
-import { initEmulator, setClockSpeed, setRunning } from "./cpu.65c02";
+import { initCPU, setClockSpeed, setRunning, stepInstruction } from "./cpu.65c02";
 import { MEMORY_OFFSET, MEMORY_SIZE } from "./shared-memory";
 
 console.log("CPU Worker script loaded.");
@@ -22,7 +22,7 @@ self.onmessage = (event: MessageEvent) => {
 			// Example: Initialize some values from the worker side
 			// Initialize the emulator module with the shared memory views
 			const bus = new Bus(memoryView);
-			initEmulator(bus, registersView);
+			initCPU(bus, registersView);
 		} else {
 			console.error("Worker: Did not receive a SharedArrayBuffer.");
 		}
@@ -42,6 +42,9 @@ self.onmessage = (event: MessageEvent) => {
 			break;
 		case "pause":
 			setRunning(false);
+			break;
+		case "step":
+			stepInstruction();
 			break;
 		case "setSpeed":
 			if (typeof speed === "number" && speed > 0) {

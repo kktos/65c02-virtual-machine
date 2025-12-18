@@ -28,44 +28,69 @@ const FLAG_D_MASK = 0x08;
 // const FLAG_B_MASK = 0x10;
 const FLAG_V_MASK = 0x40;
 
-export const initEmulator = (systemBus: IBus, regView: DataView) => {
+export function initCPU(systemBus: IBus, regView: DataView) {
 	bus = systemBus;
 	registersView = regView;
 	updateCyclesPerTimeslice();
-};
+}
 
-export const setRunning = (running: boolean) => {
+export function setRunning(running: boolean) {
 	isRunning = running;
 	if (isRunning) run();
-};
+}
 
-export const setClockSpeed = (speed: number) => {
+export function setClockSpeed(speed: number) {
 	if (speed > 0) {
 		clockSpeedMhz = speed;
 		updateCyclesPerTimeslice();
 	}
-};
+}
 
-const updateCyclesPerTimeslice = () => {
+function updateCyclesPerTimeslice() {
 	// Run for approx 10ms per timeslice
 	cyclesPerTimeslice = clockSpeedMhz * 1000000 * 0.01;
-};
+}
+
+export function stepInstruction() {
+	if (!isRunning) {
+		executeInstruction();
+	}
+}
 
 // --- Main Execution Loop ---
-const run = () => {
+function run() {
 	if (!isRunning || !registersView || !bus) return;
-
 	let cyclesThisSlice = cyclesPerTimeslice;
 
 	while (cyclesThisSlice > 0) {
-		let pc = registersView.getUint16(REG_PC_OFFSET, true);
-		const opcode = bus.read(pc);
-		pc++;
+		// let pc = registersView.getUint16(REG_PC_OFFSET, true);
+		// const opcode = bus.read(pc);
+		// pc++;
 
-		let cycles = 2; // Default cycles, will be overridden
+		const cycles = executeInstruction();
+		cyclesThisSlice -= cycles;
 
-		// This is the core of the emulator. For performance, logic is kept inline
-		// inside the switch cases, avoiding function calls where possible.
+		if (!isRunning) break;
+	}
+
+	// Yield to the event loop and schedule the next run
+	if (isRunning) {
+		setTimeout(run, 0);
+	}
+}
+
+function executeInstruction(): number {
+	if (!registersView || !bus) return 0;
+
+	let pc = registersView.getUint16(REG_PC_OFFSET, true);
+	const opcode = bus.read(pc);
+	pc++;
+
+	let cycles = 2; // Default cycles, will be overridden
+
+	// This is the core of the emulator. For performance, logic is kept inline
+	// inside the switch cases, avoiding function calls where possible.
+	try {
 		switch (opcode) {
 			// --- BRK ---
 			case 0x00: {
@@ -749,13 +774,9 @@ const run = () => {
 				isRunning = false; // Stop on unimplemented opcode
 				break;
 		}
-
+	} finally {
 		registersView.setUint16(REG_PC_OFFSET, pc, true);
-		cyclesThisSlice -= cycles;
-
-		if (!isRunning) break;
 	}
 
-	// Yield to the event loop and schedule the next run
-	setTimeout(run, 0);
-};
+	return cycles;
+}
