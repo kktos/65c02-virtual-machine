@@ -1,53 +1,68 @@
 <template>
-	<div class="p-4 bg-gray-800 rounded-lg shadow-xl">
-		Registers
-		<div class="flex flex-col space-y-2">
-			<div v-for="key in registerOrder" :key="key" class="flex items-center justify-between space-x-2">
-				<span class="text-gray-300 font-mono text-base font-bold w-10">{{ key }}:</span>
+	<div class="p-4 bg-gray-800 rounded-lg shadow-lg">
+		<DebuggerPanelTitle title="CPU Registers" />
+		<div class="grid grid-cols-3 gap-x-5 gap-y-2 font-mono text-sm">
+			<div v-for="reg in registerOrder" :key="reg" class="flex items-center justify-left" :class="reg === 'PC' ? 'col-span-2' : ''">
+				<span class="font-bold text-gray-300">{{ reg }}:</span>
 				<input
 					type="text"
-					:value="registers ? '$' + registers[key].toString(16).toUpperCase().padStart(key === 'PC' ? 4 : 2, '0') : '$----'"
-					@input="handleRegisterChange(key, $event)"
-					:maxLength="key === 'PC' ? 4 : 2"
+					:value="formatRegisterValue(reg, registers[reg])"
+					@keyup.enter="onRegisterUpdate($event, reg)"
+					@blur="onRegisterUpdate($event, reg)"
 					:class="[
-						'text-right font-mono text-base rounded-md px-2 py-1 transition duration-150 border border-gray-600 focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 tabular-nums',
-						key === 'PC' ? 'bg-indigo-900 text-white w-24' : 'bg-gray-700 text-yellow-300 w-20'
+						'bg-gray-900 text-center px-2 py-0.5 rounded-md tabular-nums text-indigo-300 border border-transparent focus:border-cyan-500 focus:outline-none',
+						reg === 'PC' ? 'w-13' : 'w-9'
 					]"
+					:aria-label="`Register ${reg}`"
 				/>
 			</div>
 		</div>
 	</div>
 </template>
-<script setup lang="ts">
-	type RegisterName = 'A' | 'X' | 'Y' | 'SP' | 'PC' | 'C' | 'Z' | 'I' | 'D' | 'B' | 'V' | 'N';
 
-	type Registers = {
-		[key in RegisterName]: key extends 'PC' | 'SP' | 'A' | 'X' | 'Y' ? number : boolean;
-	};
+<script setup lang="ts">
+	import type { EmulatorState } from "@/types/emulatorstate.interface";
+import DebuggerPanelTitle from './DebuggerPanelTitle.vue';
 
 	interface DebuggerControls {
-		updateRegister: <K extends RegisterName>(reg: K, value: Registers[K]) => void;
+		updateRegister: <K extends keyof EmulatorState["registers"]>(
+			reg: K,
+			value: EmulatorState["registers"][K],
+		) => void;
 	}
 
 	interface Props {
-		registers: Registers;
+		registers: EmulatorState["registers"];
 		controls: DebuggerControls;
 	}
 
-	const { registers, controls } = defineProps<Props>();
+	const props = defineProps<Props>();
 
-	const registerOrder:RegisterName[] = ['A', 'X', 'Y', 'SP', 'PC'];
+	type RegisterKey = "A" | "X" | "Y" | "SP" | "PC";
 
-	const handleRegisterChange = (reg, event) => {
-		const rawValue = event.target.value.replace('$', ''); // Remove leading $
-		const value = parseInt(rawValue, 16);
+	const registerOrder: RegisterKey[] = ["A", "X", "Y", "PC", "SP"];
 
-		const maxValue = reg === 'PC' ? 0xFFFF : 0xFF;
-
-		if (!Number.isNaN(value) && value >= 0 && value <= maxValue) {
-			controls.updateRegister(reg, value);
-			// NOTE: In a real Vue app, the parent state (emulatorState.registers) would update the prop automatically.
-		}
+	const formatRegisterValue = (reg: RegisterKey, value: number | boolean) => {
+		if (typeof value !== "number") return "";
+		const is16bit = reg === "PC";
+		return value.toString(16).toUpperCase().padStart(is16bit ? 4 : 2, "0");
 	};
 
+	const onRegisterUpdate = (event: Event, reg: RegisterKey) => {
+		const input = event.target as HTMLInputElement;
+		const parsedValue = parseInt(input.value, 16);
+
+		if (!Number.isNaN(parsedValue)) {
+			const is16bit = reg === "PC";
+			const maxValue = is16bit ? 0xffff : 0xff;
+
+			if (parsedValue >= 0 && parsedValue <= maxValue) {
+				props.controls.updateRegister(reg, parsedValue);
+			}
+		}
+
+		// Revert to the current state value to avoid showing invalid input or partial input.
+		// The UI will update with the new value on the next animation frame if it was valid.
+		input.value = formatRegisterValue(reg, props.registers[reg]);
+	};
 </script>
