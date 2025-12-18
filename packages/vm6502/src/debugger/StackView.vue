@@ -44,7 +44,6 @@ import { computed } from "vue";
 import type { EmulatorState } from "@/types/emulatorstate.interface";
 import DebuggerPanelTitle from './DebuggerPanelTitle.vue';
 
-
 	const stackBase = 0x0100;
 
 	interface Props {
@@ -65,10 +64,8 @@ import DebuggerPanelTitle from './DebuggerPanelTitle.vue';
 	});
 
 	const stackSlice = computed(() => {
-		// Read $01F0 to $01FF and reverse the order for top-down display
-		// Safety check for stackData length
-		if (!stackData || stackData.length < 0x100) return [];
-		return [...stackData].slice(0xf0, 0x100).reverse();
+		if (!stackData || stackData.length < 0x0200) return [];
+		return [...stackData.slice(0x01f0, 0x0200)].reverse();
 	});
 
 	const handleByteChange = (addr: number, event: InputEvent) => {
