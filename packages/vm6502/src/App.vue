@@ -281,11 +281,11 @@ import type { EmulatorState } from "./types/emulatorstate.interface";
 	const handleReset = () => {
 	};
 
-	const handleRemoveBreakpoint = (bpToRemove: Breakpoint) => {
+	const handleRemoveBreakpoint = (_bpToRemove: Breakpoint) => {
 		// emulatorState.breakpoints = emulatorState.breakpoints.filter(bp => !(bp.address === bpToRemove.address && bp.type === bpToRemove.type));
 	};
 
-	const handleAddBreakpoint = (newBp: Breakpoint) => {
+	const handleAddBreakpoint = (_newBp: Breakpoint) => {
 		// const exists = emulatorState.breakpoints.some(bp => bp.address === newBp.address && bp.type === newBp.type);
 		// if (!exists) {
 		// 	emulatorState.breakpoints.push(newBp);
