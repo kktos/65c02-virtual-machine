@@ -196,137 +196,6 @@ const run = () => {
 				cycles = 4;
 				break;
 			}
-			// --- Arithmetic Operations ---
-			case 0x69: {
-				// ADC #Immediate
-				const value = bus.read(pc);
-				pc++;
-				let carry = registersView.getUint8(REG_STATUS_OFFSET) & FLAG_C_MASK ? 1 : 0;
-				const accumulator = registersView.getUint8(REG_A_OFFSET);
-				let result = accumulator + value + carry;
-				let status = registersView.getUint8(REG_STATUS_OFFSET);
-
-				if (status & FLAG_D_MASK) {
-					// Decimal Mode
-					const al = accumulator & 0x0f;
-					const vl = value & 0x0f;
-					const ah = accumulator >> 4;
-					const vh = value >> 4;
-					let rl = al + vl + carry;
-
-					if (rl > 9) {
-						rl = (rl + 6) & 0x0f;
-						carry = 1;
-					} else {
-						carry = 0;
-					}
-
-					let rh = ah + vh + carry;
-
-					if (rh > 9) {
-						rh += 6;
-						status |= FLAG_C_MASK;
-					} else {
-						status &= ~FLAG_C_MASK;
-					}
-
-					result = (rh << 4) | rl;
-
-					if (((accumulator ^ result) & 0x80) !== 0) {
-						status |= FLAG_V_MASK;
-					} else {
-						status &= ~FLAG_V_MASK;
-					}
-				} else {
-					// Binary Mode
-					if (result > 0xff) {
-						status |= FLAG_C_MASK;
-						result &= 0xff;
-					} else {
-						status &= ~FLAG_C_MASK;
-					}
-
-					if (((accumulator ^ result) & (value ^ result) & 0x80) !== 0) {
-						status |= FLAG_V_MASK;
-					} else {
-						status &= ~FLAG_V_MASK;
-					}
-				}
-
-				status = result === 0 ? status | FLAG_Z_MASK : status & ~FLAG_Z_MASK;
-				status = result & 0x80 ? status | FLAG_N_MASK : status & ~FLAG_N_MASK;
-
-				registersView.setUint8(REG_A_OFFSET, result & 0xff);
-				registersView.setUint8(REG_STATUS_OFFSET, status);
-				cycles = 2;
-				break;
-			}
-			case 0xe9: {
-				// SBC #Immediate
-				const value = bus.read(pc);
-				pc++;
-				let carry = registersView.getUint8(REG_STATUS_OFFSET) & FLAG_C_MASK ? 1 : 0;
-				const accumulator = registersView.getUint8(REG_A_OFFSET);
-				let result = accumulator - value - (1 - carry);
-				let status = registersView.getUint8(REG_STATUS_OFFSET);
-
-				if (status & FLAG_D_MASK) {
-					// Decimal Mode
-					const al = accumulator & 0x0f;
-					const vl = value & 0x0f;
-					const ah = accumulator >> 4;
-					const vh = value >> 4;
-					let rl = al - vl - (1 - carry);
-
-					if (rl < 0) {
-						rl = (rl - 6) & 0x0f;
-						carry = 0;
-					} else {
-						carry = 1;
-					}
-
-					let rh = ah - vh - (1 - carry);
-
-					if (rh < 0) {
-						rh -= 6;
-						status &= ~FLAG_C_MASK;
-					} else {
-						status |= FLAG_C_MASK;
-					}
-
-					result = (rh << 4) | rl;
-
-					if (((accumulator ^ result) & 0x80) !== 0) {
-						status |= FLAG_V_MASK;
-					} else {
-						status &= ~FLAG_V_MASK;
-					}
-				} else {
-					// Binary Mode
-					if (result < 0) {
-						status &= ~FLAG_C_MASK;
-						result += 256;
-					} else {
-						status |= FLAG_C_MASK;
-					}
-
-					if (((accumulator ^ result) & (value ^ result) & 0x80) !== 0) {
-						status |= FLAG_V_MASK;
-					} else {
-						status &= ~FLAG_V_MASK;
-					}
-				}
-
-				result &= 0xff;
-				status = result === 0 ? status | FLAG_Z_MASK : status & ~FLAG_Z_MASK;
-				status = result & 0x80 ? status | FLAG_N_MASK : status & ~FLAG_N_MASK;
-
-				registersView.setUint8(REG_A_OFFSET, result & 0xff);
-				registersView.setUint8(REG_STATUS_OFFSET, status);
-				cycles = 2;
-				break;
-			}
-
 			case 0x9d: {
 				// STA Absolute,X
 				const baseAddr = bus.read(pc) | (bus.read(pc + 1) << 8);
@@ -380,42 +249,6 @@ const run = () => {
 				const addr = baseAddr + registersView.getUint8(REG_Y_OFFSET);
 				bus.write(addr, registersView.getUint8(REG_A_OFFSET));
 				cycles = 6;
-				break;
-			}
-
-			// --- STZ (65C02) ---
-			case 0x64: {
-				// STZ Zero Page
-				const addr = bus.read(pc);
-				pc++;
-				bus.write(addr, 0);
-				cycles = 3;
-				break;
-			}
-			case 0x74: {
-				// STZ Zero Page,X
-				const zeroPageAddr = bus.read(pc);
-				pc++;
-				const addr = (zeroPageAddr + registersView.getUint8(REG_X_OFFSET)) & 0xff;
-				bus.write(addr, 0);
-				cycles = 4;
-				break;
-			}
-			case 0x9c: {
-				// STZ Absolute
-				const addr = bus.read(pc) | (bus.read(pc + 1) << 8);
-				pc += 2;
-				bus.write(addr, 0);
-				cycles = 4;
-				break;
-			}
-			case 0x9e: {
-				// STZ Absolute,X
-				const baseAddr = bus.read(pc) | (bus.read(pc + 1) << 8);
-				pc += 2;
-				const addr = baseAddr + registersView.getUint8(REG_X_OFFSET);
-				bus.write(addr, 0);
-				cycles = 5;
 				break;
 			}
 
@@ -506,79 +339,6 @@ const run = () => {
 				cycles = 4;
 				break;
 			}
-			// --- 65C02 Stack Operations ---
-			case 0xda: {
-				// PHX
-				let s = registersView.getUint8(REG_SP_OFFSET);
-				bus.write(STACK_PAGE_HI | s, registersView.getUint8(REG_X_OFFSET));
-				s--;
-				registersView.setUint8(REG_SP_OFFSET, s);
-				cycles = 3;
-				break;
-			}
-			case 0xfa: {
-				// PLX
-				let s = registersView.getUint8(REG_SP_OFFSET);
-				s++;
-				registersView.setUint8(REG_SP_OFFSET, s);
-				const value = bus.read(STACK_PAGE_HI | s);
-				registersView.setUint8(REG_X_OFFSET, value);
-				let status = registersView.getUint8(REG_STATUS_OFFSET);
-				status = value === 0 ? status | FLAG_Z_MASK : status & ~FLAG_Z_MASK;
-				status = value & 0x80 ? status | FLAG_N_MASK : status & ~FLAG_N_MASK;
-				registersView.setUint8(REG_STATUS_OFFSET, status);
-				cycles = 4;
-				break;
-			}
-			case 0x5a: {
-				// PHY
-				let s = registersView.getUint8(REG_SP_OFFSET);
-				bus.write(STACK_PAGE_HI | s, registersView.getUint8(REG_Y_OFFSET));
-				s--;
-				registersView.setUint8(REG_SP_OFFSET, s);
-				cycles = 3;
-				break;
-			}
-			case 0x7a: {
-				// PLY
-				let s = registersView.getUint8(REG_SP_OFFSET);
-				s++;
-				registersView.setUint8(REG_SP_OFFSET, s);
-				const value = bus.read(STACK_PAGE_HI | s);
-				registersView.setUint8(REG_Y_OFFSET, value);
-				let status = registersView.getUint8(REG_STATUS_OFFSET);
-				status = value === 0 ? status | FLAG_Z_MASK : status & ~FLAG_Z_MASK;
-				status = value & 0x80 ? status | FLAG_N_MASK : status & ~FLAG_N_MASK;
-				registersView.setUint8(REG_STATUS_OFFSET, status);
-				cycles = 4;
-				break;
-			}
-
-			// --- Increments & Decrements ---
-			case 0x3a: {
-				// DEC A (65C02)
-				let value = registersView.getUint8(REG_A_OFFSET);
-				value = (value - 1) & 0xff;
-				registersView.setUint8(REG_A_OFFSET, value);
-				let status = registersView.getUint8(REG_STATUS_OFFSET);
-				status = value === 0 ? status | FLAG_Z_MASK : status & ~FLAG_Z_MASK;
-				status = value & 0x80 ? status | FLAG_N_MASK : status & ~FLAG_N_MASK;
-				registersView.setUint8(REG_STATUS_OFFSET, status);
-				cycles = 2;
-				break;
-			}
-			case 0x1a: {
-				// INC A (65C02)
-				let value = registersView.getUint8(REG_A_OFFSET);
-				value = (value + 1) & 0xff;
-				registersView.setUint8(REG_A_OFFSET, value);
-				let status = registersView.getUint8(REG_STATUS_OFFSET);
-				status = value === 0 ? status | FLAG_Z_MASK : status & ~FLAG_Z_MASK;
-				status = value & 0x80 ? status | FLAG_N_MASK : status & ~FLAG_N_MASK;
-				registersView.setUint8(REG_STATUS_OFFSET, status);
-				cycles = 2;
-				break;
-			}
 
 			// --- Jumps & Calls ---
 			case 0x4c: {
@@ -586,23 +346,6 @@ const run = () => {
 				const addr = bus.read(pc) | (bus.read(pc + 1) << 8);
 				pc = addr;
 				cycles = 3;
-				break;
-			}
-			case 0x6c: {
-				// JMP Indirect (6502 bug fixed in 65C02)
-				const pointer = bus.read(pc) | (bus.read(pc + 1) << 8);
-				const addr = bus.read(pointer) | (bus.read(pointer + 1) << 8);
-				pc = addr;
-				cycles = 6; // 65C02 is 6 cycles, 6502 is 5
-				break;
-			}
-			case 0x7c: {
-				// JMP (Absolute,X) (65C02)
-				const basePointer = bus.read(pc) | (bus.read(pc + 1) << 8);
-				const pointer = basePointer + registersView.getUint8(REG_X_OFFSET);
-				const addr = bus.read(pointer) | (bus.read(pointer + 1) << 8);
-				pc = addr;
-				cycles = 6;
 				break;
 			}
 			case 0x20: {
@@ -634,7 +377,6 @@ const run = () => {
 			}
 
 			// --- Branching ---
-			case 0x80: // BRA (65C02)
 			case 0x90: // BCC
 			case 0xb0: // BCS
 			case 0xf0: // BEQ
@@ -649,9 +391,6 @@ const run = () => {
 				const status = registersView.getUint8(REG_STATUS_OFFSET);
 				let branch = false;
 				switch (opcode) {
-					case 0x80:
-						branch = true;
-						break; // BRA
 					case 0x90:
 						branch = !(status & FLAG_C_MASK);
 						break; // BCC

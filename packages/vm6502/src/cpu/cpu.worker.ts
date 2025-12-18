@@ -1,13 +1,13 @@
-import { Bus } from "./bus";
-import { initEmulator, setClockSpeed, setRunning } from "./emulator";
-import { MEMORY_OFFSET, MEMORY_SIZE, REG_A_OFFSET, REG_PC_OFFSET } from "./shared-memory";
+import { Bus } from "../machines/apple2/bus.class";
+import { initEmulator, setClockSpeed, setRunning } from "./cpu.65c02";
+import { MEMORY_OFFSET, MEMORY_SIZE } from "./shared-memory";
 
 console.log("CPU Worker script loaded.");
 
 // --- Worker State ---
 let sharedBuffer: SharedArrayBuffer | null = null;
-let memoryView: Uint8Array | null = null; // Still needed for initialization
-let registersView: DataView | null = null; // Still needed for initialization
+let memoryView: Uint8Array | null = null;
+let registersView: DataView | null = null;
 
 self.onmessage = (event: MessageEvent) => {
 	const { command, buffer, speed } = event.data;
@@ -23,8 +23,6 @@ self.onmessage = (event: MessageEvent) => {
 			// Initialize the emulator module with the shared memory views
 			const bus = new Bus(memoryView);
 			initEmulator(bus, registersView);
-			registersView.setUint8(REG_A_OFFSET, 0x00); // Set Register A
-			registersView.setUint16(REG_PC_OFFSET, 0x0600, true); // Set PC (little-endian)
 		} else {
 			console.error("Worker: Did not receive a SharedArrayBuffer.");
 		}
