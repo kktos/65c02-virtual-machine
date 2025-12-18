@@ -201,12 +201,29 @@ import type { EmulatorState } from "./types/emulatorstate.interface";
 		step: () => console.log('Worker: Step Instruction'),
 		reset: () => console.log('Worker: Reset'),
 		updateMemory: (addr: number, value: number) => {
-			sharedMemory[addr] = value; // Write directly to the shared buffer
+			sharedMemory[addr] = value;
 			console.log(`Worker: Update [${addr.toString(16)}] to ${value.toString(16)}`);
 		},
 		updateRegister: <K extends RegisterName>(reg: K, value: EmulatorState['registers'][K]) => {
-			emulatorState.registers[reg] = value; // This is now type-safe!
-			console.log(`Worker: Update Register ${reg} to ${value.toString(16)}`);
+			// Write directly to the shared buffer so the worker sees the change.
+			// The UI will update automatically on the next animation frame.
+			switch (reg) {
+				case 'A':
+					sharedRegisters.setUint8(REG_A_OFFSET, value as number);
+					break;
+				case 'X':
+					sharedRegisters.setUint8(REG_X_OFFSET, value as number);
+					break;
+				case 'Y':
+					sharedRegisters.setUint8(REG_Y_OFFSET, value as number);
+					break;
+				case 'SP':
+					sharedRegisters.setUint8(REG_SP_OFFSET, value as number);
+					break;
+				case 'PC':
+					sharedRegisters.setUint16(REG_PC_OFFSET, value as number, true);
+					break;
+			}
 		},
 	};
 
