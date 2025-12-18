@@ -52,6 +52,8 @@
 						</TabsList>
 						<TabsContent value="disassembly">
 							<DisassemblyView
+								:address="emulatorState.registers.PC"
+								:memory="sharedMemory"
 								:registers="emulatorState.registers"
 								:onExplainCode="handleExplainCode"
 							/>
@@ -103,12 +105,9 @@ import MemoryViewer from './debugger/MemoryViewer.vue';
 import RegisterView from './debugger/RegisterView.vue';
 import StackView from './debugger/StackView.vue';
 import StatusFlagsView from './debugger/StatusFlagsView.vue';
+import { handleExplainCode } from "./lib/gemini.utils";
 import type { Breakpoint } from "./types/breakpoint.interface";
 import type { EmulatorState } from "./types/emulatorstate.interface";
-
-	// --- LLM Constants and Utilities (Outside Vue component definitions) ---
-	const API_KEY = "";
-	const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${API_KEY}`;
 
 	const cpuWorker = ref<Worker | null>(null);
 	provide('cpuWorker', cpuWorker);
@@ -120,9 +119,7 @@ import type { EmulatorState } from "./types/emulatorstate.interface";
 	const sharedMemory = new Uint8Array(sharedBuffer, MEMORY_OFFSET, MEMORY_SIZE);
 
 	onMounted(() => {
-		const worker = new Worker(new URL('./cpu/cpu.worker.ts', import.meta.url), {
-			type: 'module',
-		});
+		const worker = new Worker(new URL('./cpu/cpu.worker.ts', import.meta.url), { type: 'module' });
 		console.log("CPU worker created.");
 		cpuWorker.value = worker;
 
@@ -188,21 +185,6 @@ import type { EmulatorState } from "./types/emulatorstate.interface";
 			A: 0, X: 0, Y: 0, PC: 0, SP: 0,
 			C: false, Z: false, I: false, D: false, B: false, V: false, N: false
 		},
-		// disassembly: [
-		// 	{ address: 0x05FC, opcode: "LDA #$10", cycles: 2, rawBytes: "A9 10", comment: "Load character code" },
-		// 	{ address: 0x05FE, opcode: "JMP $FCE2", cycles: 3, rawBytes: "4C E2 FC", comment: "Jump to core handler" },
-		// 	{ address: 0x0600, opcode: "JSR $FCE2", cycles: 6, rawBytes: "20 E2 FC", comment: "Call initialization routine" },
-		// 	{ address: 0x0603, opcode: "LDX #$A0", cycles: 2, rawBytes: "A2 A0", comment: "Set loop counter (160 iterations)" },
-		// 	{ address: 0x0605, opcode: "STA $0200,X", cycles: 4, rawBytes: "9D 00 02", comment: "Write A to memory" },
-		// 	{ address: 0x0608, opcode: "DEX", cycles: 2, rawBytes: "CA", comment: "Decrement counter X" },
-		// 	{ address: 0x0609, opcode: "BNE $0605", cycles: 3, rawBytes: "D0 FB", comment: "Loop if X != 0 (Z is clear)" },
-		// 	{ address: 0x060B, opcode: "LDA $C000", cycles: 6, rawBytes: "AD 00 C0", comment: "Poll keyboard status" },
-		// 	{ address: 0x060E, opcode: "NOP", cycles: 2, rawBytes: "EA", comment: "" },
-		// 	{ address: 0x060F, opcode: "INC $02", cycles: 5, rawBytes: "E6 02", comment: "Increment Zero Page variable" },
-		// 	{ address: 0x0611, opcode: "EOR $0400", cycles: 5, rawBytes: "4D 00 04", comment: "XOR with screen byte" },
-		// 	{ address: 0x0614, opcode: "CMP #$00", cycles: 2, rawBytes: "C9 00", comment: "Compare A with zero" },
-		// 	{ address: 0x0616, opcode: "BEQ $0600", cycles: 3, rawBytes: "F0 E8", comment: "Branch if Equal (Z is set)" },
-		// ],
 		breakpoints: [
 			{ address: 0x0609, type: 'PC' },
 			{ address: 0x0800, type: 'Write' },
@@ -257,34 +239,5 @@ import type { EmulatorState } from "./types/emulatorstate.interface";
 		// }
 	};
 
-    // --- LLM Handler (Code Explanation) ---
-	const handleExplainCode = async (codeBlock: string, setExplanation, setIsLoading) => {
-		const systemPrompt = "You are a world-class 6502 CPU reverse engineer and assembly language expert. Analyze the provided block of 6502 assembly code and provide a concise, single-paragraph explanation of its overall purpose and function, focusing on the high-level logic (e.g., 'This loop copies X bytes from address A to address B').";
-		const userQuery = `Analyze this 6502 assembly code block and explain its function: \n\n${codeBlock}`;
 
-		const payload = {
-			contents: [{ parts: [{ text: userQuery }] }],
-			systemInstruction: { parts: [{ text: systemPrompt }] },
-		};
-
-		try {
-			const result = await fetch(GEMINI_API_URL, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify(payload)
-			});
-
-			const text = result?.candidates?.[0]?.content?.parts?.[0]?.text;
-			if (text) {
-				setExplanation.value = text;
-			} else {
-				setExplanation.value = "Could not retrieve explanation. API response was empty or malformed.";
-			}
-		} catch (error) {
-			console.error("Gemini API Error:", error);
-			setExplanation.value = "Error: Failed to connect to the analysis engine.";
-		} finally {
-			setIsLoading.value = false;
-		}
-	};
 </script>
