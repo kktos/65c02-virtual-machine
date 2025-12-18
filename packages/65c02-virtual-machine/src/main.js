@@ -7,23 +7,24 @@ import VM from "./vm.js";
 // import machine from apple2-plus/machine.js";
 
 // import diskUrl from '../../conan/dist/conan.bin?url';
-const diskUrl = "http://localhost:3000/conan.bin";
-const symbolsUrl = "http://localhost:3000/conan.dict";
+// const diskUrl = "http://localhost:3000/conan.bin";
+// const symbolsUrl = "http://localhost:3000/conan.dict";
 
 async function main() {
 	GridStack.init({
 		cellHeight: 100,
 	});
 
-	const symbols = await fetch(symbolsUrl).then((r) => r.json());
+	// const symbols = await fetch(symbolsUrl).then((r) => r.json());
 
 	const canvas = document.getElementById("screen");
 	const vm = new VM(canvas, machine);
-	await vm.setup(symbols);
+	// await vm.setup(symbols);
+	await vm.setup(undefined);
 	vm.start();
 
-	const disk = new Uint8Array(await (await fetch(diskUrl)).arrayBuffer());
-	vm.setDisk(0, disk);
+	// const disk = new Uint8Array(await (await fetch(diskUrl)).arrayBuffer());
+	// vm.setDisk(0, disk);
 
 	window.R = async (bank, addr, isDebug) => {
 		const rez = await vm.DBG_memRead(bank, addr, isDebug);

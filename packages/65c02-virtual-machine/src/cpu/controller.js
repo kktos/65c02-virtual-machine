@@ -617,7 +617,17 @@ function dumpMem(addr) {
 //*SETUP FUNCTION*
 //****************
 
-function setup({ busSrcFile, memory, debuggerOnBRK, symbols }) {
+const busModules = import.meta.glob("../machines/*/bus.js", { import: "default" });
+async function setup({ busSrcFile, memory, debuggerOnBRK, symbols }) {
+	const key = `../machines/${busSrcFile}/bus.js`;
+	const loader = busModules[key];
+	if (!loader) throw new Error(`Unknown machine: ${busSrcFile}`);
+	const Bus = await loader();
+	core.bus = new Bus(self, memory);
+	core.debuggerOnBRK = debuggerOnBRK;
+	disasmSymbols = symbols;
+
+	/*
 	return new Promise((resolve) => {
 		// biome-ignore lint/correctness/noUnusedVariables: called in the following eval()
 		function onLoaded({ default: Bus }) {
@@ -631,6 +641,7 @@ function setup({ busSrcFile, memory, debuggerOnBRK, symbols }) {
 		// biome-ignore lint/security/noGlobalEval: hack for vite
 		eval(`import("/src/machines/${busSrcFile}").then(onLoaded)`);
 	});
+	*/
 }
 
 /*

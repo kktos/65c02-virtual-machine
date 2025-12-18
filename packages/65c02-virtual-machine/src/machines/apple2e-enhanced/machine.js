@@ -122,7 +122,8 @@ const machine = {
 	},
 
 	debuggerOnBRK: true,
-	busSrcFile: "apple2/bus.js",
+	busSrcFile0: "apple2/bus.js",
+	busSrcFile: "apple2",
 	hooks: processHooks,
 	Video,
 	Sound,
