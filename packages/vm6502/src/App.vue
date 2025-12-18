@@ -52,8 +52,6 @@
 						</TabsList>
 						<TabsContent value="disassembly">
 							<DisassemblyView
-								:disassembly="emulatorState.disassembly"
-								:PC="emulatorState.registers.PC"
 								:registers="emulatorState.registers"
 								:onExplainCode="handleExplainCode"
 							/>
@@ -72,27 +70,6 @@
 							/>
 						</TabsContent>
 					</Tabs>
-
-					<!-- <BottomTabPanel :activeTab="activeTab" :setActiveTab="setActiveTab">
-						<template #disassembly>
-							<DisassemblyView
-								:disassembly="emulatorState.disassembly"
-								:PC="emulatorState.registers.PC"
-								:registers="emulatorState.registers"
-								:onExplainCode="handleExplainCode"
-							/>
-						</template>
-						<template #memory>
-							<MemoryViewer :memory="emulatorState.memory" :controls="controls" />
-						</template>
-						<template #breakpoints>
-							<BreakpointsList
-								:breakpoints="emulatorState.breakpoints"
-								:onRemoveBreakpoint="handleRemoveBreakpoint"
-								:onAddBreakpoint="handleAddBreakpoint"
-							/>
-						</template>
-					</BottomTabPanel> -->
 				</div>
 				</ResizablePanel>
 			</ResizablePanelGroup>
@@ -138,8 +115,6 @@ import type { EmulatorState } from "./types/emulatorstate.interface";
 
 	// --- Shared Memory Setup ---
 	// This buffer is shared between the main thread and the worker.
-	// Note: Vite requires specific headers for SharedArrayBuffer to work in dev mode.
-	// See vite.config.ts for the COOP/COEP configuration.
 	const sharedBuffer = new SharedArrayBuffer(TOTAL_SHARED_BUFFER_SIZE);
 	const sharedRegisters = new DataView(sharedBuffer, 0, MEMORY_OFFSET);
 	const sharedMemory = new Uint8Array(sharedBuffer, MEMORY_OFFSET, MEMORY_SIZE);
@@ -155,19 +130,10 @@ import type { EmulatorState } from "./types/emulatorstate.interface";
 		worker.postMessage({ command: 'init', buffer: sharedBuffer });
 
 		// --- Initialize Memory (for demo purposes) ---
-		// This can be done on either thread, but UI thread is fine for initial setup.
 		sharedMemory.fill(0);
 		"HELLO WORLD!!!".split('').forEach((char, i) => {
 			sharedMemory[0x0200 + i] = char.charCodeAt(0);
 		});
-
-		// Set initial register values
-		// sharedRegisters.setUint8(REG_A_OFFSET, 0x42);
-		// sharedRegisters.setUint8(REG_X_OFFSET, 0x01);
-		// sharedRegisters.setUint8(REG_Y_OFFSET, 0x02);
-		// sharedRegisters.setUint8(REG_SP_OFFSET, 0xF9);
-		// sharedRegisters.setUint16(REG_PC_OFFSET, 0x0609, true); // Little-endian
-		// sharedRegisters.setUint8(REG_STATUS_OFFSET, FLAG_C_MASK | FLAG_I_MASK);
 
 		// Listen for messages from the worker (e.g., for breakpoints, errors)
 		worker.onmessage = (event) => {
@@ -211,7 +177,7 @@ import type { EmulatorState } from "./types/emulatorstate.interface";
 		emulatorState.registers.N = (status & FLAG_N_MASK) !== 0;
 
 		// Notify subscribers
-		uiUpdateSubscribers.forEach(cb => cb());
+		uiUpdateSubscribers.forEach(cb => {cb()});
 
 		// Keep the loop going
 		requestAnimationFrame(updateUiFromSharedBuffer);
@@ -219,30 +185,24 @@ import type { EmulatorState } from "./types/emulatorstate.interface";
 
 	const emulatorState:EmulatorState = reactive({
 		registers: {
-			A: 0, X: 0, Y: 0,
-			PC: 0,
-			SP: 0,
+			A: 0, X: 0, Y: 0, PC: 0, SP: 0,
 			C: false, Z: false, I: false, D: false, B: false, V: false, N: false
 		},
-		memory: Array(0x10000).fill(0).map((_, i) => {
-			if (i >= 0x0200 && i < 0x0210) return "HELLO WORLD!!!".charCodeAt(i - 0x0200) || 0;
-			return (i % 256);
-		}),
-		disassembly: [
-			{ address: 0x05FC, opcode: "LDA #$10", cycles: 2, rawBytes: "A9 10", comment: "Load character code" },
-			{ address: 0x05FE, opcode: "JMP $FCE2", cycles: 3, rawBytes: "4C E2 FC", comment: "Jump to core handler" },
-			{ address: 0x0600, opcode: "JSR $FCE2", cycles: 6, rawBytes: "20 E2 FC", comment: "Call initialization routine" },
-			{ address: 0x0603, opcode: "LDX #$A0", cycles: 2, rawBytes: "A2 A0", comment: "Set loop counter (160 iterations)" },
-			{ address: 0x0605, opcode: "STA $0200,X", cycles: 4, rawBytes: "9D 00 02", comment: "Write A to memory" },
-			{ address: 0x0608, opcode: "DEX", cycles: 2, rawBytes: "CA", comment: "Decrement counter X" },
-			{ address: 0x0609, opcode: "BNE $0605", cycles: 3, rawBytes: "D0 FB", comment: "Loop if X != 0 (Z is clear)" },
-			{ address: 0x060B, opcode: "LDA $C000", cycles: 6, rawBytes: "AD 00 C0", comment: "Poll keyboard status" },
-			{ address: 0x060E, opcode: "NOP", cycles: 2, rawBytes: "EA", comment: "" },
-			{ address: 0x060F, opcode: "INC $02", cycles: 5, rawBytes: "E6 02", comment: "Increment Zero Page variable" },
-			{ address: 0x0611, opcode: "EOR $0400", cycles: 5, rawBytes: "4D 00 04", comment: "XOR with screen byte" },
-			{ address: 0x0614, opcode: "CMP #$00", cycles: 2, rawBytes: "C9 00", comment: "Compare A with zero" },
-			{ address: 0x0616, opcode: "BEQ $0600", cycles: 3, rawBytes: "F0 E8", comment: "Branch if Equal (Z is set)" },
-		],
+		// disassembly: [
+		// 	{ address: 0x05FC, opcode: "LDA #$10", cycles: 2, rawBytes: "A9 10", comment: "Load character code" },
+		// 	{ address: 0x05FE, opcode: "JMP $FCE2", cycles: 3, rawBytes: "4C E2 FC", comment: "Jump to core handler" },
+		// 	{ address: 0x0600, opcode: "JSR $FCE2", cycles: 6, rawBytes: "20 E2 FC", comment: "Call initialization routine" },
+		// 	{ address: 0x0603, opcode: "LDX #$A0", cycles: 2, rawBytes: "A2 A0", comment: "Set loop counter (160 iterations)" },
+		// 	{ address: 0x0605, opcode: "STA $0200,X", cycles: 4, rawBytes: "9D 00 02", comment: "Write A to memory" },
+		// 	{ address: 0x0608, opcode: "DEX", cycles: 2, rawBytes: "CA", comment: "Decrement counter X" },
+		// 	{ address: 0x0609, opcode: "BNE $0605", cycles: 3, rawBytes: "D0 FB", comment: "Loop if X != 0 (Z is clear)" },
+		// 	{ address: 0x060B, opcode: "LDA $C000", cycles: 6, rawBytes: "AD 00 C0", comment: "Poll keyboard status" },
+		// 	{ address: 0x060E, opcode: "NOP", cycles: 2, rawBytes: "EA", comment: "" },
+		// 	{ address: 0x060F, opcode: "INC $02", cycles: 5, rawBytes: "E6 02", comment: "Increment Zero Page variable" },
+		// 	{ address: 0x0611, opcode: "EOR $0400", cycles: 5, rawBytes: "4D 00 04", comment: "XOR with screen byte" },
+		// 	{ address: 0x0614, opcode: "CMP #$00", cycles: 2, rawBytes: "C9 00", comment: "Compare A with zero" },
+		// 	{ address: 0x0616, opcode: "BEQ $0600", cycles: 3, rawBytes: "F0 E8", comment: "Branch if Equal (Z is set)" },
+		// ],
 		breakpoints: [
 			{ address: 0x0609, type: 'PC' },
 			{ address: 0x0800, type: 'Write' },
@@ -271,7 +231,10 @@ import type { EmulatorState } from "./types/emulatorstate.interface";
 	const isRunning = ref(false);
 
 	const handleStepInstruction = () => {
+		console.log("StepInstruction");
+		cpuWorker.value?.postMessage({ command: 'step' });
 	};
+
 	const handleStepOver = () => {
 	};
 	const handleStepOut = () => {

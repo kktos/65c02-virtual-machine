@@ -81,16 +81,18 @@ import type { DisassemblyLine } from "@/types/disassemblyline.interface";
 import type { EmulatorState } from "@/types/emulatorstate.interface";
 
 	interface Props {
-		disassembly: DisassemblyLine[];
-		PC: number;
 		registers: EmulatorState['registers'];
 		onExplainCode: (codeBlock: string, setExplanation: Ref<string | null>, setIsLoading: Ref<boolean>) => Promise<void>;
 	}
-	const { disassembly, PC, registers } = defineProps<Props>();
+	const { registers } = defineProps<Props>();
+
+	const PC= registers.PC;
 
 	const explanation = ref(null);
 	const isLoading = ref(false);
 	const getLabeledInstruction = useLabeling();
+
+	let disassembly: DisassemblyLine[]=[];
 
 	// console.log("DisassemblyView received data. Type:", typeof disassembly, "Length:", disassembly ? disassembly.length : 0);
 
