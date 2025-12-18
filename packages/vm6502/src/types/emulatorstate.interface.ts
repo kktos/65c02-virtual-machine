@@ -1,0 +1,22 @@
+import type { Breakpoint } from "./breakpoint.interface";
+import type { DisassemblyLine } from "./disassemblyline.interface";
+
+export interface EmulatorState {
+	registers: {
+		A: number;
+		X: number;
+		Y: number;
+		PC: number;
+		SP: number;
+		C: boolean;
+		Z: boolean;
+		I: boolean;
+		D: boolean;
+		B: boolean;
+		V: boolean;
+		N: boolean;
+	};
+	memory: number[];
+	disassembly: DisassemblyLine[];
+	breakpoints: Breakpoint[];
+}
