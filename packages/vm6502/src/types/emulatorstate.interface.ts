@@ -1,5 +1,3 @@
-import type { Breakpoint } from "./breakpoint.interface";
-
 export interface EmulatorState {
 	registers: {
 		A: number;
@@ -16,5 +14,5 @@ export interface EmulatorState {
 		V: boolean;
 		N: boolean;
 	};
-	breakpoints: Breakpoint[];
+	// breakpoints: Breakpoint[];
 }
