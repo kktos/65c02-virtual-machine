@@ -1,5 +1,14 @@
 import type { IBus } from "./bus.interface";
-import { initCPU, resetCPU, setClockSpeed, setRunning, stepInstruction } from "./cpu.65c02";
+import {
+	addBreakpoint,
+	clearBreakpoints,
+	initCPU,
+	removeBreakpoint,
+	resetCPU,
+	setClockSpeed,
+	setRunning,
+	stepInstruction,
+} from "./cpu.65c02";
 import { MEMORY_OFFSET } from "./shared-memory";
 
 console.log("CPU Worker script loaded.");
@@ -76,6 +85,15 @@ self.onmessage = (event: MessageEvent) => {
 			break;
 		case "reset":
 			resetCPU();
+			break;
+		case "addBP":
+			addBreakpoint(event.data.type, event.data.address);
+			break;
+		case "removeBP":
+			removeBreakpoint(event.data.type, event.data.address);
+			break;
+		case "clearBPs":
+			clearBreakpoints();
 			break;
 	}
 };
