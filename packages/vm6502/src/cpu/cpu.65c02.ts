@@ -289,6 +289,17 @@ function eor(value: number) {
 	setNZFlags(result);
 }
 
+function asl(value: number): number {
+	if (!registersView) return value;
+	let status = registersView.getUint8(REG_STATUS_OFFSET);
+	status = value & 0x80 ? status | FLAG_C_MASK : status & ~FLAG_C_MASK;
+	const result = (value << 1) & 0xff;
+	status = result === 0 ? status | FLAG_Z_MASK : status & ~FLAG_Z_MASK;
+	status = result & 0x80 ? status | FLAG_N_MASK : status & ~FLAG_N_MASK;
+	registersView.setUint8(REG_STATUS_OFFSET, status);
+	return result;
+}
+
 function executeInstruction(): number {
 	if (!registersView || !bus) return 0;
 
@@ -314,19 +325,39 @@ function executeInstruction(): number {
 			// --- BRK ---
 			case 0x00: {
 				// BRK
+
+				{
+					let s = registersView.getUint8(REG_SP_OFFSET);
+
+					// Push PC + 1
+					pc++;
+					const hi = pc >> 8;
+					const lo = pc & 0x00ff;
+					bus.write(STACK_PAGE_HI | s, hi);
+					s = (s - 1) & 0xff;
+					bus.write(STACK_PAGE_HI | s, lo);
+					s = (s - 1) & 0xff;
+
+					// PHP (Push Processor Status)
+					const status = registersView.getUint8(REG_STATUS_OFFSET) | FLAG_5_MASK;
+					bus.write(STACK_PAGE_HI | s, status);
+					s = (s - 1) & 0xff;
+
+					registersView.setUint8(REG_SP_OFFSET, s);
+				}
+
+				// reset D flag and set I flag
+				let status = registersView.getUint8(REG_STATUS_OFFSET);
+				status = status & ~FLAG_D_MASK;
+				// status |= FLAG_B_MASK;
+				status |= FLAG_I_MASK;
+				registersView.setUint8(REG_STATUS_OFFSET, status);
+
 				const lo = bus.read(0xfffe);
 				const hi = bus.read(0xffff);
 				pc = (hi << 8) | lo;
 
-				let status = registersView.getUint8(REG_STATUS_OFFSET);
-				status = status & ~FLAG_D_MASK;
-				status |= FLAG_B_MASK;
-				status |= FLAG_I_MASK;
-				registersView.setUint8(REG_STATUS_OFFSET, status);
-
 				cycles = 7;
-				// Note: Actual interrupt sequence is handled by CPU, this is a placeholder
-				// setRunning(false);
 				break;
 			}
 			case 0x04: {
@@ -361,7 +392,7 @@ function executeInstruction(): number {
 				// On 65C02, Bit 5 is always 1.
 				const status = registersView.getUint8(REG_STATUS_OFFSET) | FLAG_5_MASK;
 				bus.write(STACK_PAGE_HI | s, status);
-				s--;
+				s = (s - 1) & 0xff;
 				registersView.setUint8(REG_SP_OFFSET, s);
 				cycles = 3;
 				break;
@@ -474,13 +505,9 @@ function executeInstruction(): number {
 			case 0x28: {
 				// PLP (Pull Processor Status)
 				let s = registersView.getUint8(REG_SP_OFFSET);
-				s++;
+				s = (s + 1) & 0xff;
 				registersView.setUint8(REG_SP_OFFSET, s);
 				const pulledStatus = bus.read(STACK_PAGE_HI | s);
-				// const currentStatus = registersView.getUint8(REG_STATUS_OFFSET);
-				// B flag (bit 4) and unused bit 5 are not affected by PLP.
-				// const newStatus = (pulledStatus & ~0x30) | (currentStatus & 0x30);
-				// registersView.setUint8(REG_STATUS_OFFSET, newStatus);
 				registersView.setUint8(REG_STATUS_OFFSET, pulledStatus | FLAG_B_MASK);
 				cycles = 4;
 				break;
@@ -825,17 +852,25 @@ function executeInstruction(): number {
 			}
 			case 0x40: {
 				// RTI (Return from Interrupt)
+
 				let s = registersView.getUint8(REG_SP_OFFSET);
-				s++;
-				const newStatus = bus.read(STACK_PAGE_HI | s);
-				s++;
+
+				// PLP (Pull Processor Status)
+				s = (s + 1) & 0xff;
+				const pulledStatus = bus.read(STACK_PAGE_HI | s);
+				registersView.setUint8(REG_STATUS_OFFSET, pulledStatus | FLAG_B_MASK);
+
+				// RTS
+				s = (s + 1) & 0xff;
 				const lo = bus.read(STACK_PAGE_HI | s);
-				s++;
+				s = (s + 1) & 0xff;
 				const hi = bus.read(STACK_PAGE_HI | s);
+				pc = (hi << 8) | lo;
+
 				registersView.setUint8(REG_SP_OFFSET, s);
 
-				registersView.setUint8(REG_STATUS_OFFSET, newStatus);
-				registersView.setUint16(REG_PC_OFFSET, (hi << 8) | lo, true);
+				// pc--;
+
 				cycles = 6;
 				break;
 			}
@@ -915,6 +950,57 @@ function executeInstruction(): number {
 				const addr = baseAddr + registersView.getUint8(REG_X_OFFSET);
 				eor(bus.read(addr));
 				cycles = 4 + ((baseAddr & 0xff00) !== (addr & 0xff00) ? 1 : 0);
+				break;
+			}
+
+			// --- Shift Operations ---
+			case 0x0a: {
+				// ASL Accumulator
+				let value = registersView.getUint8(REG_A_OFFSET);
+				value = asl(value);
+				registersView.setUint8(REG_A_OFFSET, value);
+				cycles = 2;
+				break;
+			}
+			case 0x06: {
+				// ASL Zero Page
+				const addr = bus.read(pc, true);
+				pc++;
+				let value = bus.read(addr);
+				value = asl(value);
+				bus.write(addr, value);
+				cycles = 5;
+				break;
+			}
+			case 0x16: {
+				// ASL Zero Page,X
+				const addr = (bus.read(pc, true) + registersView.getUint8(REG_X_OFFSET)) & 0xff;
+				pc++;
+				let value = bus.read(addr);
+				value = asl(value);
+				bus.write(addr, value);
+				cycles = 6;
+				break;
+			}
+			case 0x0e: {
+				// ASL Absolute
+				const addr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
+				pc += 2;
+				let value = bus.read(addr);
+				value = asl(value);
+				bus.write(addr, value);
+				cycles = 6;
+				break;
+			}
+			case 0x1e: {
+				// ASL Absolute,X
+				const baseAddr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
+				pc += 2;
+				const addr = baseAddr + registersView.getUint8(REG_X_OFFSET);
+				let value = bus.read(addr);
+				value = asl(value);
+				bus.write(addr, value);
+				cycles = 7;
 				break;
 			}
 
@@ -1289,7 +1375,7 @@ function executeInstruction(): number {
 				// PHA
 				let s = registersView.getUint8(REG_SP_OFFSET);
 				bus.write(STACK_PAGE_HI | s, registersView.getUint8(REG_A_OFFSET));
-				s--;
+				s = (s - 1) & 0xff;
 				registersView.setUint8(REG_SP_OFFSET, s);
 				cycles = 3;
 				break;
@@ -1297,7 +1383,7 @@ function executeInstruction(): number {
 			case 0x68: {
 				// PLA
 				let s = registersView.getUint8(REG_SP_OFFSET);
-				s++;
+				s = (s + 1) & 0xff;
 				registersView.setUint8(REG_SP_OFFSET, s);
 				const value = bus.read(STACK_PAGE_HI | s);
 				registersView.setUint8(REG_A_OFFSET, value);
@@ -1310,7 +1396,7 @@ function executeInstruction(): number {
 				// PHX
 				let s = registersView.getUint8(REG_SP_OFFSET);
 				bus.write(STACK_PAGE_HI | s, registersView.getUint8(REG_X_OFFSET));
-				s--;
+				s = (s - 1) & 0xff;
 				registersView.setUint8(REG_SP_OFFSET, s);
 				cycles = 3;
 				break;
@@ -1318,7 +1404,7 @@ function executeInstruction(): number {
 			case 0xfa: {
 				// PLX
 				let s = registersView.getUint8(REG_SP_OFFSET);
-				s++;
+				s = (s + 1) & 0xff;
 				registersView.setUint8(REG_SP_OFFSET, s);
 				const value = bus.read(STACK_PAGE_HI | s);
 				registersView.setUint8(REG_X_OFFSET, value);
@@ -1330,7 +1416,7 @@ function executeInstruction(): number {
 				// PHY
 				let s = registersView.getUint8(REG_SP_OFFSET);
 				bus.write(STACK_PAGE_HI | s, registersView.getUint8(REG_Y_OFFSET));
-				s--;
+				s = (s - 1) & 0xff;
 				registersView.setUint8(REG_SP_OFFSET, s);
 				cycles = 3;
 				break;
@@ -1338,7 +1424,7 @@ function executeInstruction(): number {
 			case 0x7a: {
 				// PLY
 				let s = registersView.getUint8(REG_SP_OFFSET);
-				s++;
+				s = (s + 1) & 0xff;
 				registersView.setUint8(REG_SP_OFFSET, s);
 				const value = bus.read(STACK_PAGE_HI | s);
 				registersView.setUint8(REG_Y_OFFSET, value);
@@ -1481,9 +1567,9 @@ function executeInstruction(): number {
 				const returnAddr = pc - 1;
 				let s = registersView.getUint8(REG_SP_OFFSET);
 				bus.write(STACK_PAGE_HI | s, (returnAddr >> 8) & 0xff);
-				s--;
+				s = (s - 1) & 0xff;
 				bus.write(STACK_PAGE_HI | s, returnAddr & 0xff);
-				s--;
+				s = (s - 1) & 0xff;
 				registersView.setUint8(REG_SP_OFFSET, s);
 				pc = targetAddr;
 				cycles = 6;
@@ -1492,9 +1578,9 @@ function executeInstruction(): number {
 			case 0x60: {
 				// RTS
 				let s = registersView.getUint8(REG_SP_OFFSET);
-				s++;
+				s = (s + 1) & 0xff;
 				const lo = bus.read(STACK_PAGE_HI | s);
-				s++;
+				s = (s + 1) & 0xff;
 				const hi = bus.read(STACK_PAGE_HI | s);
 				registersView.setUint8(REG_SP_OFFSET, s);
 				pc = ((hi << 8) | lo) + 1;
