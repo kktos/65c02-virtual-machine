@@ -1,4 +1,4 @@
-type BreakpointType = "PC" | "Write" | "Read" | "Access";
+type BreakpointType = "pc" | "read" | "write" | "access";
 
 export interface Breakpoint {
 	address: number;
