@@ -15,6 +15,7 @@ import {
 	REG_Y_OFFSET,
 } from "@/cpu/shared-memory";
 import type { MachineConfig } from "@/types/machine.interface";
+import type { Breakpoint } from "./types/breakpoint.interface";
 import type { EmulatorState } from "./types/emulatorstate.interface";
 
 const parseHexData = (data: string): Uint8Array => {
@@ -76,6 +77,16 @@ export class VirtualMachine {
 	public pause = () => this.worker.postMessage({ command: "pause" });
 	public step = () => this.worker.postMessage({ command: "step" });
 	public reset = () => this.worker.postMessage({ command: "reset" });
+
+	public addBP(type: Breakpoint["type"], address: number) {
+		this.worker.postMessage({ command: "addBP", type, address });
+	}
+	public removeBP(type: Breakpoint["type"], address: number) {
+		this.worker.postMessage({ command: "removeBP", type, address });
+	}
+	public clearBPs() {
+		this.worker.postMessage({ command: "clearBPs" });
+	}
 
 	public updateMemory(addr: number, value: number) {
 		this.sharedMemory[addr] = value;
