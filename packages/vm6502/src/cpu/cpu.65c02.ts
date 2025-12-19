@@ -39,6 +39,7 @@ export function initCPU(systemBus: IBus, regView: DataView) {
 
 export function setRunning(running: boolean) {
 	isRunning = running;
+	self.postMessage({ type: "isRunning", isRunning: running });
 	if (isRunning) run();
 }
 
@@ -78,7 +79,7 @@ export function resetCPU() {
 	registersView.setUint16(REG_PC_OFFSET, (hi << 8) | lo, true);
 
 	// Stop execution
-	isRunning = false;
+	setRunning(false);
 }
 
 // --- Main Execution Loop ---
@@ -227,7 +228,7 @@ function executeInstruction(): number {
 			case 0x00: {
 				// BRK
 				// Note: Actual interrupt sequence is handled by CPU, this is a placeholder
-				isRunning = false;
+				setRunning(false);
 				break;
 			}
 			case 0x04: {
@@ -1723,7 +1724,7 @@ function executeInstruction(): number {
 					opcode: opcode,
 				});
 
-				isRunning = false; // Stop on unimplemented opcode
+				setRunning(false); // Stop on unimplemented opcode
 				break;
 			}
 		}
