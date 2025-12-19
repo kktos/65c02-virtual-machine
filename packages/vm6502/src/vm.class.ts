@@ -75,8 +75,10 @@ export class VirtualMachine {
 
 	public play = () => this.worker.postMessage({ command: "run" });
 	public pause = () => this.worker.postMessage({ command: "pause" });
-	public step = () => this.worker.postMessage({ command: "step" });
 	public reset = () => this.worker.postMessage({ command: "reset" });
+	public step = () => this.worker.postMessage({ command: "step" });
+	public stepOut = () => console.log("Not yet implemented !");
+	public stepOver = () => console.log("Not yet implemented !");
 
 	public addBP(type: Breakpoint["type"], address: number) {
 		this.worker.postMessage({ command: "addBP", type, address });
