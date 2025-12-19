@@ -21,8 +21,6 @@ export class Bus implements IBus {
 	}
 
 	write(address: number, value: number): void {
-		console.log(`write ${address.toString(16).padStart(4, "0")}:${(value & 0xff).toString(16).padStart(2, "0")}`);
-
 		this.memory[address] = value & 0xff;
 	}
 }
