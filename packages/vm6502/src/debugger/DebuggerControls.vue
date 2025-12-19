@@ -2,7 +2,7 @@
 	<div class="flex justify-start items-center space-x-4 mb-6 p-3 bg-gray-800 rounded-xl shadow-inner border border-gray-700 shrink-0">
 
 		<ButtonGroup>
-			<Button	@click="controls.play"
+			<Button	@click="toggle"
 				size="sm"
 				:class="[ isRunning ? 'bg-red-600 hover:bg-red-500' : 'bg-green-600 hover:bg-green-500']"
 			>
@@ -54,6 +54,7 @@ import { ButtonGroup } from '@/components/ui/button-group';
 
 	interface DebuggerControls {
 		play: () => void;
+		pause: () => void;
 		step: () => void;
 		stepOver: () => void;
 		stepOut: () => void;
@@ -65,5 +66,12 @@ import { ButtonGroup } from '@/components/ui/button-group';
 		controls: DebuggerControls;
 	}
 
-	const { isRunning=false, controls } = defineProps<Props>();
+	const { isRunning, controls } = defineProps<Props>();
+
+	const toggle = () => {
+		if (isRunning)
+			controls.pause();
+		 else
+			controls.play();
+	};
 </script>
