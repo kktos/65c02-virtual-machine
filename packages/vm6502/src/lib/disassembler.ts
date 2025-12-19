@@ -3,13 +3,13 @@ import { opcodeMap } from "./opcodes";
 
 const toHex = (v: number | undefined, pad: number) => (v ?? 0).toString(16).toUpperCase().padStart(pad, "0");
 
-export const disassemble = (memory: Uint8Array, fromAddress: number, toAddress: number): DisassemblyLine[] => {
+export const disassemble = (memory: Uint8Array, fromAddress: number, lineCount: number): DisassemblyLine[] => {
 	const disassembly: DisassemblyLine[] = [];
 	if (!memory || memory.length === 0) return disassembly;
 
 	let pc = fromAddress;
 
-	while (pc <= toAddress && pc < memory.length) {
+	while (disassembly.length < lineCount && pc < memory.length) {
 		const address = pc;
 		const opcodeByte = memory[pc] ?? 0;
 		const opcodeInfo = opcodeMap[opcodeByte];
@@ -23,7 +23,7 @@ export const disassemble = (memory: Uint8Array, fromAddress: number, toAddress: 
 				comment: `Unknown opcode`,
 				cycles: 1,
 			});
-			pc++; // Move to the next byte to try and find a valid instruction
+			pc++;
 			continue;
 		}
 
@@ -54,25 +54,25 @@ export const disassemble = (memory: Uint8Array, fromAddress: number, toAddress: 
 				line.opcode = `${name} $${toHex(operandBytes[0], 2)},Y`;
 				break;
 			case "ABS":
-				line.opcode = `${name} $${toHex((operandBytes[1] << 8) | operandBytes[0], 4)}`;
+				line.opcode = `${name} $${toHex(((operandBytes[1] ?? 0) << 8) | (operandBytes[0] ?? 0), 4)}`;
 				break;
 			case "ABX":
-				line.opcode = `${name} $${toHex((operandBytes[1] << 8) | operandBytes[0], 4)},X`;
+				line.opcode = `${name} $${toHex(((operandBytes[1] ?? 0) << 8) | (operandBytes[0] ?? 0), 4)},X`;
 				break;
 			case "ABY":
-				line.opcode = `${name} $${toHex((operandBytes[1] << 8) | operandBytes[0], 4)},Y`;
+				line.opcode = `${name} $${toHex(((operandBytes[1] ?? 0) << 8) | (operandBytes[0] ?? 0), 4)},Y`;
 				break;
 			case "REL": {
-				const offset = operandBytes[0];
+				const offset = operandBytes[0] ?? 0;
 				const target = pc + 2 + (offset < 0x80 ? offset : offset - 0x100);
 				line.opcode = `${name} $${toHex(target, 4)}`;
 				break;
 			}
 			case "IND":
-				line.opcode = `${name} ($${toHex((operandBytes[1] << 8) | operandBytes[0], 4)})`;
+				line.opcode = `${name} ($${toHex(((operandBytes[1] ?? 0) << 8) | (operandBytes[0] ?? 0), 4)})`;
 				break;
 			case "IAX": // (Absolute, X)
-				line.opcode = `${name} ($${toHex((operandBytes[1] << 8) | operandBytes[0], 4)},X)`;
+				line.opcode = `${name} ($${toHex(((operandBytes[1] ?? 0) << 8) | (operandBytes[0] ?? 0), 4)},X)`;
 				break;
 			case "IDX": // (Zero Page, X)
 				line.opcode = `${name} ($${toHex(operandBytes[0], 2)},X)`;
