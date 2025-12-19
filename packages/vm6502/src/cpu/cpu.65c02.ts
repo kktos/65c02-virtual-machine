@@ -1,5 +1,7 @@
 import type { IBus } from "./bus.interface";
 import {
+	FLAG_5_MASK,
+	FLAG_B_MASK,
 	FLAG_N_MASK,
 	FLAG_Z_MASK,
 	REG_A_OFFSET,
@@ -212,7 +214,7 @@ function executeInstruction(): number {
 	if (!registersView || !bus) return 0;
 
 	let pc = registersView.getUint16(REG_PC_OFFSET, true);
-	const opcode = bus.read(pc);
+	const opcode = bus.read(pc, true); // Opcode fetch (SYNC)
 	pc++;
 
 	let cycles = 2; // Default cycles, will be overridden
@@ -230,7 +232,7 @@ function executeInstruction(): number {
 			}
 			case 0x04: {
 				// TSB Zero Page (65C02)
-				const addr = bus.read(pc);
+				const addr = bus.read(pc, true);
 				pc++;
 				const memValue = bus.read(addr);
 				const accumulator = registersView.getUint8(REG_A_OFFSET);
@@ -243,7 +245,7 @@ function executeInstruction(): number {
 			}
 			case 0x0c: {
 				// TSB Absolute (65C02)
-				const addr = bus.read(pc) | (bus.read(pc + 1) << 8);
+				const addr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
 				pc += 2;
 				const memValue = bus.read(addr);
 				const accumulator = registersView.getUint8(REG_A_OFFSET);
@@ -257,8 +259,8 @@ function executeInstruction(): number {
 			case 0x08: {
 				// PHP (Push Processor Status)
 				let s = registersView.getUint8(REG_SP_OFFSET);
-				// On 65C02, B flag (bit 4) is pushed as 0. Bit 5 is always 1.
-				const status = (registersView.getUint8(REG_STATUS_OFFSET) & ~0x10) | 0x20;
+				// On 65C02, Bit 5 is always 1.
+				const status = registersView.getUint8(REG_STATUS_OFFSET) | FLAG_5_MASK;
 				bus.write(STACK_PAGE_HI | s, status);
 				s--;
 				registersView.setUint8(REG_SP_OFFSET, s);
@@ -268,7 +270,7 @@ function executeInstruction(): number {
 			// --- Logical Operations ---
 			case 0x01: {
 				// ORA (Indirect,X)
-				const pointer = (bus.read(pc) + registersView.getUint8(REG_X_OFFSET)) & 0xff;
+				const pointer = (bus.read(pc, true) + registersView.getUint8(REG_X_OFFSET)) & 0xff;
 				pc++;
 				const addr = bus.read(pointer) | (bus.read((pointer + 1) & 0xff) << 8);
 				ora(bus.read(addr));
@@ -277,7 +279,7 @@ function executeInstruction(): number {
 			}
 			case 0x05: {
 				// ORA Zero Page
-				const addr = bus.read(pc);
+				const addr = bus.read(pc, true);
 				pc++;
 				ora(bus.read(addr));
 				cycles = 3;
@@ -285,7 +287,7 @@ function executeInstruction(): number {
 			}
 			case 0x09: {
 				// ORA Immediate
-				const value = bus.read(pc);
+				const value = bus.read(pc, true);
 				pc++;
 				ora(value);
 				cycles = 2;
@@ -293,7 +295,7 @@ function executeInstruction(): number {
 			}
 			case 0x0d: {
 				// ORA Absolute
-				const addr = bus.read(pc) | (bus.read(pc + 1) << 8);
+				const addr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
 				pc += 2;
 				ora(bus.read(addr));
 				cycles = 4;
@@ -301,7 +303,7 @@ function executeInstruction(): number {
 			}
 			case 0x11: {
 				// ORA (Indirect),Y
-				const zeroPageAddr = bus.read(pc);
+				const zeroPageAddr = bus.read(pc, true);
 				pc++;
 				const baseAddr = bus.read(zeroPageAddr) | (bus.read((zeroPageAddr + 1) & 0xff) << 8);
 				const addr = baseAddr + registersView.getUint8(REG_Y_OFFSET);
@@ -311,7 +313,7 @@ function executeInstruction(): number {
 			}
 			case 0x12: {
 				// ORA (Zero Page Indirect) - 65C02
-				const zeroPageAddr = bus.read(pc);
+				const zeroPageAddr = bus.read(pc, true);
 				pc++;
 				const addr = bus.read(zeroPageAddr) | (bus.read((zeroPageAddr + 1) & 0xff) << 8);
 				ora(bus.read(addr));
@@ -320,7 +322,7 @@ function executeInstruction(): number {
 			}
 			case 0x14: {
 				// TRB Zero Page (65C02)
-				const addr = bus.read(pc);
+				const addr = bus.read(pc, true);
 				pc++;
 				const memValue = bus.read(addr);
 				const accumulator = registersView.getUint8(REG_A_OFFSET);
@@ -333,7 +335,7 @@ function executeInstruction(): number {
 			}
 			case 0x1c: {
 				// TRB Absolute (65C02)
-				const addr = bus.read(pc) | (bus.read(pc + 1) << 8);
+				const addr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
 				pc += 2;
 				const memValue = bus.read(addr);
 				const accumulator = registersView.getUint8(REG_A_OFFSET);
@@ -346,7 +348,7 @@ function executeInstruction(): number {
 			}
 			case 0x15: {
 				// ORA Zero Page,X
-				const addr = (bus.read(pc) + registersView.getUint8(REG_X_OFFSET)) & 0xff;
+				const addr = (bus.read(pc, true) + registersView.getUint8(REG_X_OFFSET)) & 0xff;
 				pc++;
 				ora(bus.read(addr));
 				cycles = 4;
@@ -354,7 +356,7 @@ function executeInstruction(): number {
 			}
 			case 0x19: {
 				// ORA Absolute,Y
-				const baseAddr = bus.read(pc) | (bus.read(pc + 1) << 8);
+				const baseAddr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
 				pc += 2;
 				const addr = baseAddr + registersView.getUint8(REG_Y_OFFSET);
 				ora(bus.read(addr));
@@ -363,7 +365,7 @@ function executeInstruction(): number {
 			}
 			case 0x1d: {
 				// ORA Absolute,X
-				const baseAddr = bus.read(pc) | (bus.read(pc + 1) << 8);
+				const baseAddr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
 				pc += 2;
 				const addr = baseAddr + registersView.getUint8(REG_X_OFFSET);
 				ora(bus.read(addr));
@@ -376,16 +378,17 @@ function executeInstruction(): number {
 				s++;
 				registersView.setUint8(REG_SP_OFFSET, s);
 				const pulledStatus = bus.read(STACK_PAGE_HI | s);
-				const currentStatus = registersView.getUint8(REG_STATUS_OFFSET);
+				// const currentStatus = registersView.getUint8(REG_STATUS_OFFSET);
 				// B flag (bit 4) and unused bit 5 are not affected by PLP.
-				const newStatus = (pulledStatus & ~0x30) | (currentStatus & 0x30);
-				registersView.setUint8(REG_STATUS_OFFSET, newStatus);
+				// const newStatus = (pulledStatus & ~0x30) | (currentStatus & 0x30);
+				// registersView.setUint8(REG_STATUS_OFFSET, newStatus);
+				registersView.setUint8(REG_STATUS_OFFSET, pulledStatus | FLAG_B_MASK);
 				cycles = 4;
 				break;
 			}
 			case 0x21: {
 				// AND (Indirect,X)
-				const pointer = (bus.read(pc) + registersView.getUint8(REG_X_OFFSET)) & 0xff;
+				const pointer = (bus.read(pc, true) + registersView.getUint8(REG_X_OFFSET)) & 0xff;
 				pc++;
 				const addr = bus.read(pointer) | (bus.read((pointer + 1) & 0xff) << 8);
 				and(bus.read(addr));
@@ -395,7 +398,7 @@ function executeInstruction(): number {
 			// --- Load/Store Operations ---
 			case 0xa9: {
 				// LDA #Immediate
-				const value = bus.read(pc);
+				const value = bus.read(pc, true);
 				pc++;
 				registersView.setUint8(REG_A_OFFSET, value);
 				setNZFlags(value);
@@ -404,7 +407,7 @@ function executeInstruction(): number {
 			}
 			case 0xa2: {
 				// LDX #Immediate
-				const value = bus.read(pc);
+				const value = bus.read(pc, true);
 				pc++;
 				registersView.setUint8(REG_X_OFFSET, value);
 				setNZFlags(value);
@@ -413,7 +416,7 @@ function executeInstruction(): number {
 			}
 			case 0xa0: {
 				// LDY #Immediate
-				const value = bus.read(pc);
+				const value = bus.read(pc, true);
 				pc++;
 				registersView.setUint8(REG_Y_OFFSET, value);
 				setNZFlags(value);
@@ -422,7 +425,7 @@ function executeInstruction(): number {
 			}
 			case 0xa6: {
 				// LDX Zero Page
-				const addr = bus.read(pc);
+				const addr = bus.read(pc, true);
 				pc++;
 				const value = bus.read(addr);
 				registersView.setUint8(REG_X_OFFSET, value);
@@ -432,7 +435,7 @@ function executeInstruction(): number {
 			}
 			case 0xa4: {
 				// LDY Zero Page
-				const addr = bus.read(pc);
+				const addr = bus.read(pc, true);
 				pc++;
 				const value = bus.read(addr);
 				registersView.setUint8(REG_Y_OFFSET, value);
@@ -442,7 +445,7 @@ function executeInstruction(): number {
 			}
 			case 0xad: {
 				// LDA Absolute
-				const addr = bus.read(pc) | (bus.read(pc + 1) << 8);
+				const addr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
 				pc += 2;
 				const value = bus.read(addr);
 				registersView.setUint8(REG_A_OFFSET, value);
@@ -452,7 +455,7 @@ function executeInstruction(): number {
 			}
 			case 0xbd: {
 				// LDA Absolute,X
-				const baseAddr = bus.read(pc) | (bus.read(pc + 1) << 8);
+				const baseAddr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
 				pc += 2;
 				const addr = baseAddr + registersView.getUint8(REG_X_OFFSET);
 				const value = bus.read(addr);
@@ -463,7 +466,7 @@ function executeInstruction(): number {
 			}
 			case 0xb9: {
 				// LDA Absolute,Y
-				const baseAddr = bus.read(pc) | (bus.read(pc + 1) << 8);
+				const baseAddr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
 				pc += 2;
 				const addr = baseAddr + registersView.getUint8(REG_Y_OFFSET);
 				const value = bus.read(addr);
@@ -474,7 +477,7 @@ function executeInstruction(): number {
 			}
 			case 0xa5: {
 				// LDA Zero Page
-				const addr = bus.read(pc);
+				const addr = bus.read(pc, true);
 				pc++;
 				const value = bus.read(addr);
 				registersView.setUint8(REG_A_OFFSET, value);
@@ -484,7 +487,7 @@ function executeInstruction(): number {
 			}
 			case 0xb5: {
 				// LDA Zero Page,X
-				const zeroPageAddr = bus.read(pc);
+				const zeroPageAddr = bus.read(pc, true);
 				pc++;
 				const addr = (zeroPageAddr + registersView.getUint8(REG_X_OFFSET)) & 0xff;
 				const value = bus.read(addr);
@@ -495,7 +498,7 @@ function executeInstruction(): number {
 			}
 			case 0xa1: {
 				// LDA (Indirect,X)
-				const zeroPageAddr = bus.read(pc);
+				const zeroPageAddr = bus.read(pc, true);
 				pc++;
 				const pointer = (zeroPageAddr + registersView.getUint8(REG_X_OFFSET)) & 0xff;
 				const addr = bus.read(pointer) | (bus.read((pointer + 1) & 0xff) << 8);
@@ -507,7 +510,7 @@ function executeInstruction(): number {
 			}
 			case 0xb1: {
 				// LDA (Indirect),Y
-				const zeroPageAddr = bus.read(pc);
+				const zeroPageAddr = bus.read(pc, true);
 				pc++;
 				const baseAddr = bus.read(zeroPageAddr) | (bus.read((zeroPageAddr + 1) & 0xff) << 8);
 				const addr = baseAddr + registersView.getUint8(REG_Y_OFFSET);
@@ -519,7 +522,7 @@ function executeInstruction(): number {
 			}
 			case 0xb2: {
 				// LDA (Zero Page Indirect) - 65C02
-				const zeroPageAddr = bus.read(pc);
+				const zeroPageAddr = bus.read(pc, true);
 				pc++;
 				const addr = bus.read(zeroPageAddr) | (bus.read((zeroPageAddr + 1) & 0xff) << 8);
 				const value = bus.read(addr);
@@ -531,7 +534,7 @@ function executeInstruction(): number {
 			}
 			case 0xae: {
 				// LDX Absolute
-				const addr = bus.read(pc) | (bus.read(pc + 1) << 8);
+				const addr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
 				pc += 2;
 				const value = bus.read(addr);
 				registersView.setUint8(REG_X_OFFSET, value);
@@ -541,7 +544,7 @@ function executeInstruction(): number {
 			}
 			case 0xac: {
 				// LDY Absolute
-				const addr = bus.read(pc) | (bus.read(pc + 1) << 8);
+				const addr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
 				pc += 2;
 				const value = bus.read(addr);
 				registersView.setUint8(REG_Y_OFFSET, value);
@@ -551,7 +554,7 @@ function executeInstruction(): number {
 			}
 			case 0xbe: {
 				// LDX Absolute,Y
-				const baseAddr = bus.read(pc) | (bus.read(pc + 1) << 8);
+				const baseAddr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
 				pc += 2;
 				const addr = baseAddr + registersView.getUint8(REG_Y_OFFSET);
 				const value = bus.read(addr);
@@ -562,7 +565,7 @@ function executeInstruction(): number {
 			}
 			case 0xbc: {
 				// LDY Absolute,X
-				const baseAddr = bus.read(pc) | (bus.read(pc + 1) << 8);
+				const baseAddr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
 				pc += 2;
 				const addr = baseAddr + registersView.getUint8(REG_X_OFFSET);
 				const value = bus.read(addr);
@@ -573,7 +576,7 @@ function executeInstruction(): number {
 			}
 			case 0xb6: {
 				// LDX Zero Page,Y
-				const zeroPageAddr = bus.read(pc);
+				const zeroPageAddr = bus.read(pc, true);
 				pc++;
 				const addr = (zeroPageAddr + registersView.getUint8(REG_Y_OFFSET)) & 0xff;
 				const value = bus.read(addr);
@@ -584,7 +587,7 @@ function executeInstruction(): number {
 			}
 			case 0xb4: {
 				// LDY Zero Page,X
-				const zeroPageAddr = bus.read(pc);
+				const zeroPageAddr = bus.read(pc, true);
 				pc++;
 				const addr = (zeroPageAddr + registersView.getUint8(REG_X_OFFSET)) & 0xff;
 				const value = bus.read(addr);
@@ -596,7 +599,7 @@ function executeInstruction(): number {
 
 			case 0x8d: {
 				// STA Absolute
-				const addr = bus.read(pc) | (bus.read(pc + 1) << 8);
+				const addr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
 				pc += 2;
 				bus.write(addr, registersView.getUint8(REG_A_OFFSET));
 				cycles = 4;
@@ -604,7 +607,7 @@ function executeInstruction(): number {
 			}
 			case 0x86: {
 				// STX Zero Page
-				const addr = bus.read(pc);
+				const addr = bus.read(pc, true);
 				pc++;
 				bus.write(addr, registersView.getUint8(REG_X_OFFSET));
 				cycles = 3;
@@ -612,7 +615,7 @@ function executeInstruction(): number {
 			}
 			case 0x84: {
 				// STY Zero Page
-				const addr = bus.read(pc);
+				const addr = bus.read(pc, true);
 				pc++;
 				bus.write(addr, registersView.getUint8(REG_Y_OFFSET));
 				cycles = 3;
@@ -620,7 +623,7 @@ function executeInstruction(): number {
 			}
 			case 0x8e: {
 				// STX Absolute
-				const addr = bus.read(pc) | (bus.read(pc + 1) << 8);
+				const addr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
 				pc += 2;
 				bus.write(addr, registersView.getUint8(REG_X_OFFSET));
 				cycles = 4;
@@ -628,7 +631,7 @@ function executeInstruction(): number {
 			}
 			case 0x8c: {
 				// STY Absolute
-				const addr = bus.read(pc) | (bus.read(pc + 1) << 8);
+				const addr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
 				pc += 2;
 				bus.write(addr, registersView.getUint8(REG_Y_OFFSET));
 				cycles = 4;
@@ -636,7 +639,7 @@ function executeInstruction(): number {
 			}
 			case 0x96: {
 				// STX Zero Page,Y
-				const zeroPageAddr = bus.read(pc);
+				const zeroPageAddr = bus.read(pc, true);
 				pc++;
 				const addr = (zeroPageAddr + registersView.getUint8(REG_Y_OFFSET)) & 0xff;
 				bus.write(addr, registersView.getUint8(REG_X_OFFSET));
@@ -645,7 +648,7 @@ function executeInstruction(): number {
 			}
 			case 0x94: {
 				// STY Zero Page,X
-				const zeroPageAddr = bus.read(pc);
+				const zeroPageAddr = bus.read(pc, true);
 				pc++;
 				const addr = (zeroPageAddr + registersView.getUint8(REG_X_OFFSET)) & 0xff;
 				bus.write(addr, registersView.getUint8(REG_Y_OFFSET));
@@ -654,7 +657,7 @@ function executeInstruction(): number {
 			}
 			case 0x25: {
 				// AND Zero Page
-				const addr = bus.read(pc);
+				const addr = bus.read(pc, true);
 				pc++;
 				and(bus.read(addr));
 				cycles = 3;
@@ -662,7 +665,7 @@ function executeInstruction(): number {
 			}
 			case 0x29: {
 				// AND Immediate
-				const value = bus.read(pc);
+				const value = bus.read(pc, true);
 				pc++;
 				and(value);
 				cycles = 2;
@@ -670,7 +673,7 @@ function executeInstruction(): number {
 			}
 			case 0x2d: {
 				// AND Absolute
-				const addr = bus.read(pc) | (bus.read(pc + 1) << 8);
+				const addr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
 				pc += 2;
 				and(bus.read(addr));
 				cycles = 4;
@@ -678,7 +681,7 @@ function executeInstruction(): number {
 			}
 			case 0x31: {
 				// AND (Indirect),Y
-				const zeroPageAddr = bus.read(pc);
+				const zeroPageAddr = bus.read(pc, true);
 				pc++;
 				const baseAddr = bus.read(zeroPageAddr) | (bus.read((zeroPageAddr + 1) & 0xff) << 8);
 				const addr = baseAddr + registersView.getUint8(REG_Y_OFFSET);
@@ -688,7 +691,7 @@ function executeInstruction(): number {
 			}
 			case 0x32: {
 				// AND (Zero Page Indirect) - 65C02
-				const zeroPageAddr = bus.read(pc);
+				const zeroPageAddr = bus.read(pc, true);
 				pc++;
 				const addr = bus.read(zeroPageAddr) | (bus.read((zeroPageAddr + 1) & 0xff) << 8);
 				and(bus.read(addr));
@@ -697,7 +700,7 @@ function executeInstruction(): number {
 			}
 			case 0x35: {
 				// AND Zero Page,X
-				const addr = (bus.read(pc) + registersView.getUint8(REG_X_OFFSET)) & 0xff;
+				const addr = (bus.read(pc, true) + registersView.getUint8(REG_X_OFFSET)) & 0xff;
 				pc++;
 				and(bus.read(addr));
 				cycles = 4;
@@ -705,7 +708,7 @@ function executeInstruction(): number {
 			}
 			case 0x39: {
 				// AND Absolute,Y
-				const baseAddr = bus.read(pc) | (bus.read(pc + 1) << 8);
+				const baseAddr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
 				pc += 2;
 				const addr = baseAddr + registersView.getUint8(REG_Y_OFFSET);
 				and(bus.read(addr));
@@ -714,7 +717,7 @@ function executeInstruction(): number {
 			}
 			case 0x3d: {
 				// AND Absolute,X
-				const baseAddr = bus.read(pc) | (bus.read(pc + 1) << 8);
+				const baseAddr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
 				pc += 2;
 				const addr = baseAddr + registersView.getUint8(REG_X_OFFSET);
 				and(bus.read(addr));
@@ -739,7 +742,7 @@ function executeInstruction(): number {
 			}
 			case 0x41: {
 				// EOR (Indirect,X)
-				const pointer = (bus.read(pc) + registersView.getUint8(REG_X_OFFSET)) & 0xff;
+				const pointer = (bus.read(pc, true) + registersView.getUint8(REG_X_OFFSET)) & 0xff;
 				pc++;
 				const addr = bus.read(pointer) | (bus.read((pointer + 1) & 0xff) << 8);
 				eor(bus.read(addr));
@@ -748,7 +751,7 @@ function executeInstruction(): number {
 			}
 			case 0x45: {
 				// EOR Zero Page
-				const addr = bus.read(pc);
+				const addr = bus.read(pc, true);
 				pc++;
 				eor(bus.read(addr));
 				cycles = 3;
@@ -756,7 +759,7 @@ function executeInstruction(): number {
 			}
 			case 0x49: {
 				// EOR Immediate
-				const value = bus.read(pc);
+				const value = bus.read(pc, true);
 				pc++;
 				eor(value);
 				cycles = 2;
@@ -764,7 +767,7 @@ function executeInstruction(): number {
 			}
 			case 0x4d: {
 				// EOR Absolute
-				const addr = bus.read(pc) | (bus.read(pc + 1) << 8);
+				const addr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
 				pc += 2;
 				eor(bus.read(addr));
 				cycles = 4;
@@ -772,7 +775,7 @@ function executeInstruction(): number {
 			}
 			case 0x51: {
 				// EOR (Indirect),Y
-				const zeroPageAddr = bus.read(pc);
+				const zeroPageAddr = bus.read(pc, true);
 				pc++;
 				const baseAddr = bus.read(zeroPageAddr) | (bus.read((zeroPageAddr + 1) & 0xff) << 8);
 				const addr = baseAddr + registersView.getUint8(REG_Y_OFFSET);
@@ -782,7 +785,7 @@ function executeInstruction(): number {
 			}
 			case 0x52: {
 				// EOR (Zero Page Indirect) - 65C02
-				const zeroPageAddr = bus.read(pc);
+				const zeroPageAddr = bus.read(pc, true);
 				pc++;
 				const addr = bus.read(zeroPageAddr) | (bus.read((zeroPageAddr + 1) & 0xff) << 8);
 				eor(bus.read(addr));
@@ -791,7 +794,7 @@ function executeInstruction(): number {
 			}
 			case 0x55: {
 				// EOR Zero Page,X
-				const addr = (bus.read(pc) + registersView.getUint8(REG_X_OFFSET)) & 0xff;
+				const addr = (bus.read(pc, true) + registersView.getUint8(REG_X_OFFSET)) & 0xff;
 				pc++;
 				eor(bus.read(addr));
 				cycles = 4;
@@ -799,7 +802,7 @@ function executeInstruction(): number {
 			}
 			case 0x59: {
 				// EOR Absolute,Y
-				const baseAddr = bus.read(pc) | (bus.read(pc + 1) << 8);
+				const baseAddr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
 				pc += 2;
 				const addr = baseAddr + registersView.getUint8(REG_Y_OFFSET);
 				eor(bus.read(addr));
@@ -808,7 +811,7 @@ function executeInstruction(): number {
 			}
 			case 0x5d: {
 				// EOR Absolute,X
-				const baseAddr = bus.read(pc) | (bus.read(pc + 1) << 8);
+				const baseAddr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
 				pc += 2;
 				const addr = baseAddr + registersView.getUint8(REG_X_OFFSET);
 				eor(bus.read(addr));
@@ -819,7 +822,7 @@ function executeInstruction(): number {
 			// --- Arithmetic Operations ---
 			case 0x69: {
 				// ADC #Immediate
-				const value = bus.read(pc);
+				const value = bus.read(pc, true);
 				pc++;
 				adc(value);
 				cycles = 2;
@@ -827,7 +830,7 @@ function executeInstruction(): number {
 			}
 			case 0x65: {
 				// ADC Zero Page
-				const addr = bus.read(pc);
+				const addr = bus.read(pc, true);
 				pc++;
 				adc(bus.read(addr));
 				cycles = 3;
@@ -835,7 +838,7 @@ function executeInstruction(): number {
 			}
 			case 0x75: {
 				// ADC Zero Page,X
-				const addr = (bus.read(pc) + registersView.getUint8(REG_X_OFFSET)) & 0xff;
+				const addr = (bus.read(pc, true) + registersView.getUint8(REG_X_OFFSET)) & 0xff;
 				pc++;
 				adc(bus.read(addr));
 				cycles = 4;
@@ -843,7 +846,7 @@ function executeInstruction(): number {
 			}
 			case 0x6d: {
 				// ADC Absolute
-				const addr = bus.read(pc) | (bus.read(pc + 1) << 8);
+				const addr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
 				pc += 2;
 				adc(bus.read(addr));
 				cycles = 4;
@@ -851,7 +854,7 @@ function executeInstruction(): number {
 			}
 			case 0x7d: {
 				// ADC Absolute,X
-				const baseAddr = bus.read(pc) | (bus.read(pc + 1) << 8);
+				const baseAddr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
 				pc += 2;
 				const addr = baseAddr + registersView.getUint8(REG_X_OFFSET);
 				adc(bus.read(addr));
@@ -860,7 +863,7 @@ function executeInstruction(): number {
 			}
 			case 0x79: {
 				// ADC Absolute,Y
-				const baseAddr = bus.read(pc) | (bus.read(pc + 1) << 8);
+				const baseAddr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
 				pc += 2;
 				const addr = baseAddr + registersView.getUint8(REG_Y_OFFSET);
 				adc(bus.read(addr));
@@ -869,7 +872,7 @@ function executeInstruction(): number {
 			}
 			case 0x61: {
 				// ADC (Indirect,X)
-				const pointer = (bus.read(pc) + registersView.getUint8(REG_X_OFFSET)) & 0xff;
+				const pointer = (bus.read(pc, true) + registersView.getUint8(REG_X_OFFSET)) & 0xff;
 				pc++;
 				const addr = bus.read(pointer) | (bus.read((pointer + 1) & 0xff) << 8);
 				adc(bus.read(addr));
@@ -878,7 +881,7 @@ function executeInstruction(): number {
 			}
 			case 0x71: {
 				// ADC (Indirect),Y
-				const zeroPageAddr = bus.read(pc);
+				const zeroPageAddr = bus.read(pc, true);
 				pc++;
 				const baseAddr = bus.read(zeroPageAddr) | (bus.read((zeroPageAddr + 1) & 0xff) << 8);
 				const addr = baseAddr + registersView.getUint8(REG_Y_OFFSET);
@@ -888,7 +891,7 @@ function executeInstruction(): number {
 			}
 			case 0x72: {
 				// ADC (Zero Page Indirect) - 65C02
-				const zeroPageAddr = bus.read(pc);
+				const zeroPageAddr = bus.read(pc, true);
 				pc++;
 				const addr = bus.read(zeroPageAddr) | (bus.read((zeroPageAddr + 1) & 0xff) << 8);
 				adc(bus.read(addr));
@@ -898,7 +901,7 @@ function executeInstruction(): number {
 
 			case 0xe9: {
 				// SBC #Immediate
-				const value = bus.read(pc);
+				const value = bus.read(pc, true);
 				pc++;
 				sbc(value);
 				cycles = 2;
@@ -906,7 +909,7 @@ function executeInstruction(): number {
 			}
 			case 0xe5: {
 				// SBC Zero Page
-				const addr = bus.read(pc);
+				const addr = bus.read(pc, true);
 				pc++;
 				sbc(bus.read(addr));
 				cycles = 3;
@@ -914,7 +917,7 @@ function executeInstruction(): number {
 			}
 			case 0xf5: {
 				// SBC Zero Page,X
-				const addr = (bus.read(pc) + registersView.getUint8(REG_X_OFFSET)) & 0xff;
+				const addr = (bus.read(pc, true) + registersView.getUint8(REG_X_OFFSET)) & 0xff;
 				pc++;
 				sbc(bus.read(addr));
 				cycles = 4;
@@ -922,7 +925,7 @@ function executeInstruction(): number {
 			}
 			case 0xed: {
 				// SBC Absolute
-				const addr = bus.read(pc) | (bus.read(pc + 1) << 8);
+				const addr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
 				pc += 2;
 				sbc(bus.read(addr));
 				cycles = 4;
@@ -930,7 +933,7 @@ function executeInstruction(): number {
 			}
 			case 0xfd: {
 				// SBC Absolute,X
-				const baseAddr = bus.read(pc) | (bus.read(pc + 1) << 8);
+				const baseAddr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
 				pc += 2;
 				const addr = baseAddr + registersView.getUint8(REG_X_OFFSET);
 				sbc(bus.read(addr));
@@ -939,7 +942,7 @@ function executeInstruction(): number {
 			}
 			case 0xf9: {
 				// SBC Absolute,Y
-				const baseAddr = bus.read(pc) | (bus.read(pc + 1) << 8);
+				const baseAddr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
 				pc += 2;
 				const addr = baseAddr + registersView.getUint8(REG_Y_OFFSET);
 				sbc(bus.read(addr));
@@ -948,7 +951,7 @@ function executeInstruction(): number {
 			}
 			case 0xe1: {
 				// SBC (Indirect,X)
-				const pointer = (bus.read(pc) + registersView.getUint8(REG_X_OFFSET)) & 0xff;
+				const pointer = (bus.read(pc, true) + registersView.getUint8(REG_X_OFFSET)) & 0xff;
 				pc++;
 				const addr = bus.read(pointer) | (bus.read((pointer + 1) & 0xff) << 8);
 				sbc(bus.read(addr));
@@ -957,7 +960,7 @@ function executeInstruction(): number {
 			}
 			case 0xf1: {
 				// SBC (Indirect),Y
-				const zeroPageAddr = bus.read(pc);
+				const zeroPageAddr = bus.read(pc, true);
 				pc++;
 				const baseAddr = bus.read(zeroPageAddr) | (bus.read((zeroPageAddr + 1) & 0xff) << 8);
 				const addr = baseAddr + registersView.getUint8(REG_Y_OFFSET);
@@ -967,7 +970,7 @@ function executeInstruction(): number {
 			}
 			case 0xf2: {
 				// SBC (Zero Page Indirect) - 65C02
-				const zeroPageAddr = bus.read(pc);
+				const zeroPageAddr = bus.read(pc, true);
 				pc++;
 				const addr = bus.read(zeroPageAddr) | (bus.read((zeroPageAddr + 1) & 0xff) << 8);
 				sbc(bus.read(addr));
@@ -977,7 +980,7 @@ function executeInstruction(): number {
 
 			case 0xc9: {
 				// CMP #Immediate
-				const value = bus.read(pc);
+				const value = bus.read(pc, true);
 				pc++;
 				const accumulator = registersView.getUint8(REG_A_OFFSET);
 				const result = accumulator - value;
@@ -996,7 +999,7 @@ function executeInstruction(): number {
 
 			case 0xc0: {
 				// CPY #Immediate
-				const value = bus.read(pc);
+				const value = bus.read(pc, true);
 				pc++;
 				const yRegister = registersView.getUint8(REG_Y_OFFSET);
 				const result = yRegister - value;
@@ -1015,7 +1018,7 @@ function executeInstruction(): number {
 
 			case 0xcc: {
 				// CPY Absolute
-				const addr = bus.read(pc) | (bus.read(pc + 1) << 8);
+				const addr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
 				pc += 2;
 				const value = bus.read(addr);
 				const yRegister = registersView.getUint8(REG_Y_OFFSET);
@@ -1035,7 +1038,7 @@ function executeInstruction(): number {
 
 			case 0x9d: {
 				// STA Absolute,X
-				const baseAddr = bus.read(pc) | (bus.read(pc + 1) << 8);
+				const baseAddr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
 				pc += 2;
 				const addr = baseAddr + registersView.getUint8(REG_X_OFFSET);
 				bus.write(addr, registersView.getUint8(REG_A_OFFSET));
@@ -1044,7 +1047,7 @@ function executeInstruction(): number {
 			}
 			case 0x99: {
 				// STA Absolute,Y
-				const baseAddr = bus.read(pc) | (bus.read(pc + 1) << 8);
+				const baseAddr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
 				pc += 2;
 				const addr = baseAddr + registersView.getUint8(REG_Y_OFFSET);
 				bus.write(addr, registersView.getUint8(REG_A_OFFSET));
@@ -1053,7 +1056,7 @@ function executeInstruction(): number {
 			}
 			case 0x85: {
 				// STA Zero Page
-				const addr = bus.read(pc);
+				const addr = bus.read(pc, true);
 				pc++;
 				bus.write(addr, registersView.getUint8(REG_A_OFFSET));
 				cycles = 3;
@@ -1061,7 +1064,7 @@ function executeInstruction(): number {
 			}
 			case 0x95: {
 				// STA Zero Page,X
-				const zeroPageAddr = bus.read(pc);
+				const zeroPageAddr = bus.read(pc, true);
 				pc++;
 				const addr = (zeroPageAddr + registersView.getUint8(REG_X_OFFSET)) & 0xff;
 				bus.write(addr, registersView.getUint8(REG_A_OFFSET));
@@ -1070,7 +1073,7 @@ function executeInstruction(): number {
 			}
 			case 0x81: {
 				// STA (Indirect,X)
-				const zeroPageAddr = bus.read(pc);
+				const zeroPageAddr = bus.read(pc, true);
 				pc++;
 				const pointer = (zeroPageAddr + registersView.getUint8(REG_X_OFFSET)) & 0xff;
 				const addr = bus.read(pointer) | (bus.read((pointer + 1) & 0xff) << 8);
@@ -1080,7 +1083,7 @@ function executeInstruction(): number {
 			}
 			case 0x91: {
 				// STA (Indirect),Y
-				const zeroPageAddr = bus.read(pc);
+				const zeroPageAddr = bus.read(pc, true);
 				pc++;
 				const baseAddr = bus.read(zeroPageAddr) | (bus.read((zeroPageAddr + 1) & 0xff) << 8);
 				const addr = baseAddr + registersView.getUint8(REG_Y_OFFSET);
@@ -1090,7 +1093,7 @@ function executeInstruction(): number {
 			}
 			case 0x92: {
 				// STA (Zero Page Indirect) - 65C02
-				const zeroPageAddr = bus.read(pc);
+				const zeroPageAddr = bus.read(pc, true);
 				pc++;
 				const addr = bus.read(zeroPageAddr) | (bus.read((zeroPageAddr + 1) & 0xff) << 8);
 				bus.write(addr, registersView.getUint8(REG_A_OFFSET));
@@ -1101,7 +1104,7 @@ function executeInstruction(): number {
 			// --- STZ (65C02) ---
 			case 0x64: {
 				// STZ Zero Page
-				const addr = bus.read(pc);
+				const addr = bus.read(pc, true);
 				pc++;
 				bus.write(addr, 0);
 				cycles = 3;
@@ -1109,7 +1112,7 @@ function executeInstruction(): number {
 			}
 			case 0x74: {
 				// STZ Zero Page,X
-				const zeroPageAddr = bus.read(pc);
+				const zeroPageAddr = bus.read(pc, true);
 				pc++;
 				const addr = (zeroPageAddr + registersView.getUint8(REG_X_OFFSET)) & 0xff;
 				bus.write(addr, 0);
@@ -1118,7 +1121,7 @@ function executeInstruction(): number {
 			}
 			case 0x9c: {
 				// STZ Absolute
-				const addr = bus.read(pc) | (bus.read(pc + 1) << 8);
+				const addr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
 				pc += 2;
 				bus.write(addr, 0);
 				cycles = 4;
@@ -1126,7 +1129,7 @@ function executeInstruction(): number {
 			}
 			case 0x9e: {
 				// STZ Absolute,X
-				const baseAddr = bus.read(pc) | (bus.read(pc + 1) << 8);
+				const baseAddr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
 				pc += 2;
 				const addr = baseAddr + registersView.getUint8(REG_X_OFFSET);
 				bus.write(addr, 0);
@@ -1268,14 +1271,14 @@ function executeInstruction(): number {
 			// --- Jumps & Calls ---
 			case 0x4c: {
 				// JMP Absolute
-				const addr = bus.read(pc) | (bus.read(pc + 1) << 8);
+				const addr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
 				pc = addr;
 				cycles = 3;
 				break;
 			}
 			case 0x6c: {
 				// JMP Indirect (6502 bug fixed in 65C02)
-				const pointer = bus.read(pc) | (bus.read(pc + 1) << 8);
+				const pointer = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
 				const addr = bus.read(pointer) | (bus.read(pointer + 1) << 8);
 				pc = addr;
 				cycles = 6; // 65C02 is 6 cycles, 6502 is 5
@@ -1283,7 +1286,7 @@ function executeInstruction(): number {
 			}
 			case 0x7c: {
 				// JMP (Absolute,X) (65C02)
-				const basePointer = bus.read(pc) | (bus.read(pc + 1) << 8);
+				const basePointer = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
 				const pointer = basePointer + registersView.getUint8(REG_X_OFFSET);
 				const addr = bus.read(pointer) | (bus.read(pointer + 1) << 8);
 				pc = addr;
@@ -1292,7 +1295,7 @@ function executeInstruction(): number {
 			}
 			case 0x20: {
 				// JSR Absolute
-				const targetAddr = bus.read(pc) | (bus.read(pc + 1) << 8);
+				const targetAddr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
 				pc += 2;
 				const returnAddr = pc - 1;
 				let s = registersView.getUint8(REG_SP_OFFSET);
@@ -1329,7 +1332,7 @@ function executeInstruction(): number {
 			case 0x50: // BVC
 			case 0x70: {
 				// BVS
-				const offset = bus.read(pc);
+				const offset = bus.read(pc, true);
 				pc++;
 				const status = registersView.getUint8(REG_STATUS_OFFSET);
 				let branch = false;
@@ -1422,7 +1425,7 @@ function executeInstruction(): number {
 
 			case 0x24: {
 				// BIT Zero Page
-				const addr = bus.read(pc);
+				const addr = bus.read(pc, true);
 				pc++;
 				const value = bus.read(addr);
 				const accumulator = registersView.getUint8(REG_A_OFFSET);
@@ -1440,7 +1443,7 @@ function executeInstruction(): number {
 			}
 			case 0x2c: {
 				// BIT Absolute
-				const addr = bus.read(pc) | (bus.read(pc + 1) << 8);
+				const addr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
 				pc += 2;
 				const value = bus.read(addr);
 				const accumulator = registersView.getUint8(REG_A_OFFSET);
@@ -1456,7 +1459,7 @@ function executeInstruction(): number {
 			}
 			case 0x34: {
 				// BIT Zero Page,X (65C02)
-				const addr = (bus.read(pc) + registersView.getUint8(REG_X_OFFSET)) & 0xff;
+				const addr = (bus.read(pc, true) + registersView.getUint8(REG_X_OFFSET)) & 0xff;
 				pc++;
 				const value = bus.read(addr);
 				const accumulator = registersView.getUint8(REG_A_OFFSET);
@@ -1472,7 +1475,7 @@ function executeInstruction(): number {
 			}
 			case 0x3c: {
 				// BIT Absolute,X (65C02)
-				const baseAddr = bus.read(pc) | (bus.read(pc + 1) << 8);
+				const baseAddr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
 				pc += 2;
 				const addr = baseAddr + registersView.getUint8(REG_X_OFFSET);
 				const value = bus.read(addr);
@@ -1489,7 +1492,7 @@ function executeInstruction(): number {
 			}
 			case 0x89: {
 				// BIT Immediate (65C02)
-				const value = bus.read(pc);
+				const value = bus.read(pc, true);
 				pc++;
 				const accumulator = registersView.getUint8(REG_A_OFFSET);
 				let status = registersView.getUint8(REG_STATUS_OFFSET);
@@ -1504,7 +1507,7 @@ function executeInstruction(): number {
 
 			case 0xc1: {
 				// CMP (Indirect,X)
-				const pointer = (bus.read(pc) + registersView.getUint8(REG_X_OFFSET)) & 0xff;
+				const pointer = (bus.read(pc, true) + registersView.getUint8(REG_X_OFFSET)) & 0xff;
 				pc++;
 				const addr = bus.read(pointer) | (bus.read((pointer + 1) & 0xff) << 8);
 				const value = bus.read(addr);
@@ -1520,7 +1523,7 @@ function executeInstruction(): number {
 			}
 			case 0xc4: {
 				// CPY Zero Page
-				const addr = bus.read(pc);
+				const addr = bus.read(pc, true);
 				pc++;
 				const value = bus.read(addr);
 				const yRegister = registersView.getUint8(REG_Y_OFFSET);
@@ -1535,7 +1538,7 @@ function executeInstruction(): number {
 			}
 			case 0xc5: {
 				// CMP Zero Page
-				const addr = bus.read(pc);
+				const addr = bus.read(pc, true);
 				pc++;
 				const value = bus.read(addr);
 				const accumulator = registersView.getUint8(REG_A_OFFSET);
@@ -1550,7 +1553,7 @@ function executeInstruction(): number {
 			}
 			case 0xcd: {
 				// CMP Absolute
-				const addr = bus.read(pc) | (bus.read(pc + 1) << 8);
+				const addr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
 				pc += 2;
 				const value = bus.read(addr);
 				const accumulator = registersView.getUint8(REG_A_OFFSET);
@@ -1565,7 +1568,7 @@ function executeInstruction(): number {
 			}
 			case 0xd1: {
 				// CMP (Indirect),Y
-				const zeroPageAddr = bus.read(pc);
+				const zeroPageAddr = bus.read(pc, true);
 				pc++;
 				const baseAddr = bus.read(zeroPageAddr) | (bus.read((zeroPageAddr + 1) & 0xff) << 8);
 				const addr = baseAddr + registersView.getUint8(REG_Y_OFFSET);
@@ -1582,7 +1585,7 @@ function executeInstruction(): number {
 			}
 			case 0xd2: {
 				// CMP (Zero Page Indirect) - 65C02
-				const zeroPageAddr = bus.read(pc);
+				const zeroPageAddr = bus.read(pc, true);
 				pc++;
 				const addr = bus.read(zeroPageAddr) | (bus.read((zeroPageAddr + 1) & 0xff) << 8);
 				const value = bus.read(addr);
@@ -1598,7 +1601,7 @@ function executeInstruction(): number {
 			}
 			case 0xd5: {
 				// CMP Zero Page,X
-				const addr = (bus.read(pc) + registersView.getUint8(REG_X_OFFSET)) & 0xff;
+				const addr = (bus.read(pc, true) + registersView.getUint8(REG_X_OFFSET)) & 0xff;
 				pc++;
 				const value = bus.read(addr);
 				const accumulator = registersView.getUint8(REG_A_OFFSET);
@@ -1613,7 +1616,7 @@ function executeInstruction(): number {
 			}
 			case 0xd9: {
 				// CMP Absolute,Y
-				const baseAddr = bus.read(pc) | (bus.read(pc + 1) << 8);
+				const baseAddr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
 				pc += 2;
 				const addr = baseAddr + registersView.getUint8(REG_Y_OFFSET);
 				const value = bus.read(addr);
@@ -1629,7 +1632,7 @@ function executeInstruction(): number {
 			}
 			case 0xdd: {
 				// CMP Absolute,X
-				const baseAddr = bus.read(pc) | (bus.read(pc + 1) << 8);
+				const baseAddr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
 				pc += 2;
 				const addr = baseAddr + registersView.getUint8(REG_X_OFFSET);
 				const value = bus.read(addr);
@@ -1646,7 +1649,7 @@ function executeInstruction(): number {
 
 			case 0xe0: {
 				// CPX #Immediate
-				const value = bus.read(pc);
+				const value = bus.read(pc, true);
 				pc++;
 				const xRegister = registersView.getUint8(REG_X_OFFSET);
 				const result = xRegister - value;
@@ -1665,7 +1668,7 @@ function executeInstruction(): number {
 
 			case 0xe4: {
 				// CPX Zero Page
-				const addr = bus.read(pc);
+				const addr = bus.read(pc, true);
 				pc++;
 				const value = bus.read(addr);
 				const xRegister = registersView.getUint8(REG_X_OFFSET);
@@ -1681,7 +1684,7 @@ function executeInstruction(): number {
 
 			case 0xec: {
 				// CPX Absolute
-				const addr = bus.read(pc) | (bus.read(pc + 1) << 8);
+				const addr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
 				pc += 2;
 				const value = bus.read(addr);
 				const xRegister = registersView.getUint8(REG_X_OFFSET);
