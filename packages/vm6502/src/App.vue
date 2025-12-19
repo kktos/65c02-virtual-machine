@@ -14,12 +14,12 @@
     <ResizablePanel>
 
 		<ResizablePanelGroup direction="vertical">
-			<ResizablePanel :default-size="41">
+			<ResizablePanel :default-size="41" class="flex flex-col p-4">
 				<DebuggerControls
 					:isRunning="isRunning" :controls="controls"
 				/>
 
-				<div class="shrink-0 mb-6 grid grid-cols-3 gap-6">
+				<div class=" grid grid-cols-3 gap-6 h-full">
 
 					<!-- Registers and Flags stacked vertically in the first column (1/3) -->
 					<div class="col-span-1 flex flex-col space-y-6">
@@ -127,6 +127,9 @@ import { VirtualMachine } from "./vm.class";
 			if (type === 'error' && error === 'unimplemented_opcode') {
 				isRunning.value = false; // Ensure UI reflects the paused state
 				alert(`Emulator Halted!\n\nError: ${message}`);
+			} else if (type === 'isRunning') {
+				// Update the local isRunning ref based on the worker's state
+				isRunning.value = event.data.isRunning;
 			} else {
 				console.log("Message received from worker:", event.data);
 			}
@@ -178,7 +181,7 @@ import { VirtualMachine } from "./vm.class";
 
 	const emulatorState:EmulatorState = reactive({
 		registers: {
-			A: 0, X: 0, Y: 0, PC: 0, SP: 0,
+			A: 0, X: 0, Y: 0, PC: 0, SP: 0, P: 0,
 			C: false, Z: false, I: false, D: false, B: false, V: false, N: false
 		},
 		breakpoints: [
