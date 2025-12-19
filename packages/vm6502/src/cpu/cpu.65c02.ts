@@ -1,3 +1,4 @@
+import type { Breakpoint } from "@/types/breakpoint.interface";
 import type { IBus } from "./bus.interface";
 import {
 	FLAG_5_MASK,
@@ -19,6 +20,12 @@ let isRunning = false;
 let clockSpeedMhz = 1; // Default to 1 MHz
 let cyclesPerTimeslice = 10000; // Number of cycles to run before yielding
 
+// --- Breakpoint State ---
+const pcBreakpoints = new Set<number>();
+const memoryReadBreakpoints = new Set<number>();
+const memoryWriteBreakpoints = new Set<number>();
+const memoryAccessBreakpoints = new Set<number>();
+
 // Shared memory references, to be initialized from the worker
 let registersView: DataView | null = null;
 let bus: IBus | null = null;
@@ -34,6 +41,38 @@ export function initCPU(systemBus: IBus, regView: DataView) {
 	bus = systemBus;
 	registersView = regView;
 	updateCyclesPerTimeslice();
+
+	// Wrap bus methods to check for breakpoints
+	const originalRead = bus.read.bind(bus);
+	bus.read = (address: number, isOpcodeFetch = false): number => {
+		const value = originalRead(address, isOpcodeFetch);
+		if (!isOpcodeFetch && isRunning) {
+			if (memoryReadBreakpoints.has(address) || memoryAccessBreakpoints.has(address)) {
+				setRunning(false);
+				self.postMessage({ type: "breakpointHit", breakpointType: "read", address });
+			}
+		}
+		return value;
+	};
+
+	const originalWrite = bus.write.bind(bus);
+	bus.write = (address: number, value: number): void => {
+		originalWrite(address, value);
+
+		const pc = registersView?.getUint16(REG_PC_OFFSET, true);
+
+		console.log(
+			`${pc?.toString(16).padStart(4, "0")} write ${address.toString(16).padStart(4, "0")}:${(value & 0xff).toString(16).padStart(2, "0")}`,
+		);
+
+		if (isRunning) {
+			if (memoryWriteBreakpoints.has(address) || memoryAccessBreakpoints.has(address)) {
+				setRunning(false);
+				self.postMessage({ type: "breakpointHit", breakpointType: "write", address });
+			}
+		}
+	};
+
 	resetCPU();
 }
 
@@ -55,10 +94,49 @@ function updateCyclesPerTimeslice() {
 	cyclesPerTimeslice = clockSpeedMhz * 1000000 * 0.01;
 }
 
-export function stepInstruction() {
-	if (!isRunning) {
-		executeInstruction();
+export function addBreakpoint(type: Breakpoint["type"], address: number) {
+	switch (type) {
+		case "pc":
+			pcBreakpoints.add(address);
+			break;
+		case "read":
+			memoryReadBreakpoints.add(address);
+			break;
+		case "write":
+			memoryWriteBreakpoints.add(address);
+			break;
+		case "access":
+			memoryAccessBreakpoints.add(address);
+			break;
 	}
+}
+
+export function removeBreakpoint(type: Breakpoint["type"], address: number) {
+	switch (type) {
+		case "pc":
+			pcBreakpoints.delete(address);
+			break;
+		case "read":
+			memoryReadBreakpoints.delete(address);
+			break;
+		case "write":
+			memoryWriteBreakpoints.delete(address);
+			break;
+		case "access":
+			memoryAccessBreakpoints.delete(address);
+			break;
+	}
+}
+
+export function clearBreakpoints() {
+	pcBreakpoints.clear();
+	memoryReadBreakpoints.clear();
+	memoryWriteBreakpoints.clear();
+	memoryAccessBreakpoints.clear();
+}
+
+export function stepInstruction() {
+	if (!isRunning) executeInstruction();
 }
 
 export function resetCPU() {
@@ -215,6 +293,15 @@ function executeInstruction(): number {
 	if (!registersView || !bus) return 0;
 
 	let pc = registersView.getUint16(REG_PC_OFFSET, true);
+
+	// Check for PC breakpoint before executing
+	// Only halt if we are in "run" mode. If we are single-stepping, we want to execute the instruction.
+	if (isRunning && pcBreakpoints.has(pc)) {
+		setRunning(false);
+		self.postMessage({ type: "breakpointHit", breakpointType: "pc", address: pc });
+		return 0;
+	}
+
 	const opcode = bus.read(pc, true); // Opcode fetch (SYNC)
 	pc++;
 
@@ -227,8 +314,19 @@ function executeInstruction(): number {
 			// --- BRK ---
 			case 0x00: {
 				// BRK
+				const lo = bus.read(0xfffe);
+				const hi = bus.read(0xffff);
+				pc = (hi << 8) | lo;
+
+				let status = registersView.getUint8(REG_STATUS_OFFSET);
+				status = status & ~FLAG_D_MASK;
+				status |= FLAG_B_MASK;
+				status |= FLAG_I_MASK;
+				registersView.setUint8(REG_STATUS_OFFSET, status);
+
+				cycles = 7;
 				// Note: Actual interrupt sequence is handled by CPU, this is a placeholder
-				setRunning(false);
+				// setRunning(false);
 				break;
 			}
 			case 0x04: {
@@ -1269,6 +1367,88 @@ function executeInstruction(): number {
 				break;
 			}
 
+			case 0xca: {
+				// DEX
+				let value = registersView.getUint8(REG_X_OFFSET);
+				value = (value - 1) & 0xff;
+				registersView.setUint8(REG_X_OFFSET, value);
+				setNZFlags(value);
+				cycles = 2;
+				break;
+			}
+			case 0xe8: {
+				// INX
+				let value = registersView.getUint8(REG_X_OFFSET);
+				value = (value + 1) & 0xff;
+				registersView.setUint8(REG_X_OFFSET, value);
+				setNZFlags(value);
+				cycles = 2;
+				break;
+			}
+			case 0x88: {
+				// DEY
+				let value = registersView.getUint8(REG_Y_OFFSET);
+				value = (value - 1) & 0xff;
+				registersView.setUint8(REG_Y_OFFSET, value);
+				setNZFlags(value);
+				cycles = 2;
+				break;
+			}
+			case 0xc8: {
+				// INY
+				let value = registersView.getUint8(REG_Y_OFFSET);
+				value = (value + 1) & 0xff;
+				registersView.setUint8(REG_Y_OFFSET, value);
+				setNZFlags(value);
+				cycles = 2;
+				break;
+			}
+
+			case 0xe6: {
+				// INC Zero Page
+				const addr = bus.read(pc, true);
+				pc++;
+				const value = bus.read(addr);
+				const result = (value + 1) & 0xff;
+				bus.write(addr, result);
+				setNZFlags(result);
+				cycles = 5;
+				break;
+			}
+			case 0xf6: {
+				// INC Zero Page,X
+				const addr = (bus.read(pc, true) + registersView.getUint8(REG_X_OFFSET)) & 0xff;
+				pc++;
+				const value = bus.read(addr);
+				const result = (value + 1) & 0xff;
+				bus.write(addr, result);
+				setNZFlags(result);
+				cycles = 6;
+				break;
+			}
+			case 0xee: {
+				// INC Absolute
+				const addr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
+				pc += 2;
+				const value = bus.read(addr);
+				const result = (value + 1) & 0xff;
+				bus.write(addr, result);
+				setNZFlags(result);
+				cycles = 6;
+				break;
+			}
+			case 0xfe: {
+				// INC Absolute,X
+				const addr = (bus.read(pc, true) | (bus.read(pc + 1, true) << 8)) + registersView.getUint8(REG_X_OFFSET);
+				pc += 2;
+				const value = bus.read(addr);
+				const result = (value + 1) & 0xff;
+				bus.write(addr, result);
+				setNZFlags(result);
+				cycles = 7;
+				break;
+			}
+
 			// --- Jumps & Calls ---
 			case 0x4c: {
 				// JMP Absolute
@@ -1706,7 +1886,150 @@ function executeInstruction(): number {
 			// --- No Operation ---
 			case 0xea: {
 				// NOP
+				// Official NOP
 				cycles = 2;
+				break;
+			}
+
+			// --- BBR/BBS (65C02) ---
+			case 0x0f: // BBR0
+			case 0x1f: // BBR1
+			case 0x2f: // BBR2
+			case 0x3f: // BBR3
+			case 0x4f: // BBR4
+			case 0x5f: // BBR5
+			case 0x6f: // BBR6
+			case 0x7f: {
+				// BBR
+				const bit = (opcode & 0x70) >> 4;
+				const addr = bus.read(pc, true);
+				pc++;
+				const offset = bus.read(pc, true);
+				pc++;
+				const value = bus.read(addr);
+
+				if ((value & (1 << bit)) === 0) {
+					// Branch taken
+					const branchAddr = pc + (offset < 0x80 ? offset : offset - 0x100);
+					// BBR/BBS do not have an extra cycle for page crossing
+					pc = branchAddr;
+					cycles = 7;
+				} else {
+					// Branch not taken
+					cycles = 5;
+				}
+				break;
+			}
+			case 0x8f: // BBS0
+			case 0x9f: // BBS1
+			case 0xaf: // BBS2
+			case 0xbf: // BBS3
+			case 0xcf: // BBS4
+			case 0xdf: // BBS5
+			case 0xef: // BBS6
+			case 0xff: {
+				// BBS
+				const bit = (opcode & 0x70) >> 4;
+				const addr = bus.read(pc, true);
+				pc++;
+				const offset = bus.read(pc, true);
+				pc++;
+				const value = bus.read(addr);
+
+				if ((value & (1 << bit)) !== 0) {
+					// Branch taken
+					const branchAddr = pc + (offset < 0x80 ? offset : offset - 0x100);
+					// BBR/BBS do not have an extra cycle for page crossing
+					pc = branchAddr;
+					cycles = 7;
+				} else {
+					// Branch not taken
+					cycles = 5;
+				}
+				break;
+			}
+
+			// --- Undocumented NOPs (65C02) ---
+			// These opcodes are defined as NOPs of varying lengths and cycle counts on the 65C02.
+
+			// 1-byte NOPs
+			case 0x03:
+			case 0x13:
+			case 0x23:
+			case 0x33:
+			case 0x43:
+			case 0x53:
+			case 0x63:
+			case 0x73:
+			case 0x83:
+			case 0x93:
+			case 0xa3:
+			case 0xb3:
+			case 0xc3:
+			case 0xd3:
+			case 0xe3:
+			case 0xf3:
+			case 0x0b:
+			case 0x1b:
+			case 0x2b:
+			case 0x3b:
+			case 0x4b:
+			case 0x5b:
+			case 0x6b:
+			case 0x7b:
+			case 0x8b:
+			case 0x9b:
+			case 0xab:
+			case 0xbb:
+			case 0xcb: // WAI on WDC, NOP on Rockwell
+			case 0xdb: // STP on WDC, NOP on Rockwell
+			case 0xeb:
+			case 0xfb: {
+				cycles = 1;
+				break;
+			}
+
+			// 2-byte NOPs
+			case 0x02:
+			case 0x22:
+			case 0x42:
+			case 0x62:
+			case 0x82:
+			case 0xc2:
+			case 0xe2: {
+				pc++;
+				cycles = 2;
+				break;
+			}
+
+			// 2-byte, 3-cycle NOPs
+			case 0x44: {
+				pc++;
+				cycles = 3;
+				break;
+			}
+
+			// 2-byte, 4-cycle NOPs
+			case 0xd4:
+			case 0xf4:
+			case 0x54: {
+				pc++;
+				cycles = 4;
+				break;
+			}
+
+			// 3-byte, 8-cycle NOPs
+			case 0x5c: {
+				pc += 2;
+				cycles = 8;
+				break;
+			}
+
+			// 3-byte, 4-cycle NOPs
+			case 0xdc:
+			case 0xfc: {
+				pc += 2;
+				cycles = 8;
 				break;
 			}
 
