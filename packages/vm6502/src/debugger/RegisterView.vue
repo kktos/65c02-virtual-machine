@@ -2,7 +2,7 @@
 	<div class="p-4 bg-gray-800 rounded-lg shadow-lg">
 		<DebuggerPanelTitle title="CPU Registers" />
 		<div class="grid grid-cols-3 gap-x-5 gap-y-2 font-mono text-sm">
-			<div v-for="reg in registerOrder" :key="reg" class="flex items-center justify-left" :class="reg === 'PC' ? 'col-span-2' : ''">
+			<div v-for="reg in registerOrder" :key="reg" class="flex items-center justify-left">
 				<span class="font-bold text-gray-300">{{ reg }}:</span>
 				<input
 					type="text"
@@ -38,11 +38,24 @@ import DebuggerPanelTitle from './DebuggerPanelTitle.vue';
 
 	const props = defineProps<Props>();
 
-	type RegisterKey = "A" | "X" | "Y" | "SP" | "PC";
+	type RegisterKey = "A" | "X" | "Y" | "SP" | "PC"| "P";
 
-	const registerOrder: RegisterKey[] = ["A", "X", "Y", "PC", "SP"];
+	const registerOrder: RegisterKey[] = ["A", "X", "Y", "PC", "SP", "P"];
 
 	const formatRegisterValue = (reg: RegisterKey, value: number | boolean) => {
+		// if (reg === "P") {
+		// 	// The P register value is not stored directly, but assembled from the individual flags.
+		// 	const pValue =
+		// 		(props.registers.N ? 0x80 : 0) |
+		// 		(props.registers.V ? 0x40 : 0) |
+		// 		0x20 | // Unused flag, always 1
+		// 		(props.registers.B ? 0x10 : 0) |
+		// 		(props.registers.D ? 0x08 : 0) |
+		// 		(props.registers.I ? 0x04 : 0) |
+		// 		(props.registers.Z ? 0x02 : 0) |
+		// 		(props.registers.C ? 0x01 : 0);
+		// 	return pValue.toString(16).toUpperCase().padStart(2, "0");
+		// }
 		if (typeof value !== "number") return "";
 		const is16bit = reg === "PC";
 		return value.toString(16).toUpperCase().padStart(is16bit ? 4 : 2, "0");
@@ -50,15 +63,14 @@ import DebuggerPanelTitle from './DebuggerPanelTitle.vue';
 
 	const onRegisterUpdate = (event: Event, reg: RegisterKey) => {
 		const input = event.target as HTMLInputElement;
-		const parsedValue = parseInt(input.value, 16);
+		const parsedValue = parseInt(input.value.replace('$', ''), 16);
 
 		if (!Number.isNaN(parsedValue)) {
 			const is16bit = reg === "PC";
 			const maxValue = is16bit ? 0xffff : 0xff;
 
-			if (parsedValue >= 0 && parsedValue <= maxValue) {
-				props.controls.updateRegister(reg, parsedValue);
-			}
+			if (parsedValue >= 0 && parsedValue <= maxValue)
+				props.controls.updateRegister(reg as "A" | "X" | "Y" | "SP" | "PC" | "P", parsedValue);
 		}
 
 		// Revert to the current state value to avoid showing invalid input or partial input.

@@ -1,5 +1,5 @@
 <template>
-  <ResizablePanelGroup direction="horizontal" class="h-screen bg-gray-900 text-white">
+  <ResizablePanelGroup v-if="vm" direction="horizontal" class="h-screen bg-gray-900 text-white">
 
     <ResizablePanel>
 		<canvas
@@ -14,9 +14,9 @@
     <ResizablePanel>
 
 		<ResizablePanelGroup direction="vertical">
-			<ResizablePanel>
+			<ResizablePanel :default-size="41">
 				<DebuggerControls
-					:isRunning="isRunning" :controls="{ handleRunPause, handleStepInstruction, handleStepOver, handleStepOut, handleReset }"
+					:isRunning="isRunning" :controls="controls"
 				/>
 
 				<div class="shrink-0 mb-6 grid grid-cols-3 gap-6">
@@ -29,7 +29,7 @@
 
 					<!-- Stack View takes the remaining two columns (2/3) -->
 					<div class="col-span-2 h-full">
-						<StackView :stackData="sharedMemory" :controls="controls" :registers="emulatorState.registers" />
+						<StackView :stackData="vm.sharedMemory" :controls="controls" :registers="emulatorState.registers" />
 					</div>
 				</div>
 			</ResizablePanel>
@@ -53,14 +53,14 @@
 						<TabsContent value="disassembly">
 							<DisassemblyView
 								:address="emulatorState.registers.PC"
-								:memory="sharedMemory"
+								:memory="vm.sharedMemory"
 								:registers="emulatorState.registers"
 								:onExplainCode="handleExplainCode"
 							/>
 						</TabsContent>
 						<TabsContent value="memory">
 							<MemoryViewer
-								:memory="sharedMemory"
+								:memory="vm.sharedMemory"
 								:controls="controls"
 								:subscribeToUiUpdates="subscribeToUiUpdates" />
 						</TabsContent>
@@ -81,7 +81,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, onUnmounted, provide, reactive, ref } from "vue";
+import { markRaw, onMounted, onUnmounted, provide, reactive, ref } from "vue";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import ResizableHandle from './components/ui/resizable/ResizableHandle.vue';
 import ResizablePanel from './components/ui/resizable/ResizablePanel.vue';
@@ -93,10 +93,7 @@ import {
 	FLAG_I_MASK,
 	FLAG_N_MASK,
 	FLAG_V_MASK,
-	FLAG_Z_MASK,
-	MEMORY_OFFSET,
-	MEMORY_SIZE,
-	REG_A_OFFSET, REG_PC_OFFSET, REG_SP_OFFSET, REG_STATUS_OFFSET, REG_X_OFFSET, REG_Y_OFFSET, TOTAL_SHARED_BUFFER_SIZE
+	FLAG_Z_MASK, REG_A_OFFSET, REG_PC_OFFSET, REG_SP_OFFSET, REG_STATUS_OFFSET, REG_X_OFFSET, REG_Y_OFFSET
 } from './cpu/shared-memory';
 import BreakpointsList from './debugger/BreakpointsList.vue';
 import DebuggerControls from './debugger/DebuggerControls.vue';
@@ -106,35 +103,33 @@ import RegisterView from './debugger/RegisterView.vue';
 import StackView from './debugger/StackView.vue';
 import StatusFlagsView from './debugger/StatusFlagsView.vue';
 import { handleExplainCode } from "./lib/gemini.utils";
+import { availableMachines } from "./machines";
 import type { Breakpoint } from "./types/breakpoint.interface";
 import type { EmulatorState } from "./types/emulatorstate.interface";
+import type { MachineConfig } from "./types/machine.interface";
+import { VirtualMachine } from "./vm.class";
 
 	const cpuWorker = ref<Worker | null>(null);
 	provide('cpuWorker', cpuWorker);
 
 	// --- Shared Memory Setup ---
-	// This buffer is shared between the main thread and the worker.
-	const sharedBuffer = new SharedArrayBuffer(TOTAL_SHARED_BUFFER_SIZE);
-	const sharedRegisters = new DataView(sharedBuffer, 0, MEMORY_OFFSET);
-	const sharedMemory = new Uint8Array(sharedBuffer, MEMORY_OFFSET, MEMORY_SIZE);
+	let vm = ref<VirtualMachine | null>(null);
+
+	const selectedMachine = ref<MachineConfig>(availableMachines[1] as MachineConfig);
 
 	onMounted(() => {
-		const worker = new Worker(new URL('./cpu/cpu.worker.ts', import.meta.url), { type: 'module' });
-		console.log("CPU worker created.");
-		cpuWorker.value = worker;
-
-		// Send the shared buffer to the worker. This is a "transfer", not a copy.
-		worker.postMessage({ command: 'init', buffer: sharedBuffer });
-
-		// --- Initialize Memory (for demo purposes) ---
-		sharedMemory.fill(0);
-		"HELLO WORLD!!!".split('').forEach((char, i) => {
-			sharedMemory[0x0200 + i] = char.charCodeAt(0);
-		});
+		vm.value = markRaw(new VirtualMachine(selectedMachine.value));
+		cpuWorker.value = vm.value.worker; // Provide worker for legacy reasons if needed
 
 		// Listen for messages from the worker (e.g., for breakpoints, errors)
-		worker.onmessage = (event) => {
-			console.log("Message received from worker:", event.data);
+		vm.value.worker.onmessage = (event) => {
+			const { type, error, message } = event.data;
+			if (type === 'error' && error === 'unimplemented_opcode') {
+				isRunning.value = false; // Ensure UI reflects the paused state
+				alert(`Emulator Halted!\n\nError: ${message}`);
+			} else {
+				console.log("Message received from worker:", event.data);
+			}
 		};
 
 		// Start the UI update loop
@@ -150,21 +145,22 @@ import type { EmulatorState } from "./types/emulatorstate.interface";
 
 	onUnmounted(() => {
 		if (cpuWorker.value) {
-			console.log("Terminating CPU worker.");
-			cpuWorker.value.terminate();
+			vm.value?.terminate();
 		}
 	});
 
 	const updateUiFromSharedBuffer = () => {
+		if (!vm.value) return requestAnimationFrame(updateUiFromSharedBuffer);
 		// This function will be called on every animation frame to update the UI
 		// It reads directly from the shared buffer and updates the reactive state.
-		emulatorState.registers.A = sharedRegisters.getUint8(REG_A_OFFSET);
-		emulatorState.registers.X = sharedRegisters.getUint8(REG_X_OFFSET);
-		emulatorState.registers.Y = sharedRegisters.getUint8(REG_Y_OFFSET);
-		emulatorState.registers.SP = sharedRegisters.getUint8(REG_SP_OFFSET);
-		emulatorState.registers.PC = sharedRegisters.getUint16(REG_PC_OFFSET, true);
+		emulatorState.registers.A = vm.value.sharedRegisters.getUint8(REG_A_OFFSET);
+		emulatorState.registers.X = vm.value.sharedRegisters.getUint8(REG_X_OFFSET);
+		emulatorState.registers.Y = vm.value.sharedRegisters.getUint8(REG_Y_OFFSET);
+		emulatorState.registers.SP = vm.value.sharedRegisters.getUint8(REG_SP_OFFSET);
+		emulatorState.registers.PC = vm.value.sharedRegisters.getUint16(REG_PC_OFFSET, true);
 
-		const status = sharedRegisters.getUint8(REG_STATUS_OFFSET);
+		const status = vm.value.sharedRegisters.getUint8(REG_STATUS_OFFSET);
+		emulatorState.registers.P = status;
 		emulatorState.registers.C = (status & FLAG_C_MASK) !== 0;
 		emulatorState.registers.Z = (status & FLAG_Z_MASK) !== 0;
 		emulatorState.registers.I = (status & FLAG_I_MASK) !== 0;
@@ -193,55 +189,31 @@ import type { EmulatorState } from "./types/emulatorstate.interface";
 		],
 	});
 
-	type RegisterName = keyof typeof emulatorState.registers;
+	// type RegisterName = keyof typeof emulatorState.registers;
 
 	const controls = {
-		play: () => console.log('Worker: Run'),
-		pause: () => console.log('Worker: Pause'),
-		step: () => console.log('Worker: Step Instruction'),
-		reset: () => console.log('Worker: Reset'),
-		updateMemory: (addr: number, value: number) => {
-			sharedMemory[addr] = value;
-			console.log(`Worker: Update [${addr.toString(16)}] to ${value.toString(16)}`);
-		},
-		updateRegister: <K extends RegisterName>(reg: K, value: EmulatorState['registers'][K]) => {
-			// Write directly to the shared buffer so the worker sees the change.
-			// The UI will update automatically on the next animation frame.
-			switch (reg) {
-				case 'A':
-					sharedRegisters.setUint8(REG_A_OFFSET, value as number);
-					break;
-				case 'X':
-					sharedRegisters.setUint8(REG_X_OFFSET, value as number);
-					break;
-				case 'Y':
-					sharedRegisters.setUint8(REG_Y_OFFSET, value as number);
-					break;
-				case 'SP':
-					sharedRegisters.setUint8(REG_SP_OFFSET, value as number);
-					break;
-				case 'PC':
-					sharedRegisters.setUint16(REG_PC_OFFSET, value as number, true);
-					break;
+		selectMachine: (machineName: string) => {
+			const newMachine = availableMachines.find(m => m.name === machineName);
+			if (newMachine && newMachine.name !== vm.value?.machineConfig.name) {
+				console.log(`Main: Switching machine to ${newMachine.name}`);
+				vm.value?.terminate();
+				vm.value = markRaw(new VirtualMachine(newMachine));
+				cpuWorker.value = vm.value.worker;
+				selectedMachine.value = newMachine;
 			}
 		},
+		play: () => vm.value?.play(),
+		pause: () => vm.value?.pause(),
+		step: () => vm.value?.step(),
+		stepOver: () => { },
+		stepOut: () => { },
+		reset: () => vm.value?.reset(),
+		updateMemory: (addr: number, value: number) => vm.value?.updateMemory(addr, value),
+		updateRegister: (reg: keyof EmulatorState['registers'], value: number) => {
+				vm.value?.updateRegister(reg, value);
+		},
 	};
-
 	const isRunning = ref(false);
-
-	const handleStepInstruction = () => {
-		console.log("StepInstruction");
-		cpuWorker.value?.postMessage({ command: 'step' });
-	};
-
-	const handleStepOver = () => {
-	};
-	const handleStepOut = () => {
-	};
-	const handleRunPause = () => {
-	};
-	const handleReset = () => {
-	};
 
 	const handleRemoveBreakpoint = (_bpToRemove: Breakpoint) => {
 		// emulatorState.breakpoints = emulatorState.breakpoints.filter(bp => !(bp.address === bpToRemove.address && bp.type === bpToRemove.type));

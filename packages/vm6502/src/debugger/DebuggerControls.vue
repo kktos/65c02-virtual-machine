@@ -2,7 +2,7 @@
 	<div class="flex justify-start items-center space-x-4 mb-6 p-3 bg-gray-800 rounded-xl shadow-inner border border-gray-700 shrink-0">
 
 		<ButtonGroup>
-			<Button	@click="controls.handleRunPause"
+			<Button	@click="controls.play"
 				size="sm"
 				:class="[ isRunning ? 'bg-red-600 hover:bg-red-500' : 'bg-green-600 hover:bg-green-500']"
 			>
@@ -11,7 +11,7 @@
 		</ButtonGroup>
 
 		<ButtonGroup>
-			<Button @click="controls.handleStepInstruction"
+			<Button @click="controls.step"
 				size="sm"
 				:disabled="isRunning"
 				class="hover:bg-gray-600 disabled:opacity-50"
@@ -21,7 +21,7 @@
 			</Button>
 
 			<!-- _Step_Overr -->
-			<Button @click="controls.handleStepOver"
+			<Button @click="controls.stepOver"
 				size="sm"
 				:disabled="isRunning"
 				class="hover:bg-gray-600 disabled:opacity-50"
@@ -30,7 +30,7 @@
 				Step Over
 			</Button>
 
-			<Button @click="controls.handleStepOut"
+			<Button @click="controls.stepOut"
 				:disabled="isRunning"
 				size="sm"
 				class="hover:bg-gray-600 disabled:opacity-50"
@@ -39,7 +39,7 @@
 		</ButtonGroup>
 
 		<ButtonGroup>
-			<Button @click="controls.handleReset"
+			<Button @click="controls.reset"
 				size="sm"
 				class="hover:bg-gray-600"
 				title="Reset the CPU and memory"
@@ -53,11 +53,11 @@
 import { ButtonGroup } from '@/components/ui/button-group';
 
 	interface DebuggerControls {
-		handleRunPause: () => void;
-		handleStepInstruction: () => void;
-		handleStepOver: () => void;
-		handleStepOut: () => void;
-		handleReset: () => void;
+		play: () => void;
+		step: () => void;
+		stepOver: () => void;
+		stepOut: () => void;
+		reset: () => void;
 	}
 
 	interface Props {

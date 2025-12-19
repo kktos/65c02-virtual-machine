@@ -83,7 +83,7 @@ import type { EmulatorState } from "@/types/emulatorstate.interface";
 
 	interface Props {
 		address: number;
-		memory: Uint8Array;
+		memory: Uint8Array<ArrayBufferLike>;
 		registers: EmulatorState['registers'];
 		onExplainCode: (codeBlock: string, setExplanation: Ref<string | null>, setIsLoading: Ref<boolean>) => Promise<void>;
 	}

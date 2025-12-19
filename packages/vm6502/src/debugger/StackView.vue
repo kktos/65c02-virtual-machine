@@ -15,17 +15,17 @@
 						:key="index"
 						:class="[
 							'hover:bg-gray-700/50 transition duration-100',
-							(stackBase + 0xFF - index) === stackPointerAddress ? 'bg-indigo-900/50 text-indigo-100 font-bold border-l-4 border-indigo-400' : 'text-gray-300'
+							(stackBase + 0xEF + (16 - index)) === stackPointerAddress ? 'bg-indigo-900/50 text-indigo-100 font-bold border-l-4 border-indigo-400' : 'text-gray-300'
 						]"
 					>
 						<td class="py-0.5 px-2 tabular-nums text-indigo-300">
-							{{ '$' + (stackBase + 0xFF - index).toString(16).toUpperCase().padStart(4, '0') }}
+							{{ '$' + (stackBase + 0xEF + (16 - index)).toString(16).toUpperCase().padStart(4, '0') }}
 						</td>
 						<td class="p-0">
 							<input
 								type="text"
 								:value="value.toString(16).toUpperCase().padStart(2, '0')"
-								@input="handleByteChange((stackBase + 0xFF - index), $event)"
+								@input="handleByteChange((stackBase + 0xEF + (16 - index)), $event)"
 								maxlength="2"
 								class="w-full text-left bg-transparent focus:bg-gray-600 focus:outline-none focus:ring-1 focus:ring-cyan-500 rounded-none tabular-nums"
 							/>
@@ -64,8 +64,9 @@ import DebuggerPanelTitle from './DebuggerPanelTitle.vue';
 	});
 
 	const stackSlice = computed(() => {
-		if (!stackData || stackData.length < 0x0200) return [];
-		return [...stackData.slice(0x01f0, 0x0200)].reverse();
+		//registers.SP here to make it reactive
+		if (!registers.SP || !stackData || stackData.length < 0x0200) return [];
+		return [...stackData.slice(0x01f0, 0x01f0 + 16)].reverse();
 	});
 
 	const handleByteChange = (addr: number, event: InputEvent) => {

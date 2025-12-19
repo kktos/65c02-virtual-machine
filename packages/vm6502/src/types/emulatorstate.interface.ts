@@ -7,6 +7,7 @@ export interface EmulatorState {
 		Y: number;
 		PC: number;
 		SP: number;
+		P: number;
 		C: boolean;
 		Z: boolean;
 		I: boolean;
@@ -15,7 +16,5 @@ export interface EmulatorState {
 		V: boolean;
 		N: boolean;
 	};
-	// memory: number[];
-	// disassembly: DisassemblyLine[];
 	breakpoints: Breakpoint[];
 }

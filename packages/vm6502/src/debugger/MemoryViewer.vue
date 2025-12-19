@@ -55,7 +55,7 @@ import { onMounted, ref, watch } from "vue";
 import { bytesToAscii } from "@/lib/array.utils";
 
 	interface Props {
-		memory: Uint8Array<SharedArrayBuffer>;
+		memory: Uint8Array<ArrayBufferLike>;
 		controls: {
 			updateMemory: (addr: number, value: number) => void;
 		},
