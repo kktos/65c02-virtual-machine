@@ -14,11 +14,12 @@ export const REG_SP_OFFSET = 3; // 8-bit Stack Pointer
 export const REG_STATUS_OFFSET = 4; // 8-bit Status Register (P)
 export const FLAG_N_MASK = 0b1000_0000; // Negative
 export const FLAG_V_MASK = 0b0100_0000; // Overflow
-export const FLAG_5_MASK = 0b0010_0000; // Bit 5 is unused
-export const FLAG_B_MASK = 0b0010_0000; // Break
-export const FLAG_D_MASK = 0b0001_0000; // Decimal
-export const FLAG_I_MASK = 0b0000_1000; // Interrupt Disable
-export const FLAG_Z_MASK = 0b0000_0100; // Zero
+export const FLAG_5_MASK = 0b0010_0000; // Break
+export const FLAG_B_MASK = 0b0001_0000; // Break
+
+export const FLAG_D_MASK = 0b0000_1000; // Decimal
+export const FLAG_I_MASK = 0b0000_0100; // Interrupt Disable
+export const FLAG_Z_MASK = 0b0000_0010; // Zero
 export const FLAG_C_MASK = 0b0000_0001; // Carry
 
 export const REG_PC_OFFSET = 6; // 16-bit Program Counter (using 2 bytes)
