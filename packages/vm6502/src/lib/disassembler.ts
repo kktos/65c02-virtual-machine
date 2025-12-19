@@ -39,51 +39,52 @@ export const disassemble = (memory: Uint8Array, fromAddress: number, toAddress: 
 		switch (mode) {
 			case "IMP":
 			case "ACC":
+				// No operand to format
 				break;
 			case "IMM":
-				line.comment = `#$${toHex(operandBytes[0], 2)}`;
+				line.opcode = `${name} #${toHex(operandBytes[0], 2)}`;
 				break;
 			case "ZP":
-				line.comment = `$${toHex(operandBytes[0], 2)}`;
+				line.opcode = `${name} $${toHex(operandBytes[0], 2)}`;
 				break;
 			case "ZPX":
-				line.comment = `$${toHex(operandBytes[0], 2)},X`;
+				line.opcode = `${name} $${toHex(operandBytes[0], 2)},X`;
 				break;
 			case "ZPY":
-				line.comment = `$${toHex(operandBytes[0], 2)},Y`;
+				line.opcode = `${name} $${toHex(operandBytes[0], 2)},Y`;
 				break;
 			case "ABS":
-				line.comment = `$${toHex((operandBytes[1] << 8) | operandBytes[0], 4)}`;
+				line.opcode = `${name} $${toHex((operandBytes[1] << 8) | operandBytes[0], 4)}`;
 				break;
 			case "ABX":
-				line.comment = `$${toHex((operandBytes[1] << 8) | operandBytes[0], 4)},X`;
+				line.opcode = `${name} $${toHex((operandBytes[1] << 8) | operandBytes[0], 4)},X`;
 				break;
 			case "ABY":
-				line.comment = `$${toHex((operandBytes[1] << 8) | operandBytes[0], 4)},Y`;
+				line.opcode = `${name} $${toHex((operandBytes[1] << 8) | operandBytes[0], 4)},Y`;
 				break;
 			case "REL": {
 				const offset = operandBytes[0];
 				const target = pc + 2 + (offset < 0x80 ? offset : offset - 0x100);
-				line.comment = `$${toHex(target, 4)}`;
+				line.opcode = `${name} $${toHex(target, 4)}`;
 				break;
 			}
 			case "IND":
-				line.comment = `($${toHex((operandBytes[1] << 8) | operandBytes[0], 4)})`;
+				line.opcode = `${name} ($${toHex((operandBytes[1] << 8) | operandBytes[0], 4)})`;
 				break;
 			case "IAX": // (Absolute, X)
-				line.comment = `($${toHex((operandBytes[1] << 8) | operandBytes[0], 4)},X)`;
+				line.opcode = `${name} ($${toHex((operandBytes[1] << 8) | operandBytes[0], 4)},X)`;
 				break;
 			case "IDX": // (Zero Page, X)
-				line.comment = `($${toHex(operandBytes[0], 2)},X)`;
+				line.opcode = `${name} ($${toHex(operandBytes[0], 2)},X)`;
 				break;
 			case "IDY": // (Zero Page), Y
-				line.comment = `($${toHex(operandBytes[0], 2)}),Y`;
+				line.opcode = `${name} ($${toHex(operandBytes[0], 2)}),Y`;
 				break;
 			case "ZPI": // (Zero Page)
-				line.comment = `($${toHex(operandBytes[0], 2)})`;
+				line.opcode = `${name} ($${toHex(operandBytes[0], 2)})`;
 				break;
 			default:
-				line.comment = operandBytes.map((b) => toHex(b, 2)).join(" ");
+				line.opcode = `${name} ${operandBytes.map((b) => toHex(b, 2)).join(" ")}`;
 				break;
 		}
 
