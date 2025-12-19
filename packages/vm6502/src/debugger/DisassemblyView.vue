@@ -3,7 +3,7 @@
 		<!-- Header combining title, count, and action button -->
 		<div class="flex justify-between items-center mb-3 border-b border-gray-700/50 pb-2 shrink-0">
 			<h2 class="text-sm font-semibold text-cyan-400 uppercase tracking-wider">
-				Disassembly <span class="text-gray-400 font-normal">({{ disassembly && disassembly.length || 0 }} Instructions)</span>
+				Disassembly
 			</h2>
 
 			<button
@@ -22,13 +22,18 @@
 		</div>
 
 		<!-- Scrollable disassembly table -->
-		<div class="font-mono text-xs overflow-y-auto flex-grow min-h-0 bg-gray-900 p-2 rounded-md">
-			<p v-if="!displayedDisassembly || displayedDisassembly.length === 0" class="text-gray-500 italic p-4 text-center">
+		<div
+			ref="disassemblyContainer"
+			class="font-mono text-xs overflow-y-auto flex-grow min-h-0 bg-gray-900 p-2 rounded-md"
+			@wheel.prevent="handleScroll"
+		>
+			<p v-if="!disassembly || disassembly.length === 0" class="text-gray-500 italic p-4 text-center">
 				Disassembly data is empty or unavailable. (Check console for debug logs)
 			</p>
 			<table v-else class="w-full">
 				<thead>
-					<tr class="text-gray-400 sticky top-0 bg-gray-900 border-b border-gray-700 shadow-md">
+					<tr class="text-gray-400 sticky top-0 bg-gray-900 border-b border-gray-700 shadow-md z-10">
+						<th class="py-1 text-center w-8">BP</th>
 						<th class="py-1 text-left px-2 w-16">Addr</th>
 						<th class="py-1 text-left w-20">Raw Bytes</th>
 						<th class="py-1 text-left w-36">Opcode</th>
@@ -38,13 +43,19 @@
 				</thead>
 				<tbody>
 					<tr
-						v-for="(line, index) in displayedDisassembly"
+						v-for="(line, index) in disassembly"
 						:key="index"
 						:class="[
 							'hover:bg-gray-700 transition duration-100',
 							line.address === address ? 'bg-yellow-800/70 text-yellow-100 font-bold border-l-4 border-yellow-400' : 'text-gray-300'
 						]"
 					>
+						<td class="py-0.5 text-center">
+							<button @click="onToggleBreakpoint(line.address)" class="w-full h-full flex items-center justify-center cursor-pointer group">
+								<span class="w-2 h-2 rounded-full transition-colors"
+									:class="breakpoints.has(line.address) ? 'bg-red-500' : 'bg-gray-700 group-hover:bg-red-500/50'"></span>
+							</button>
+						</td>
 						<td class="py-0.5 px-2 tabular-nums text-indigo-300">
 							{{ '$' + line.address.toString(16).toUpperCase().padStart(4, '0') }}
 						</td>
@@ -62,7 +73,7 @@
 						<td class="py-0.5 text-left text-gray-500 italic">
 							{{ line.comment || (getLabeledInstruction(line.opcode).labelComment ? '; ' + getLabeledInstruction(line.opcode).labelComment : '') }}
 						</td>
-						<td class="py-0.5 text-right text-gray-400">
+						<td class="py-0.5 text-center text-gray-400">
 							{{ line.cycles }}
 						</td>
 					</tr>
@@ -75,98 +86,118 @@
 <script lang="ts" setup>
 	/** biome-ignore-all lint/correctness/noUnusedVariables: vue */
 
-import { computed, onMounted, onUnmounted, type Ref, ref, watch } from "vue";
+import { inject, type Ref, ref, watch } from "vue";
 import { disassemble } from "@/lib/disassembler";
+import { handleExplainCode } from "@/lib/gemini.utils";
 import { useLabeling } from "@/lib/utils";
 import type { DisassemblyLine } from "@/types/disassemblyline.interface";
 import type { EmulatorState } from "@/types/emulatorstate.interface";
+import type { VirtualMachine } from "@/vm.class";
+
+	const vm= inject<Ref<VirtualMachine>>("vm");
 
 	interface Props {
 		address: number;
 		memory: Uint8Array<ArrayBufferLike>;
 		registers: EmulatorState['registers'];
-		onExplainCode: (codeBlock: string, setExplanation: Ref<string | null>, setIsLoading: Ref<boolean>) => Promise<void>;
 	}
-	const { address, memory, registers, onExplainCode } = defineProps<Props>();
+	const { address, memory, registers} = defineProps<Props>();
+	// const disassemblyContainer = ref<HTMLElement | null>(null);
+
+	const breakpoints= ref<Set<number>>(new Set<number>());
+
+	const onToggleBreakpoint = (address: number) => {
+		if (breakpoints.value.has(address)) {
+			breakpoints.value.delete(address);
+			vm?.value.removeBP("pc", address);
+		} else {
+			breakpoints.value.add(address);
+			vm?.value.addBP("pc", address);
+		}
+	};
+
+	const disassemblyStartAddress = ref(address);
+	const disassembly = ref<DisassemblyLine[]>([]);
+
+	// Helper to find the start of the previous instruction.
+	// It does this by disassembling a small chunk before the target address
+	// and finding the last instruction boundary in that chunk.
+	const findPreviousInstructionAddress = (startAddr: number): number => {
+		if (startAddr <= 0) return 0;
+		// Go back a few bytes (max instruction length is 3) and disassemble
+		const lookbehind = 4;
+		const searchStart = Math.max(0, startAddr - lookbehind);
+		const tempDisassembly = disassemble(memory, searchStart, lookbehind);
+
+		// The last instruction in this temp block whose address is less than startAddr is our target.
+		for (let line of tempDisassembly.reverse())
+			if(line.address < startAddr) return line.address;
+
+		// The last instruction in this temp block whose address is less than startAddr is our target.
+		// for (let i = tempDisassembly.length - 1; i >= 0; i--) {
+		// 	if (tempDisassembly[i]?.address < startAddr) {
+		// 		return tempDisassembly[i].address;
+		// 	}
+		// }
+		// Fallback if something goes wrong
+		return Math.max(0, startAddr - 1);
+	};
+
+	const handleScroll = (event: WheelEvent) => {
+		if (!disassembly.value || disassembly.value.length < 2) return;
+
+		if (event.deltaY < 0) { // Scroll Up
+			const newStartAddress = findPreviousInstructionAddress(disassemblyStartAddress.value);
+			disassemblyStartAddress.value = newStartAddress;
+		} else { // Scroll Down
+			// The new start address is the address of the second line
+			const newStartAddress = disassembly.value[1]?.address ?? 0;
+			disassemblyStartAddress.value = newStartAddress;
+		}
+	};
 
 	const explanation = ref(null);
 	const isLoading = ref(false);
 	const getLabeledInstruction = useLabeling();
 
-	const disassemblyContainer = ref<HTMLElement | null>(null);
-	const maxDisplayLines = ref(30); // Default to 30 lines
-	const estimatedLineHeight = 16; // px, based on text-xs (12px) + py-0.5 (2*2px padding)
 
-	const fullDisassembly = ref<DisassemblyLine[]>([]);
 
-	let resizeObserver: ResizeObserver | null = null;
+	// onMounted(() => {
+	// 	if (disassemblyContainer.value) {
+	// 		resizeObserver = new ResizeObserver((entries) => {
+	// 			const height = entries[0].contentRect.height;
+	// 			const newVisibleLines = Math.ceil(height / estimatedLineHeight) + 2; // +2 for buffer
+	// 			if (newVisibleLines !== maxDisplayLines.value) {
+	// 				maxDisplayLines.value = newVisibleLines;
+	// 			}
+	// 		});
+	// 		resizeObserver.observe(disassemblyContainer.value);
+	// 	}
+	// });
 
-	const updateMaxDisplayLines = () => {
-		if (disassemblyContainer.value) {
-			const clientHeight = disassemblyContainer.value.clientHeight;
-			// Ensure a minimum number of lines are always displayed
-			maxDisplayLines.value = Math.max(10, Math.floor(clientHeight / estimatedLineHeight));
+	// onUnmounted(() => {
+	// 	if (resizeObserver && disassemblyContainer.value)
+	// 		resizeObserver.unobserve(disassemblyContainer.value);
+	// });
+
+	watch(
+		() => address,
+		(newAddress) => {
+			// When the PC changes, update the disassembly start address to follow it.
+			disassemblyStartAddress.value = newAddress;
 		}
-	};
+	);
 
-	onMounted(() => {
-		updateMaxDisplayLines();
-		resizeObserver = new ResizeObserver(updateMaxDisplayLines);
-		if (disassemblyContainer.value)
-			resizeObserver.observe(disassemblyContainer.value);
-	});
-
-	onUnmounted(() => {
-		if (resizeObserver && disassemblyContainer.value)
-			resizeObserver.unobserve(disassemblyContainer.value);
-	});
-
-	watch( // Re-disassemble a larger window when relevant props or display lines change
-		() => [address, memory, maxDisplayLines],
+	watch( // Re-disassemble when the start address or memory changes
+		() => [disassemblyStartAddress.value, memory],
 		() => {
 			if (memory) {
-				// Disassemble a window larger than what's displayed to allow for centering
-				const windowSize = maxDisplayLines.value * 2; // Disassemble twice the visible lines
-				const startAddress = Math.max(0, address - Math.floor(windowSize / 2));
-				const endAddress = Math.min(0xffff, address + Math.ceil(windowSize / 2));
-				fullDisassembly.value = disassemble(memory, startAddress, endAddress);
+				// Disassemble enough lines to fill the view (e.g., 50 lines)
+				disassembly.value = disassemble(memory, disassemblyStartAddress.value, 30);
 			}
 		},
 		{ immediate: true, deep: true },
 	);
-
-	const displayedDisassembly = computed(() => {
-		const currentPC = address;
-		const linesToShow = maxDisplayLines.value;
-		const halfLines = Math.floor(linesToShow / 2);
-
-		const pcIndex = fullDisassembly.value.findIndex(line => line.address === currentPC);
-
-		// PC not in the current fullDisassembly window, or fullDisassembly is empty
-		// This can happen if the PC is outside the initially loaded window, or if memory is empty.
-		// Just return the first 'linesToShow' lines or an empty array.
-		if (pcIndex === -1)
-			return fullDisassembly.value.slice(0, linesToShow);
-
-
-		let startIndex = pcIndex - halfLines;
-		let endIndex = pcIndex + (linesToShow - halfLines); // Adjust for odd/even linesToShow
-
-		// Adjust if we go out of bounds at the beginning of fullDisassembly
-		if (startIndex < 0) {
-			endIndex -= startIndex; // Shift end index to compensate
-			startIndex = 0;
-		}
-
-		// Adjust if we go out of bounds at the end of fullDisassembly
-		if (endIndex > fullDisassembly.value.length) {
-			startIndex -= (endIndex - fullDisassembly.value.length); // Shift start index to compensate
-			endIndex = fullDisassembly.value.length;
-			if (startIndex < 0) startIndex = 0; // Ensure start doesn't go negative again
-		}
-
-		return fullDisassembly.value.slice(startIndex, endIndex);
-	});
 
 	const getBranchPrediction = (opcode: string) => {
 		// Defensive check for props.registers (already added in last iteration, keeping it)
@@ -194,13 +225,12 @@ import type { EmulatorState } from "@/types/emulatorstate.interface";
 		return null;
 	};
 
-	const disassembly:string[]=[];
 	const handleExplain = async () => {
 		isLoading.value = true;
 		explanation.value = null;
 
 		// Use the currently displayed lines for explanation
-		const codeArray = displayedDisassembly.value;
+		const codeArray = disassembly.value;
 
 		const codeBlock = codeArray.map(line => {
 			const { labeledOpcode, labelComment } = getLabeledInstruction(line.opcode);
@@ -213,6 +243,6 @@ import type { EmulatorState } from "@/types/emulatorstate.interface";
 			return `${addr} ${bytes} ${op} ${finalComment}`;
 		}).join('\n');
 
-		await onExplainCode(codeBlock, explanation, isLoading);
+		await handleExplainCode(codeBlock, explanation, isLoading);
 	};
 </script>

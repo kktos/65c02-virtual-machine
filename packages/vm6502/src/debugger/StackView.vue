@@ -1,7 +1,11 @@
 <template>
 	<div ref="scrollContainer" class="p-4 bg-gray-800 rounded-lg shadow-xl flex flex-col h-full">
 		<DebuggerPanelTitle title="Stack ($0100 - $01FF)" />
-		<div class="font-mono text-xs overflow-y-auto flex-grow min-h-0 bg-gray-900 p-2 rounded-md" style="line-height: 1.4;">
+		<div
+			class="font-mono text-xs overflow-y-auto flex-grow min-h-0 bg-gray-900 p-2 rounded-md"
+			style="line-height: 1.4;"
+			@wheel.prevent="handleScroll"
+		>
 			<table class="w-full">
 				<thead>
 					<tr class="text-gray-400 sticky top-0 bg-gray-900 border-b border-gray-700 shadow-md">
@@ -25,7 +29,7 @@
 						<td class="p-0">
 							<input
 								type="text"
-								:value="item.value.toString(16).toUpperCase().padStart(2, '0')"
+								:value="item.value?.toString(16).toUpperCase().padStart(2, '0')"
 								@input="handleByteChange(item.address, $event)"
 								maxlength="2"
 								class="w-full text-left bg-transparent focus:bg-gray-600 focus:outline-none focus:ring-1 focus:ring-cyan-500 rounded-none tabular-nums"
@@ -41,20 +45,21 @@
 <script lang="ts" setup>
 	/** biome-ignore-all lint/correctness/noUnusedVariables: vue */
 
-import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { computed, inject, onMounted, onUnmounted, type Ref, ref, watch } from "vue";
 import type { EmulatorState } from "@/types/emulatorstate.interface";
+import type { VirtualMachine } from "@/vm.class";
 import DebuggerPanelTitle from './DebuggerPanelTitle.vue';
 
 	const stackBase = 0x0100;
 
+	const vm= inject<Ref<VirtualMachine>>("vm");
+	const subscribeToUiUpdates= inject<(callback: () => void) => void>("subscribeToUiUpdates");
+
 	interface Props {
 		stackData: Uint8Array<SharedArrayBuffer>;
-		controls: {
-			updateMemory: (addr: number, value: number) => void;
-		},
 		registers: EmulatorState['registers']
 	}
-	const { stackData, controls, registers } = defineProps<Props>();
+	const { stackData, registers } = defineProps<Props>();
 
 	const ROW_HEIGHT_ESTIMATE = 25;
 	const scrollContainer = ref<HTMLElement | null>(null);
@@ -71,31 +76,61 @@ import DebuggerPanelTitle from './DebuggerPanelTitle.vue';
 
 	const stackPointerAddress = computed(() => stackBase + registers.SP);
 
+	// This ref will hold the center of our view, allowing for independent scrolling.
+	const viewCenterOffset = ref(registers.SP);
+
 	const visibleStackSlice = computed(() => {
-		// This computed property is reactive to registers.SP and visibleLines
-		const spOffset = registers.SP ?? 0xFF;
+		// Access tick to create a reactive dependency on the UI update loop
+		tick.value;
+
+		const currentSP = viewCenterOffset.value ?? 0xFF; // This is the SP offset (0-255)
 		if (!stackData || stackData.length < 0x0200) return [];
 
-		const half = Math.floor(visibleRowCount.value / 2);
-		let startOffset = Math.max(0, spOffset - half);
-		let endOffset = Math.min(255, spOffset + half);
+		const numRows = visibleRowCount.value;
+		if (numRows === 0) return [];
 
-		// Adjust window if we are near the edges of the stack
-		if (spOffset < half) {
-			endOffset = Math.min(255, visibleRowCount.value);
-		}
-		if (spOffset > 255 - half) {
-			startOffset = Math.max(0, 255 - visibleRowCount.value);
+		let startSP = currentSP - Math.floor(numRows / 2);
+		let endSP = startSP + numRows;
+
+		// Adjust for lower boundary (SP offset 0)
+		if (startSP < 0) {
+			startSP = 0;
+			endSP = numRows; // Ensure we still get numRows items
 		}
 
-		const slice = stackData.slice(stackBase + startOffset, stackBase + endOffset);
-		return [...slice].map((value, i) => ({
-			address: stackBase + startOffset + i,
-			value,
-		})).reverse(); // Reverse to show higher addresses at the top
+		// Adjust for upper boundary (SP offset 255)
+		if (endSP > 256) { // SP offsets are 0-255, so 256 is one past the end
+			endSP = 256;
+			startSP = 256 - numRows; // Ensure we still get numRows items
+			if (startSP < 0) startSP = 0; // Prevent negative start if numRows > 256
+		}
+
+		const slice = [];
+		for (let i = startSP; i < endSP; i++) {
+			const address = stackBase + i;
+			const value = stackData[address];
+			slice.push({ address, value });
+		}
+
+		return slice.reverse(); // Reverse to show higher addresses at the top
 	});
 
+	const handleScroll = (event: WheelEvent) => {
+		if (event.deltaY < 0) { // Scroll Up (towards lower stack addresses, higher memory values)
+			viewCenterOffset.value = Math.max(0, viewCenterOffset.value - 1);
+		} else { // Scroll Down (towards higher stack addresses, lower memory values)
+			viewCenterOffset.value = Math.min(255, viewCenterOffset.value + 1);
+		}
+	};
+
+	// This will be our reactive trigger to update the view
+	const tick = ref(0);
 	onMounted(() => {
+		// Subscribe to the UI update loop from App.vue
+		subscribeToUiUpdates?.(() => {
+			tick.value++;
+		});
+
 		if (scrollContainer.value) {
 			resizeObserver = new ResizeObserver((entries) => {
 				for (const entry of entries) {
@@ -129,6 +164,11 @@ import DebuggerPanelTitle from './DebuggerPanelTitle.vue';
 	// 	resizeObserver?.disconnect();
 	// });
 
+	watch(() => registers.SP, (newSP) => {
+		// When the real SP changes, snap the view's center to it.
+		viewCenterOffset.value = newSP;
+	});
+
 	watch(spElement, (el) => {
 		// When the element pointed to by SP changes, scroll it into view.
 		el?.scrollIntoView({ block: 'center', behavior: 'smooth' });
@@ -138,7 +178,7 @@ import DebuggerPanelTitle from './DebuggerPanelTitle.vue';
 		const target = event.target as HTMLInputElement;
 		const value = parseInt(target.value, 16);
 		if (!Number.isNaN(value) && value >= 0 && value <= 0xFF)
-			controls.updateMemory(addr, value);
+			vm?.value.updateMemory(addr, value);
 
 	};
 

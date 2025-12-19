@@ -1,5 +1,5 @@
 <template>
-  <ResizablePanelGroup v-if="vm" direction="horizontal" class="h-screen bg-gray-900 text-white">
+  <ResizablePanelGroup v-if="vm" direction="horizontal" class="h-screen bg-gray-900 text-white" auto-save-id="appPanelLayout">
 
     <ResizablePanel>
 		<canvas
@@ -13,23 +13,40 @@
 
     <ResizablePanel>
 
-		<ResizablePanelGroup direction="vertical">
-			<ResizablePanel :default-size="41" class="flex flex-col p-4">
-				<DebuggerControls
-					:isRunning="isRunning" :controls="controls"
-				/>
+		<ResizablePanelGroup direction="vertical" auto-save-id="debuggerPanelLayout">
+			<ResizablePanel :default-size="41" class="grid gap-3">
+				<DebuggerControls :isRunning="isRunning" />
 
 				<div class=" grid grid-cols-3 gap-6 h-full">
 
 					<!-- Registers and Flags stacked vertically in the first column (1/3) -->
 					<div class="col-span-1 flex flex-col space-y-6">
-						<RegisterView :registers="emulatorState.registers" :controls="controls" />
-						<StatusFlagsView :registers="emulatorState.registers" :controls="controls" />
+						<RegistersView :registers="emulatorState.registers" />
+						<StatusFlagsView :registers="emulatorState.registers" />
 					</div>
 
 					<!-- Stack View takes the remaining two columns (2/3) -->
 					<div class="col-span-2 h-full">
-						<StackView :stackData="vm.sharedMemory" :controls="controls" :registers="emulatorState.registers" />
+						<Tabs default-value="stack">
+							<TabsList class="bg-gray-900/80 p-1">
+								<TabsTrigger value="stack" class="data-[state=active]:bg-gray-700 data-[state=active]:text-cyan-300 text-gray-400">
+									Stack
+								</TabsTrigger>
+								<TabsTrigger value="breakpoints" class="data-[state=active]:bg-gray-700 data-[state=active]:text-cyan-300 text-gray-400">
+									Breakpoints
+								</TabsTrigger>
+							</TabsList>
+							<TabsContent value="stack" class="h-full">
+								<StackView :stackData="vm.sharedMemory" :registers="emulatorState.registers" />
+							</TabsContent>
+							<TabsContent value="breakpoints" class="h-full">
+								<BreakpointsList
+									:breakpoints="emulatorState.breakpoints"
+									:onRemoveBreakpoint="handleRemoveBreakpoint"
+									:onAddBreakpoint="handleAddBreakpoint"
+								/>
+							</TabsContent>
+						</Tabs>
 					</div>
 				</div>
 			</ResizablePanel>
@@ -37,42 +54,24 @@
 		    <ResizableHandle />
 
 			<ResizablePanel>
-				<div class="flex-grow min-h-0">
-					<Tabs default-value="disassembly">
-						<TabsList class="bg-gray-900/80 p-1">
-							<TabsTrigger value="disassembly" class="data-[state=active]:bg-gray-700 data-[state=active]:text-cyan-300 text-gray-400">
+					<TogglableDisplay id="disasm-mem-view">
+						<template #tab1-title>
 								Disassembly
-							</TabsTrigger>
-							<TabsTrigger value="memory" class="data-[state=active]:bg-gray-700 data-[state=active]:text-cyan-300 text-gray-400">
+						</template>
+						<template #tab2-title>
 								Memory Viewer
-							</TabsTrigger>
-							<TabsTrigger value="breakpoints" class="data-[state=active]:bg-gray-700 data-[state=active]:text-cyan-300 text-gray-400">
-								Breakpoints
-							</TabsTrigger>
-						</TabsList>
-						<TabsContent value="disassembly">
+						</template>
+						<template #tab1-content>
 							<DisassemblyView
 								:address="emulatorState.registers.PC"
 								:memory="vm.sharedMemory"
 								:registers="emulatorState.registers"
-								:onExplainCode="handleExplainCode"
 							/>
-						</TabsContent>
-						<TabsContent value="memory">
-							<MemoryViewer
-								:memory="vm.sharedMemory"
-								:controls="controls"
-								:subscribeToUiUpdates="subscribeToUiUpdates" />
-						</TabsContent>
-						<TabsContent value="breakpoints">
-							<BreakpointsList
-								:breakpoints="emulatorState.breakpoints"
-								:onRemoveBreakpoint="handleRemoveBreakpoint"
-								:onAddBreakpoint="handleAddBreakpoint"
-							/>
-						</TabsContent>
-					</Tabs>
-				</div>
+						</template>
+						<template #tab2-content>
+							<MemoryViewer :memory="vm.sharedMemory" />
+						</template>
+					</TogglableDisplay>
 				</ResizablePanel>
 			</ResizablePanelGroup>
 
@@ -83,6 +82,7 @@
 <script setup lang="ts">
 import { markRaw, onMounted, onUnmounted, provide, reactive, ref } from "vue";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import TogglableDisplay from './components/TogglableDisplay.vue';
 import ResizableHandle from './components/ui/resizable/ResizableHandle.vue';
 import ResizablePanel from './components/ui/resizable/ResizablePanel.vue';
 import ResizablePanelGroup from './components/ui/resizable/ResizablePanelGroup.vue';
@@ -99,10 +99,9 @@ import BreakpointsList from './debugger/BreakpointsList.vue';
 import DebuggerControls from './debugger/DebuggerControls.vue';
 import DisassemblyView from './debugger/DisassemblyView.vue';
 import MemoryViewer from './debugger/MemoryViewer.vue';
-import RegisterView from './debugger/RegisterView.vue';
+import RegistersView from './debugger/RegistersView.vue';
 import StackView from './debugger/StackView.vue';
 import StatusFlagsView from './debugger/StatusFlagsView.vue';
-import { handleExplainCode } from "./lib/gemini.utils";
 import { availableMachines } from "./machines";
 import type { Breakpoint } from "./types/breakpoint.interface";
 import type { EmulatorState } from "./types/emulatorstate.interface";
@@ -113,12 +112,14 @@ import { VirtualMachine } from "./vm.class";
 	provide('cpuWorker', cpuWorker);
 
 	// --- Shared Memory Setup ---
-	let vm = ref<VirtualMachine | null>(null);
+	const vm = ref<VirtualMachine | null>(null);
+	provide('vm', vm);
 
 	const selectedMachine = ref<MachineConfig>(availableMachines[1] as MachineConfig);
 
 	onMounted(() => {
 		vm.value = markRaw(new VirtualMachine(selectedMachine.value));
+
 		cpuWorker.value = vm.value.worker; // Provide worker for legacy reasons if needed
 
 		// Listen for messages from the worker (e.g., for breakpoints, errors)
@@ -137,6 +138,7 @@ import { VirtualMachine } from "./vm.class";
 
 		// Start the UI update loop
 		requestAnimationFrame(updateUiFromSharedBuffer);
+
 	});
 
 	// --- UI Update Subscription ---
@@ -145,6 +147,7 @@ import { VirtualMachine } from "./vm.class";
 	const subscribeToUiUpdates = (callback: () => void) => {
 		uiUpdateSubscribers.add(callback);
 	};
+	provide("subscribeToUiUpdates", subscribeToUiUpdates);
 
 	onUnmounted(() => {
 		if (cpuWorker.value) {
@@ -184,51 +187,27 @@ import { VirtualMachine } from "./vm.class";
 			A: 0, X: 0, Y: 0, PC: 0, SP: 0, P: 0,
 			C: false, Z: false, I: false, D: false, B: false, V: false, N: false
 		},
-		breakpoints: [
-			{ address: 0x0609, type: 'PC' },
-			{ address: 0x0800, type: 'Write' },
-			{ address: 0x01F0, type: 'Read' },
-			{ address: 0x0200, type: 'Access' },
-		],
 	});
 
-	// type RegisterName = keyof typeof emulatorState.registers;
-
-	const controls = {
-		selectMachine: (machineName: string) => {
-			const newMachine = availableMachines.find(m => m.name === machineName);
-			if (newMachine && newMachine.name !== vm.value?.machineConfig.name) {
-				console.log(`Main: Switching machine to ${newMachine.name}`);
-				vm.value?.terminate();
-				vm.value = markRaw(new VirtualMachine(newMachine));
-				cpuWorker.value = vm.value.worker;
-				selectedMachine.value = newMachine;
-			}
-		},
-		play: () => vm.value?.play(),
-		pause: () => vm.value?.pause(),
-		step: () => vm.value?.step(),
-		stepOver: () => { },
-		stepOut: () => { },
-		reset: () => vm.value?.reset(),
-		updateMemory: (addr: number, value: number) => vm.value?.updateMemory(addr, value),
-		updateRegister: (reg: keyof EmulatorState['registers'], value: number) => {
-				vm.value?.updateRegister(reg, value);
-		},
+	const selectMachine= (machineName: string) => {
+		const newMachine = availableMachines.find(m => m.name === machineName);
+		if (newMachine && newMachine.name !== vm.value?.machineConfig.name) {
+			console.log(`Main: Switching machine to ${newMachine.name}`);
+			vm.value?.terminate();
+			vm.value = markRaw(new VirtualMachine(newMachine));
+			cpuWorker.value = vm.value.worker;
+			selectedMachine.value = newMachine;
+		}
 	};
+
 	const isRunning = ref(false);
 
-	const handleRemoveBreakpoint = (_bpToRemove: Breakpoint) => {
-		// emulatorState.breakpoints = emulatorState.breakpoints.filter(bp => !(bp.address === bpToRemove.address && bp.type === bpToRemove.type));
+	const handleRemoveBreakpoint = (bp: Breakpoint) => {
+		vm.value?.removeBP(bp.type, bp.address);
 	};
 
-	const handleAddBreakpoint = (_newBp: Breakpoint) => {
-		// const exists = emulatorState.breakpoints.some(bp => bp.address === newBp.address && bp.type === newBp.type);
-		// if (!exists) {
-		// 	emulatorState.breakpoints.push(newBp);
-		// } else {
-		// 	console.warn(`Breakpoint of type ${newBp.type} already exists at $${newBp.address.toString(16).toUpperCase()}`);
-		// }
+	const handleAddBreakpoint = (bp: Breakpoint) => {
+		vm.value?.addBP(bp.type, bp.address);
 	};
 
 

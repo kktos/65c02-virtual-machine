@@ -51,18 +51,18 @@
 <script lang="ts" setup>
 	/** biome-ignore-all lint/correctness/noUnusedVariables: vue */
 
-import { onMounted, ref, watch } from "vue";
+import { inject, onMounted, type Ref, ref, watch } from "vue";
 import { bytesToAscii } from "@/lib/array.utils";
+import type { VirtualMachine } from "@/vm.class";
+
+	const vm= inject<Ref<VirtualMachine>>("vm");
+	const subscribeToUiUpdates= inject<(callback: () => void) => void>("subscribeToUiUpdates");
 
 	interface Props {
 		memory: Uint8Array<ArrayBufferLike>;
-		controls: {
-			updateMemory: (addr: number, value: number) => void;
-		},
-		subscribeToUiUpdates: (callback: () => void) => void;
 	}
 
-	const { memory,  controls, subscribeToUiUpdates } = defineProps<Props>();
+	const { memory } = defineProps<Props>();
 
 	const startAddress = ref(0x0200);
 	const MEMORY_LINES = 10;
@@ -73,7 +73,7 @@ import { bytesToAscii } from "@/lib/array.utils";
 
 	onMounted(() => {
 		// Subscribe to the UI update loop from App.vue
-		subscribeToUiUpdates(() => {
+		subscribeToUiUpdates?.(() => {
 			tick.value++;
 		});
 	});
@@ -90,7 +90,7 @@ import { bytesToAscii } from "@/lib/array.utils";
 		const target = event.target as HTMLInputElement;
 		const value = parseInt(target.value, 16);
 		if (!Number.isNaN(value) && value >= 0 && value <= 0xFF) {
-			controls.updateMemory(startAddress.value + index, value);
+			vm?.value.updateMemory(startAddress.value + index, value);
 		}
 	};
 

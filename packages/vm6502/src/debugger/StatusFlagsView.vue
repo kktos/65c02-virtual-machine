@@ -21,19 +21,19 @@
 </template>
 
 <script lang="ts" setup>
+import { inject, type Ref } from "vue";
 import type { EmulatorState } from "@/types/emulatorstate.interface";
+import type { VirtualMachine } from "@/vm.class";
 import DebuggerPanelTitle from './DebuggerPanelTitle.vue';
 
 	/** biome-ignore-all lint/correctness/noUnusedVariables: vue */
 
+	const vm= inject<Ref<VirtualMachine>>('vm');
+
 	interface Props {
 		registers: EmulatorState['registers'];
-		controls: {
-			updateRegister: <K extends keyof EmulatorState['registers']>(reg: K, value: EmulatorState['registers'][K]) => void;
-		};
-
 	}
-	const { controls, registers } = defineProps<Props>();
+	const { registers } = defineProps<Props>();
 
 
 	type Flag = { name: string; key: 'U' | keyof EmulatorState['registers'] };
@@ -49,10 +49,9 @@ import DebuggerPanelTitle from './DebuggerPanelTitle.vue';
 		{ name: 'C (Carry)', key: 'C' }
 	];
 
-	const handleFlagToggle = (key:'U' | keyof EmulatorState['registers']) => {
-		if (key !== 'U') {
-			controls.updateRegister(key, !registers[key]);
-		}
+	const handleFlagToggle = (reg:'U' | keyof EmulatorState['registers']) => {
+		if (reg !== 'U')
+			vm?.value.updateRegister(reg, !registers[reg] ? 1 : 0);
 	};
 
 </script>

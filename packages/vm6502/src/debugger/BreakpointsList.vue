@@ -50,16 +50,16 @@ import DebuggerPanelTitle from './DebuggerPanelTitle.vue';
 
 	const handleAddBreakpoint = () => {
 		console.log("Simulating adding a new memory access breakpoint at $0700.");
-		const newBp: Breakpoint = { address: 0x0700, type: 'Access' };
+		const newBp: Breakpoint = { address: 0x0700, type: 'access' };
 		onAddBreakpoint(newBp);
 	};
 
 	const getTypeStyles = (type: Breakpoint['type']) => {
 		switch (type) {
-			case 'PC': return { bg: 'bg-indigo-600', border: 'border-indigo-400' };
-			case 'Write': return { bg: 'bg-red-600', border: 'border-red-400' };
-			case 'Read': return { bg: 'bg-yellow-600', border: 'border-yellow-400' };
-			case 'Access': return { bg: 'bg-green-600', border: 'border-green-400' };
+			case 'pc': return { bg: 'bg-indigo-600', border: 'border-indigo-400' };
+			case 'write': return { bg: 'bg-red-600', border: 'border-red-400' };
+			case 'read': return { bg: 'bg-yellow-600', border: 'border-yellow-400' };
+			case 'access': return { bg: 'bg-green-600', border: 'border-green-400' };
 			default: return { bg: 'bg-gray-600', border: 'border-gray-500' };
 		}
 	};

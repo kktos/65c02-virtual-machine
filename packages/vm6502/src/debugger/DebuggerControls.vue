@@ -1,5 +1,5 @@
 <template>
-	<div class="flex justify-start items-center space-x-4 mb-6 p-3 bg-gray-800 rounded-xl shadow-inner border border-gray-700 shrink-0">
+	<div class="flex justify-start items-center space-x-4 bg-gray-800 rounded-xl shadow-inner border border-gray-700 shrink-0">
 
 		<ButtonGroup>
 			<Button	@click="toggle"
@@ -11,7 +11,7 @@
 		</ButtonGroup>
 
 		<ButtonGroup>
-			<Button @click="controls.step"
+			<Button @click="vm?.step"
 				size="sm"
 				:disabled="isRunning"
 				class="hover:bg-gray-600 disabled:opacity-50"
@@ -21,7 +21,7 @@
 			</Button>
 
 			<!-- _Step_Overr -->
-			<Button @click="controls.stepOver"
+			<Button @click="vm?.stepOver"
 				size="sm"
 				:disabled="isRunning"
 				class="hover:bg-gray-600 disabled:opacity-50"
@@ -30,7 +30,7 @@
 				Step Over
 			</Button>
 
-			<Button @click="controls.stepOut"
+			<Button @click="vm?.stepOut"
 				:disabled="isRunning"
 				size="sm"
 				class="hover:bg-gray-600 disabled:opacity-50"
@@ -39,7 +39,7 @@
 		</ButtonGroup>
 
 		<ButtonGroup>
-			<Button @click="controls.reset"
+			<Button @click="vm?.reset"
 				size="sm"
 				class="hover:bg-gray-600"
 				title="Reset the CPU and memory"
@@ -49,29 +49,22 @@
 </template>
 
 <script lang="ts" setup>
-	import { Button } from '@/components/ui/button';
+import { inject, type Ref } from "vue";
+import { Button } from '@/components/ui/button';
 import { ButtonGroup } from '@/components/ui/button-group';
+import type { VirtualMachine } from "@/vm.class";
 
-	interface DebuggerControls {
-		play: () => void;
-		pause: () => void;
-		step: () => void;
-		stepOver: () => void;
-		stepOut: () => void;
-		reset: () => void;
-	}
+	const vm= inject<Ref<VirtualMachine>>("vm");
 
 	interface Props {
 		isRunning: boolean;
-		controls: DebuggerControls;
 	}
-
-	const { isRunning, controls } = defineProps<Props>();
+	const { isRunning } = defineProps<Props>();
 
 	const toggle = () => {
 		if (isRunning)
-			controls.pause();
+			vm?.value.pause();
 		 else
-			controls.play();
+		 	vm?.value.play();
 	};
 </script>

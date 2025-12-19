@@ -21,19 +21,15 @@
 </template>
 
 <script setup lang="ts">
-	import type { EmulatorState } from "@/types/emulatorstate.interface";
+import { inject, type Ref } from "vue";
+import type { EmulatorState } from "@/types/emulatorstate.interface";
+import type { VirtualMachine } from "@/vm.class";
 import DebuggerPanelTitle from './DebuggerPanelTitle.vue';
 
-	interface DebuggerControls {
-		updateRegister: <K extends keyof EmulatorState["registers"]>(
-			reg: K,
-			value: EmulatorState["registers"][K],
-		) => void;
-	}
+	const vm= inject<Ref<VirtualMachine>>('vm');
 
 	interface Props {
 		registers: EmulatorState["registers"];
-		controls: DebuggerControls;
 	}
 
 	const props = defineProps<Props>();
@@ -43,19 +39,6 @@ import DebuggerPanelTitle from './DebuggerPanelTitle.vue';
 	const registerOrder: RegisterKey[] = ["A", "X", "Y", "PC", "SP", "P"];
 
 	const formatRegisterValue = (reg: RegisterKey, value: number | boolean) => {
-		// if (reg === "P") {
-		// 	// The P register value is not stored directly, but assembled from the individual flags.
-		// 	const pValue =
-		// 		(props.registers.N ? 0x80 : 0) |
-		// 		(props.registers.V ? 0x40 : 0) |
-		// 		0x20 | // Unused flag, always 1
-		// 		(props.registers.B ? 0x10 : 0) |
-		// 		(props.registers.D ? 0x08 : 0) |
-		// 		(props.registers.I ? 0x04 : 0) |
-		// 		(props.registers.Z ? 0x02 : 0) |
-		// 		(props.registers.C ? 0x01 : 0);
-		// 	return pValue.toString(16).toUpperCase().padStart(2, "0");
-		// }
 		if (typeof value !== "number") return "";
 		const is16bit = reg === "PC";
 		return value.toString(16).toUpperCase().padStart(is16bit ? 4 : 2, "0");
@@ -70,7 +53,7 @@ import DebuggerPanelTitle from './DebuggerPanelTitle.vue';
 			const maxValue = is16bit ? 0xffff : 0xff;
 
 			if (parsedValue >= 0 && parsedValue <= maxValue)
-				props.controls.updateRegister(reg as "A" | "X" | "Y" | "SP" | "PC" | "P", parsedValue);
+				vm?.value.updateRegister(reg, parsedValue);
 		}
 
 		// Revert to the current state value to avoid showing invalid input or partial input.
