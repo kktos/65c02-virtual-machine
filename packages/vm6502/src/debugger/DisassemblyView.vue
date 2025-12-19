@@ -1,5 +1,5 @@
 <template>
-	<div class="p-4 bg-gray-800 rounded-lg shadow-xl h-full flex flex-col">
+	<div class="p-4 bg-gray-800 rounded-lg shadow-xl h-full flex flex-col" ref="scrollContainer">
 		<!-- Header combining title, count, and action button -->
 		<div class="flex justify-between items-center mb-3 border-b border-gray-700/50 pb-2 shrink-0">
 			<h2 class="text-sm font-semibold text-cyan-400 uppercase tracking-wider">
@@ -86,7 +86,7 @@
 <script lang="ts" setup>
 	/** biome-ignore-all lint/correctness/noUnusedVariables: vue */
 
-import { inject, type Ref, ref, watch } from "vue";
+import { computed, inject, onMounted, onUnmounted, type Ref, ref, watch } from "vue";
 import { disassemble } from "@/lib/disassembler";
 import { handleExplainCode } from "@/lib/gemini.utils";
 import { useLabeling } from "@/lib/utils";
@@ -133,12 +133,6 @@ import type { VirtualMachine } from "@/vm.class";
 		for (let line of tempDisassembly.reverse())
 			if(line.address < startAddr) return line.address;
 
-		// The last instruction in this temp block whose address is less than startAddr is our target.
-		// for (let i = tempDisassembly.length - 1; i >= 0; i--) {
-		// 	if (tempDisassembly[i]?.address < startAddr) {
-		// 		return tempDisassembly[i].address;
-		// 	}
-		// }
 		// Fallback if something goes wrong
 		return Math.max(0, startAddr - 1);
 	};
@@ -160,25 +154,31 @@ import type { VirtualMachine } from "@/vm.class";
 	const isLoading = ref(false);
 	const getLabeledInstruction = useLabeling();
 
+	const scrollContainer = ref<HTMLElement | null>(null);
+	const containerHeight = ref(0);
+	const TABLE_ROW_HEIGHT = 20.5;
+	const TABLE_HEADER_HEIGHT = 24.5;
+	const PANEL_TITLE_HEIGHT = 33;
+	const PANEL_TITLE_MB_HEIGHT = 12;
+	let resizeObserver: ResizeObserver | null = null;
 
+	const visibleRowCount = computed(() => {
+		if (containerHeight.value === 0) return 10; // Default before mounted
+		return Math.max(1, Math.floor((containerHeight.value - TABLE_HEADER_HEIGHT - PANEL_TITLE_HEIGHT - PANEL_TITLE_MB_HEIGHT) / TABLE_ROW_HEIGHT));
+	});
 
-	// onMounted(() => {
-	// 	if (disassemblyContainer.value) {
-	// 		resizeObserver = new ResizeObserver((entries) => {
-	// 			const height = entries[0].contentRect.height;
-	// 			const newVisibleLines = Math.ceil(height / estimatedLineHeight) + 2; // +2 for buffer
-	// 			if (newVisibleLines !== maxDisplayLines.value) {
-	// 				maxDisplayLines.value = newVisibleLines;
-	// 			}
-	// 		});
-	// 		resizeObserver.observe(disassemblyContainer.value);
-	// 	}
-	// });
+	onMounted(() => {
+		if (scrollContainer.value) {
+			// Set initial height and observe for changes
+			containerHeight.value = scrollContainer.value.clientHeight;
+			resizeObserver = new ResizeObserver(entries => {
+				if (entries[0]) containerHeight.value = entries[0].contentRect.height;
+			});
+			resizeObserver.observe(scrollContainer.value);
+		}
+	});
 
-	// onUnmounted(() => {
-	// 	if (resizeObserver && disassemblyContainer.value)
-	// 		resizeObserver.unobserve(disassemblyContainer.value);
-	// });
+	onUnmounted(() => resizeObserver?.disconnect());
 
 	watch(
 		() => address,
@@ -189,11 +189,11 @@ import type { VirtualMachine } from "@/vm.class";
 	);
 
 	watch( // Re-disassemble when the start address or memory changes
-		() => [disassemblyStartAddress.value, memory],
+		() => [disassemblyStartAddress.value, memory, visibleRowCount.value],
 		() => {
 			if (memory) {
 				// Disassemble enough lines to fill the view (e.g., 50 lines)
-				disassembly.value = disassemble(memory, disassemblyStartAddress.value, 30);
+				disassembly.value = disassemble(memory, disassemblyStartAddress.value, visibleRowCount.value );
 			}
 		},
 		{ immediate: true, deep: true },

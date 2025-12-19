@@ -1,5 +1,5 @@
 <template>
-	<div class="p-4 bg-gray-800 rounded-lg shadow-xl h-full flex flex-col">
+	<div class="p-4 bg-gray-800 rounded-lg shadow-xl h-full flex flex-col" ref="scrollContainer">
 		<div class="mb-3 mt-1 flex items-center space-x-2 shrink-0">
 			<span class="text-gray-300 text-sm">Start Address:</span>
 			<input
@@ -11,7 +11,7 @@
 		</div>
 
 		<div
-			class="font-mono text-xs overflow-y-auto flex-grow min-h-0 bg-gray-900 p-2 rounded-md"
+			class="font-mono text-xs overflow-y-hidden flex-grow min-h-0 bg-gray-900 p-2 rounded-md"
 			@wheel="handleWheel"
 		>
 			<table class="w-full table-fixed">
@@ -22,8 +22,8 @@
 						<th class="py-1 text-left w-auto pl-4">ASCII</th>
 					</tr>
 				</thead>
-				<tbody>
-					<tr v-for="lineIndex in MEMORY_LINES" :key="lineIndex" class="hover:bg-gray-700/50 transition duration-100 text-gray-300">
+				<tbody v-if="visibleRowCount > 0">
+					<tr v-for="lineIndex in visibleRowCount" :key="lineIndex" class="hover:bg-gray-700/50 transition duration-100 text-gray-300">
 						<td class="py-0.5 text-left text-indigo-300 font-bold">
 							{{ '$' + (startAddress + (lineIndex - 1) * BYTES_PER_LINE).toString(16).toUpperCase().padStart(4, '0') }}
 						</td>
@@ -51,7 +51,7 @@
 <script lang="ts" setup>
 	/** biome-ignore-all lint/correctness/noUnusedVariables: vue */
 
-import { inject, onMounted, type Ref, ref, watch } from "vue";
+import { computed, inject, onMounted, onUnmounted, type Ref, ref, watch } from "vue";
 import { bytesToAscii } from "@/lib/array.utils";
 import type { VirtualMachine } from "@/vm.class";
 
@@ -65,18 +65,38 @@ import type { VirtualMachine } from "@/vm.class";
 	const { memory } = defineProps<Props>();
 
 	const startAddress = ref(0x0200);
-	const MEMORY_LINES = 10;
 	const BYTES_PER_LINE = 16;
+
+	const scrollContainer = ref<HTMLElement | null>(null);
+	const containerHeight = ref(0);
+	const ROW_HEIGHT_ESTIMATE = 22; // Estimated height of a row in pixels
+	let resizeObserver: ResizeObserver | null = null;
+
+	const visibleRowCount = computed(() => {
+		if (containerHeight.value === 0) return 10; // Default before mounted
+		return Math.max(1, Math.floor(containerHeight.value / ROW_HEIGHT_ESTIMATE));
+	});
 
 	// This will be our reactive trigger to update the view
 	const tick = ref(0);
 
 	onMounted(() => {
+		if (scrollContainer.value) {
+			// Set initial height and observe for changes
+			containerHeight.value = scrollContainer.value.clientHeight;
+			resizeObserver = new ResizeObserver(entries => {
+				if (entries[0]) containerHeight.value = entries[0].contentRect.height;
+			});
+			resizeObserver.observe(scrollContainer.value);
+		}
+
 		// Subscribe to the UI update loop from App.vue
 		subscribeToUiUpdates?.(() => {
 			tick.value++;
 		});
 	});
+
+	onUnmounted(() => resizeObserver?.disconnect());
 
 	const handleAddressChange = (event: Event) => {
 		const target = event.target as HTMLInputElement;
@@ -96,12 +116,12 @@ import type { VirtualMachine } from "@/vm.class";
 
 	const handleWheel = (event: WheelEvent) => {
 		event.preventDefault();
-		const scrollAmount = BYTES_PER_LINE; // Scroll by one full line
+		const scrollAmount = BYTES_PER_LINE * (event.ctrlKey ? visibleRowCount.value : 1);
 
 		if (event.deltaY > 0) {
 			// Scrolling down -> increase address
 			const newAddress = startAddress.value + scrollAmount;
-			startAddress.value = Math.min(newAddress, 0xFFFF - (MEMORY_LINES * BYTES_PER_LINE) + 1);
+			startAddress.value = Math.min(newAddress, 0xFFFF - (visibleRowCount.value * BYTES_PER_LINE) + 1);
 		} else if (event.deltaY < 0) {
 			// Scrolling up -> decrease address
 			const newAddress = startAddress.value - scrollAmount;
@@ -112,9 +132,9 @@ import type { VirtualMachine } from "@/vm.class";
 	const currentMemorySlice = ref<Uint8Array>(new Uint8Array());
 
 	// Watch for changes in startAddress or the tick, and update the slice
-	watch([startAddress, tick], () => {
+	watch([startAddress, tick, visibleRowCount], () => {
 		const start = startAddress.value;
-		const end = start + MEMORY_LINES * BYTES_PER_LINE;
+		const end = start + visibleRowCount.value * BYTES_PER_LINE;
 		currentMemorySlice.value = memory.slice(start, end);
 	}, { immediate: true });
 
