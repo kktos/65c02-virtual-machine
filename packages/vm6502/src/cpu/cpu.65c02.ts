@@ -8,6 +8,7 @@ import {
 	REG_A_OFFSET,
 	REG_PC_OFFSET,
 	REG_SP_OFFSET,
+	REG_SPEED_OFFSET,
 	REG_STATUS_OFFSET,
 	REG_X_OFFSET,
 	REG_Y_OFFSET,
@@ -19,6 +20,10 @@ const STACK_PAGE_HI = 0x0100;
 let isRunning = false;
 let clockSpeedMhz = 1; // Default to 1 MHz
 let cyclesPerTimeslice = 10000; // Number of cycles to run before yielding
+
+// Performance tracking
+let lastPerfTime = 0;
+let cyclesSinceLastPerf = 0;
 
 // --- Breakpoint State ---
 const pcBreakpoints = new Set<number>();
@@ -53,6 +58,8 @@ class BreakpointError extends Error {
 export function initCPU(systemBus: IBus, regView: DataView) {
 	bus = systemBus;
 	registersView = regView;
+	if (clockSpeedMhz > 0) registersView.setFloat64(REG_SPEED_OFFSET, clockSpeedMhz, true);
+
 	updateCyclesPerTimeslice();
 
 	// Wrap bus methods to check for breakpoints
@@ -87,19 +94,31 @@ export function initCPU(systemBus: IBus, regView: DataView) {
 export function setRunning(running: boolean) {
 	isRunning = running;
 	self.postMessage({ type: "isRunning", isRunning: running });
-	if (isRunning) run();
+	if (isRunning) {
+		lastPerfTime = performance.now();
+		cyclesSinceLastPerf = 0;
+		run();
+	}
 }
 
 export function setClockSpeed(speed: number) {
-	if (speed > 0) {
+	if (speed >= 0) {
 		clockSpeedMhz = speed;
 		updateCyclesPerTimeslice();
+		if (clockSpeedMhz > 0 && registersView) {
+			registersView.setFloat64(REG_SPEED_OFFSET, clockSpeedMhz, true);
+		}
 	}
 }
 
 function updateCyclesPerTimeslice() {
-	// Run for approx 10ms per timeslice
-	cyclesPerTimeslice = clockSpeedMhz * 1000000 * 0.01;
+	if (clockSpeedMhz === 0) {
+		// Unlimited speed: run a large batch of cycles per timeslice to minimize overhead
+		cyclesPerTimeslice = 500000;
+	} else {
+		// Run for approx 10ms per timeslice
+		cyclesPerTimeslice = clockSpeedMhz * 1000000 * 0.01;
+	}
 }
 
 export function addBreakpoint(type: Breakpoint["type"], address: number) {
@@ -225,6 +244,7 @@ export function resetCPU() {
 function run() {
 	if (!isRunning || !registersView || !bus) return;
 	let cyclesThisSlice = cyclesPerTimeslice;
+	const initialCycles = cyclesThisSlice;
 
 	while (cyclesThisSlice > 0) {
 		// let pc = registersView.getUint16(REG_PC_OFFSET, true);
@@ -235,6 +255,19 @@ function run() {
 		cyclesThisSlice -= cycles;
 
 		if (!isRunning) break;
+	}
+
+	if (clockSpeedMhz === 0) {
+		const executed = initialCycles - cyclesThisSlice;
+		cyclesSinceLastPerf += executed;
+		const now = performance.now();
+		if (now - lastPerfTime >= 1000) {
+			const elapsedSec = (now - lastPerfTime) / 1000;
+			const effectiveMhz = cyclesSinceLastPerf / elapsedSec / 1000000;
+			registersView.setFloat64(REG_SPEED_OFFSET, effectiveMhz, true);
+			lastPerfTime = now;
+			cyclesSinceLastPerf = 0;
+		}
 	}
 
 	// Yield to the event loop and schedule the next run

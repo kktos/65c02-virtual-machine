@@ -24,6 +24,8 @@ export const FLAG_C_MASK = 0b0000_0001; // Carry
 
 export const REG_PC_OFFSET = 6; // 16-bit Program Counter (using 2 bytes)
 
+export const REG_SPEED_OFFSET = 24; // Offset in shared memory to store the computed speed
+
 // --- Memory Section ---
 // We'll leave some space for future expansion of the register/status section.
 export const MEMORY_OFFSET = 256; // Main memory starts at byte 256
