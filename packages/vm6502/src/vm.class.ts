@@ -57,6 +57,11 @@ export class VirtualMachine {
 				busPath: this.machineConfig.busPath,
 			},
 		});
+
+		this.worker.postMessage({
+			command: "setSpeed",
+			speed: this.machineConfig.speed ?? 50,
+		});
 	}
 
 	private loadMemoryChunks() {
