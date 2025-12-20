@@ -15,7 +15,10 @@
 
 		<ResizablePanelGroup direction="vertical" auto-save-id="debuggerPanelLayout">
 			<ResizablePanel :default-size="41" class="grid gap-1" @resize="dbgTopPanelResize">
-				<DebuggerControls :isRunning="isRunning" />
+				<div class="flex items-center justify-between pr-2">
+					<DebuggerControls :isRunning="isRunning" />
+					<StatusPanel />
+				</div>
 
 				<div class=" grid grid-cols-[300px_1fr] gap-6 h-full">
 
@@ -97,6 +100,7 @@ import MemoryViewer from './debugger/MemoryViewer.vue';
 import RegistersView from './debugger/RegistersView.vue';
 import StackView from './debugger/StackView.vue';
 import StatusFlagsView from './debugger/StatusFlagsView.vue';
+import StatusPanel from './debugger/StatusPanel.vue';
 import { availableMachines } from "./machines";
 import type { EmulatorState } from "./types/emulatorstate.interface";
 import type { MachineConfig } from "./types/machine.interface";
