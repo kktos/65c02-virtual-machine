@@ -39,6 +39,17 @@ const FLAG_D_MASK = 0x08;
 // const FLAG_B_MASK = 0x10;
 const FLAG_V_MASK = 0x40;
 
+class BreakpointError extends Error {
+	public type: "read" | "write";
+	public address: number;
+
+	constructor(type: "read" | "write", address: number) {
+		super();
+		this.type = type;
+		this.address = address;
+	}
+}
+
 export function initCPU(systemBus: IBus, regView: DataView) {
 	bus = systemBus;
 	registersView = regView;
@@ -47,20 +58,16 @@ export function initCPU(systemBus: IBus, regView: DataView) {
 	// Wrap bus methods to check for breakpoints
 	const originalRead = bus.read.bind(bus);
 	bus.read = (address: number, isOpcodeFetch = false): number => {
-		const value = originalRead(address, isOpcodeFetch);
 		if (!isOpcodeFetch && isRunning) {
-			if (memoryReadBreakpoints.has(address) || memoryAccessBreakpoints.has(address)) {
-				setRunning(false);
-				self.postMessage({ type: "breakpointHit", breakpointType: "read", address });
-			}
+			if (memoryReadBreakpoints.has(address) || memoryAccessBreakpoints.has(address))
+				throw new BreakpointError("read", address);
 		}
+		const value = originalRead(address, isOpcodeFetch);
 		return value;
 	};
 
 	const originalWrite = bus.write.bind(bus);
 	bus.write = (address: number, value: number): void => {
-		originalWrite(address, value);
-
 		// const pc = registersView?.getUint16(REG_PC_OFFSET, true);
 		// console.log(
 		// 	`${pc?.toString(16).padStart(4, "0")} write ${address.toString(16).padStart(4, "0")}:${(value & 0xff).toString(16).padStart(2, "0")}`,
@@ -68,10 +75,10 @@ export function initCPU(systemBus: IBus, regView: DataView) {
 
 		if (isRunning) {
 			if (memoryWriteBreakpoints.has(address) || memoryAccessBreakpoints.has(address)) {
-				setRunning(false);
-				self.postMessage({ type: "breakpointHit", breakpointType: "write", address });
+				throw new BreakpointError("write", address);
 			}
 		}
+		originalWrite(address, value);
 	};
 
 	resetCPU();
@@ -356,6 +363,7 @@ function executeInstruction(): number {
 	if (!registersView || !bus) return 0;
 
 	let pc = registersView.getUint16(REG_PC_OFFSET, true);
+	const startPC = pc;
 
 	// Check for PC breakpoint before executing
 	// Only halt if we are in "run" mode. If we are single-stepping, we want to execute the instruction.
@@ -566,9 +574,9 @@ function executeInstruction(): number {
 				// PLP (Pull Processor Status)
 				let s = registersView.getUint8(REG_SP_OFFSET);
 				s = (s + 1) & 0xff;
-				registersView.setUint8(REG_SP_OFFSET, s);
 				const pulledStatus = bus.read(STACK_PAGE_HI | s);
 				registersView.setUint8(REG_STATUS_OFFSET, pulledStatus | FLAG_B_MASK);
+				registersView.setUint8(REG_SP_OFFSET, s);
 				cycles = 4;
 				break;
 			}
@@ -1494,9 +1502,9 @@ function executeInstruction(): number {
 				// PLA
 				let s = registersView.getUint8(REG_SP_OFFSET);
 				s = (s + 1) & 0xff;
-				registersView.setUint8(REG_SP_OFFSET, s);
 				const value = bus.read(STACK_PAGE_HI | s);
 				registersView.setUint8(REG_A_OFFSET, value);
+				registersView.setUint8(REG_SP_OFFSET, s);
 				setNZFlags(value);
 				cycles = 4;
 				break;
@@ -1515,9 +1523,9 @@ function executeInstruction(): number {
 				// PLX
 				let s = registersView.getUint8(REG_SP_OFFSET);
 				s = (s + 1) & 0xff;
-				registersView.setUint8(REG_SP_OFFSET, s);
 				const value = bus.read(STACK_PAGE_HI | s);
 				registersView.setUint8(REG_X_OFFSET, value);
+				registersView.setUint8(REG_SP_OFFSET, s);
 				setNZFlags(value);
 				cycles = 4;
 				break;
@@ -1535,9 +1543,9 @@ function executeInstruction(): number {
 				// PLY
 				let s = registersView.getUint8(REG_SP_OFFSET);
 				s = (s + 1) & 0xff;
-				registersView.setUint8(REG_SP_OFFSET, s);
 				const value = bus.read(STACK_PAGE_HI | s);
 				registersView.setUint8(REG_Y_OFFSET, value);
+				registersView.setUint8(REG_SP_OFFSET, s);
 				setNZFlags(value);
 				cycles = 4;
 				break;
@@ -2328,6 +2336,14 @@ function executeInstruction(): number {
 				break;
 			}
 		}
+	} catch (error) {
+		if (error instanceof BreakpointError) {
+			setRunning(false);
+			pc = startPC;
+			self.postMessage({ type: "breakpointHit", breakpointType: error.type, address: error.address });
+			return 0;
+		}
+		throw error;
 	} finally {
 		registersView.setUint16(REG_PC_OFFSET, pc, true);
 	}
