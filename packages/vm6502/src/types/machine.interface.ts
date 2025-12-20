@@ -13,6 +13,7 @@ export interface MemoryConfig {
 
 export interface MachineConfig {
 	name: string;
+	speed?: number;
 	memory: MemoryConfig;
 	busPath: string; // Path relative to the worker for dynamic import
 }
