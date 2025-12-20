@@ -53,7 +53,7 @@
 						<td class="py-0.5 text-center">
 							<button @click="onToggleBreakpoint(line.address)" class="w-full h-full flex items-center justify-center cursor-pointer group">
 								<span class="w-2 h-2 rounded-full transition-colors"
-									:class="breakpoints.has(line.address) ? 'bg-red-500' : 'bg-gray-700 group-hover:bg-red-500/50'"></span>
+									:class="getBreakpointClass(line.address)"></span>
 							</button>
 						</td>
 						<td class="py-0.5 px-2 tabular-nums text-indigo-300">
@@ -87,6 +87,7 @@
 	/** biome-ignore-all lint/correctness/noUnusedVariables: vue */
 
 import { computed, inject, onMounted, onUnmounted, type Ref, ref, watch } from "vue";
+import { useBreakpoints } from "@/composables/useBreakpoints";
 import { disassemble } from "@/lib/disassembler";
 import { handleExplainCode } from "@/lib/gemini.utils";
 import { useLabeling } from "@/lib/utils";
@@ -104,16 +105,19 @@ import type { VirtualMachine } from "@/vm.class";
 	const { address, memory, registers} = defineProps<Props>();
 	// const disassemblyContainer = ref<HTMLElement | null>(null);
 
-	const breakpoints= ref<Set<number>>(new Set<number>());
+	const { pcBreakpoints, toggleBreakpoint } = useBreakpoints();
 
 	const onToggleBreakpoint = (address: number) => {
-		if (breakpoints.value.has(address)) {
-			breakpoints.value.delete(address);
-			vm?.value.removeBP("pc", address);
-		} else {
-			breakpoints.value.add(address);
-			vm?.value.addBP("pc", address);
+		toggleBreakpoint({ type: 'pc', address }, vm?.value);
+	};
+
+	const getBreakpointClass = (address: number) => {
+		if (pcBreakpoints.value.has(address)) {
+			return pcBreakpoints.value.get(address)
+				? 'bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.6)]' // Enabled
+				: 'bg-transparent border-2 border-red-500/40';      // Disabled
 		}
+		return 'bg-gray-700 group-hover:bg-red-500/50';
 	};
 
 	const disassemblyStartAddress = ref(address);

@@ -14,40 +14,34 @@
     <ResizablePanel>
 
 		<ResizablePanelGroup direction="vertical" auto-save-id="debuggerPanelLayout">
-			<ResizablePanel :default-size="41" class="grid gap-3">
+			<ResizablePanel :default-size="41" class="grid gap-1" @resize="dbgTopPanelResize">
 				<DebuggerControls :isRunning="isRunning" />
 
-				<div class=" grid grid-cols-3 gap-6 h-full">
+				<div class=" grid grid-cols-[300px_1fr] gap-6 h-full">
 
-					<!-- Registers and Flags stacked vertically in the first column (1/3) -->
-					<div class="col-span-1 flex flex-col space-y-6">
+					<!-- Registers and Flags stacked vertically in the first column -->
+					<div class="grid grid-col gap-2">
 						<RegistersView :registers="emulatorState.registers" />
 						<StatusFlagsView :registers="emulatorState.registers" />
 					</div>
 
-					<!-- Stack View takes the remaining two columns (2/3) -->
-					<div class="col-span-2 h-full">
-						<Tabs default-value="stack">
-							<TabsList class="bg-gray-900/80 p-1">
-								<TabsTrigger value="stack" class="data-[state=active]:bg-gray-700 data-[state=active]:text-cyan-300 text-gray-400">
-									Stack
-								</TabsTrigger>
-								<TabsTrigger value="breakpoints" class="data-[state=active]:bg-gray-700 data-[state=active]:text-cyan-300 text-gray-400">
-									Breakpoints
-								</TabsTrigger>
-							</TabsList>
-							<TabsContent value="stack" class="h-full">
-								<StackView :stackData="vm.sharedMemory" :registers="emulatorState.registers" />
-							</TabsContent>
-							<TabsContent value="breakpoints" class="h-full">
-								<BreakpointsList
-									:breakpoints="emulatorState.breakpoints"
-									:onRemoveBreakpoint="handleRemoveBreakpoint"
-									:onAddBreakpoint="handleAddBreakpoint"
-								/>
-							</TabsContent>
-						</Tabs>
-					</div>
+					<!-- Stack View takes the remaining space -->
+					<Tabs default-value="stack" class="h-full">
+						<TabsList class="bg-gray-900/80 p-1">
+							<TabsTrigger value="stack" class="data-[state=active]:bg-gray-700 data-[state=active]:text-cyan-300 text-gray-400">
+								Stack
+							</TabsTrigger>
+							<TabsTrigger value="breakpoints" class="data-[state=active]:bg-gray-700 data-[state=active]:text-cyan-300 text-gray-400">
+								Breakpoints
+							</TabsTrigger>
+						</TabsList>
+						<TabsContent value="stack" class="h-full">
+							<StackView :stackData="vm.sharedMemory" :registers="emulatorState.registers" />
+						</TabsContent>
+						<TabsContent value="breakpoints" class="h-full">
+							<BreakpointsList />
+						</TabsContent>
+					</Tabs>
 				</div>
 			</ResizablePanel>
 
@@ -69,7 +63,7 @@
 							/>
 						</template>
 						<template #tab2-content>
-							<MemoryViewer :memory="vm.sharedMemory" />
+							<MemoryViewer :memory="vm.sharedMemory"/>
 						</template>
 					</TogglableDisplay>
 				</ResizablePanel>
@@ -80,12 +74,13 @@
 </template>
 
 <script setup lang="ts">
-import { markRaw, onMounted, onUnmounted, provide, reactive, ref } from "vue";
+import { markRaw, onMounted, onUnmounted, provide, reactive, ref, watch } from "vue";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import TogglableDisplay from './components/TogglableDisplay.vue';
 import ResizableHandle from './components/ui/resizable/ResizableHandle.vue';
 import ResizablePanel from './components/ui/resizable/ResizablePanel.vue';
 import ResizablePanelGroup from './components/ui/resizable/ResizablePanelGroup.vue';
+import { useBreakpoints } from "./composables/useBreakpoints";
 import {
 	FLAG_B_MASK,
 	FLAG_C_MASK,
@@ -103,10 +98,14 @@ import RegistersView from './debugger/RegistersView.vue';
 import StackView from './debugger/StackView.vue';
 import StatusFlagsView from './debugger/StatusFlagsView.vue';
 import { availableMachines } from "./machines";
-import type { Breakpoint } from "./types/breakpoint.interface";
 import type { EmulatorState } from "./types/emulatorstate.interface";
 import type { MachineConfig } from "./types/machine.interface";
 import { VirtualMachine } from "./vm.class";
+
+	const dbgTopPanelResize= (size:unknown) => {
+		// console.log('dbgTopPanelResize resized', size);
+	};
+
 
 	const cpuWorker = ref<Worker | null>(null);
 	provide('cpuWorker', cpuWorker);
@@ -117,8 +116,11 @@ import { VirtualMachine } from "./vm.class";
 
 	const selectedMachine = ref<MachineConfig>(availableMachines[1] as MachineConfig);
 
+	const { loadBreakpoints, breakpoints } = useBreakpoints();
+
 	onMounted(() => {
 		vm.value = markRaw(new VirtualMachine(selectedMachine.value));
+		loadBreakpoints();
 
 		cpuWorker.value = vm.value.worker; // Provide worker for legacy reasons if needed
 
@@ -139,6 +141,15 @@ import { VirtualMachine } from "./vm.class";
 		// Start the UI update loop
 		requestAnimationFrame(updateUiFromSharedBuffer);
 
+	});
+
+	// Sync breakpoints when VM is ready
+	watch(() => vm.value, (newVm) => {
+		if (newVm && breakpoints.value.length > 0) {
+			breakpoints.value.forEach(bp => {
+				if (bp.enabled) newVm.addBP(bp.type, bp.address);
+			});
+		}
 	});
 
 	// --- UI Update Subscription ---
@@ -201,14 +212,5 @@ import { VirtualMachine } from "./vm.class";
 	};
 
 	const isRunning = ref(false);
-
-	const handleRemoveBreakpoint = (bp: Breakpoint) => {
-		vm.value?.removeBP(bp.type, bp.address);
-	};
-
-	const handleAddBreakpoint = (bp: Breakpoint) => {
-		vm.value?.addBP(bp.type, bp.address);
-	};
-
 
 </script>

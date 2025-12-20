@@ -1,6 +1,6 @@
 <template>
 	<div ref="scrollContainer" class="p-4 bg-gray-800 rounded-lg shadow-xl flex flex-col h-full">
-		<DebuggerPanelTitle title="Stack ($0100 - $01FF)" />
+		<!-- <DebuggerPanelTitle title="Stack ($0100 - $01FF)" /> -->
 		<div
 			class="font-mono text-xs overflow-y-auto flex-grow min-h-0 bg-gray-900 p-2 rounded-md"
 			style="line-height: 1.4;"
@@ -48,7 +48,6 @@
 import { computed, inject, onMounted, onUnmounted, type Ref, ref, watch } from "vue";
 import type { EmulatorState } from "@/types/emulatorstate.interface";
 import type { VirtualMachine } from "@/vm.class";
-import DebuggerPanelTitle from './DebuggerPanelTitle.vue';
 
 	const stackBase = 0x0100;
 
@@ -56,7 +55,7 @@ import DebuggerPanelTitle from './DebuggerPanelTitle.vue';
 	const subscribeToUiUpdates= inject<(callback: () => void) => void>("subscribeToUiUpdates");
 
 	interface Props {
-		stackData: Uint8Array<SharedArrayBuffer>;
+		stackData: Uint8Array<ArrayBufferLike>;
 		registers: EmulatorState['registers']
 	}
 	const { stackData, registers } = defineProps<Props>();
