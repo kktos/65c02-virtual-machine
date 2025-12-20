@@ -41,7 +41,8 @@ export class KlausVideo implements Video {
 	}
 
 	public tick() {
-		// 1. Clear the canvas
+		// 1. Clear the canvas to be transparent
+		// this.ctx.clearRect(0, 0, this.offscreenCanvas.width, this.offscreenCanvas.height);
 		this.ctx.fillStyle = "black";
 		this.ctx.fillRect(0, 0, this.offscreenCanvas.width, this.offscreenCanvas.height);
 
@@ -69,7 +70,8 @@ export class KlausVideo implements Video {
 	}
 
 	public reset() {
-		// Fill with black on reset
+		// Clear the buffer on reset
 		this.buffer.fill(0);
+		// this.ctx.clearRect(0, 0, this.offscreenCanvas.width, this.offscreenCanvas.height);
 	}
 }

@@ -1,10 +1,11 @@
 <template>
   <ResizablePanelGroup v-if="vm" direction="horizontal" class="h-screen bg-gray-900 text-white" auto-save-id="appPanelLayout">
 
-    <ResizablePanel>
+    <ResizablePanel class="flex flex-col bg-white bg-[conic-gradient(#000_0_25%,#333_0_50%,#000_0_75%,#333_0_100%)] [background-size:1rem_1rem]">
+		<MachineSelector :machines="availableMachines" :selected-machine="selectedMachine" @machine-selected="handleMachineSelected" class="bg-black"/>
 		<canvas
 			ref="videoCanvas"
-			class="w-full h-full object-contain"
+			class="flex-grow w-full object-contain"
 			style="image-rendering: pixelated;"
 		></canvas>
 	</ResizablePanel>
@@ -79,6 +80,7 @@
 <script setup lang="ts">
 import { markRaw, onMounted, onUnmounted, provide, reactive, ref, watch } from "vue";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import MachineSelector from './components/MachineSelector.vue';
 import TogglableDisplay from './components/TogglableDisplay.vue';
 import ResizableHandle from './components/ui/resizable/ResizableHandle.vue';
 import ResizablePanel from './components/ui/resizable/ResizablePanel.vue';
@@ -207,17 +209,16 @@ import { VirtualMachine } from "./vm.class";
 		},
 	});
 
-	// const _selectMachine= (machineName: string) => {
-	// 	const newMachine = availableMachines.find(m => m.name === machineName);
-	// 	if (newMachine && newMachine.name !== vm.value?.machineConfig.name) {
-	// 		console.log(`Main: Switching machine to ${newMachine.name}`);
-	// 		vm.value?.terminate();
-	// 		vm.value = markRaw(new VirtualMachine(newMachine));
-	// 		cpuWorker.value = vm.value.worker;
-	// 		selectedMachine.value = newMachine;
-	// 	}
-	// };
-
 	const isRunning = ref(false);
 
+	const handleMachineSelected = (newMachine: MachineConfig) => {
+		if (newMachine && newMachine.name !== vm.value?.machineConfig.name) {
+			console.log(`Main: Switching machine to ${newMachine.name}`);
+			vm.value?.terminate();
+			vm.value = markRaw(new VirtualMachine(newMachine));
+			if(videoCanvas.value) vm.value.initVideo(videoCanvas.value);
+			cpuWorker.value = vm.value.worker;
+			selectedMachine.value = newMachine;
+		}
+	};
 </script>
