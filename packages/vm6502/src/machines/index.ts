@@ -12,6 +12,7 @@ export const apple2e: MachineConfig = {
 
 export const klausTest: MachineConfig = {
 	name: "KlausTest",
+	speed: 0,
 	memory: {
 		size: 64 * 1024,
 		banks: 1,
