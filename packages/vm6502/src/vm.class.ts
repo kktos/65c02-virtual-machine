@@ -15,7 +15,7 @@ import {
 	REG_X_OFFSET,
 	REG_Y_OFFSET,
 } from "@/cpu/shared-memory";
-import type { MachineConfig } from "@/types/machine.interface";
+import type { MachineConfig } from "@/machines/machine.interface";
 import { VideoOutput } from "@/video/video.output";
 import type { Breakpoint } from "./types/breakpoint.interface";
 import type { EmulatorState } from "./types/emulatorstate.interface";

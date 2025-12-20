@@ -1,4 +1,4 @@
-import type { MachineConfig } from "@/types/machine.interface";
+import type { MachineConfig } from "@/machines/machine.interface";
 
 export const apple2e: MachineConfig = {
 	name: "Apple //e",

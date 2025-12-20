@@ -1,4 +1,4 @@
-import type { MachineConfig } from "@/types/machine.interface";
+import type { MachineConfig } from "@/machines/machine.interface";
 import type { Video } from "@/video/video.interface";
 import type { IBus } from "./bus.interface";
 import {
@@ -71,7 +71,8 @@ async function init(buffer: SharedArrayBuffer, machine: MachineConfig) {
 			if (!exportedVideoEntry) {
 				console.error(`Worker: Could not find class ${machine.video.class} for module ${videoModuleKey}`);
 			} else {
-				const [, VideoClass]: [string, new (buffer: Uint8Array, width: number, height: number) => Video] = exportedVideoEntry;
+				const [, VideoClass]: [string, new (buffer: Uint8Array, width: number, height: number) => Video] =
+					exportedVideoEntry;
 				video = new VideoClass(videoView, machine.video.width, machine.video.height);
 			}
 		}
