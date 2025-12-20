@@ -59,11 +59,10 @@ export function initCPU(systemBus: IBus, regView: DataView) {
 	bus.write = (address: number, value: number): void => {
 		originalWrite(address, value);
 
-		const pc = registersView?.getUint16(REG_PC_OFFSET, true);
-
-		console.log(
-			`${pc?.toString(16).padStart(4, "0")} write ${address.toString(16).padStart(4, "0")}:${(value & 0xff).toString(16).padStart(2, "0")}`,
-		);
+		// const pc = registersView?.getUint16(REG_PC_OFFSET, true);
+		// console.log(
+		// 	`${pc?.toString(16).padStart(4, "0")} write ${address.toString(16).padStart(4, "0")}:${(value & 0xff).toString(16).padStart(2, "0")}`,
+		// );
 
 		if (isRunning) {
 			if (memoryWriteBreakpoints.has(address) || memoryAccessBreakpoints.has(address)) {
@@ -196,34 +195,30 @@ function adc(value: number) {
 
 	if (status & FLAG_D_MASK) {
 		// Decimal Mode
-		let al = (accumulator & 0x0f) + (value & 0x0f) + carry;
-		if (al > 9) al += 6;
+		let result = (accumulator & 0x0f) + (value & 0x0f) + carry;
+		if (result > 9) result += 6;
+		result += (accumulator & 0xf0) + (value & 0xf0);
 
-		let ah = (accumulator >> 4) + (value >> 4) + (al > 0x0f ? 1 : 0);
+		status = ~(accumulator ^ value) & (accumulator ^ result) & 0x80 ? status | FLAG_V_MASK : status & ~FLAG_V_MASK;
+		status = result >= 0xa0 ? status | FLAG_C_MASK : status & ~FLAG_C_MASK;
 
-		// N, V, Z flags are set based on the binary result before BCD correction
-		const binaryResult = accumulator + value + carry;
-		status = binaryResult & 0x80 ? status | FLAG_N_MASK : status & ~FLAG_N_MASK;
-		status =
-			~(accumulator ^ value) & (accumulator ^ binaryResult) & 0x80 ? status | FLAG_V_MASK : status & ~FLAG_V_MASK;
+		if (result >= 0xa0) result += 0x60;
 
-		if (ah > 9) ah += 6;
-
-		const result = (ah << 4) | (al & 0x0f);
 		status = (result & 0xff) === 0 ? status | FLAG_Z_MASK : status & ~FLAG_Z_MASK;
-		status = ah > 0x0f ? status | FLAG_C_MASK : status & ~FLAG_C_MASK;
+		status = result & 0xff & 0x80 ? status | FLAG_N_MASK : status & ~FLAG_N_MASK;
 
 		registersView.setUint8(REG_A_OFFSET, result & 0xff);
 		registersView.setUint8(REG_STATUS_OFFSET, status);
 	} else {
 		// Binary Mode
 		const result = accumulator + value + carry;
+		registersView.setUint8(REG_A_OFFSET, result & 0xff);
+
 		status = ~(accumulator ^ value) & (accumulator ^ result) & 0x80 ? status | FLAG_V_MASK : status & ~FLAG_V_MASK;
 		status = result > 0xff ? status | FLAG_C_MASK : status & ~FLAG_C_MASK;
-
-		registersView.setUint8(REG_A_OFFSET, result & 0xff);
-		setNZFlags(result & 0xff); // Set N and Z based on final 8-bit result
-		registersView.setUint8(REG_STATUS_OFFSET, status); // Apply V and C
+		status = (result & 0xff) === 0 ? status | FLAG_Z_MASK : status & ~FLAG_Z_MASK;
+		status = result & 0xff & 0x80 ? status | FLAG_N_MASK : status & ~FLAG_N_MASK;
+		registersView.setUint8(REG_STATUS_OFFSET, status);
 	}
 }
 
@@ -231,38 +226,29 @@ function sbc(value: number) {
 	if (!registersView) return;
 	const accumulator = registersView.getUint8(REG_A_OFFSET);
 	let status = registersView.getUint8(REG_STATUS_OFFSET);
-	const carry = status & FLAG_C_MASK ? 0 : 1; // Inverted for subtraction
+	const borrow = status & FLAG_C_MASK ? 0 : 1;
+
+	const binaryDiff = accumulator - value - borrow;
+	const carry = binaryDiff >= 0 ? 1 : 0;
+
+	const overflow = (accumulator ^ value) & 0x80 && (accumulator ^ binaryDiff) & 0x80;
+	status = overflow ? status | FLAG_V_MASK : status & ~FLAG_V_MASK;
+
+	let result = binaryDiff;
 
 	if (status & FLAG_D_MASK) {
-		// Decimal Mode
-		let al = (accumulator & 0x0f) - (value & 0x0f) - carry;
-		if (al < 0) al -= 6;
-
-		let ah = (accumulator >> 4) - (value >> 4) - (al < 0 ? 1 : 0);
-
-		// N, V, Z flags are set based on the binary result before BCD correction
-		const binaryResult = accumulator - value - carry;
-		status = binaryResult & 0x80 ? status | FLAG_N_MASK : status & ~FLAG_N_MASK;
-		status = (accumulator ^ value) & (accumulator ^ binaryResult) & 0x80 ? status | FLAG_V_MASK : status & ~FLAG_V_MASK;
-
-		if (ah < 0) ah -= 6;
-
-		const result = (ah << 4) | (al & 0x0f);
-		status = (result & 0xff) === 0 ? status | FLAG_Z_MASK : status & ~FLAG_Z_MASK;
-		status = binaryResult >= 0 ? status | FLAG_C_MASK : status & ~FLAG_C_MASK;
-
-		registersView.setUint8(REG_A_OFFSET, result & 0xff);
-		registersView.setUint8(REG_STATUS_OFFSET, status);
-	} else {
-		// Binary Mode
-		const result = accumulator - value - carry;
-		status = (accumulator ^ value) & (accumulator ^ result) & 0x80 ? status | FLAG_V_MASK : status & ~FLAG_V_MASK;
-		status = result >= 0 ? status | FLAG_C_MASK : status & ~FLAG_C_MASK;
-
-		registersView.setUint8(REG_A_OFFSET, result & 0xff);
-		setNZFlags(result & 0xff); // Set N and Z based on final 8-bit result
-		registersView.setUint8(REG_STATUS_OFFSET, status); // Apply V and C
+		const lowDiff = (accumulator & 0x0f) - (value & 0x0f) - borrow;
+		if (lowDiff < 0) result -= 0x06;
+		if (binaryDiff < 0) result -= 0x60;
 	}
+	result = result & 0xff;
+
+	registersView.setUint8(REG_A_OFFSET, result);
+
+	status = carry ? status | FLAG_C_MASK : status & ~FLAG_C_MASK;
+	status = result === 0 ? status | FLAG_Z_MASK : status & ~FLAG_Z_MASK;
+	status = result & 0x80 ? status | FLAG_N_MASK : status & ~FLAG_N_MASK;
+	registersView.setUint8(REG_STATUS_OFFSET, status);
 }
 
 function and(value: number) {
@@ -294,6 +280,17 @@ function asl(value: number): number {
 	let status = registersView.getUint8(REG_STATUS_OFFSET);
 	status = value & 0x80 ? status | FLAG_C_MASK : status & ~FLAG_C_MASK;
 	const result = (value << 1) & 0xff;
+	status = result === 0 ? status | FLAG_Z_MASK : status & ~FLAG_Z_MASK;
+	status = result & 0x80 ? status | FLAG_N_MASK : status & ~FLAG_N_MASK;
+	registersView.setUint8(REG_STATUS_OFFSET, status);
+	return result;
+}
+
+function lsr(value: number): number {
+	if (!registersView) return value;
+	let status = registersView.getUint8(REG_STATUS_OFFSET);
+	status = value & 0x01 ? status | FLAG_C_MASK : status & ~FLAG_C_MASK;
+	const result = (value >> 1) & 0xff;
 	status = result === 0 ? status | FLAG_Z_MASK : status & ~FLAG_Z_MASK;
 	status = result & 0x80 ? status | FLAG_N_MASK : status & ~FLAG_N_MASK;
 	registersView.setUint8(REG_STATUS_OFFSET, status);
@@ -1004,6 +1001,56 @@ function executeInstruction(): number {
 				break;
 			}
 
+			case 0x4a: {
+				// LSR Accumulator
+				let value = registersView.getUint8(REG_A_OFFSET);
+				value = lsr(value);
+				registersView.setUint8(REG_A_OFFSET, value);
+				cycles = 2;
+				break;
+			}
+			case 0x46: {
+				// LSR Zero Page
+				const addr = bus.read(pc, true);
+				pc++;
+				let value = bus.read(addr);
+				value = lsr(value);
+				bus.write(addr, value);
+				cycles = 5;
+				break;
+			}
+			case 0x56: {
+				// LSR Zero Page,X
+				const addr = (bus.read(pc, true) + registersView.getUint8(REG_X_OFFSET)) & 0xff;
+				pc++;
+				let value = bus.read(addr);
+				value = lsr(value);
+				bus.write(addr, value);
+				cycles = 6;
+				break;
+			}
+			case 0x4e: {
+				// LSR Absolute
+				const addr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
+				pc += 2;
+				let value = bus.read(addr);
+				value = lsr(value);
+				bus.write(addr, value);
+				cycles = 6;
+				break;
+			}
+			case 0x5e: {
+				// LSR Absolute,X
+				const baseAddr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
+				pc += 2;
+				const addr = baseAddr + registersView.getUint8(REG_X_OFFSET);
+				let value = bus.read(addr);
+				value = lsr(value);
+				bus.write(addr, value);
+				cycles = 7;
+				break;
+			}
+
 			// --- Arithmetic Operations ---
 			case 0x69: {
 				// ADC #Immediate
@@ -1487,6 +1534,51 @@ function executeInstruction(): number {
 				registersView.setUint8(REG_Y_OFFSET, value);
 				setNZFlags(value);
 				cycles = 2;
+				break;
+			}
+
+			case 0xc6: {
+				// DEC Zero Page
+				const addr = bus.read(pc, true);
+				pc++;
+				const value = bus.read(addr);
+				const result = (value - 1) & 0xff;
+				bus.write(addr, result);
+				setNZFlags(result);
+				cycles = 5;
+				break;
+			}
+			case 0xd6: {
+				// DEC Zero Page,X
+				const addr = (bus.read(pc, true) + registersView.getUint8(REG_X_OFFSET)) & 0xff;
+				pc++;
+				const value = bus.read(addr);
+				const result = (value - 1) & 0xff;
+				bus.write(addr, result);
+				setNZFlags(result);
+				cycles = 6;
+				break;
+			}
+			case 0xce: {
+				// DEC Absolute
+				const addr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
+				pc += 2;
+				const value = bus.read(addr);
+				const result = (value - 1) & 0xff;
+				bus.write(addr, result);
+				setNZFlags(result);
+				cycles = 6;
+				break;
+			}
+			case 0xde: {
+				// DEC Absolute,X
+				const addr = (bus.read(pc, true) | (bus.read(pc + 1, true) << 8)) + registersView.getUint8(REG_X_OFFSET);
+				pc += 2;
+				const value = bus.read(addr);
+				const result = (value - 1) & 0xff;
+				bus.write(addr, result);
+				setNZFlags(result);
+				cycles = 7;
 				break;
 			}
 
@@ -1974,6 +2066,42 @@ function executeInstruction(): number {
 				// NOP
 				// Official NOP
 				cycles = 2;
+				break;
+			}
+
+			// --- RMB (Reset Memory Bit) - 65C02 ---
+			case 0x07:
+			case 0x17:
+			case 0x27:
+			case 0x37:
+			case 0x47:
+			case 0x57:
+			case 0x67:
+			case 0x77: {
+				const bit = (opcode >> 4) & 0x07;
+				const addr = bus.read(pc, true);
+				pc++;
+				const value = bus.read(addr);
+				bus.write(addr, value & ~(1 << bit));
+				cycles = 5;
+				break;
+			}
+
+			// --- SMB (Set Memory Bit) - 65C02 ---
+			case 0x87:
+			case 0x97:
+			case 0xa7:
+			case 0xb7:
+			case 0xc7:
+			case 0xd7:
+			case 0xe7:
+			case 0xf7: {
+				const bit = (opcode >> 4) & 0x07;
+				const addr = bus.read(pc, true);
+				pc++;
+				const value = bus.read(addr);
+				bus.write(addr, value | (1 << bit));
+				cycles = 5;
 				break;
 			}
 
