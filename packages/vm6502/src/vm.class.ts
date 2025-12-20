@@ -10,6 +10,7 @@ import {
 	REG_A_OFFSET,
 	REG_PC_OFFSET,
 	REG_SP_OFFSET,
+	REG_SPEED_OFFSET,
 	REG_STATUS_OFFSET,
 	REG_X_OFFSET,
 	REG_Y_OFFSET,
@@ -60,7 +61,7 @@ export class VirtualMachine {
 
 		this.worker.postMessage({
 			command: "setSpeed",
-			speed: this.machineConfig.speed ?? 50,
+			speed: this.machineConfig.speed ?? 1,
 		});
 	}
 
@@ -77,6 +78,11 @@ export class VirtualMachine {
 			}
 		}
 	}
+
+	public setSpeed = (speed: number) => this.worker.postMessage({ command: "setSpeed", speed });
+	public getSpeed = () => this.sharedRegisters.getFloat64(REG_SPEED_OFFSET, true);
+
+	public resetCPU = () => this.worker.postMessage({ command: "reset" });
 
 	public play = () => this.worker.postMessage({ command: "run" });
 	public pause = () => this.worker.postMessage({ command: "pause" });
