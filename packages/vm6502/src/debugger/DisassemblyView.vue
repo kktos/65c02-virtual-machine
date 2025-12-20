@@ -65,7 +65,7 @@
 						<td class="py-0.5 text-left flex items-center">
 							<span>{{ getLabeledInstruction(line.opcode).labeledOpcode }}</span>
 							<span v-if="line.address === address && getBranchPrediction(line.opcode)"
-								:class="['font-bold ml-2 text-base', getBranchPrediction(line.opcode)?.color]"
+								:class="['ml-2', getBranchPrediction(line.opcode)?.color]"
 								:title="getBranchPrediction(line.opcode)?.title">
 								{{ getBranchPrediction(line.opcode)?.char }}
 							</span>
@@ -182,9 +182,33 @@ import type { VirtualMachine } from "@/vm.class";
 
 	watch(
 		() => address,
-		(newAddress) => {
-			// When the PC changes, update the disassembly start address to follow it.
-			disassemblyStartAddress.value = newAddress;
+		(newAddress, oldAddress) => {
+			// Try to keep the PC at the same visual row index as before.
+			const oldIndex = disassembly.value.findIndex((line) => line.address === oldAddress);
+
+			if (oldIndex === -1) {
+				// If old PC wasn't visible, just snap to the new PC (default behavior)
+				disassemblyStartAddress.value = newAddress;
+				return;
+			}
+
+			const newIndexInOldView = disassembly.value.findIndex((line) => line.address === newAddress);
+
+			// Optimization: If moving forward within the current view, we can just shift the start address
+			if (newIndexInOldView !== -1 && newIndexInOldView >= oldIndex) {
+				const offset = newIndexInOldView - oldIndex;
+				if (offset < disassembly.value.length) {
+					disassemblyStartAddress.value = disassembly.value[offset]?.address ?? 0;
+				}
+			} else {
+				// Fallback: Calculate backwards from newAddress to find the start address
+				// that puts newAddress at oldIndex.
+				let targetStart = newAddress;
+				for (let i = 0; i < oldIndex; i++) {
+					targetStart = findPreviousInstructionAddress(targetStart);
+				}
+				disassemblyStartAddress.value = targetStart;
+			}
 		}
 	);
 
