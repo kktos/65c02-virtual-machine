@@ -16,6 +16,7 @@ import {
 	REG_Y_OFFSET,
 } from "@/cpu/shared-memory";
 import type { MachineConfig } from "@/types/machine.interface";
+import { VideoOutput } from "@/video/video.output";
 import type { Breakpoint } from "./types/breakpoint.interface";
 import type { EmulatorState } from "./types/emulatorstate.interface";
 
@@ -31,6 +32,9 @@ export class VirtualMachine {
 	public sharedBuffer: SharedArrayBuffer;
 	public sharedRegisters: DataView;
 	public sharedMemory: Uint8Array;
+	public videoBuffer?: Uint8Array;
+	private videoOutput?: VideoOutput;
+	private isRendering = false;
 
 	public worker: Worker;
 	public machineConfig: MachineConfig;
@@ -40,10 +44,17 @@ export class VirtualMachine {
 		this.worker = new Worker(new URL("./cpu/cpu.worker.ts", import.meta.url), { type: "module" });
 
 		// 1. Initialize memory on the main thread
-		const bufferSize = MEMORY_OFFSET + this.machineConfig.memory.size;
+		const videoSize = this.machineConfig.video?.size ?? 0;
+		const bufferSize = MEMORY_OFFSET + this.machineConfig.memory.size + videoSize;
+
 		this.sharedBuffer = new SharedArrayBuffer(bufferSize);
 		this.sharedRegisters = new DataView(this.sharedBuffer, 0, MEMORY_OFFSET);
 		this.sharedMemory = new Uint8Array(this.sharedBuffer, MEMORY_OFFSET, this.machineConfig.memory.size);
+
+		if (videoSize > 0) {
+			const videoBufferOffset = MEMORY_OFFSET + this.machineConfig.memory.size;
+			this.videoBuffer = new Uint8Array(this.sharedBuffer, videoBufferOffset, videoSize);
+		}
 
 		// 2. Load data into memory from the main thread
 		this.loadMemoryChunks();
@@ -54,8 +65,15 @@ export class VirtualMachine {
 			buffer: this.sharedBuffer,
 			machine: {
 				name: this.machineConfig.name,
-				memory: { size: this.machineConfig.memory.size },
 				bus: { path: this.machineConfig.bus.path, class: this.machineConfig.bus.class },
+				video: {
+					width: this.machineConfig.video?.width,
+					height: this.machineConfig.video?.height,
+					size: this.machineConfig.video?.size,
+					path: this.machineConfig.video?.path,
+					class: this.machineConfig.video?.class,
+				},
+				memory: { size: this.machineConfig.memory.size },
 			},
 		});
 
@@ -77,6 +95,28 @@ export class VirtualMachine {
 				this.sharedMemory.set(data, chunk.addr);
 			}
 		}
+	}
+
+	public initVideo(canvas: HTMLCanvasElement) {
+		if (!this.machineConfig.video || !this.videoBuffer) {
+			console.warn("This machine does not have video output.");
+			return;
+		}
+		this.videoOutput = new VideoOutput(
+			canvas,
+			this.videoBuffer,
+			this.machineConfig.video.width,
+			this.machineConfig.video.height,
+		);
+
+		this.isRendering = true;
+		this.renderFrame();
+	}
+
+	private renderFrame() {
+		if (!this.isRendering) return;
+		this.videoOutput?.render();
+		requestAnimationFrame(() => this.renderFrame());
 	}
 
 	public setSpeed = (speed: number) => this.worker.postMessage({ command: "setSpeed", speed });
@@ -158,6 +198,7 @@ export class VirtualMachine {
 	}
 
 	public terminate() {
+		this.isRendering = false;
 		this.worker.terminate();
 		console.log("VM: Worker terminated.");
 	}

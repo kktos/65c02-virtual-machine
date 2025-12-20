@@ -1,4 +1,5 @@
 import type { MachineConfig } from "@/types/machine.interface";
+import type { Video } from "@/video/video.interface";
 import type { IBus } from "./bus.interface";
 import {
 	addBreakpoint,
@@ -20,9 +21,12 @@ console.log("CPU Worker script loaded.");
 let sharedBuffer: SharedArrayBuffer | null = null;
 let memoryView: Uint8Array | null = null;
 let registersView: DataView | null = null;
+let videoView: Uint8Array | null = null;
+let video: Video | null = null;
 
 // Vite-specific way to handle dynamic imports in workers.
 const busModules = import.meta.glob("../machines/*/bus.class.ts");
+const videoModules = import.meta.glob("../machines/*/video.ts");
 
 async function init(buffer: SharedArrayBuffer, machine: MachineConfig) {
 	if (!(buffer instanceof SharedArrayBuffer)) {
@@ -43,15 +47,37 @@ async function init(buffer: SharedArrayBuffer, machine: MachineConfig) {
 	}
 
 	const BusModule = await busModuleLoader();
-	const exportedEntry = Object.entries(BusModule as object).find(([name]) => name === machine.bus.class);
-	if (!exportedEntry) {
+	const exportedBusEntry = Object.entries(BusModule as object).find(([name]) => name === machine.bus.class);
+	if (!exportedBusEntry) {
 		console.error(`Worker: Could not find class ${machine.bus.class} for module ${busModuleKey}`);
 		return;
 	}
 
-	const [, BusClass]: [string, new (mem: Uint8Array) => IBus] = exportedEntry;
+	const [, BusClass]: [string, new (mem: Uint8Array) => IBus] = exportedBusEntry;
 	const bus = new BusClass(memoryView as Uint8Array);
-	initCPU(bus, registersView as DataView);
+
+	if (machine.video) {
+		const videoBufferOffset = MEMORY_OFFSET + machine.memory.size;
+		videoView = new Uint8Array(sharedBuffer, videoBufferOffset, machine.video.size);
+
+		const videoModuleKey = `${machine.video.path}.ts`;
+		const videoModuleLoader = videoModules[videoModuleKey];
+		if (!videoModuleLoader) {
+			console.error(`Worker: Could not find a video module loader for key: ${videoModuleKey}`);
+		} else {
+			const VideoModule = await videoModuleLoader();
+			const exportedVideoEntry = Object.entries(VideoModule as object).find(([name]) => name === machine.video?.class);
+
+			if (!exportedVideoEntry) {
+				console.error(`Worker: Could not find class ${machine.video.class} for module ${videoModuleKey}`);
+			} else {
+				const [, VideoClass]: [string, new (buffer: Uint8Array, width: number, height: number) => Video] = exportedVideoEntry;
+				video = new VideoClass(videoView, machine.video.width, machine.video.height);
+			}
+		}
+	}
+
+	initCPU(bus, registersView as DataView, video);
 
 	console.log(`Worker: Initialized with ${machine.name} machine configuration.`);
 }
@@ -89,6 +115,7 @@ self.onmessage = async (event: MessageEvent) => {
 			}
 			break;
 		case "reset":
+			if (video) video.reset();
 			resetCPU();
 			break;
 		case "addBP":

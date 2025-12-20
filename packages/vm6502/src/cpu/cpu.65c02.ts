@@ -1,4 +1,5 @@
 import type { Breakpoint } from "@/types/breakpoint.interface";
+import type { Video } from "@/video/video.interface";
 import type { IBus } from "./bus.interface";
 import {
 	FLAG_5_MASK,
@@ -36,6 +37,7 @@ let stepAddedBreakpoint = false;
 // Shared memory references, to be initialized from the worker
 let registersView: DataView | null = null;
 let bus: IBus | null = null;
+let video: Video | null = null;
 
 // Status Flag Masks (complementing those from shared-memory)
 const FLAG_C_MASK = 0x01;
@@ -55,9 +57,10 @@ class BreakpointError extends Error {
 	}
 }
 
-export function initCPU(systemBus: IBus, regView: DataView) {
+export function initCPU(systemBus: IBus, regView: DataView, videoSystem: Video | null) {
 	bus = systemBus;
 	registersView = regView;
+	video = videoSystem;
 	if (clockSpeedMhz > 0) registersView.setFloat64(REG_SPEED_OFFSET, clockSpeedMhz, true);
 
 	updateCyclesPerTimeslice();
@@ -216,6 +219,8 @@ export function stepOutInstruction() {
 export function resetCPU() {
 	if (!registersView || !bus) return;
 
+	if (video) video.reset();
+
 	// The 6502's reset sequence
 	// Set Stack Pointer to 0xFD
 	registersView.setUint8(REG_SP_OFFSET, 0xfd);
@@ -256,6 +261,8 @@ function run() {
 
 		if (!isRunning) break;
 	}
+
+	if (video) video.tick();
 
 	if (clockSpeedMhz === 0) {
 		const executed = initialCycles - cyclesThisSlice;

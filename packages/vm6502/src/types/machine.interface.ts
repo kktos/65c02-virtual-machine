@@ -11,6 +11,14 @@ export interface MemoryConfig {
 	chunks?: MemoryChunk[];
 }
 
+export interface VideoConfig {
+	size: number;
+	width: number;
+	height: number;
+	class: string; // exported class name
+	path: string; // Path relative to the worker for dynamic import
+}
+
 export interface MachineConfig {
 	name: string;
 	speed?: number;
@@ -19,4 +27,5 @@ export interface MachineConfig {
 		class: string; // exported class name
 		path: string; // Path relative to the worker for dynamic import}
 	};
+	video?: VideoConfig;
 }

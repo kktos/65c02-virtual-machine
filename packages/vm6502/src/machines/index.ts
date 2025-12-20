@@ -1,36 +1,5 @@
 import type { MachineConfig } from "@/types/machine.interface";
-import { KlausTest_RAM } from "./klaus-test-suite/65C02_extended_opcodes_test";
-
-export const apple2e: MachineConfig = {
-	name: "Apple //e",
-	memory: {
-		size: 0x10000, // 64KB main memory
-		banks: 2, // Main and Aux
-	},
-	bus: { class: "Bus", path: "../machines/apple2/bus.class" },
-};
-
-export const klausTest: MachineConfig = {
-	name: "KlausTest",
-	speed: 0,
-	memory: {
-		size: 64 * 1024,
-		banks: 1,
-		chunks: [
-			{
-				bank: 0,
-				addr: 0x0000,
-				data: KlausTest_RAM,
-			},
-			{
-				bank: 0,
-				addr: 0xfffa,
-				// data: "16 27 1C 27 24 27"
-				data: "16 27 00 04 24 27",
-			},
-		],
-	},
-	bus: { class: "Bus", path: "../machines/klaus-test-suite/bus.class" },
-};
+import { apple2e } from "./apple2/machine.conf";
+import { klausTest } from "./klaus-test-suite/machine.conf";
 
 export const availableMachines: MachineConfig[] = [apple2e, klausTest];

@@ -3,7 +3,7 @@
 
     <ResizablePanel>
 		<canvas
-			id="vm-canvas"
+			ref="videoCanvas"
 			class="w-full h-full object-contain"
 			style="image-rendering: pixelated;"
 		></canvas>
@@ -110,19 +110,16 @@ import { VirtualMachine } from "./vm.class";
 		// console.log('dbgTopPanelResize resized', size);
 	};
 
-
 	const cpuWorker = ref<Worker | null>(null);
-	provide('cpuWorker', cpuWorker);
-
-	// --- Shared Memory Setup ---
 	const vm = ref<VirtualMachine | null>(null);
-	provide('vm', vm);
-
+	const videoCanvas = ref<HTMLCanvasElement | null>(null);
 	const selectedMachine = ref<MachineConfig>(availableMachines[1] as MachineConfig);
 
+	provide('vm', vm);
 	const { loadBreakpoints, breakpoints } = useBreakpoints();
 
 	onMounted(() => {
+
 		vm.value = markRaw(new VirtualMachine(selectedMachine.value));
 		loadBreakpoints();
 
@@ -146,6 +143,12 @@ import { VirtualMachine } from "./vm.class";
 		requestAnimationFrame(updateUiFromSharedBuffer);
 
 	});
+
+	// Wait for the canvas to be mounted by the ResizablePanel before setting it on the VM
+	watch(videoCanvas, (newCanvasEl) => {
+		if (newCanvasEl && vm.value)
+			vm.value.initVideo(newCanvasEl);
+	}, { once: true });
 
 	// Sync breakpoints when VM is ready
 	watch(() => vm.value, (newVm) => {
