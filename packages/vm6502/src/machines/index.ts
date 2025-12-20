@@ -7,7 +7,7 @@ export const apple2e: MachineConfig = {
 		size: 0x10000, // 64KB main memory
 		banks: 2, // Main and Aux
 	},
-	busPath: "../machines/apple2/bus.class",
+	bus: { class: "Bus", path: "../machines/apple2/bus.class" },
 };
 
 export const klausTest: MachineConfig = {
@@ -29,7 +29,7 @@ export const klausTest: MachineConfig = {
 			},
 		],
 	},
-	busPath: "../machines/klaus-test-suite/bus.class",
+	bus: { class: "Bus", path: "../machines/klaus-test-suite/bus.class" },
 };
 
 export const availableMachines: MachineConfig[] = [apple2e, klausTest];
