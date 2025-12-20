@@ -102,7 +102,7 @@ import type { EmulatorState } from "./types/emulatorstate.interface";
 import type { MachineConfig } from "./types/machine.interface";
 import { VirtualMachine } from "./vm.class";
 
-	const dbgTopPanelResize= (size:unknown) => {
+	const dbgTopPanelResize= (_size:unknown) => {
 		// console.log('dbgTopPanelResize resized', size);
 	};
 
@@ -200,16 +200,16 @@ import { VirtualMachine } from "./vm.class";
 		},
 	});
 
-	const selectMachine= (machineName: string) => {
-		const newMachine = availableMachines.find(m => m.name === machineName);
-		if (newMachine && newMachine.name !== vm.value?.machineConfig.name) {
-			console.log(`Main: Switching machine to ${newMachine.name}`);
-			vm.value?.terminate();
-			vm.value = markRaw(new VirtualMachine(newMachine));
-			cpuWorker.value = vm.value.worker;
-			selectedMachine.value = newMachine;
-		}
-	};
+	// const _selectMachine= (machineName: string) => {
+	// 	const newMachine = availableMachines.find(m => m.name === machineName);
+	// 	if (newMachine && newMachine.name !== vm.value?.machineConfig.name) {
+	// 		console.log(`Main: Switching machine to ${newMachine.name}`);
+	// 		vm.value?.terminate();
+	// 		vm.value = markRaw(new VirtualMachine(newMachine));
+	// 		cpuWorker.value = vm.value.worker;
+	// 		selectedMachine.value = newMachine;
+	// 	}
+	// };
 
 	const isRunning = ref(false);
 

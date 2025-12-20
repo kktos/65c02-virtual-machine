@@ -31,8 +31,12 @@
 						<td v-for="byteIndex in BYTES_PER_LINE" :key="byteIndex" class="p-0">
 							<input
 								type="text"
-								:value="currentMemorySlice[(lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1)]?.toString(16).toUpperCase().padStart(2, '0')"
+								:value="editingIndex === ((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1)) ? editingValue : currentMemorySlice[(lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1)]?.toString(16).toUpperCase().padStart(2, '0')"
+								:ref="(el) => setInputRef(el, (lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1))"
+								@keydown="handleKeyDown((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1), $event)"
 								@input="handleByteChange((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1), $event)"
+								@focus="handleFocus((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1), $event)"
+								@blur="handleBlur"
 								maxlength="2"
 								class="w-full text-center bg-transparent focus:bg-gray-600 focus:outline-none focus:ring-1 focus:ring-cyan-500 rounded-none tabular-nums text-xs"
 							/>
@@ -51,7 +55,7 @@
 <script lang="ts" setup>
 	/** biome-ignore-all lint/correctness/noUnusedVariables: vue */
 
-import { computed, inject, onMounted, onUnmounted, type Ref, ref, watch } from "vue";
+import { computed, inject, nextTick, onMounted, onUnmounted, type Ref, ref, watch } from "vue";
 import { bytesToAscii } from "@/lib/array.utils";
 import type { VirtualMachine } from "@/vm.class";
 
@@ -106,8 +110,69 @@ import type { VirtualMachine } from "@/vm.class";
 		}
 	};
 
+	const editingIndex = ref<number | null>(null);
+	const editingValue = ref("");
+	const inputRefs = ref<Map<number, HTMLInputElement>>(new Map());
+
+	const setInputRef = (el: any, index: number) => {
+		if (el) {
+			inputRefs.value.set(index, el as HTMLInputElement);
+		} else {
+			inputRefs.value.delete(index);
+		}
+	};
+
+	const handleFocus = (index: number, event: FocusEvent) => {
+		editingIndex.value = index;
+		const target = event.target as HTMLInputElement;
+		editingValue.value = target.value;
+		target.select();
+	};
+
+	const handleBlur = () => {
+		editingIndex.value = null;
+	};
+
+	const handleKeyDown = (index: number, event: KeyboardEvent) => {
+		let direction = 0;
+		if (event.key === "ArrowUp") direction = -BYTES_PER_LINE;
+		else if (event.key === "ArrowDown") direction = BYTES_PER_LINE;
+		else if (event.key === "ArrowLeft") direction = -1;
+		else if (event.key === "ArrowRight") direction = 1;
+		else return;
+
+		event.preventDefault();
+
+		const currentAbs = startAddress.value + index;
+		const targetAbs = currentAbs + direction;
+
+		if (targetAbs < 0 || targetAbs > 0xFFFF) return;
+
+		const visibleBytes = visibleRowCount.value * BYTES_PER_LINE;
+		const endAddress = startAddress.value + visibleBytes;
+
+		if (targetAbs >= startAddress.value && targetAbs < endAddress) {
+			const targetIndex = targetAbs - startAddress.value;
+			inputRefs.value.get(targetIndex)?.focus();
+		} else {
+			if (targetAbs < startAddress.value) {
+				startAddress.value = Math.max(0, startAddress.value - BYTES_PER_LINE);
+			} else {
+				startAddress.value = Math.min(0xFFFF, startAddress.value + BYTES_PER_LINE);
+			}
+
+			nextTick(() => {
+				const newTargetIndex = targetAbs - startAddress.value;
+				if (newTargetIndex >= 0 && newTargetIndex < visibleBytes) {
+					inputRefs.value.get(newTargetIndex)?.focus();
+				}
+			});
+		}
+	};
+
 	const handleByteChange = (index: number, event: Event) => {
 		const target = event.target as HTMLInputElement;
+		if (editingIndex.value === index) editingValue.value = target.value;
 		const value = parseInt(target.value, 16);
 		if (!Number.isNaN(value) && value >= 0 && value <= 0xFF) {
 			vm?.value.updateMemory(startAddress.value + index, value);
