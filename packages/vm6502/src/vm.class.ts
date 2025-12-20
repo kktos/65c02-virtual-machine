@@ -54,7 +54,7 @@ export class VirtualMachine {
 			machine: {
 				name: this.machineConfig.name,
 				memory: { size: this.machineConfig.memory.size },
-				busPath: this.machineConfig.busPath,
+				bus: { path: this.machineConfig.bus.path, class: this.machineConfig.bus.class },
 			},
 		});
 

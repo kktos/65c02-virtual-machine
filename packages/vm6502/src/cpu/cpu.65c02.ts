@@ -25,6 +25,8 @@ const pcBreakpoints = new Set<number>();
 const memoryReadBreakpoints = new Set<number>();
 const memoryWriteBreakpoints = new Set<number>();
 const memoryAccessBreakpoints = new Set<number>();
+let stepBPAddress: number | null = null;
+let stepAddedBreakpoint = false;
 
 // Shared memory references, to be initialized from the worker
 let registersView: DataView | null = null;
@@ -138,6 +140,53 @@ export function stepInstruction() {
 	if (!isRunning) executeInstruction();
 }
 
+function cleanStepBP() {
+	// biome-ignore lint/style/noNonNullAssertion: the test is done before
+	if (stepAddedBreakpoint) pcBreakpoints.delete(stepBPAddress!);
+	stepBPAddress = null;
+	stepAddedBreakpoint = false;
+}
+
+export function stepOverInstruction() {
+	if (isRunning || !registersView || !bus) return;
+
+	// Cleanup previous step over if it exists (e.g. interrupted)
+	if (stepBPAddress !== null) cleanStepBP();
+
+	const pc = registersView.getUint16(REG_PC_OFFSET, true);
+	const opcode = bus.read(pc, true);
+
+	if (opcode === 0x20) {
+		// JSR Absolute
+		const target = (pc + 3) & 0xffff;
+		stepBPAddress = target;
+		stepAddedBreakpoint = !pcBreakpoints.has(target);
+		if (stepAddedBreakpoint) pcBreakpoints.add(target);
+
+		setRunning(true);
+	} else {
+		stepInstruction();
+	}
+}
+
+export function stepOutInstruction() {
+	if (isRunning || !registersView || !bus) return;
+
+	// Cleanup previous step over if it exists (e.g. interrupted)
+	if (stepBPAddress !== null) cleanStepBP();
+
+	const sp = registersView.getUint8(REG_SP_OFFSET);
+	const lo = bus.read(STACK_PAGE_HI | ((sp + 1) & 0xff));
+	const hi = bus.read(STACK_PAGE_HI | ((sp + 2) & 0xff));
+	const target = (((hi << 8) | lo) + 1) & 0xffff;
+
+	stepBPAddress = target;
+	stepAddedBreakpoint = !pcBreakpoints.has(target);
+	if (stepAddedBreakpoint) pcBreakpoints.add(target);
+
+	setRunning(true);
+}
+
 export function resetCPU() {
 	if (!registersView || !bus) return;
 
@@ -157,6 +206,12 @@ export function resetCPU() {
 
 	// Stop execution
 	setRunning(false);
+
+	if (stepBPAddress !== null) {
+		if (stepAddedBreakpoint) pcBreakpoints.delete(stepBPAddress);
+		stepBPAddress = null;
+		stepAddedBreakpoint = false;
+	}
 }
 
 // --- Main Execution Loop ---
@@ -306,7 +361,15 @@ function executeInstruction(): number {
 	// Only halt if we are in "run" mode. If we are single-stepping, we want to execute the instruction.
 	if (isRunning && pcBreakpoints.has(pc)) {
 		setRunning(false);
-		self.postMessage({ type: "breakpointHit", breakpointType: "pc", address: pc });
+
+		let type = "pc";
+		// Check if this is our step-over target
+		if (stepBPAddress !== null && pc === stepBPAddress) {
+			type = "step";
+			cleanStepBP();
+		}
+
+		self.postMessage({ type: "breakpointHit", breakpointType: type, address: pc });
 		return 0;
 	}
 
