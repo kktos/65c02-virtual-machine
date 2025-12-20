@@ -83,7 +83,7 @@ self.onmessage = async (event: MessageEvent) => {
 			stepOutInstruction();
 			break;
 		case "setSpeed":
-			if (typeof speed === "number" && speed > 0) {
+			if (typeof speed === "number" && speed >= 0) {
 				setClockSpeed(speed);
 				console.log(`Worker: Clock speed set to ${speed} MHz.`);
 			}
