@@ -1,4 +1,4 @@
-import type { MachineConfig } from "@/machines/machine.interface";
+import type { MachineConfig, VideoConfig } from "@/machines/machine.interface";
 import type { Video } from "@/video/video.interface";
 import type { IBus } from "./bus.interface";
 import {
@@ -21,72 +21,83 @@ console.log("CPU Worker script loaded.");
 let sharedBuffer: SharedArrayBuffer | null = null;
 let memoryView: Uint8Array | null = null;
 let registersView: DataView | null = null;
-let videoView: Uint8Array | null = null;
+// let videoView: Uint8Array | null = null;
 let video: Video | null = null;
 
 // Vite-specific way to handle dynamic imports in workers.
 const busModules = import.meta.glob("../machines/*/bus.class.ts");
-const videoModules = import.meta.glob("../machines/*/video.ts");
+async function loadBus(busConfig: MachineConfig["bus"]) {
+	const busModuleKey = `${busConfig.path}.ts`;
+	const busModuleLoader = busModules[busModuleKey];
+	if (!busModuleLoader) {
+		console.error(`Worker: Could not find a bus module loader for key: ${busModuleKey}`);
+		return null;
+	}
+	const BusModule = await busModuleLoader();
+	const exportedBusEntry = Object.entries(BusModule as object).find(([name]) => name === busConfig.class);
+	if (!exportedBusEntry) {
+		console.error(`Worker: Could not find class ${busConfig.class} for module ${busModuleKey}`);
+		return null;
+	}
+	const [, BusClass]: [string, new (mem: Uint8Array) => IBus] = exportedBusEntry;
+	return new BusClass(memoryView as Uint8Array);
+}
 
-async function init(buffer: SharedArrayBuffer, machine: MachineConfig) {
-	if (!(buffer instanceof SharedArrayBuffer)) {
+// Vite-specific way to handle dynamic imports in workers.
+const videoModules = import.meta.glob("../machines/*/*.video.ts");
+async function loadVideo(videoConfig: VideoConfig) {
+	// const videoBufferOffset = MEMORY_OFFSET + machine.memory.size;
+	// videoView = new Uint8Array(sharedBuffer, videoBufferOffset, machine.video.size);
+	if (!(videoConfig.buffer instanceof SharedArrayBuffer)) {
+		console.error("Worker: Did not receive a video SharedArrayBuffer.");
+		return null;
+	}
+
+	const videoModuleKey = `${videoConfig.path}.ts`;
+	const videoModuleLoader = videoModules[videoModuleKey];
+	if (!videoModuleLoader) {
+		console.error(`Worker: Could not find a video module loader for key: ${videoModuleKey}`);
+		return null;
+	}
+	const VideoModule = await videoModuleLoader();
+	const exportedVideoEntry = Object.entries(VideoModule as object).find(([name]) => name === videoConfig?.class);
+	if (!exportedVideoEntry) {
+		console.error(`Worker: Could not find class ${videoConfig.class} for module ${videoModuleKey}`);
+		return null;
+	}
+	const [, VideoClass]: [string, new (mem: Uint8Array, width: number, height: number) => Video] = exportedVideoEntry;
+
+	const videoMemory = new Uint8Array(videoConfig.buffer, 0, videoConfig.width * videoConfig.height * 4);
+	return new VideoClass(videoMemory, videoConfig.width, videoConfig.height);
+}
+
+async function init(machine: MachineConfig) {
+	if (!(machine.memory.buffer instanceof SharedArrayBuffer)) {
 		console.error("Worker: Did not receive a SharedArrayBuffer.");
 		return;
 	}
 
-	sharedBuffer = buffer;
+	sharedBuffer = machine.memory.buffer;
 	registersView = new DataView(sharedBuffer, 0, MEMORY_OFFSET);
 	memoryView = new Uint8Array(sharedBuffer, MEMORY_OFFSET, machine.memory.size);
 
-	// Construct the key for the busModules map and load the module.
-	const busModuleKey = `${machine.bus.path}.ts`;
-	const busModuleLoader = busModules[busModuleKey];
-	if (!busModuleLoader) {
-		console.error(`Worker: Could not find a bus module loader for key: ${busModuleKey}`);
-		return;
-	}
-
-	const BusModule = await busModuleLoader();
-	const exportedBusEntry = Object.entries(BusModule as object).find(([name]) => name === machine.bus.class);
-	if (!exportedBusEntry) {
-		console.error(`Worker: Could not find class ${machine.bus.class} for module ${busModuleKey}`);
-		return;
-	}
-
-	const [, BusClass]: [string, new (mem: Uint8Array) => IBus] = exportedBusEntry;
-	const bus = new BusClass(memoryView as Uint8Array);
+	const bus = await loadBus(machine.bus);
+	if (!bus) return;
 
 	if (machine.video) {
-		const videoBufferOffset = MEMORY_OFFSET + machine.memory.size;
-		videoView = new Uint8Array(sharedBuffer, videoBufferOffset, machine.video.size);
-
-		const videoModuleKey = `${machine.video.path}.ts`;
-		const videoModuleLoader = videoModules[videoModuleKey];
-		if (!videoModuleLoader) {
-			console.error(`Worker: Could not find a video module loader for key: ${videoModuleKey}`);
-		} else {
-			const VideoModule = await videoModuleLoader();
-			const exportedVideoEntry = Object.entries(VideoModule as object).find(([name]) => name === machine.video?.class);
-
-			if (!exportedVideoEntry) {
-				console.error(`Worker: Could not find class ${machine.video.class} for module ${videoModuleKey}`);
-			} else {
-				const [, VideoClass]: [string, new (buffer: Uint8Array, width: number, height: number) => Video] =
-					exportedVideoEntry;
-				video = new VideoClass(videoView, machine.video.width, machine.video.height);
-			}
-		}
+		video = await loadVideo(machine.video);
+		if (!video) return;
 	}
 
-	initCPU(bus, registersView as DataView, video);
+	initCPU(bus, registersView, video, memoryView);
 
 	console.log(`Worker: Initialized with ${machine.name} machine configuration.`);
 }
 
 self.onmessage = async (event: MessageEvent) => {
-	const { command, buffer, speed, machine } = event.data;
+	const { command, speed, machine } = event.data;
 
-	if (command === "init") return init(buffer, machine);
+	if (command === "init") return init(machine);
 
 	if (!sharedBuffer || !registersView || !memoryView) {
 		console.error("Worker: Not initialized. Send 'init' command with buffer first.");

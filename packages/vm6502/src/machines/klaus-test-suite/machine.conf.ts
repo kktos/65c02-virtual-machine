@@ -23,10 +23,9 @@ export const klausTest: MachineConfig = {
 	},
 	bus: { class: "Bus", path: "../machines/klaus-test-suite/bus.class" },
 	video: {
-		size: 280 * 192 * 4,
 		width: 280,
 		height: 192,
 		class: "KlausVideo",
-		path: "../machines/klaus-test-suite/video",
+		path: "../machines/klaus-test-suite/klaus.video",
 	},
 };

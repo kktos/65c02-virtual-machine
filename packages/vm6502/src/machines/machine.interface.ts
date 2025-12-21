@@ -9,14 +9,15 @@ export interface MemoryConfig {
 	size: number;
 	banks?: number;
 	chunks?: MemoryChunk[];
+	buffer?: SharedArrayBuffer;
 }
 
 export interface VideoConfig {
-	size: number;
 	width: number;
 	height: number;
 	class: string; // exported class name
 	path: string; // Path relative to the worker for dynamic import
+	buffer?: SharedArrayBuffer;
 }
 
 export interface MachineConfig {

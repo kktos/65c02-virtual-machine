@@ -32,7 +32,8 @@ export class VirtualMachine {
 	public sharedBuffer: SharedArrayBuffer;
 	public sharedRegisters: DataView;
 	public sharedMemory: Uint8Array;
-	public videoBuffer?: Uint8Array;
+	public videoBuffer?: SharedArrayBuffer;
+	public videoMemory?: Uint8Array;
 	private videoOutput?: VideoOutput;
 	private isRendering = false;
 
@@ -44,16 +45,16 @@ export class VirtualMachine {
 		this.worker = new Worker(new URL("./cpu/cpu.worker.ts", import.meta.url), { type: "module" });
 
 		// 1. Initialize memory on the main thread
-		const videoSize = this.machineConfig.video?.size ?? 0;
-		const bufferSize = MEMORY_OFFSET + this.machineConfig.memory.size + videoSize;
+		const bufferSize = MEMORY_OFFSET + this.machineConfig.memory.size;
 
 		this.sharedBuffer = new SharedArrayBuffer(bufferSize);
 		this.sharedRegisters = new DataView(this.sharedBuffer, 0, MEMORY_OFFSET);
 		this.sharedMemory = new Uint8Array(this.sharedBuffer, MEMORY_OFFSET, this.machineConfig.memory.size);
 
-		if (videoSize > 0) {
-			const videoBufferOffset = MEMORY_OFFSET + this.machineConfig.memory.size;
-			this.videoBuffer = new Uint8Array(this.sharedBuffer, videoBufferOffset, videoSize);
+		if (this.machineConfig.video) {
+			const videoSize = this.machineConfig.video.width * this.machineConfig.video.height * 4;
+			this.videoBuffer = new SharedArrayBuffer(videoSize);
+			this.videoMemory = new Uint8Array(this.videoBuffer, 0, videoSize);
 		}
 
 		// 2. Load data into memory from the main thread
@@ -62,18 +63,17 @@ export class VirtualMachine {
 		// 3. Initialize the worker with the prepared buffer and necessary config
 		this.worker.postMessage({
 			command: "init",
-			buffer: this.sharedBuffer,
 			machine: {
 				name: this.machineConfig.name,
 				bus: { path: this.machineConfig.bus.path, class: this.machineConfig.bus.class },
 				video: {
 					width: this.machineConfig.video?.width,
 					height: this.machineConfig.video?.height,
-					size: this.machineConfig.video?.size,
 					path: this.machineConfig.video?.path,
 					class: this.machineConfig.video?.class,
+					buffer: this.videoBuffer,
 				},
-				memory: { size: this.machineConfig.memory.size },
+				memory: { buffer: this.sharedBuffer, size: this.machineConfig.memory.size },
 			},
 		});
 
@@ -98,13 +98,13 @@ export class VirtualMachine {
 	}
 
 	public initVideo(canvas: HTMLCanvasElement) {
-		if (!this.machineConfig.video || !this.videoBuffer) {
+		if (!this.machineConfig.video || !this.videoMemory) {
 			console.warn("This machine does not have video output.");
 			return;
 		}
 		this.videoOutput = new VideoOutput(
 			canvas,
-			this.videoBuffer,
+			this.videoMemory,
 			this.machineConfig.video.width,
 			this.machineConfig.video.height,
 		);

@@ -32,8 +32,8 @@ export class KlausVideo implements Video {
 	private offscreenCanvas: OffscreenCanvas;
 	private ctx: OffscreenCanvasRenderingContext2D;
 
-	constructor(buffer: Uint8Array, width: number, height: number) {
-		this.buffer = buffer;
+	constructor(mem: Uint8Array, width: number, height: number) {
+		this.buffer = mem;
 		this.offscreenCanvas = new OffscreenCanvas(width, height);
 		const context = this.offscreenCanvas.getContext("2d", { willReadFrequently: true });
 		if (!context) throw new Error("Could not get 2D context from OffscreenCanvas");
@@ -41,10 +41,9 @@ export class KlausVideo implements Video {
 	}
 
 	public tick() {
+		// memory is unused
 		// 1. Clear the canvas to be transparent
-		// this.ctx.clearRect(0, 0, this.offscreenCanvas.width, this.offscreenCanvas.height);
-		this.ctx.fillStyle = "black";
-		this.ctx.fillRect(0, 0, this.offscreenCanvas.width, this.offscreenCanvas.height);
+		this.ctx.clearRect(0, 0, this.offscreenCanvas.width, this.offscreenCanvas.height);
 
 		// 2. Calculate a new color for this frame
 		const hue = (this.tickCount / 100) % 1;

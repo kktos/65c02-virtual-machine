@@ -7,4 +7,10 @@ export const apple2e: MachineConfig = {
 		banks: 2, // Main and Aux
 	},
 	bus: { class: "Bus", path: "../machines/apple2/bus.class" },
+	video: {
+		width: 280,
+		height: 192,
+		class: "AppleVideo",
+		path: "../machines/apple2/apple.video",
+	},
 };

@@ -36,6 +36,7 @@ let stepAddedBreakpoint = false;
 
 // Shared memory references, to be initialized from the worker
 let registersView: DataView | null = null;
+let memoryView: Uint8Array | null = null;
 let bus: IBus | null = null;
 let video: Video | null = null;
 
@@ -57,10 +58,11 @@ class BreakpointError extends Error {
 	}
 }
 
-export function initCPU(systemBus: IBus, regView: DataView, videoSystem: Video | null) {
+export function initCPU(systemBus: IBus, regView: DataView, videoSystem: Video | null, memView: Uint8Array) {
 	bus = systemBus;
 	registersView = regView;
 	video = videoSystem;
+	memoryView = memView;
 	if (clockSpeedMhz > 0) registersView.setFloat64(REG_SPEED_OFFSET, clockSpeedMhz, true);
 
 	updateCyclesPerTimeslice();
@@ -262,7 +264,7 @@ function run() {
 		if (!isRunning) break;
 	}
 
-	if (video) video.tick();
+	if (video && memoryView) video.tick();
 
 	if (clockSpeedMhz === 0) {
 		const executed = initialCycles - cyclesThisSlice;

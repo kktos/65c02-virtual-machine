@@ -1,4 +1,4 @@
 export interface Video {
-  tick(): void;
-  reset(): void;
+	tick(): void;
+	reset(): void;
 }
