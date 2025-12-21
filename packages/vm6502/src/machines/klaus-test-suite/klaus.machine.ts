@@ -21,11 +21,11 @@ export const klausTest: MachineConfig = {
 			},
 		],
 	},
-	bus: { class: "Bus", path: "../machines/klaus-test-suite/klaus.bus" },
+	bus: { class: "Bus", path: "klaus-test-suite/klaus.bus" },
 	video: {
 		width: 280,
 		height: 192,
 		class: "KlausVideo",
-		path: "../machines/klaus-test-suite/klaus.video",
+		path: "klaus-test-suite/klaus.video",
 	},
 };

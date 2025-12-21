@@ -4,7 +4,7 @@ import { C1_C7_INTROM, C8_CF_INTROM, CxSLOTROM, LG_CARD_ROM } from "./rom/C1_FF"
 export const apple2e: MachineConfig = {
 	name: "Apple //e",
 	memory: {
-		size: 0x10000 * 2, // 128KB main memory
+		size: 0x10000 * 2 + 16 * 1024, // 128KB main memory + LG Card
 		banks: 2, // Main and Aux
 		chunks: [
 			{
@@ -30,11 +30,11 @@ export const apple2e: MachineConfig = {
 			},
 		],
 	},
-	bus: { class: "AppleBus", path: "../machines/apple2/apple.bus" },
+	bus: { class: "AppleBus", path: "apple2/apple.bus" },
 	video: {
 		width: 280,
 		height: 192,
 		class: "AppleVideo",
-		path: "../machines/apple2/apple.video",
+		path: "apple2/apple.video",
 	},
 };
