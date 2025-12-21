@@ -1,4 +1,4 @@
-import type { DebugOption, IBus } from "@/cpu/bus.interface";
+import type { DebugOption, IBus, MachineStateSpec } from "@/cpu/bus.interface";
 import * as SoftSwitches from "./softswitches";
 
 const RAM_OFFSET = 0x4000; // 16KB reserved for Bank2 (4KB) + ROM (12KB) at the beginning
@@ -16,6 +16,12 @@ export class AppleBus implements IBus {
 	private lcWriteRam = false; // false = Write Protect, true = Write Enable
 	private lcPreWriteCount = 0; // Counter for the double-read write enable mechanism
 
+	// Main/Aux Memory State
+	private store80 = false;
+	private ramRdAux = false; // Read from Aux memory ($0200-$BFFF)
+	private ramWrAux = false; // Write to Aux memory ($0200-$BFFF)
+	private altZp = false; // Use Aux for ZP/Stack and LC area
+
 	// Keyboard State
 	private lastKey = 0x00;
 	private keyStrobe = false;
@@ -30,45 +36,61 @@ export class AppleBus implements IBus {
 	}
 
 	read(address: number): number {
-		// Softswitches ($C000 - $C0FF)
 		if (address >= 0xc000 && address <= 0xc0ff) {
 			return this.accessSoftSwitch(address, null);
 		}
 
-		// Language Card Range ($D000 - $FFFF)
-		if (address >= 0xd000) {
-			// Reset pre-write count on non-switch access
-			this.lcPreWriteCount = 0;
+		this.lcPreWriteCount = 0;
 
-			if (this.lcReadRam) {
-				// Reading RAM
-				if (this.lcBank2 && address < 0xe000) {
-					// Bank 2 ($D000-$DFFF)
-					return this.bank2[address - 0xd000] ?? 0;
-				}
-				// Bank 1 ($D000-$DFFF) or High RAM ($E000-$FFFF)
-				// Mapped to physical RAM at same address
-				return this.memory[RAM_OFFSET + address] ?? 0;
-			}
-			// Reading ROM
-			return this.rom[address - 0xd000] ?? 0;
+		let bankOffset = 0;
+		if (address < 0x0200 && this.altZp) {
+			bankOffset = 0x10000;
+		} else if (address >= 0x0200 && address < 0xc000 && this.ramRdAux) {
+			bankOffset = 0x10000;
+		} else if (address >= 0xd000 && this.altZp) {
+			bankOffset = 0x10000;
 		}
 
-		// Standard RAM
-		this.lcPreWriteCount = 0;
+		if (bankOffset > 0) {
+			return this.memory[RAM_OFFSET + address + bankOffset] ?? 0;
+		}
+
+		if (address >= 0xd000) {
+			if (this.lcReadRam) {
+				if (this.lcBank2 && address < 0xe000) {
+					return this.bank2[address - 0xd000] ?? 0;
+				}
+			} else {
+				return this.rom[address - 0xd000] ?? 0;
+			}
+		}
+
 		return this.memory[RAM_OFFSET + address] ?? 0;
 	}
 
 	write(address: number, value: number): void {
-		// Softswitches ($C000 - $C0FF)
 		if (address >= 0xc000 && address <= 0xc0ff) {
 			this.accessSoftSwitch(address, value);
 			return;
 		}
 
-		// Language Card Range ($D000 - $FFFF)
+		this.lcPreWriteCount = 0;
+
+		let bankOffset = 0;
+		if (address < 0x0200 && this.altZp) {
+			bankOffset = 0x10000;
+		} else if (address >= 0x0200 && address < 0xc000 && this.ramWrAux) {
+			bankOffset = 0x10000;
+		} else if (address >= 0xd000 && this.altZp) {
+			bankOffset = 0x10000;
+		}
+
+		if (bankOffset > 0) {
+			this.memory[RAM_OFFSET + address + bankOffset] = value & 0xff;
+			return;
+		}
+
 		if (address >= 0xd000) {
-			this.lcPreWriteCount = 0;
 			if (this.lcWriteRam) {
 				if (this.lcBank2 && address < 0xe000) {
 					this.bank2[address - 0xd000] = value & 0xff;
@@ -79,20 +101,17 @@ export class AppleBus implements IBus {
 			return;
 		}
 
-		// Standard RAM
-		this.lcPreWriteCount = 0;
 		this.memory[RAM_OFFSET + address] = value & 0xff;
 	}
 
 	private accessSoftSwitch(address: number, writeValue: number | null): number {
-		const switchAddr = address & 0xc0ff;
 		const isWrite = writeValue !== null;
 
 		// Language Card Switches ($C080 - $C08F)
-		if (switchAddr >= SoftSwitches.LCRAMIN2 && switchAddr <= SoftSwitches.LC_C08F) {
-			const bit0 = (switchAddr & 1) !== 0; // 0=Read RAM/ROM, 1=Write RAM (maybe)
-			const bit1 = (switchAddr & 2) !== 0; // 0=Read RAM/ROM, 1=Read ROM
-			const bit3 = (switchAddr & 8) !== 0; // 0=Bank 2, 1=Bank 1
+		if (address >= SoftSwitches.LCRAMIN2 && address <= SoftSwitches.LC_C08F) {
+			const bit0 = (address & 1) !== 0; // 0=Read RAM/ROM, 1=Write RAM (maybe)
+			const bit1 = (address & 2) !== 0; // 0=Read RAM/ROM, 1=Read ROM
+			const bit3 = (address & 8) !== 0; // 0=Bank 2, 1=Bank 1
 
 			this.lcBank2 = !bit3;
 			this.lcReadRam = !bit1; // If bit1 is set, we read ROM. If clear, we read RAM.
@@ -117,19 +136,60 @@ export class AppleBus implements IBus {
 			return 0; // Floating bus usually
 		}
 
-		// Keyboard ($C000, $C010)
-		if (switchAddr === SoftSwitches.KBD) {
-			if (!isWrite) {
-				// Read: Return last key with strobe bit (bit 7)
-				return this.lastKey | (this.keyStrobe ? 0x80 : 0x00);
-			}
-			// Write: $C000 is STORE80OFF (TODO)
-		}
+		// Other switches
+		switch (address) {
+			// Write switches
+			case SoftSwitches.STORE80OFF:
+				if (isWrite) this.store80 = false;
+				break;
+			case SoftSwitches.STORE80ON:
+				if (isWrite) this.store80 = true;
+				break;
+			case SoftSwitches.RAMRDOFF:
+				if (isWrite) this.ramRdAux = false;
+				break;
+			case SoftSwitches.RAMRDON:
+				if (isWrite) this.ramRdAux = true;
+				break;
+			case SoftSwitches.RAMWRTOFF:
+				if (isWrite) this.ramWrAux = false;
+				break;
+			case SoftSwitches.RAMWRTON:
+				if (isWrite) this.ramWrAux = true;
+				break;
+			case SoftSwitches.ALTZPOFF:
+				if (isWrite) this.altZp = false;
+				break;
+			case SoftSwitches.ALTZPON:
+				if (isWrite) this.altZp = true;
+				break;
 
-		if (switchAddr === SoftSwitches.KBDSTRB) {
-			// Read or Write clears the strobe
-			this.keyStrobe = false;
-			return 0;
+			// Read switches / status flags
+			case SoftSwitches.KBD:
+				// Note: Writing to $C000 is STORE80OFF, handled above.
+				if (!isWrite) return this.lastKey | (this.keyStrobe ? 0x80 : 0x00);
+				break;
+			case SoftSwitches.KBDSTRB:
+				this.keyStrobe = false;
+				return 0; // Return value is not defined
+			case SoftSwitches.STORE80:
+				if (!isWrite) return this.store80 ? 0x80 : 0x00;
+				break;
+			case SoftSwitches.RAMRD:
+				if (!isWrite) return this.ramRdAux ? 0x80 : 0x00;
+				break;
+			case SoftSwitches.RAMWRT:
+				if (!isWrite) return this.ramWrAux ? 0x80 : 0x00;
+				break;
+			case SoftSwitches.ALTZP:
+				if (!isWrite) return this.altZp ? 0x80 : 0x00;
+				break;
+			case SoftSwitches.RDLCBNK2:
+				if (!isWrite) return this.lcBank2 ? 0x80 : 0x00;
+				break;
+			case SoftSwitches.RDLCRAM:
+				if (!isWrite) return this.lcReadRam ? 0x80 : 0x00;
+				break;
 		}
 
 		return 0;
@@ -276,5 +336,39 @@ export class AppleBus implements IBus {
 				],
 			},
 		];
+	}
+
+	getMachineStateSpecs(): MachineStateSpec[] {
+		return [
+			{ id: "lcBank2", label: "LC Bank 2", type: "led", group: "Language Card" },
+			{ id: "lcReadRam", label: "LC Read RAM", type: "led", group: "Language Card" },
+			{ id: "lcWriteRam", label: "LC Write RAM", type: "led", group: "Language Card" },
+			{ id: "store80", label: "80STORE", type: "led", group: "Main/Aux" },
+			{ id: "ramRdAux", label: "RAM Read Aux", type: "led", group: "Main/Aux" },
+			{ id: "ramWrAux", label: "RAM Write Aux", type: "led", group: "Main/Aux" },
+			{ id: "altZp", label: "Alt Zero Page", type: "led", group: "Main/Aux" },
+		];
+	}
+
+	saveState(): Record<string, boolean> {
+		return {
+			lcBank2: this.lcBank2,
+			lcReadRam: this.lcReadRam,
+			lcWriteRam: this.lcWriteRam,
+			store80: this.store80,
+			ramRdAux: this.ramRdAux,
+			ramWrAux: this.ramWrAux,
+			altZp: this.altZp,
+		};
+	}
+
+	loadState(state: Record<string, boolean>): void {
+		this.lcBank2 = state.lcBank2 ?? this.lcBank2;
+		this.lcReadRam = state.lcReadRam ?? this.lcReadRam;
+		this.lcWriteRam = state.lcWriteRam ?? this.lcWriteRam;
+		this.store80 = state.store80 ?? this.store80;
+		this.ramRdAux = state.ramRdAux ?? this.ramRdAux;
+		this.ramWrAux = state.ramWrAux ?? this.ramWrAux;
+		this.altZp = state.altZp ?? this.altZp;
 	}
 }
