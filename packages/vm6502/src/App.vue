@@ -128,7 +128,7 @@ import { VirtualMachine } from "./vm.class";
 		cpuWorker.value = vm.value.worker; // Provide worker for legacy reasons if needed
 
 		// Listen for messages from the worker (e.g., for breakpoints, errors)
-		vm.value.worker.onmessage = (event) => {
+		vm.value.onmessage = (event) => {
 			const { type, error, message } = event.data;
 			if (type === 'error' && error === 'unimplemented_opcode') {
 				isRunning.value = false; // Ensure UI reflects the paused state

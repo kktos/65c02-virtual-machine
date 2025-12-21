@@ -35,14 +35,30 @@ export class VirtualMachine {
 	public videoBuffer?: SharedArrayBuffer;
 	public videoMemory?: Uint8Array;
 	private videoOutput?: VideoOutput;
+	private pendingPalette: Uint8Array | null = null;
 	private isRendering = false;
 
 	public worker: Worker;
 	public machineConfig: MachineConfig;
 
+	public onmessage?: (event: MessageEvent) => void;
+
 	constructor(machineConfig: MachineConfig) {
 		this.machineConfig = machineConfig;
 		this.worker = new Worker(new URL("./cpu/cpu.worker.ts", import.meta.url), { type: "module" });
+
+		this.worker.onmessage = (event) => {
+			const { command, colors } = event.data;
+			if (command === "setPalette") {
+				if (this.videoOutput) {
+					this.videoOutput.setPalette(colors);
+				} else {
+					this.pendingPalette = colors;
+				}
+			} else if (this.onmessage) {
+				this.onmessage(event);
+			}
+		};
 
 		// 1. Initialize memory on the main thread
 		const bufferSize = MEMORY_OFFSET + this.machineConfig.memory.size;
@@ -52,7 +68,7 @@ export class VirtualMachine {
 		this.sharedMemory = new Uint8Array(this.sharedBuffer, MEMORY_OFFSET, this.machineConfig.memory.size);
 
 		if (this.machineConfig.video) {
-			const videoSize = this.machineConfig.video.width * this.machineConfig.video.height * 4;
+			const videoSize = this.machineConfig.video.width * this.machineConfig.video.height;
 			this.videoBuffer = new SharedArrayBuffer(videoSize);
 			this.videoMemory = new Uint8Array(this.videoBuffer, 0, videoSize);
 		}
@@ -108,6 +124,11 @@ export class VirtualMachine {
 			this.machineConfig.video.width,
 			this.machineConfig.video.height,
 		);
+
+		if (this.pendingPalette) {
+			this.videoOutput.setPalette(this.pendingPalette);
+			this.pendingPalette = null;
+		}
 
 		this.isRendering = true;
 		this.renderFrame();
