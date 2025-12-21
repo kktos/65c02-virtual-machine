@@ -24,6 +24,7 @@ import type { EmulatorState } from "./types/emulatorstate.interface";
 
 const MachinesBasePath = "./machines";
 const busModules = import.meta.glob("./machines/*/*.bus.ts");
+const cssModules = import.meta.glob("./machines/**/*.css");
 const kbdElements = new Set<string>(["INPUT", "TEXTAREA", "SELECT"]);
 
 export class VirtualMachine {
@@ -107,7 +108,24 @@ export class VirtualMachine {
 			speed: this.machineConfig.speed ?? 1,
 		});
 
+		this.loadCSS();
 		this.ready = this.loadBus();
+	}
+
+	private async loadCSS() {
+		const cssFiles = (this.machineConfig as any).css as string[] | undefined;
+		if (cssFiles) {
+			for (const file of cssFiles) {
+				const key = `${MachinesBasePath}/${file}`;
+				const loader = cssModules[key];
+				if (loader) {
+					await loader();
+					console.log(`VM: Loaded CSS ${key}`);
+				} else {
+					console.warn(`VM: CSS module not found: ${key}`);
+				}
+			}
+		}
 	}
 
 	private async loadBus() {
