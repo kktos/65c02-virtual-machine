@@ -20,6 +20,14 @@
 					class="rounded bg-gray-700 border-gray-600 text-cyan-500 focus:ring-cyan-500 h-4 w-4"
 				/>
 				<label :for="opt.id" class="text-gray-300 text-xs select-none cursor-pointer">{{ opt.label }}</label>
+				<select
+					v-if="opt.type === 'select'"
+					:id="opt.id"
+					v-model="debugOverrides[opt.id]"
+					class="bg-gray-700 text-yellow-300 font-mono text-xs rounded-md px-2 py-0.5 border border-gray-600 focus:ring-2 focus:ring-cyan-500 outline-none"
+				>
+					<option v-for="option in opt.options" :key="option.value" :value="option.value">{{ option.label }}</option>
+				</select>
 			</div>
 		</div>
 
@@ -120,7 +128,11 @@ import type { VirtualMachine } from "@/virtualmachine.class";
 			// Initialize overrides
 			debugOverrides.value = {};
 			debugOptions.value.forEach((opt) => {
-				debugOverrides.value[opt.id] = false;
+				if (opt.type === "select" && opt.options?.length) {
+					debugOverrides.value[opt.id] = opt.options[0]?.value;
+				} else {
+					debugOverrides.value[opt.id] = false;
+				}
 			});
 		}
 	}, { immediate: true });

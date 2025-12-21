@@ -2,7 +2,7 @@ export interface DebugOption {
 	id: string;
 	label: string;
 	type: "boolean" | "select";
-	options?: string[];
+	options?: { label: string; value: string }[];
 }
 
 /**

@@ -24,9 +24,20 @@ export const apple2e: MachineConfig = {
 			},
 			{
 				bank: 0,
-				addr: 0, //0xD000,
+				addr: 0xd000,
 				data: LG_CARD_ROM,
-				tag: "lgcard",
+				tag: "lgcard.rom",
+			},
+			{
+				bank: 0,
+				addr: 0xd000,
+				data: "55 55 55 55",
+			},
+			{
+				bank: 0,
+				addr: 0xd000,
+				data: "A5 A5 A5 A5",
+				tag: "lgcard.bank2",
 			},
 			{
 				bank: 0,

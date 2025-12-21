@@ -136,14 +136,25 @@ export class AppleBus implements IBus {
 	}
 
 	load(address: number, data: Uint8Array, bank: number = 0, tag?: string): void {
-		// If loading into the Language Card range ($D000+), load into ROM buffer
-		if (tag === "lgcard") {
-			const offset = 0;
-			if (offset + data.length <= this.rom.length) {
-				this.rom.set(data, offset);
-				console.log(`AppleBus: Loaded ${data.length} bytes into ROM at $D000`);
-				return;
+		switch (tag) {
+			// If loading into the Language Card range ($D000+), load into ROM buffer
+			case "lgcard.rom": {
+				if (data.length <= this.rom.length) {
+					this.rom.set(data);
+					console.log(`AppleBus: Loaded ${data.length} bytes into ROM at $D000`);
+					return;
+				}
+				console.error(`AppleBus: Load out of bounds: lgcard.rom`);
+				break;
 			}
+			case "lgcard.bank2":
+				if (data.length <= this.rom.length) {
+					this.bank2.set(data);
+					console.log(`AppleBus: Loaded ${data.length} bytes into LC RAM 2 at $D000`);
+					return;
+				}
+				console.error(`AppleBus: Load out of bounds: lgcard.bank2`);
+				break;
 		}
 
 		// Default load to physical RAM
@@ -183,12 +194,17 @@ export class AppleBus implements IBus {
 	}
 
 	readDebug(address: number, overrides?: Record<string, unknown>): number {
+		if (address < 0xc000) return this.memory[RAM_OFFSET + address] ?? 0;
+
 		if (address >= 0xd000) {
-			if (overrides?.forceRom) {
-				return this.rom[address - 0xd000] ?? 0;
-			}
-			if (overrides?.forceBank2 && address < 0xe000) {
-				return this.bank2[address - 0xd000] ?? 0;
+			switch (overrides?.lcView) {
+				case "ROM":
+					return this.rom[address - 0xd000] ?? 0;
+				case "BANK2":
+					if (address < 0xe000) return this.bank2[address - 0xd000] ?? 0;
+					else return this.memory[RAM_OFFSET + address] ?? 0;
+				case "BANK1":
+					return this.memory[RAM_OFFSET + address] ?? 0;
 			}
 
 			// Default view (what CPU sees, but no side effects like pre-write count reset)
@@ -202,21 +218,22 @@ export class AppleBus implements IBus {
 		}
 
 		// Softswitches - return 0 to avoid side effects
-		if (address >= 0xc000 && address <= 0xc0ff) {
-			return 0;
-		}
-
-		return this.memory[RAM_OFFSET + address] ?? 0;
+		return 0;
 	}
 
 	writeDebug(address: number, value: number, overrides?: Record<string, unknown>): void {
 		if (address >= 0xd000) {
-			if (overrides?.forceRom) {
+			const view = overrides?.lcView;
+			if (view === "ROM") {
 				this.rom[address - 0xd000] = value & 0xff;
 				return;
 			}
-			if (overrides?.forceBank2 && address < 0xe000) {
+			if (view === "BANK2" && address < 0xe000) {
 				this.bank2[address - 0xd000] = value & 0xff;
+				return;
+			}
+			if (view === "BANK1" || (view === "BANK2" && address >= 0xe000)) {
+				this.memory[RAM_OFFSET + address] = value & 0xff;
 				return;
 			}
 
@@ -240,8 +257,17 @@ export class AppleBus implements IBus {
 
 	getDebugOptions(): DebugOption[] {
 		return [
-			{ id: "forceRom", label: "Force ROM View ($D000+)", type: "boolean" },
-			{ id: "forceBank2", label: "Force Bank 2 View", type: "boolean" },
+			{
+				id: "lcView",
+				label: "ROM",
+				type: "select",
+				options: [
+					{ label: "Auto", value: "AUTO" },
+					{ label: "ROM", value: "ROM" },
+					{ label: "LC Bank 1", value: "BANK1" },
+					{ label: "LC Bank 2", value: "BANK2" },
+				],
+			},
 		];
 	}
 }
