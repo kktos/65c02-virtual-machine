@@ -34,7 +34,7 @@
 				<thead>
 					<tr class="text-gray-400 sticky top-0 bg-gray-900 border-b border-gray-700 shadow-md z-10">
 						<th class="py-1 text-center w-8">BP</th>
-						<th class="py-1 text-left px-2 w-16">Addr</th>
+						<th class="py-1 text-left px-2 w-24">Addr</th>
 						<th class="py-1 text-left w-20">Raw Bytes</th>
 						<th class="py-1 text-left w-36">Opcode</th>
 						<th class="py-1 text-left flex-grow">Comment</th>
@@ -46,8 +46,10 @@
 						v-for="(line, index) in disassembly"
 						:key="index"
 						:class="[
-							'hover:bg-gray-700 transition duration-100',
-							line.address === address ? 'bg-yellow-800/70 text-yellow-100 font-bold border-l-4 border-yellow-400' : 'text-gray-300'
+							'hover:bg-gray-700 transition duration-100 border-l-4',
+							line.address === address ?
+								'bg-yellow-800/70 text-yellow-100 font-bold border-yellow-400'
+								: 'border-transparent text-gray-300'
 						]"
 					>
 						<td class="py-0.5 text-center">
@@ -56,8 +58,8 @@
 									:class="getBreakpointClass(line.address)"></span>
 							</button>
 						</td>
-						<td class="py-0.5 px-2 tabular-nums text-indigo-300">
-							{{ '$' + line.address.toString(16).toUpperCase().padStart(4, '0') }}
+						<td class="py-0.5 px-2 tabular-nums text-indigo-300 font-mono">
+							{{ formatAddress(line.address) }}
 						</td>
 						<td class="py-0.5 tabular-nums text-gray-400">
 							{{ line.rawBytes }}
@@ -120,24 +122,25 @@ import type { VirtualMachine } from "@/virtualmachine.class";
 		return 'bg-gray-700 group-hover:bg-red-500/50';
 	};
 
-	const disassemblyStartAddress = ref(address);
-	const disassembly = ref<DisassemblyLine[]>([]);
+	const busState = computed(() => vm?.value?.busState ?? {});
 
-	// const memoryProxy = computed(() => {
-	// 	// Create a proxy to intercept memory reads and route them through the VM's bus logic
-	// 	// This ensures the disassembler sees the memory as the CPU sees it (e.g. with offsets/banking)
-	// 	return new Proxy(memory, {
-	// 		get(target, prop, receiver) {
-	// 			if (typeof prop === 'string') {
-	// 				const idx = Number(prop);
-	// 				if (Number.isInteger(idx) && vm?.value) {
-	// 					return vm.value.read(idx);
-	// 				}
-	// 			}
-	// 			return Reflect.get(target, prop, receiver);
-	// 		}
-	// 	});
-	// });
+	const getExecutionBankForAddress = (addr: number) => {
+		const state = busState.value;
+		if (!state || Object.keys(state).length === 0) return 0;
+		// This logic is for READ operations, which is what instruction fetch is.
+		if (addr < 0x0200 && state.altZp) return 0x01;
+		if (addr >= 0x0200 && addr < 0xc000 && state.ramRdAux) return 0x01;
+		if (addr >= 0xd000 && state.altZp) return 0x01;
+		return 0x00;
+	};
+
+	const fullPcAddress = computed(() => {
+		const bank = getExecutionBankForAddress(address);
+		return address | (bank << 16);
+	});
+
+	const disassemblyStartAddress = ref(fullPcAddress.value);
+	const disassembly = ref<DisassemblyLine[]>([]);
 
 	let memoryProxy:Uint8Array<ArrayBufferLike>;
 
@@ -158,6 +161,12 @@ import type { VirtualMachine } from "@/virtualmachine.class";
 
 		// Fallback if something goes wrong
 		return Math.max(0, startAddr - 1);
+	};
+
+	const formatAddress = (addr: number) => {
+		const bank = ((addr >> 16) & 0xFF).toString(16).toUpperCase().padStart(2, '0');
+		const offset = (addr & 0xFFFF).toString(16).toUpperCase().padStart(4, '0');
+		return `$${bank}:${offset}`;
 	};
 
 	const handleScroll = (event: WheelEvent) => {
@@ -204,8 +213,9 @@ import type { VirtualMachine } from "@/virtualmachine.class";
 			get(target, prop, _receiver) {
 				if (typeof prop === 'string') {
 					const idx = Number(prop);
-					if (Number.isInteger(idx) && vm?.value)
-						return vm.value.read(idx);
+					if (Number.isInteger(idx) && vm?.value) {
+						return vm.value.readDebug(idx);
+					}
 				}
 				return Reflect.get(target, prop);
 			}
@@ -215,14 +225,14 @@ import type { VirtualMachine } from "@/virtualmachine.class";
 	onUnmounted(() => resizeObserver?.disconnect());
 
 	watch(
-		() => address,
+		() => fullPcAddress.value,
 		(newAddress, oldAddress) => {
 			// Try to keep the PC at the same visual row index as before.
 			const oldIndex = disassembly.value.findIndex((line) => line.address === oldAddress);
 
 			if (oldIndex === -1) {
 				// If old PC wasn't visible, just snap to the new PC (default behavior)
-				disassemblyStartAddress.value = newAddress;
+				disassemblyStartAddress.value = newAddress; // this is now 24-bit
 				return;
 			}
 
@@ -247,7 +257,7 @@ import type { VirtualMachine } from "@/virtualmachine.class";
 	);
 
 	watch( // Re-disassemble when the start address or memory changes
-		() => [disassemblyStartAddress.value, memory, visibleRowCount.value],
+		() => [disassemblyStartAddress.value, memory, visibleRowCount.value, busState.value],
 		() => {
 			if (memory) {
 				// Disassemble enough lines to fill the view (e.g., 50 lines)
