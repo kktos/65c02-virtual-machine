@@ -1,3 +1,4 @@
+import type { IBus } from "@/cpu/bus.interface";
 import {
 	FLAG_B_MASK,
 	FLAG_C_MASK,
@@ -17,16 +18,13 @@ import {
 } from "@/cpu/shared-memory";
 import type { MachineConfig } from "@/machines/machine.interface";
 import { VideoOutput } from "@/video/video.output";
+import { parseHexData } from "./lib/array.utils";
 import type { Breakpoint } from "./types/breakpoint.interface";
 import type { EmulatorState } from "./types/emulatorstate.interface";
 
-const parseHexData = (data: string): Uint8Array => {
-	const bytes = data
-		.trim()
-		.split(/\s+/)
-		.map((s) => parseInt(s, 16));
-	return new Uint8Array(bytes);
-};
+const MachinesBasePath = "./machines";
+const busModules = import.meta.glob("./machines/*/*.bus.ts");
+const kbdElements = new Set<string>(["INPUT", "TEXTAREA", "SELECT"]);
 
 export class VirtualMachine {
 	public sharedBuffer: SharedArrayBuffer;
@@ -40,8 +38,11 @@ export class VirtualMachine {
 
 	public worker: Worker;
 	public machineConfig: MachineConfig;
+	public bus?: IBus;
 
 	public onmessage?: (event: MessageEvent) => void;
+
+	private keyHandler = this.handleKeyDown.bind(this);
 
 	constructor(machineConfig: MachineConfig) {
 		this.machineConfig = machineConfig;
@@ -98,6 +99,27 @@ export class VirtualMachine {
 			command: "setSpeed",
 			speed: this.machineConfig.speed ?? 1,
 		});
+
+		this.loadBus();
+	}
+
+	private async loadBus() {
+		const busConfig = this.machineConfig.bus;
+		const busModuleKey = `${MachinesBasePath}/${busConfig.path}.ts`;
+		const busModuleLoader = busModules[busModuleKey];
+		if (!busModuleLoader) {
+			console.error(`VM: Could not find a bus module loader for key: ${busModuleKey}`);
+			return;
+		}
+		const BusModule = await busModuleLoader();
+		const exportedBusEntry = Object.entries(BusModule as object).find(([name]) => name === busConfig.class);
+		if (!exportedBusEntry) {
+			console.error(`VM: Could not find class ${busConfig.class} for module ${busModuleKey}`);
+			return;
+		}
+		const [, BusClass]: [string, new (mem: Uint8Array) => IBus] = exportedBusEntry;
+		this.bus = new BusClass(this.sharedMemory);
+		console.log(`VM: Bus ${busConfig.class} loaded on main thread.`);
 	}
 
 	public initVideo(canvas: HTMLCanvasElement) {
@@ -117,8 +139,28 @@ export class VirtualMachine {
 			this.pendingPalette = null;
 		}
 
+		// Attach keyboard listener
+		window.addEventListener("keydown", this.keyHandler);
+
 		this.isRendering = true;
 		this.renderFrame();
+	}
+
+	private handleKeyDown(event: KeyboardEvent) {
+		const target = event.target as HTMLElement;
+		if (target && (kbdElements.has(target.tagName) || target.isContentEditable)) return;
+
+		this.worker.postMessage({ command: "keydown", key: event.key });
+
+		// Prevent default browser actions for handled keys (except F-keys, etc)
+		if (!event.ctrlKey && !event.metaKey && !event.altKey) {
+			if (
+				event.key.length === 1 ||
+				["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Backspace", "Enter"].includes(event.key)
+			) {
+				event.preventDefault();
+			}
+		}
 	}
 
 	private renderFrame() {
@@ -149,8 +191,13 @@ export class VirtualMachine {
 		this.worker.postMessage({ command: "clearBPs" });
 	}
 
+	public read(address: number): number {
+		return this.bus ? this.bus.read(address) : (this.sharedMemory[address] ?? 0);
+	}
+
 	public updateMemory(addr: number, value: number) {
-		this.sharedMemory[addr] = value;
+		if (this.bus) this.bus.write(addr, value);
+		else this.sharedMemory[addr] = value;
 	}
 
 	public updateRegister(reg: keyof EmulatorState["registers"], value: number) {
@@ -208,6 +255,7 @@ export class VirtualMachine {
 	public terminate() {
 		this.isRendering = false;
 		this.worker.terminate();
+		window.removeEventListener("keydown", this.keyHandler);
 		console.log("VM: Worker terminated.");
 	}
 }
