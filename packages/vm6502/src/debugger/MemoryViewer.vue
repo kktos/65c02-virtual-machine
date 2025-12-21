@@ -1,13 +1,26 @@
 <template>
 	<div class="p-4 bg-gray-800 rounded-lg shadow-xl h-full flex flex-col" ref="scrollContainer">
-		<div class="mb-3 mt-1 flex items-center space-x-2 shrink-0">
-			<span class="text-gray-300 text-sm">Start Address:</span>
-			<input
-				type="text"
-				:value="startAddress.toString(16).toUpperCase().padStart(4, '0')"
-				@input="handleAddressChange"
-				class="bg-gray-700 text-yellow-300 font-mono text-sm rounded-md px-2 py-1 w-20 border border-gray-600 focus:ring-2 focus:ring-cyan-500 tabular-nums"
-			/>
+		<div class="mb-3 mt-1 flex flex-wrap items-center gap-4 shrink-0">
+			<div class="flex items-center space-x-2">
+				<span class="text-gray-300 text-sm">Start Address:</span>
+				<input
+					type="text"
+					:value="startAddress.toString(16).toUpperCase().padStart(4, '0')"
+					@input="handleAddressChange"
+					class="bg-gray-700 text-yellow-300 font-mono text-sm rounded-md px-2 py-1 w-20 border border-gray-600 focus:ring-2 focus:ring-cyan-500 tabular-nums"
+				/>
+			</div>
+			<!-- Debug Options -->
+			<div v-for="opt in debugOptions" :key="opt.id" class="flex items-center space-x-1">
+				<input
+					v-if="opt.type === 'boolean'"
+					type="checkbox"
+					:id="opt.id"
+					v-model="debugOverrides[opt.id]"
+					class="rounded bg-gray-700 border-gray-600 text-cyan-500 focus:ring-cyan-500 h-4 w-4"
+				/>
+				<label :for="opt.id" class="text-gray-300 text-xs select-none cursor-pointer">{{ opt.label }}</label>
+			</div>
 		</div>
 
 		<div
@@ -56,6 +69,7 @@
 	/** biome-ignore-all lint/correctness/noUnusedVariables: vue */
 
 import { computed, inject, nextTick, onMounted, onUnmounted, type Ref, ref, watch } from "vue";
+import type { DebugOption } from "@/cpu/bus.interface";
 import { bytesToAscii } from "@/lib/array.utils";
 import type { VirtualMachine } from "@/virtualmachine.class";
 
@@ -78,6 +92,9 @@ import type { VirtualMachine } from "@/virtualmachine.class";
 	// This will be our reactive trigger to update the view
 	const tick = ref(0);
 
+	const debugOptions = ref<DebugOption[]>([]);
+	const debugOverrides = ref<Record<string, unknown>>({});
+
 	onMounted(() => {
 		if (scrollContainer.value) {
 			// Set initial height and observe for changes
@@ -95,6 +112,18 @@ import type { VirtualMachine } from "@/virtualmachine.class";
 	});
 
 	onUnmounted(() => resizeObserver?.disconnect());
+
+	watch(() => vm?.value, async (newVm) => {
+		if (newVm) {
+			await newVm.ready;
+			debugOptions.value = newVm.getDebugOptions();
+			// Initialize overrides
+			debugOverrides.value = {};
+			debugOptions.value.forEach((opt) => {
+				debugOverrides.value[opt.id] = false;
+			});
+		}
+	}, { immediate: true });
 
 	const handleAddressChange = (event: Event) => {
 		const target = event.target as HTMLInputElement;
@@ -169,7 +198,7 @@ import type { VirtualMachine } from "@/virtualmachine.class";
 		if (editingIndex.value === index) editingValue.value = target.value;
 		const value = parseInt(target.value, 16);
 		if (!Number.isNaN(value) && value >= 0 && value <= 0xFF) {
-			vm?.value.updateMemory(startAddress.value + index, value);
+			vm?.value.writeDebug(startAddress.value + index, value, debugOverrides.value);
 		}
 	};
 
@@ -191,18 +220,18 @@ import type { VirtualMachine } from "@/virtualmachine.class";
 	const currentMemorySlice = ref<Uint8Array>(new Uint8Array());
 
 	// Watch for changes in startAddress or the tick, and update the slice
-	watch([startAddress, tick, visibleRowCount], () => {
+	watch([startAddress, tick, visibleRowCount, debugOverrides], () => {
 		const start = startAddress.value;
 		const length = visibleRowCount.value * BYTES_PER_LINE;
 		const slice = new Uint8Array(length);
 
 		if (vm?.value) {
 			for (let i = 0; i < length; i++) {
-				slice[i] = vm.value.read(start + i);
+				slice[i] = vm.value.readDebug(start + i, debugOverrides.value);
 			}
 		}
 		currentMemorySlice.value = slice;
-	}, { immediate: true });
+	}, { immediate: true, deep: true });
 
 
 </script>
