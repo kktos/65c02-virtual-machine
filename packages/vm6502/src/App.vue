@@ -67,7 +67,7 @@
 							/>
 						</template>
 						<template #tab2-content>
-							<MemoryViewer :memory="vm.sharedMemory"/>
+							<MemoryViewer />
 						</template>
 					</TogglableDisplay>
 				</ResizablePanel>
