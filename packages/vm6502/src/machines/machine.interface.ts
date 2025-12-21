@@ -29,4 +29,5 @@ export interface MachineConfig {
 		path: string; // Path relative to the worker for dynamic import}
 	};
 	video?: VideoConfig;
+	css?: string[];
 }
