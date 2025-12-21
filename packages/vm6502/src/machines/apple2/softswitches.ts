@@ -122,7 +122,7 @@ export const HIRES = 0xc01d;
 // W RAMRDOFF Read enable main memory from $0200-$BFFF
 export const RAMRDOFF = 0xc002;
 // W RAMDRON Read enable aux memory from $0200-$BFFF
-export const RAMDRON = 0xc003;
+export const RAMRDON = 0xc003;
 // W RAMWRTOFF Write enable main memory from $0200-$BFFF
 export const RAMWRTOFF = 0xc004;
 // W RAMWRTON Write enable aux memory from $0200-$BFFF
@@ -173,11 +173,16 @@ export const SLOTC3ROMOFF = 0xc00a;
 export const SLOTC3ROMON = 0xc00b;
 
 // W Enable main memory from $0000-$01FF & $D000-$FFFF
-export const ALZTPOFF = 0xc008;
+export const ALTZPOFF = 0xc008;
 // W Enable aux memory from $0000-$01FF & $D000-$FFFF
 export const ALTZPON = 0xc009;
 // R7 ALTZP 1=aux $0000-$1FF+auxBSR 0=main available
 export const ALTZP = 0xc016;
+
+// R7 RAMRD 0=main $0200-$BFFF active reads 1=aux active
+export const RAMRD = 0xc013;
+// R7 RAMWRT 0=main $0200-$BFFF active writes 1=aux writes
+export const RAMWRT = 0xc014;
 
 // R7 RDLCBNK2 1=bank2 available 0=bank1 available
 export const RDLCBNK2 = 0xc011;
