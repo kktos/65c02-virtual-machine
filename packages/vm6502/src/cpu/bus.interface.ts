@@ -5,6 +5,13 @@ export interface DebugOption {
 	options?: { label: string; value: string }[];
 }
 
+export interface MachineStateSpec {
+	id: string;
+	label: string;
+	type: "led" | "hex" | "text";
+	group?: string;
+}
+
 /**
  * Defines the interface for the system bus, which connects the CPU to memory and other devices.
  */
@@ -29,4 +36,13 @@ export interface IBus {
 
 	/** Returns a list of available debug options for the UI. */
 	getDebugOptions?(): DebugOption[];
+
+	/** Returns a list of machine state specifications for the UI. */
+	getMachineStateSpecs?(): MachineStateSpec[];
+
+	/** Saves the internal state of the bus (e.g., softswitch flags). */
+	saveState?(): Record<string, unknown>;
+
+	/** Loads the internal state of the bus. */
+	loadState?(state: Record<string, unknown>): void;
 }

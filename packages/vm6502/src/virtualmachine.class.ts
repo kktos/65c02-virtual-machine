@@ -1,4 +1,4 @@
-import type { DebugOption, IBus } from "@/cpu/bus.interface";
+import type { DebugOption, IBus, MachineStateSpec } from "@/cpu/bus.interface";
 import {
 	FLAG_B_MASK,
 	FLAG_C_MASK,
@@ -34,6 +34,7 @@ export class VirtualMachine {
 	public videoMemory?: Uint8Array;
 	private videoOutput?: VideoOutput;
 	private pendingPalette: Uint8Array | null = null;
+	public busState: Record<string, unknown> = {};
 	private isRendering = false;
 
 	public worker: Worker;
@@ -50,10 +51,15 @@ export class VirtualMachine {
 		this.worker = new Worker(new URL("./cpu/cpu.worker.ts", import.meta.url), { type: "module" });
 
 		this.worker.onmessage = (event) => {
-			const { command, colors } = event.data;
+			const { command, colors, state } = event.data;
 			if (command === "setPalette") {
 				if (this.videoOutput) this.videoOutput.setPalette(colors);
 				else this.pendingPalette = colors;
+			} else if (command === "syncState") {
+				if (this.bus?.loadState) {
+					this.bus.loadState(state);
+				}
+				this.busState = state;
 			} else if (this.onmessage) {
 				this.onmessage(event);
 			}
@@ -267,6 +273,10 @@ export class VirtualMachine {
 
 	public getDebugOptions(): DebugOption[] {
 		return this.bus?.getDebugOptions ? this.bus.getDebugOptions() : [];
+	}
+
+	public getMachineStateSpecs(): MachineStateSpec[] {
+		return this.bus?.getMachineStateSpecs ? this.bus.getMachineStateSpecs() : [];
 	}
 
 	public terminate() {

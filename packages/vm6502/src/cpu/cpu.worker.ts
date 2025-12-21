@@ -48,7 +48,7 @@ async function loadBus(busConfig: MachineConfig["bus"]) {
 
 // Vite-specific way to handle dynamic imports in workers.
 const videoModules = import.meta.glob("../machines/*/*.video.ts");
-async function loadVideo(videoConfig: VideoConfig) {
+async function loadVideo(videoConfig: VideoConfig, bus: IBus) {
 	// const videoBufferOffset = MEMORY_OFFSET + machine.memory.size;
 	// videoView = new Uint8Array(sharedBuffer, videoBufferOffset, machine.video.size);
 	if (!(videoConfig.buffer instanceof SharedArrayBuffer)) {
@@ -68,11 +68,13 @@ async function loadVideo(videoConfig: VideoConfig) {
 		console.error(`Worker: Could not find class ${videoConfig.class} for module ${videoModuleKey}`);
 		return null;
 	}
-	const [, VideoClass]: [string, new (parent: typeof self, mem: Uint8Array, width: number, height: number) => Video] =
-		exportedVideoEntry;
+	const [, VideoClass]: [
+		string,
+		new (parent: typeof self, mem: Uint8Array, width: number, height: number, bus: IBus) => Video,
+	] = exportedVideoEntry;
 
 	const videoMemory = new Uint8Array(videoConfig.buffer, 0, videoConfig.width * videoConfig.height);
-	return new VideoClass(self, videoMemory, videoConfig.width, videoConfig.height);
+	return new VideoClass(self, videoMemory, videoConfig.width, videoConfig.height, bus);
 }
 
 async function init(machine: MachineConfig) {
@@ -96,7 +98,7 @@ async function init(machine: MachineConfig) {
 	}
 
 	if (machine.video) {
-		video = await loadVideo(machine.video);
+		video = await loadVideo(machine.video, bus);
 		if (!video) return;
 	}
 

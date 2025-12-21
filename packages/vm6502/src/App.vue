@@ -38,12 +38,18 @@
 							<TabsTrigger value="breakpoints" class="data-[state=active]:bg-gray-700 data-[state=active]:text-cyan-300 text-gray-400">
 								Breakpoints
 							</TabsTrigger>
+							<TabsTrigger value="state" class="data-[state=active]:bg-gray-700 data-[state=active]:text-cyan-300 text-gray-400">
+								Machine State
+							</TabsTrigger>
 						</TabsList>
 						<TabsContent value="stack" class="h-full">
 							<StackView :stackData="vm.sharedMemory" :registers="emulatorState.registers" />
 						</TabsContent>
 						<TabsContent value="breakpoints" class="h-full">
 							<BreakpointsList />
+						</TabsContent>
+						<TabsContent value="state" class="h-full">
+							<MachineInspector />
 						</TabsContent>
 					</Tabs>
 				</div>
@@ -98,6 +104,7 @@ import {
 import BreakpointsList from './debugger/BreakpointsList.vue';
 import DebuggerControls from './debugger/DebuggerControls.vue';
 import DisassemblyView from './debugger/DisassemblyView.vue';
+import MachineInspector from "./debugger/MachineInspector.vue";
 import MemoryViewer from './debugger/MemoryViewer.vue';
 import RegistersView from './debugger/RegistersView.vue';
 import StackView from './debugger/StackView.vue';
