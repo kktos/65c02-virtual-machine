@@ -121,6 +121,12 @@ export class VirtualMachine {
 			if (loader) {
 				await loader();
 				console.log(`VM: Loaded CSS ${key}`);
+
+				const isFontLoaded = document.fonts.check("16px PrintChar21");
+				console.log("Font loaded:", isFontLoaded);
+				if (!isFontLoaded) {
+					await document.fonts.load("16px PrintChar21");
+				}
 			} else {
 				console.warn(`VM: CSS module not found: ${key}`);
 			}

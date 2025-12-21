@@ -5,6 +5,7 @@ import { defineConfig } from "vite";
 
 // https://vite.dev/config/
 export default defineConfig({
+	assetsInclude: ["**/*.woff", "**/*.woff2", "**/*.ttf", "**/*.otf"],
 	plugins: [vue(), tailwindcss()],
 	resolve: {
 		alias: {

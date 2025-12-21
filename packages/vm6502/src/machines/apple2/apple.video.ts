@@ -43,6 +43,9 @@ export class AppleVideo implements Video {
 	// Base of the primary text page
 	private static readonly TEXT_PAGE_1_BASE = 0x400;
 
+	private static readonly SCREEN_MARGIN_X = 10;
+	private static readonly SCREEN_MARGIN_Y = 10;
+
 	private readonly charWidth: number;
 	private readonly charHeight: number;
 
@@ -57,10 +60,13 @@ export class AppleVideo implements Video {
 		this.ctx = context;
 		this.ctx.imageSmoothingEnabled = false;
 
-		this.charWidth = this.offscreenCanvas.width / AppleVideo.TEXT_COLS;
-		this.charHeight = this.offscreenCanvas.height / AppleVideo.TEXT_ROWS;
+		this.charWidth = (this.offscreenCanvas.width - AppleVideo.SCREEN_MARGIN_X * 2) / AppleVideo.TEXT_COLS;
+		this.charHeight = (this.offscreenCanvas.height - AppleVideo.SCREEN_MARGIN_Y * 2) / AppleVideo.TEXT_ROWS;
 
 		console.log("AppleVideo", `view w${width}h${height}`, `char w${this.charWidth}h${this.charHeight}`);
+
+		//FontFaceSet.check();
+		if (((parent as any).fonts as FontFaceSet).check("16px PrintChar21")) console.log("AppleVideo", "Font loaded");
 
 		this.initPalette();
 	}
@@ -101,7 +107,7 @@ export class AppleVideo implements Video {
 		this.ctx.fillRect(0, 0, this.offscreenCanvas.width, this.offscreenCanvas.height);
 
 		this.ctx.fillStyle = "white";
-		this.ctx.font = `${this.charHeight}px "PrintChar21", monospace`; // Using a pixel font
+		this.ctx.font = `${this.charHeight}px "PrintChar21"`; // Using a pixel font
 		this.ctx.textAlign = "center";
 		this.ctx.textBaseline = "middle";
 
@@ -112,8 +118,8 @@ export class AppleVideo implements Video {
 				const char = mapAppleChr(charCode);
 
 				// Calculate position to draw the character
-				const drawX = (x + 0.5) * this.charWidth;
-				const drawY = (y + 0.5) * this.charHeight;
+				const drawX = AppleVideo.SCREEN_MARGIN_X + (x + 0.5) * this.charWidth;
+				const drawY = AppleVideo.SCREEN_MARGIN_Y + (y + 0.5) * this.charHeight;
 
 				this.ctx.fillText(char, drawX, drawY);
 			}
