@@ -123,6 +123,25 @@ import type { VirtualMachine } from "@/virtualmachine.class";
 	const disassemblyStartAddress = ref(address);
 	const disassembly = ref<DisassemblyLine[]>([]);
 
+	// const memoryProxy = computed(() => {
+	// 	// Create a proxy to intercept memory reads and route them through the VM's bus logic
+	// 	// This ensures the disassembler sees the memory as the CPU sees it (e.g. with offsets/banking)
+	// 	return new Proxy(memory, {
+	// 		get(target, prop, receiver) {
+	// 			if (typeof prop === 'string') {
+	// 				const idx = Number(prop);
+	// 				if (Number.isInteger(idx) && vm?.value) {
+	// 					return vm.value.read(idx);
+	// 				}
+	// 			}
+	// 			return Reflect.get(target, prop, receiver);
+	// 		}
+	// 	});
+	// });
+
+	let memoryProxy:Uint8Array<ArrayBufferLike>;
+
+
 	// Helper to find the start of the previous instruction.
 	// It does this by disassembling a small chunk before the target address
 	// and finding the last instruction boundary in that chunk.
@@ -131,7 +150,7 @@ import type { VirtualMachine } from "@/virtualmachine.class";
 		// Go back a few bytes (max instruction length is 3) and disassemble
 		const lookbehind = 4;
 		const searchStart = Math.max(0, startAddr - lookbehind);
-		const tempDisassembly = disassemble(memory, searchStart, lookbehind);
+		const tempDisassembly = disassemble(memoryProxy, searchStart, lookbehind);
 
 		// The last instruction in this temp block whose address is less than startAddr is our target.
 		for (let line of tempDisassembly.reverse())
@@ -180,6 +199,17 @@ import type { VirtualMachine } from "@/virtualmachine.class";
 			});
 			resizeObserver.observe(scrollContainer.value);
 		}
+
+		memoryProxy= new Proxy(memory, {
+			get(target, prop, _receiver) {
+				if (typeof prop === 'string') {
+					const idx = Number(prop);
+					if (Number.isInteger(idx) && vm?.value)
+						return vm.value.read(idx);
+				}
+				return Reflect.get(target, prop);
+			}
+		});
 	});
 
 	onUnmounted(() => resizeObserver?.disconnect());
@@ -221,7 +251,7 @@ import type { VirtualMachine } from "@/virtualmachine.class";
 		() => {
 			if (memory) {
 				// Disassemble enough lines to fill the view (e.g., 50 lines)
-				disassembly.value = disassemble(memory, disassemblyStartAddress.value, visibleRowCount.value );
+				disassembly.value = disassemble(memoryProxy, disassemblyStartAddress.value, visibleRowCount.value );
 			}
 		},
 		{ immediate: true, deep: true },

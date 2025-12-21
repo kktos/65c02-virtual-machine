@@ -62,12 +62,6 @@ import type { VirtualMachine } from "@/virtualmachine.class";
 	const vm= inject<Ref<VirtualMachine>>("vm");
 	const subscribeToUiUpdates= inject<(callback: () => void) => void>("subscribeToUiUpdates");
 
-	interface Props {
-		memory: Uint8Array<ArrayBufferLike>;
-	}
-
-	const { memory } = defineProps<Props>();
-
 	const startAddress = ref(0x0200);
 	const BYTES_PER_LINE = 16;
 
@@ -114,7 +108,7 @@ import type { VirtualMachine } from "@/virtualmachine.class";
 	const editingValue = ref("");
 	const inputRefs = ref<Map<number, HTMLInputElement>>(new Map());
 
-	const setInputRef = (el: any, index: number) => {
+	const setInputRef = (el: unknown, index: number) => {
 		if (el) {
 			inputRefs.value.set(index, el as HTMLInputElement);
 		} else {
@@ -199,8 +193,15 @@ import type { VirtualMachine } from "@/virtualmachine.class";
 	// Watch for changes in startAddress or the tick, and update the slice
 	watch([startAddress, tick, visibleRowCount], () => {
 		const start = startAddress.value;
-		const end = start + visibleRowCount.value * BYTES_PER_LINE;
-		currentMemorySlice.value = memory.slice(start, end);
+		const length = visibleRowCount.value * BYTES_PER_LINE;
+		const slice = new Uint8Array(length);
+
+		if (vm?.value) {
+			for (let i = 0; i < length; i++) {
+				slice[i] = vm.value.read(start + i);
+			}
+		}
+		currentMemorySlice.value = slice;
 	}, { immediate: true });
 
 
