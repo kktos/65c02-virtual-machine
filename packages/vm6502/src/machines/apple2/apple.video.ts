@@ -1,3 +1,4 @@
+import type { IBus } from "@/cpu/bus.interface";
 import type { Video } from "@/video/video.interface";
 
 type VideoMode = "TEXT40" | "TEXT80";
@@ -24,6 +25,7 @@ function mapAppleChr(char: number): string {
 export class AppleVideo implements Video {
 	private parent: Worker;
 	private buffer: Uint8Array;
+	private bus: IBus;
 	private offscreenCanvas: OffscreenCanvas;
 	private ctx: OffscreenCanvasRenderingContext2D;
 
@@ -44,9 +46,10 @@ export class AppleVideo implements Video {
 	private readonly charWidth: number;
 	private readonly charHeight: number;
 
-	constructor(parent: Worker, mem: Uint8Array, width: number, height: number) {
+	constructor(parent: Worker, mem: Uint8Array, width: number, height: number, bus: IBus) {
 		this.parent = parent;
 		this.buffer = mem;
+		this.bus = bus;
 		this.offscreenCanvas = new OffscreenCanvas(width, height);
 		const context = this.offscreenCanvas.getContext("2d", { willReadFrequently: true });
 		if (!context) throw new Error("Could not get 2D context from OffscreenCanvas");
@@ -55,30 +58,55 @@ export class AppleVideo implements Video {
 
 		this.charWidth = this.offscreenCanvas.width / AppleVideo.TEXT_COLS;
 		this.charHeight = this.offscreenCanvas.height / AppleVideo.TEXT_ROWS;
+
+		console.log("AppleVideo", this.charWidth, this.charHeight);
+
+		this.initPalette();
+	}
+
+	private initPalette() {
+		const palette = new Uint8Array(256 * 4);
+		// Index 0: Black
+		palette[0] = 0x00;
+		palette[1] = 0x00;
+		palette[2] = 0x00;
+		palette[3] = 0xff;
+		// Index 1: Apple Green
+		palette[4] = 0x33;
+		palette[5] = 0xd4;
+		palette[6] = 0x33;
+		palette[7] = 0xff;
+
+		this.parent.postMessage({ command: "setPalette", colors: palette });
 	}
 
 	public tick() {
+		console.log("AppleVideo.tick", this.mode);
+
 		switch (this.mode) {
 			case "TEXT40":
-				// this.renderText40(memory);
+				this.renderText40();
 				break;
 			// other modes...
 		}
+
+		if (this.bus.saveState) this.parent.postMessage({ command: "syncState", state: this.bus.saveState() });
 	}
 
-	private renderText40(memory: Uint8Array) {
+	private renderText40() {
 		this.ctx.fillStyle = "black";
 		this.ctx.fillRect(0, 0, this.offscreenCanvas.width, this.offscreenCanvas.height);
 
 		this.ctx.fillStyle = "white";
-		this.ctx.font = `${this.charHeight * 0.9}px "PrintChar21"`; // Using a pixel font
+		// this.ctx.font = `${this.charHeight * 0.9}px "PrintChar21"`; // Using a pixel font
+		this.ctx.font = `${this.charHeight * 0.9}px`;
 		this.ctx.textAlign = "center";
 		this.ctx.textBaseline = "middle";
 
 		for (let y = 0; y < AppleVideo.TEXT_ROWS; y++) {
 			const lineBase = AppleVideo.TEXT_PAGE_1_BASE + (AppleVideo.textScreenLineOffsets[y] ?? 0);
 			for (let x = 0; x < AppleVideo.TEXT_COLS; x++) {
-				const charCode = memory[lineBase + x] ?? 0;
+				const charCode = this.bus.read(lineBase + x);
 				const char = mapAppleChr(charCode);
 
 				// Calculate position to draw the character
@@ -90,7 +118,14 @@ export class AppleVideo implements Video {
 		}
 
 		const imageData = this.ctx.getImageData(0, 0, this.offscreenCanvas.width, this.offscreenCanvas.height);
-		this.buffer.set(imageData.data);
+		const src32 = new Uint32Array(imageData.data.buffer);
+		const dest = this.buffer;
+
+		// Convert RGBA pixels to 8-bit indices
+		for (let i = 0; i < dest.length; i++) {
+			// If pixel has any color (not black), map to Index 1 (Green), else 0 (Black)
+			dest[i] = (src32[i] ?? 0 & 0x00ffffff) !== 0 ? 1 : 0;
+		}
 	}
 
 	public reset() {
