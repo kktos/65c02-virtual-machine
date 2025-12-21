@@ -2,13 +2,22 @@
 	<div class="p-4 bg-gray-800 rounded-lg shadow-xl h-full flex flex-col" ref="scrollContainer">
 		<div class="mb-3 mt-1 flex flex-wrap items-center gap-4 shrink-0">
 			<div class="flex items-center space-x-2">
-				<span class="text-gray-300 text-sm">Start Address:</span>
-				<input
-					type="text"
-					:value="startAddress.toString(16).toUpperCase().padStart(4, '0')"
-					@input="handleAddressChange"
-					class="bg-gray-700 text-yellow-300 font-mono text-sm rounded-md px-2 py-1 w-20 border border-gray-600 focus:ring-2 focus:ring-cyan-500 tabular-nums"
-				/>
+				<span class="text-gray-300 text-sm">Addr:</span>
+				<div class="flex items-center">
+					<input
+						type="text"
+						:value="((startAddress >> 16) & 0xFF).toString(16).toUpperCase().padStart(2, '0')"
+						@input="handleBankChange"
+						class="bg-gray-700 text-yellow-300 font-mono text-sm rounded-l-md px-2 py-1 w-10 border-y border-l border-gray-600 focus:ring-2 focus:ring-cyan-500 tabular-nums text-center outline-none"
+					/>
+					<span class="bg-gray-700 text-gray-400 font-mono text-sm py-1 border-y border-gray-600">:</span>
+					<input
+						type="text"
+						:value="(startAddress & 0xFFFF).toString(16).toUpperCase().padStart(4, '0')"
+						@input="handleOffsetChange"
+						class="bg-gray-700 text-yellow-300 font-mono text-sm rounded-r-md px-2 py-1 w-16 border-y border-r border-gray-600 focus:ring-2 focus:ring-cyan-500 tabular-nums outline-none"
+					/>
+				</div>
 			</div>
 			<!-- Debug Options -->
 			<div v-for="opt in debugOptions" :key="opt.id" class="flex items-center space-x-1">
@@ -38,15 +47,15 @@
 			<table class="w-full table-fixed">
 				<thead>
 					<tr class="text-gray-400 sticky top-0 bg-gray-900 border-b border-gray-700 shadow-md">
-						<th class="py-1 text-left w-16">Addr</th>
+						<th class="py-1 text-left w-24">Addr</th>
 						<th v-for="i in BYTES_PER_LINE" :key="i" class="text-center w-[1.75rem]">{{ '+' + (i - 1).toString(16).toUpperCase() }}</th>
 						<th class="py-1 text-left w-auto pl-4">ASCII</th>
 					</tr>
 				</thead>
 				<tbody v-if="visibleRowCount > 0">
 					<tr v-for="lineIndex in visibleRowCount" :key="lineIndex" class="hover:bg-gray-700/50 transition duration-100 text-gray-300">
-						<td class="py-0.5 text-left text-indigo-300 font-bold">
-							{{ '$' + (startAddress + (lineIndex - 1) * BYTES_PER_LINE).toString(16).toUpperCase().padStart(4, '0') }}
+						<td class="py-0.5 text-left text-indigo-300 font-bold font-mono">
+							{{ formatAddress(startAddress + (lineIndex - 1) * BYTES_PER_LINE) }}
 						</td>
 
 						<td v-for="byteIndex in BYTES_PER_LINE" :key="byteIndex" class="p-0">
@@ -137,12 +146,26 @@ import type { VirtualMachine } from "@/virtualmachine.class";
 		}
 	}, { immediate: true });
 
-	const handleAddressChange = (event: Event) => {
+	const handleBankChange = (event: Event) => {
 		const target = event.target as HTMLInputElement;
-		const value = parseInt(target.value, 16);
-		if (!Number.isNaN(value) && value >= 0 && value <= 0xFFFF) {
-			startAddress.value = value;
+		const val = parseInt(target.value, 16);
+		if (!Number.isNaN(val) && val >= 0 && val <= 0xFF) {
+			startAddress.value = (startAddress.value & 0xFFFF) | (val << 16);
 		}
+	};
+
+	const handleOffsetChange = (event: Event) => {
+		const target = event.target as HTMLInputElement;
+		const val = parseInt(target.value, 16);
+		if (!Number.isNaN(val) && val >= 0 && val <= 0xFFFF) {
+			startAddress.value = (startAddress.value & 0xFF0000) | val;
+		}
+	};
+
+	const formatAddress = (addr: number) => {
+		const bank = ((addr >> 16) & 0xFF).toString(16).toUpperCase().padStart(2, '0');
+		const offset = (addr & 0xFFFF).toString(16).toUpperCase().padStart(4, '0');
+		return `$${bank}:${offset}`;
 	};
 
 	const editingIndex = ref<number | null>(null);
@@ -181,7 +204,7 @@ import type { VirtualMachine } from "@/virtualmachine.class";
 		const currentAbs = startAddress.value + index;
 		const targetAbs = currentAbs + direction;
 
-		if (targetAbs < 0 || targetAbs > 0xFFFF) return;
+		if (targetAbs < 0 || targetAbs > 0xFFFFFF) return;
 
 		const visibleBytes = visibleRowCount.value * BYTES_PER_LINE;
 		const endAddress = startAddress.value + visibleBytes;
@@ -193,7 +216,7 @@ import type { VirtualMachine } from "@/virtualmachine.class";
 			if (targetAbs < startAddress.value) {
 				startAddress.value = Math.max(0, startAddress.value - BYTES_PER_LINE);
 			} else {
-				startAddress.value = Math.min(0xFFFF, startAddress.value + BYTES_PER_LINE);
+				startAddress.value = Math.min(0xFFFFFF, startAddress.value + BYTES_PER_LINE);
 			}
 
 			nextTick(() => {
@@ -221,7 +244,7 @@ import type { VirtualMachine } from "@/virtualmachine.class";
 		if (event.deltaY > 0) {
 			// Scrolling down -> increase address
 			const newAddress = startAddress.value + scrollAmount;
-			startAddress.value = Math.min(newAddress, 0xFFFF - (visibleRowCount.value * BYTES_PER_LINE) + 1);
+			startAddress.value = Math.min(newAddress, 0xFFFFFF - (visibleRowCount.value * BYTES_PER_LINE) + 1);
 		} else if (event.deltaY < 0) {
 			// Scrolling up -> decrease address
 			const newAddress = startAddress.value - scrollAmount;

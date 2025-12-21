@@ -194,6 +194,8 @@ export class AppleBus implements IBus {
 	}
 
 	readDebug(address: number, overrides?: Record<string, unknown>): number {
+		if (address > 0xffff) return this.memory[RAM_OFFSET + address] ?? 0;
+
 		if (address < 0xc000) return this.memory[RAM_OFFSET + address] ?? 0;
 
 		if (address >= 0xd000) {
@@ -222,6 +224,11 @@ export class AppleBus implements IBus {
 	}
 
 	writeDebug(address: number, value: number, overrides?: Record<string, unknown>): void {
+		if (address > 0xffff) {
+			this.memory[RAM_OFFSET + address] = value & 0xff;
+			return;
+		}
+
 		if (address >= 0xd000) {
 			const view = overrides?.lcView;
 			if (view === "ROM") {
