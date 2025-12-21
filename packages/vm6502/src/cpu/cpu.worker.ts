@@ -23,11 +23,14 @@ let memoryView: Uint8Array | null = null;
 let registersView: DataView | null = null;
 // let videoView: Uint8Array | null = null;
 let video: Video | null = null;
+let bus: IBus | null = null;
+
+const MachinesBasePath = "../machines";
 
 // Vite-specific way to handle dynamic imports in workers.
 const busModules = import.meta.glob("../machines/*/*.bus.ts");
 async function loadBus(busConfig: MachineConfig["bus"]) {
-	const busModuleKey = `${busConfig.path}.ts`;
+	const busModuleKey = `${MachinesBasePath}/${busConfig.path}.ts`;
 	const busModuleLoader = busModules[busModuleKey];
 	if (!busModuleLoader) {
 		console.error(`Worker: Could not find a bus module loader for key: ${busModuleKey}`);
@@ -53,7 +56,7 @@ async function loadVideo(videoConfig: VideoConfig) {
 		return null;
 	}
 
-	const videoModuleKey = `${videoConfig.path}.ts`;
+	const videoModuleKey = `${MachinesBasePath}/${videoConfig.path}.ts`;
 	const videoModuleLoader = videoModules[videoModuleKey];
 	if (!videoModuleLoader) {
 		console.error(`Worker: Could not find a video module loader for key: ${videoModuleKey}`);
@@ -82,7 +85,7 @@ async function init(machine: MachineConfig) {
 	registersView = new DataView(sharedBuffer, 0, MEMORY_OFFSET);
 	memoryView = new Uint8Array(sharedBuffer, MEMORY_OFFSET, machine.memory.size);
 
-	const bus = await loadBus(machine.bus);
+	bus = await loadBus(machine.bus);
 	if (!bus) return;
 
 	if (machine.memory.chunks) {
@@ -103,7 +106,7 @@ async function init(machine: MachineConfig) {
 }
 
 self.onmessage = async (event: MessageEvent) => {
-	const { command, speed, machine } = event.data;
+	const { command, speed, machine, key } = event.data;
 
 	if (command === "init") return init(machine);
 
@@ -146,6 +149,9 @@ self.onmessage = async (event: MessageEvent) => {
 			break;
 		case "clearBPs":
 			clearBreakpoints();
+			break;
+		case "keydown":
+			if (bus?.pressKey) bus.pressKey(key);
 			break;
 	}
 };
