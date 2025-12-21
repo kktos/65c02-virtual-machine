@@ -1,37 +1,177 @@
 import type { IBus } from "@/cpu/bus.interface";
+import * as SoftSwitches from "./softswitches";
 
 export class AppleBus implements IBus {
 	private memory: Uint8Array;
+	// Private storage for the system ROM ($D000-$FFFF)
+	private rom: Uint8Array = new Uint8Array(0x3000);
+	// Private storage for Language Card Bank 2 RAM ($D000-$DFFF)
+	private bank2: Uint8Array = new Uint8Array(0x1000);
+
+	// Language Card State
+	private lcBank2 = false; // false = Bank 1 ($D000), true = Bank 2 ($D000)
+	private lcReadRam = false; // false = Read ROM, true = Read RAM
+	private lcWriteRam = false; // false = Write Protect, true = Write Enable
+	private lcPreWriteCount = 0; // Counter for the double-read write enable mechanism
+
+	// Keyboard State
+	private lastKey = 0x00;
+	private keyStrobe = false;
 
 	constructor(memory: Uint8Array) {
 		this.memory = memory;
 	}
 
 	read(address: number): number {
-		if (address < 0 || address >= this.memory.length)
-			throw new Error(`Memory read out of bounds: 0x${address.toString(16)}`);
+		// Softswitches ($C000 - $C0FF)
+		if (address >= 0xc000 && address <= 0xc0ff) {
+			return this.accessSoftSwitch(address, null);
+		}
+
+		// Language Card Range ($D000 - $FFFF)
+		if (address >= 0xd000) {
+			// Reset pre-write count on non-switch access
+			this.lcPreWriteCount = 0;
+
+			if (this.lcReadRam) {
+				// Reading RAM
+				if (this.lcBank2 && address < 0xe000) {
+					// Bank 2 ($D000-$DFFF)
+					return this.bank2[address - 0xd000] ?? 0;
+				}
+				// Bank 1 ($D000-$DFFF) or High RAM ($E000-$FFFF)
+				// Mapped to physical RAM at same address
+				return this.memory[address] ?? 0;
+			}
+			// Reading ROM
+			return this.rom[address - 0xd000] ?? 0;
+		}
+
+		// Standard RAM
+		this.lcPreWriteCount = 0;
 		return this.memory[address] ?? 0;
 	}
 
 	write(address: number, value: number): void {
-		this.memory[address] = value & 0xff;
-	}
-
-	load(address: number, data: Uint8Array, bank: number = 0, tag?: string): void {
-		let dest = address;
-		// Handle special mapping for Language Card
-		if (tag === "lgcard" && dest === 0) {
-			dest = 0xd000;
-		}
-
-		// Linearize memory: Bank 0 is 0-64K, Bank 1 is 64K-128K
-		const physicalAddress = dest + bank * 0x10000;
-
-		if (physicalAddress + data.length > this.memory.length) {
-			console.error(`AppleBus: Load out of bounds: 0x${physicalAddress.toString(16)}`);
+		// Softswitches ($C000 - $C0FF)
+		if (address >= 0xc000 && address <= 0xc0ff) {
+			this.accessSoftSwitch(address, value);
 			return;
 		}
 
-		this.memory.set(data, physicalAddress);
+		// Language Card Range ($D000 - $FFFF)
+		if (address >= 0xd000) {
+			this.lcPreWriteCount = 0;
+			if (this.lcWriteRam) {
+				if (this.lcBank2 && address < 0xe000) {
+					this.bank2[address - 0xd000] = value & 0xff;
+				} else {
+					this.memory[address] = value & 0xff;
+				}
+			}
+			return;
+		}
+
+		// Standard RAM
+		this.lcPreWriteCount = 0;
+		this.memory[address] = value & 0xff;
+	}
+
+	private accessSoftSwitch(address: number, writeValue: number | null): number {
+		const switchAddr = address & 0xc0ff;
+		const isWrite = writeValue !== null;
+
+		// Language Card Switches ($C080 - $C08F)
+		if (switchAddr >= SoftSwitches.LCRAMIN2 && switchAddr <= SoftSwitches.LC_C08F) {
+			const bit0 = (switchAddr & 1) !== 0; // 0=Read RAM/ROM, 1=Write RAM (maybe)
+			const bit1 = (switchAddr & 2) !== 0; // 0=Read RAM/ROM, 1=Read ROM
+			const bit3 = (switchAddr & 8) !== 0; // 0=Bank 2, 1=Bank 1
+
+			this.lcBank2 = !bit3;
+			this.lcReadRam = !bit1; // If bit1 is set, we read ROM. If clear, we read RAM.
+
+			// Write Enable Logic:
+			// If bit0 is clear ($C080, $C082...), write is disabled immediately.
+			// If bit0 is set ($C081, $C083...), write is enabled ONLY if this is the second consecutive read.
+			if (!bit0) {
+				this.lcWriteRam = false;
+				this.lcPreWriteCount = 0;
+			} else {
+				this.lcPreWriteCount++;
+				if (this.lcPreWriteCount > 1) {
+					this.lcWriteRam = true;
+					this.lcPreWriteCount = 0; // Reset after enabling? Behavior varies, but usually stays enabled.
+				}
+			}
+
+			// console.log(
+			// 	`LC Switch ${address.toString(16)}: Bank2=${this.lcBank2}, ReadRAM=${this.lcReadRam}, WriteRAM=${this.lcWriteRam}`,
+			// );
+			return 0; // Floating bus usually
+		}
+
+		// Keyboard ($C000, $C010)
+		if (switchAddr === SoftSwitches.KBD) {
+			if (!isWrite) {
+				// Read: Return last key with strobe bit (bit 7)
+				return this.lastKey | (this.keyStrobe ? 0x80 : 0x00);
+			}
+			// Write: $C000 is STORE80OFF (TODO)
+		}
+
+		if (switchAddr === SoftSwitches.KBDSTRB) {
+			// Read or Write clears the strobe
+			this.keyStrobe = false;
+			return 0;
+		}
+
+		return 0;
+	}
+
+	load(address: number, data: Uint8Array, bank: number = 0, tag?: string): void {
+		// If loading into the Language Card range ($D000+), load into ROM buffer
+		if (tag === "lgcard") {
+			const offset = 0;
+			if (offset + data.length <= this.rom.length) {
+				this.rom.set(data, offset);
+				console.log(`AppleBus: Loaded ${data.length} bytes into ROM at $D000`);
+				return;
+			}
+		}
+
+		// Default load to physical RAM
+		// Handle Bank 1 (Aux) offset if bank=1
+		const physicalAddress = address + bank * 0x10000;
+		if (physicalAddress + data.length <= this.memory.length) {
+			this.memory.set(data, physicalAddress);
+			console.log(`AppleBus: Loaded ${data.length} bytes into RAM at $${physicalAddress.toString(16)}`);
+		} else {
+			console.error(`AppleBus: Load out of bounds: 0x${physicalAddress.toString(16)}`);
+		}
+	}
+
+	public pressKey(key: string) {
+		let ascii = 0;
+		if (key.length === 1) {
+			ascii = key.charCodeAt(0);
+		} else {
+			switch (key) {
+				case "Enter":
+					ascii = 13;
+					break;
+				case "Backspace":
+				case "ArrowLeft":
+					ascii = 8; // Apple II Left is BS (8)
+					break;
+				case "ArrowRight":
+					ascii = 21; // Apple II Right is NAK (21)
+					break;
+			}
+		}
+
+		if (ascii > 0) {
+			this.lastKey = ascii & 0x7f;
+			this.keyStrobe = true;
+		}
 	}
 }
