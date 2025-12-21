@@ -23,7 +23,7 @@
 <script setup lang="ts">
 import { inject, type Ref } from "vue";
 import type { EmulatorState } from "@/types/emulatorstate.interface";
-import type { VirtualMachine } from "@/vm.class";
+import type { VirtualMachine } from "@/virtualmachine.class";
 import DebuggerPanelTitle from './DebuggerPanelTitle.vue';
 
 	const vm= inject<Ref<VirtualMachine>>('vm');

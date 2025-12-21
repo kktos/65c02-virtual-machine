@@ -23,7 +23,7 @@
 <script lang="ts" setup>
 import { inject, type Ref } from "vue";
 import type { EmulatorState } from "@/types/emulatorstate.interface";
-import type { VirtualMachine } from "@/vm.class";
+import type { VirtualMachine } from "@/virtualmachine.class";
 import DebuggerPanelTitle from './DebuggerPanelTitle.vue';
 
 	/** biome-ignore-all lint/correctness/noUnusedVariables: vue */

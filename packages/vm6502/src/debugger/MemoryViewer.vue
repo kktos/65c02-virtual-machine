@@ -57,7 +57,7 @@
 
 import { computed, inject, nextTick, onMounted, onUnmounted, type Ref, ref, watch } from "vue";
 import { bytesToAscii } from "@/lib/array.utils";
-import type { VirtualMachine } from "@/vm.class";
+import type { VirtualMachine } from "@/virtualmachine.class";
 
 	const vm= inject<Ref<VirtualMachine>>("vm");
 	const subscribeToUiUpdates= inject<(callback: () => void) => void>("subscribeToUiUpdates");

@@ -93,7 +93,7 @@ import { handleExplainCode } from "@/lib/gemini.utils";
 import { useLabeling } from "@/lib/utils";
 import type { DisassemblyLine } from "@/types/disassemblyline.interface";
 import type { EmulatorState } from "@/types/emulatorstate.interface";
-import type { VirtualMachine } from "@/vm.class";
+import type { VirtualMachine } from "@/virtualmachine.class";
 
 	const vm= inject<Ref<VirtualMachine>>("vm");
 

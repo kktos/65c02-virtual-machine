@@ -106,7 +106,7 @@ import StatusPanel from './debugger/StatusPanel.vue';
 import { availableMachines } from "./machines";
 import type { MachineConfig } from "./machines/machine.interface";
 import type { EmulatorState } from "./types/emulatorstate.interface";
-import { VirtualMachine } from "./vm.class";
+import { VirtualMachine } from "./virtualmachine.class";
 
 	const dbgTopPanelResize= (_size:unknown) => {
 		// console.log('dbgTopPanelResize resized', size);

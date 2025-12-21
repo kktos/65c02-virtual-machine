@@ -52,7 +52,7 @@
 import { inject, type Ref } from "vue";
 import { Button } from '@/components/ui/button';
 import { ButtonGroup } from '@/components/ui/button-group';
-import type { VirtualMachine } from "@/vm.class";
+import type { VirtualMachine } from "@/virtualmachine.class";
 
 	const vm= inject<Ref<VirtualMachine>>("vm");
 
