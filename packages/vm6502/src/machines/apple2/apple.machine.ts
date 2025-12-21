@@ -49,8 +49,8 @@ export const apple2e: MachineConfig = {
 	css: ["apple2/fonts/fonts.css"],
 	bus: { class: "AppleBus", path: "apple2/apple.bus" },
 	video: {
-		width: 280,
-		height: 192,
+		width: 280 * 2,
+		height: 192 * 2,
 		class: "AppleVideo",
 		path: "apple2/apple.video",
 	},

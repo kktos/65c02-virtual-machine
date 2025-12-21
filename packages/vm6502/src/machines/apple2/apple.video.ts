@@ -55,27 +55,30 @@ export class AppleVideo implements Video {
 		if (!context) throw new Error("Could not get 2D context from OffscreenCanvas");
 
 		this.ctx = context;
+		this.ctx.imageSmoothingEnabled = false;
 
 		this.charWidth = this.offscreenCanvas.width / AppleVideo.TEXT_COLS;
 		this.charHeight = this.offscreenCanvas.height / AppleVideo.TEXT_ROWS;
 
-		console.log("AppleVideo", this.charWidth, this.charHeight);
+		console.log("AppleVideo", `view w${width}h${height}`, `char w${this.charWidth}h${this.charHeight}`);
 
 		this.initPalette();
 	}
 
 	private initPalette() {
 		const palette = new Uint8Array(256 * 4);
-		// Index 0: Black
-		palette[0] = 0x00;
-		palette[1] = 0x00;
-		palette[2] = 0x00;
-		palette[3] = 0xff;
-		// Index 1: Apple Green
-		palette[4] = 0x33;
-		palette[5] = 0xd4;
-		palette[6] = 0x33;
-		palette[7] = 0xff;
+		// Create a 16-step grayscale-to-green palette for anti-aliasing
+		const greenR = 0xee;
+		const greenG = 0xee;
+		const greenB = 0xee;
+
+		for (let i = 0; i < 16; i++) {
+			const step = i / 15; // 0 to 1
+			palette[i * 4 + 0] = Math.round(greenR * step);
+			palette[i * 4 + 1] = Math.round(greenG * step);
+			palette[i * 4 + 2] = Math.round(greenB * step);
+			palette[i * 4 + 3] = 0xff;
+		}
 
 		this.parent.postMessage({ command: "setPalette", colors: palette });
 	}
@@ -98,8 +101,7 @@ export class AppleVideo implements Video {
 		this.ctx.fillRect(0, 0, this.offscreenCanvas.width, this.offscreenCanvas.height);
 
 		this.ctx.fillStyle = "white";
-		// this.ctx.font = `${this.charHeight * 0.9}px "PrintChar21"`; // Using a pixel font
-		this.ctx.font = `${this.charHeight * 0.9}px`;
+		this.ctx.font = `${this.charHeight}px "PrintChar21", monospace`; // Using a pixel font
 		this.ctx.textAlign = "center";
 		this.ctx.textBaseline = "middle";
 
@@ -123,8 +125,11 @@ export class AppleVideo implements Video {
 
 		// Convert RGBA pixels to 8-bit indices
 		for (let i = 0; i < dest.length; i++) {
-			// If pixel has any color (not black), map to Index 1 (Green), else 0 (Black)
-			dest[i] = (src32[i] ?? 0 & 0x00ffffff) !== 0 ? 1 : 0;
+			// Since we render white text, any color channel can be used for brightness.
+			// We scale the 0-255 brightness to a 0-15 palette index.
+			const val = src32[i] ?? 0;
+			const brightness = val & 0xff; // Use Red channel for brightness
+			dest[i] = Math.floor((brightness / 256) * 16);
 		}
 	}
 
