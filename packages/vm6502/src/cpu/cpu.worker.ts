@@ -65,10 +65,11 @@ async function loadVideo(videoConfig: VideoConfig) {
 		console.error(`Worker: Could not find class ${videoConfig.class} for module ${videoModuleKey}`);
 		return null;
 	}
-	const [, VideoClass]: [string, new (mem: Uint8Array, width: number, height: number) => Video] = exportedVideoEntry;
+	const [, VideoClass]: [string, new (parent: typeof self, mem: Uint8Array, width: number, height: number) => Video] =
+		exportedVideoEntry;
 
-	const videoMemory = new Uint8Array(videoConfig.buffer, 0, videoConfig.width * videoConfig.height * 4);
-	return new VideoClass(videoMemory, videoConfig.width, videoConfig.height);
+	const videoMemory = new Uint8Array(videoConfig.buffer, 0, videoConfig.width * videoConfig.height);
+	return new VideoClass(self, videoMemory, videoConfig.width, videoConfig.height);
 }
 
 async function init(machine: MachineConfig) {
