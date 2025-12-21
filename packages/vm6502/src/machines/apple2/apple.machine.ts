@@ -10,17 +10,14 @@ export const apple2e: MachineConfig = {
 			{
 				bank: 1,
 				addr: 0xc100,
-				data: C1_C7_INTROM,
-			},
-			{
-				bank: 1,
-				addr: 0xc800,
-				data: C8_CF_INTROM,
+				data: C1_C7_INTROM + C8_CF_INTROM,
+				tag: "int.rom.cx",
 			},
 			{
 				bank: 0,
 				addr: 0xc100,
 				data: CxSLOTROM,
+				tag: "slots.rom",
 			},
 			{
 				bank: 0,
