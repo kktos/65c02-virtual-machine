@@ -22,6 +22,7 @@ function mapAppleChr(char: number): string {
 }
 
 export class AppleVideo implements Video {
+	private parent: Worker;
 	private buffer: Uint8Array;
 	private offscreenCanvas: OffscreenCanvas;
 	private ctx: OffscreenCanvasRenderingContext2D;
@@ -43,7 +44,8 @@ export class AppleVideo implements Video {
 	private readonly charWidth: number;
 	private readonly charHeight: number;
 
-	constructor(mem: Uint8Array, width: number, height: number) {
+	constructor(parent: Worker, mem: Uint8Array, width: number, height: number) {
+		this.parent = parent;
 		this.buffer = mem;
 		this.offscreenCanvas = new OffscreenCanvas(width, height);
 		const context = this.offscreenCanvas.getContext("2d", { willReadFrequently: true });
