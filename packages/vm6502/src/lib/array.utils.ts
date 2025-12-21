@@ -11,3 +11,11 @@ export function bytesToAscii(bytes: Uint8Array): string {
 	}
 	return chars.join("");
 }
+
+export function parseHexData(data: string): Uint8Array {
+	const bytes = data
+		.trim()
+		.split(/\s+/)
+		.map((s) => parseInt(s, 16));
+	return new Uint8Array(bytes);
+}
