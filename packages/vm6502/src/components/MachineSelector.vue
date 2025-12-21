@@ -33,8 +33,6 @@ const emit = defineEmits<(e: 'machine-selected', machine: MachineConfig) => void
 
 const onMachineSelect = (machineName: string) => {
   const newMachine = props.machines.find(m => m.name === machineName);
-  if (newMachine) {
-    emit('machine-selected', newMachine);
-  }
+  if (newMachine) emit('machine-selected', newMachine);
 };
 </script>

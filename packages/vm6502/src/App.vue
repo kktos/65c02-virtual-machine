@@ -5,7 +5,7 @@
 		<MachineSelector :machines="availableMachines" :selected-machine="selectedMachine" @machine-selected="handleMachineSelected" class="bg-black"/>
 		<canvas
 			ref="videoCanvas"
-			class="flex-grow w-full object-contain"
+			class="flex-grow w-full object-contain border"
 			style="image-rendering: pixelated;"
 		></canvas>
 	</ResizablePanel>
