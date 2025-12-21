@@ -1,17 +1,20 @@
+import type { IBus } from "@/cpu/bus.interface";
 import { hslToRgb } from "@/lib/colors.utils";
 import type { Video } from "@/video/video.interface";
 
 export class KlausVideo implements Video {
 	private parent: Worker;
 	private buffer: Uint8Array;
+	private bus: IBus;
 	private tickCount = 0;
 
 	private offscreenCanvas: OffscreenCanvas;
 	private ctx: OffscreenCanvasRenderingContext2D;
 
-	constructor(parent: Worker, mem: Uint8Array, width: number, height: number) {
+	constructor(parent: Worker, mem: Uint8Array, width: number, height: number, bus: IBus) {
 		this.parent = parent;
 		this.buffer = mem;
+		this.bus = bus;
 		this.offscreenCanvas = new OffscreenCanvas(width, height);
 		const context = this.offscreenCanvas.getContext("2d", { willReadFrequently: true });
 		if (!context) throw new Error("Could not get 2D context from OffscreenCanvas");
@@ -68,6 +71,10 @@ export class KlausVideo implements Video {
 			const val = src32[i] ?? 0;
 			// Convert RGBA (Little Endian: AABBGGRR) to 8-bit 3-3-2 RGB index
 			dest[i] = (val & 0xe0) | ((val & 0xe000) >> 11) | ((val & 0xc00000) >> 22);
+		}
+
+		if (this.bus.saveState) {
+			this.parent.postMessage({ command: "syncState", state: this.bus.saveState() });
 		}
 
 		this.tickCount++;
