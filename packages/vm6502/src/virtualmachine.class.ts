@@ -50,11 +50,8 @@ export class VirtualMachine {
 		this.worker.onmessage = (event) => {
 			const { command, colors } = event.data;
 			if (command === "setPalette") {
-				if (this.videoOutput) {
-					this.videoOutput.setPalette(colors);
-				} else {
-					this.pendingPalette = colors;
-				}
+				if (this.videoOutput) this.videoOutput.setPalette(colors);
+				else this.pendingPalette = colors;
 			} else if (this.onmessage) {
 				this.onmessage(event);
 			}
@@ -74,7 +71,11 @@ export class VirtualMachine {
 		}
 
 		// 2. Load data into memory from the main thread
-		this.loadMemoryChunks();
+		this.sharedMemory.fill(0);
+		const chunks = this.machineConfig.memory.chunks?.map((chunk) => ({
+			...chunk,
+			data: typeof chunk.data === "string" ? parseHexData(chunk.data) : chunk.data,
+		}));
 
 		// 3. Initialize the worker with the prepared buffer and necessary config
 		this.worker.postMessage({
@@ -89,7 +90,7 @@ export class VirtualMachine {
 					class: this.machineConfig.video?.class,
 					buffer: this.videoBuffer,
 				},
-				memory: { buffer: this.sharedBuffer, size: this.machineConfig.memory.size },
+				memory: { buffer: this.sharedBuffer, size: this.machineConfig.memory.size, chunks },
 			},
 		});
 
@@ -97,20 +98,6 @@ export class VirtualMachine {
 			command: "setSpeed",
 			speed: this.machineConfig.speed ?? 1,
 		});
-	}
-
-	private loadMemoryChunks() {
-		this.sharedMemory.fill(0); // Clear memory first
-		if (this.machineConfig.memory.chunks) {
-			for (const chunk of this.machineConfig.memory.chunks) {
-				let data: Uint8Array;
-				if (typeof chunk.data === "string") data = parseHexData(chunk.data);
-				else data = chunk.data;
-
-				console.log(`VM: Loading ${data.length} bytes at $${chunk.addr.toString(16)}`);
-				this.sharedMemory.set(data, chunk.addr);
-			}
-		}
 	}
 
 	public initVideo(canvas: HTMLCanvasElement) {

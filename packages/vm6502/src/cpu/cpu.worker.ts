@@ -25,7 +25,7 @@ let registersView: DataView | null = null;
 let video: Video | null = null;
 
 // Vite-specific way to handle dynamic imports in workers.
-const busModules = import.meta.glob("../machines/*/bus.class.ts");
+const busModules = import.meta.glob("../machines/*/*.bus.ts");
 async function loadBus(busConfig: MachineConfig["bus"]) {
 	const busModuleKey = `${busConfig.path}.ts`;
 	const busModuleLoader = busModules[busModuleKey];
@@ -84,6 +84,13 @@ async function init(machine: MachineConfig) {
 
 	const bus = await loadBus(machine.bus);
 	if (!bus) return;
+
+	if (machine.memory.chunks) {
+		for (const chunk of machine.memory.chunks) {
+			const data = chunk.data as Uint8Array;
+			bus.load(chunk.addr, data, chunk.bank, chunk.tag);
+		}
+	}
 
 	if (machine.video) {
 		video = await loadVideo(machine.video);
