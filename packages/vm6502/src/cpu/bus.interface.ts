@@ -10,4 +10,7 @@ export interface IBus {
 
 	/** Loads data into memory, allowing for bank switching or specific hardware handling. */
 	load(address: number, data: Uint8Array, bank?: number, tag?: string): void;
+
+	/** Optional method to handle keyboard input. */
+	pressKey?(key: string): void;
 }
