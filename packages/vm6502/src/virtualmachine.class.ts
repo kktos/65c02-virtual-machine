@@ -113,17 +113,16 @@ export class VirtualMachine {
 	}
 
 	private async loadCSS() {
-		const cssFiles = (this.machineConfig as any).css as string[] | undefined;
-		if (cssFiles) {
-			for (const file of cssFiles) {
-				const key = `${MachinesBasePath}/${file}`;
-				const loader = cssModules[key];
-				if (loader) {
-					await loader();
-					console.log(`VM: Loaded CSS ${key}`);
-				} else {
-					console.warn(`VM: CSS module not found: ${key}`);
-				}
+		const cssFiles = this.machineConfig.css;
+		if (!cssFiles) return;
+		for (const file of cssFiles) {
+			const key = `${MachinesBasePath}/${file}`;
+			const loader = cssModules[key];
+			if (loader) {
+				await loader();
+				console.log(`VM: Loaded CSS ${key}`);
+			} else {
+				console.warn(`VM: CSS module not found: ${key}`);
 			}
 		}
 	}
