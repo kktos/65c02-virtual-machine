@@ -1,4 +1,4 @@
-import type { IBus } from "@/cpu/bus.interface";
+import type { DebugOption, IBus } from "@/cpu/bus.interface";
 import {
 	FLAG_B_MASK,
 	FLAG_C_MASK,
@@ -39,6 +39,7 @@ export class VirtualMachine {
 	public worker: Worker;
 	public machineConfig: MachineConfig;
 	public bus?: IBus;
+	public ready: Promise<void>;
 
 	public onmessage?: (event: MessageEvent) => void;
 
@@ -100,7 +101,7 @@ export class VirtualMachine {
 			speed: this.machineConfig.speed ?? 1,
 		});
 
-		this.loadBus();
+		this.ready = this.loadBus();
 	}
 
 	private async loadBus() {
@@ -195,6 +196,18 @@ export class VirtualMachine {
 		return this.bus ? this.bus.read(address) : (this.sharedMemory[address] ?? 0);
 	}
 
+	public readDebug(address: number, overrides?: Record<string, unknown>): number {
+		return this.bus?.readDebug ? this.bus.readDebug(address, overrides) : this.read(address);
+	}
+
+	public writeDebug(address: number, value: number, overrides?: Record<string, unknown>) {
+		if (this.bus?.writeDebug) {
+			this.bus.writeDebug(address, value, overrides);
+		} else {
+			this.updateMemory(address, value);
+		}
+	}
+
 	public updateMemory(addr: number, value: number) {
 		if (this.bus) this.bus.write(addr, value);
 		else this.sharedMemory[addr] = value;
@@ -250,6 +263,10 @@ export class VirtualMachine {
 				break;
 			}
 		}
+	}
+
+	public getDebugOptions(): DebugOption[] {
+		return this.bus?.getDebugOptions ? this.bus.getDebugOptions() : [];
 	}
 
 	public terminate() {

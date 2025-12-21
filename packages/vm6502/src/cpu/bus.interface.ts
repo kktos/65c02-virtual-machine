@@ -1,3 +1,10 @@
+export interface DebugOption {
+	id: string;
+	label: string;
+	type: "boolean" | "select";
+	options?: string[];
+}
+
 /**
  * Defines the interface for the system bus, which connects the CPU to memory and other devices.
  */
@@ -13,4 +20,13 @@ export interface IBus {
 
 	/** Optional method to handle keyboard input. */
 	pressKey?(key: string): void;
+
+	/** Reads memory with optional overrides for debugging/inspection. */
+	readDebug?(address: number, overrides?: Record<string, unknown>): number;
+
+	/** Writes memory with optional overrides, bypassing side effects if possible. */
+	writeDebug?(address: number, value: number, overrides?: Record<string, unknown>): void;
+
+	/** Returns a list of available debug options for the UI. */
+	getDebugOptions?(): DebugOption[];
 }
