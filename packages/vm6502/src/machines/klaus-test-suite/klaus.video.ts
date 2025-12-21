@@ -2,12 +2,12 @@ import { hslToRgb } from "@/lib/colors.utils";
 import type { Video } from "@/video/video.interface";
 
 export class KlausVideo implements Video {
+	private parent: Worker;
 	private buffer: Uint8Array;
 	private tickCount = 0;
 
 	private offscreenCanvas: OffscreenCanvas;
 	private ctx: OffscreenCanvasRenderingContext2D;
-	private parent: Worker;
 
 	constructor(parent: Worker, mem: Uint8Array, width: number, height: number) {
 		this.parent = parent;
@@ -42,23 +42,23 @@ export class KlausVideo implements Video {
 		this.ctx.fillStyle = "black";
 		this.ctx.fillRect(0, 0, this.offscreenCanvas.width, this.offscreenCanvas.height);
 
-		// 2. Calculate a new color for this frame
+		// // 2. Calculate a new color for this frame
 		const hue = (this.tickCount / 100) % 1;
 		const [r, g, b] = hslToRgb(hue, 0.8, 0.7);
 		this.ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
 
-		// 3. Draw the text
+		// // 3. Draw the text
 		this.ctx.font = "30px 'Press Start 2P'";
 		this.ctx.textAlign = "center";
 		this.ctx.textBaseline = "middle";
 		this.ctx.fillText("Klaus Test", this.offscreenCanvas.width / 2, this.offscreenCanvas.height / 2 - 10);
 
-		// 4. Draw the line
-		const textMetrics = this.ctx.measureText("Klaus Test");
-		const lineY = this.offscreenCanvas.height / 2 + textMetrics.actualBoundingBoxAscent / 2;
-		this.ctx.fillRect(this.offscreenCanvas.width / 2 - textMetrics.width / 2, lineY, textMetrics.width, 5);
+		// // 4. Draw the line
+		// const textMetrics = this.ctx.measureText("Klaus Test");
+		// const lineY = this.offscreenCanvas.height / 2 + textMetrics.actualBoundingBoxAscent / 2;
+		// this.ctx.fillRect(this.offscreenCanvas.width / 2 - textMetrics.width / 2, lineY, textMetrics.width, 5);
 
-		// 5. Copy the result to the shared buffer
+		// // 5. Copy the result to the shared buffer
 		const imageData = this.ctx.getImageData(0, 0, this.offscreenCanvas.width, this.offscreenCanvas.height);
 		const src32 = new Uint32Array(imageData.data.buffer);
 		const dest = this.buffer;
@@ -76,6 +76,5 @@ export class KlausVideo implements Video {
 	public reset() {
 		// Clear the buffer on reset
 		this.buffer.fill(0);
-		// this.ctx.clearRect(0, 0, this.offscreenCanvas.width, this.offscreenCanvas.height);
 	}
 }

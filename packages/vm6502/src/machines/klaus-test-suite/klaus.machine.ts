@@ -21,7 +21,7 @@ export const klausTest: MachineConfig = {
 			},
 		],
 	},
-	bus: { class: "Bus", path: "../machines/klaus-test-suite/bus.class" },
+	bus: { class: "Bus", path: "../machines/klaus-test-suite/klaus.bus" },
 	video: {
 		width: 280,
 		height: 192,

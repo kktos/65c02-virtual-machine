@@ -16,4 +16,8 @@ export class Bus implements IBus {
 	write(address: number, value: number): void {
 		this.memory[address] = value & 0xff;
 	}
+
+	load(address: number, data: Uint8Array, _bank?: number, _tag?: string): void {
+		this.memory.set(data, address);
+	}
 }
