@@ -1,12 +1,14 @@
-import type { IBus } from "@/cpu/bus.interface";
+import type { DebugOption, IBus } from "@/cpu/bus.interface";
 import * as SoftSwitches from "./softswitches";
+
+const RAM_OFFSET = 0x4000; // 16KB reserved for Bank2 (4KB) + ROM (12KB) at the beginning
 
 export class AppleBus implements IBus {
 	private memory: Uint8Array;
 	// Private storage for the system ROM ($D000-$FFFF)
-	private rom: Uint8Array = new Uint8Array(0x3000);
+	private rom: Uint8Array;
 	// Private storage for Language Card Bank 2 RAM ($D000-$DFFF)
-	private bank2: Uint8Array = new Uint8Array(0x1000);
+	private bank2: Uint8Array;
 
 	// Language Card State
 	private lcBank2 = false; // false = Bank 1 ($D000), true = Bank 2 ($D000)
@@ -20,6 +22,11 @@ export class AppleBus implements IBus {
 
 	constructor(memory: Uint8Array) {
 		this.memory = memory;
+		// Map Bank 2 and ROM to the beginning of shared memory
+		// Bank 2: 0x0000 - 0x0FFF (4KB)
+		this.bank2 = this.memory.subarray(0x0000, 0x1000);
+		// ROM: 0x1000 - 0x3FFF (12KB)
+		this.rom = this.memory.subarray(0x1000, 0x4000);
 	}
 
 	read(address: number): number {
@@ -41,7 +48,7 @@ export class AppleBus implements IBus {
 				}
 				// Bank 1 ($D000-$DFFF) or High RAM ($E000-$FFFF)
 				// Mapped to physical RAM at same address
-				return this.memory[address] ?? 0;
+				return this.memory[RAM_OFFSET + address] ?? 0;
 			}
 			// Reading ROM
 			return this.rom[address - 0xd000] ?? 0;
@@ -49,7 +56,7 @@ export class AppleBus implements IBus {
 
 		// Standard RAM
 		this.lcPreWriteCount = 0;
-		return this.memory[address] ?? 0;
+		return this.memory[RAM_OFFSET + address] ?? 0;
 	}
 
 	write(address: number, value: number): void {
@@ -66,7 +73,7 @@ export class AppleBus implements IBus {
 				if (this.lcBank2 && address < 0xe000) {
 					this.bank2[address - 0xd000] = value & 0xff;
 				} else {
-					this.memory[address] = value & 0xff;
+					this.memory[RAM_OFFSET + address] = value & 0xff;
 				}
 			}
 			return;
@@ -74,7 +81,7 @@ export class AppleBus implements IBus {
 
 		// Standard RAM
 		this.lcPreWriteCount = 0;
-		this.memory[address] = value & 0xff;
+		this.memory[RAM_OFFSET + address] = value & 0xff;
 	}
 
 	private accessSoftSwitch(address: number, writeValue: number | null): number {
@@ -141,7 +148,7 @@ export class AppleBus implements IBus {
 
 		// Default load to physical RAM
 		// Handle Bank 1 (Aux) offset if bank=1
-		const physicalAddress = address + bank * 0x10000;
+		const physicalAddress = RAM_OFFSET + address + bank * 0x10000;
 		if (physicalAddress + data.length <= this.memory.length) {
 			this.memory.set(data, physicalAddress);
 			console.log(`AppleBus: Loaded ${data.length} bytes into RAM at $${physicalAddress.toString(16)}`);
@@ -173,5 +180,68 @@ export class AppleBus implements IBus {
 			this.lastKey = ascii & 0x7f;
 			this.keyStrobe = true;
 		}
+	}
+
+	readDebug(address: number, overrides?: Record<string, unknown>): number {
+		if (address >= 0xd000) {
+			if (overrides?.forceRom) {
+				return this.rom[address - 0xd000] ?? 0;
+			}
+			if (overrides?.forceBank2 && address < 0xe000) {
+				return this.bank2[address - 0xd000] ?? 0;
+			}
+
+			// Default view (what CPU sees, but no side effects like pre-write count reset)
+			if (this.lcReadRam) {
+				if (this.lcBank2 && address < 0xe000) {
+					return this.bank2[address - 0xd000] ?? 0;
+				}
+				return this.memory[RAM_OFFSET + address] ?? 0;
+			}
+			return this.rom[address - 0xd000] ?? 0;
+		}
+
+		// Softswitches - return 0 to avoid side effects
+		if (address >= 0xc000 && address <= 0xc0ff) {
+			return 0;
+		}
+
+		return this.memory[RAM_OFFSET + address] ?? 0;
+	}
+
+	writeDebug(address: number, value: number, overrides?: Record<string, unknown>): void {
+		if (address >= 0xd000) {
+			if (overrides?.forceRom) {
+				this.rom[address - 0xd000] = value & 0xff;
+				return;
+			}
+			if (overrides?.forceBank2 && address < 0xe000) {
+				this.bank2[address - 0xd000] = value & 0xff;
+				return;
+			}
+
+			// Write to whatever is currently visible (ignoring write protection)
+			if (this.lcReadRam) {
+				if (this.lcBank2 && address < 0xe000) {
+					this.bank2[address - 0xd000] = value & 0xff;
+				} else {
+					this.memory[RAM_OFFSET + address] = value & 0xff;
+				}
+			} else {
+				this.rom[address - 0xd000] = value & 0xff;
+			}
+			return;
+		}
+
+		if (address >= 0xc000 && address <= 0xc0ff) return;
+
+		this.memory[RAM_OFFSET + address] = value & 0xff;
+	}
+
+	getDebugOptions(): DebugOption[] {
+		return [
+			{ id: "forceRom", label: "Force ROM View ($D000+)", type: "boolean" },
+			{ id: "forceBank2", label: "Force Bank 2 View", type: "boolean" },
+		];
 	}
 }
