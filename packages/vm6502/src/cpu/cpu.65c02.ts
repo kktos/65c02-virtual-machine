@@ -168,7 +168,9 @@ export function clearBreakpoints() {
 }
 
 export function stepInstruction() {
-	if (!isRunning) executeInstruction();
+	if (isRunning) return;
+	executeInstruction();
+	if (video && memoryView) video.tick();
 }
 
 function cleanStepBP() {
