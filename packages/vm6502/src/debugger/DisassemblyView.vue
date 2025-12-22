@@ -306,11 +306,11 @@ import type { VirtualMachine } from "@/virtualmachine.class";
 	);
 
 	watch( // Re-disassemble when the start address or memory changes
-		() => [disassemblyStartAddress.value, memory, visibleRowCount.value, busState.value],
+		() => [disassemblyStartAddress.value, memory, visibleRowCount.value, busState.value, registers],
 		() => {
 			if (memory) {
 				// Disassemble enough lines to fill the view (e.g., 50 lines)
-				disassembly.value = disassemble(memoryProxy, disassemblyStartAddress.value, visibleRowCount.value );
+				disassembly.value = disassemble(memoryProxy, disassemblyStartAddress.value, visibleRowCount.value, registers);
 			}
 		},
 		{ immediate: true, deep: true },
