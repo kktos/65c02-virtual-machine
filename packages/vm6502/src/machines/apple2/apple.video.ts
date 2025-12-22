@@ -12,24 +12,6 @@ type CharMetrics = {
 type VideoMode = "TEXT40" | "TEXT80";
 // Other modes to be added
 
-// Helper to convert Apple's weird character codes to something renderable
-// This is a simplified mapping for "normal" characters (white on black)
-function mapAppleChr(char: number): string {
-	// For normal text mode characters, the high bit is set.
-	// We're ignoring inverse and flashing for now.
-	const ascii = char & 0x7f;
-
-	// Characters in the range 0x40-0x7F are standard ASCII
-	if (ascii >= 0x40 && ascii <= 0x7f) return String.fromCharCode(ascii);
-
-	// Other ranges map to symbols or lowercase letters in special ways
-	// This is a simplification.
-	if (ascii < 0x20) return String.fromCharCode(ascii + 0x40); // Treat as control characters -> @, A, B...
-
-	// For now, return a placeholder for unhandled characters
-	return String.fromCharCode(ascii);
-}
-
 export class AppleVideo implements Video {
 	private parent: Worker;
 	private buffer: Uint8Array;
@@ -157,7 +139,7 @@ export class AppleVideo implements Video {
 		for (let y = 0; y < AppleVideo.TEXT_ROWS; y++) {
 			const lineBase = AppleVideo.TEXT_PAGE_1_BASE + (AppleVideo.textScreenLineOffsets[y] ?? 0);
 			for (let x = 0; x < AppleVideo.TEXT_COLS; x++) {
-				const charCode = mapAppleChr(this.bus.read(lineBase + x)).charCodeAt(0);
+				const charCode = this.bus.read(lineBase + x); //mapAppleChr(this.bus.read(lineBase + x)).charCodeAt(0);
 
 				const drawX = AppleVideo.SCREEN_MARGIN_X + x * this.charWidth;
 				const drawY = AppleVideo.SCREEN_MARGIN_Y + y * this.charHeight;

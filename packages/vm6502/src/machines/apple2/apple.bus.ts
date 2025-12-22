@@ -118,7 +118,7 @@ export class AppleBus implements IBus {
 
 		// Create a 16x16 grid for 256 characters
 		const charWidth = 14;
-		const charHeight = 14;
+		const charHeight = 14 + 1;
 		const cols = 16;
 		const rows = 16;
 
@@ -447,7 +447,7 @@ export class AppleBus implements IBus {
 		}
 	}
 
-	public releaseKey(key: string, code?: string) {
+	public releaseKey(_key: string, code?: string) {
 		if (code === "AltLeft") {
 			this.pb0 = false;
 		} else if (code === "AltRight") {
