@@ -4,12 +4,15 @@ import type { IBus } from "./bus.interface";
 import {
 	addBreakpoint,
 	clearBreakpoints,
+	clearTrace,
+	getTrace,
 	initCPU,
 	removeBreakpoint,
 	resetCPU,
 	setBreakOnBrk,
 	setClockSpeed,
 	setRunning,
+	setTrace,
 	stepInstruction,
 	stepOutInstruction,
 	stepOverInstruction,
@@ -113,6 +116,15 @@ self.onmessage = async (event: MessageEvent) => {
 			break;
 		case "keydown":
 			if (bus?.pressKey) bus.pressKey(key);
+			break;
+		case "setTrace":
+			setTrace(event.data.enabled);
+			break;
+		case "getTrace":
+			self.postMessage({ type: "trace", history: getTrace() });
+			break;
+		case "clearTrace":
+			clearTrace();
 			break;
 	}
 };

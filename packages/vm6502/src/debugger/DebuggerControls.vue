@@ -49,6 +49,16 @@
 		</ButtonGroup>
 
 		<ButtonGroup>
+			<Button @click="toggleTrace"
+				size="sm"
+				:class="[ traceEnabled ? 'bg-purple-600 hover:bg-purple-500' : 'hover:bg-gray-600']"
+				title="Enable execution tracing (JSR/JMP)"
+			>
+				Trace
+			</Button>
+		</ButtonGroup>
+
+		<ButtonGroup>
 			<Button @click="vm?.reset"
 				size="sm"
 				class="hover:bg-gray-600"
@@ -82,5 +92,11 @@ import type { VirtualMachine } from "@/virtualmachine.class";
 	const toggleBreakOnBrk = () => {
 		breakOnBrk.value = !breakOnBrk.value;
 		vm?.value?.setBreakOnBrk(breakOnBrk.value);
+	};
+
+	const traceEnabled = ref(false);
+	const toggleTrace = () => {
+		traceEnabled.value = !traceEnabled.value;
+		vm?.value?.setTrace(traceEnabled.value);
 	};
 </script>

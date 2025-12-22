@@ -35,6 +35,9 @@
 							<TabsTrigger value="stack" class="data-[state=active]:bg-gray-700 data-[state=active]:text-cyan-300 text-gray-400">
 								Stack
 							</TabsTrigger>
+							<TabsTrigger value="stack_trace" class="data-[state=active]:bg-gray-700 data-[state=active]:text-cyan-300 text-gray-400">
+								Stack Trace
+							</TabsTrigger>
 							<TabsTrigger value="breakpoints" class="data-[state=active]:bg-gray-700 data-[state=active]:text-cyan-300 text-gray-400">
 								Breakpoints
 							</TabsTrigger>
@@ -44,6 +47,9 @@
 						</TabsList>
 						<TabsContent value="stack" class="h-full">
 							<StackView :stackData="vm.sharedMemory" :registers="emulatorState.registers" />
+						</TabsContent>
+						<TabsContent value="stack_trace" class="h-full">
+							<TraceView />
 						</TabsContent>
 						<TabsContent value="breakpoints" class="h-full">
 							<BreakpointsList />
@@ -110,6 +116,7 @@ import RegistersView from './debugger/RegistersView.vue';
 import StackView from './debugger/StackView.vue';
 import StatusFlagsView from './debugger/StatusFlagsView.vue';
 import StatusPanel from './debugger/StatusPanel.vue';
+import TraceView from './debugger/TraceView.vue';
 import { availableMachines } from "./machines";
 import type { MachineConfig } from "./machines/machine.interface";
 import type { EmulatorState } from "./types/emulatorstate.interface";

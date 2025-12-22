@@ -35,6 +35,11 @@ let stepBPAddress: number | null = null;
 let stepAddedBreakpoint = false;
 let breakOnBrk = false;
 
+// --- Trace State ---
+let traceEnabled = false;
+const traceHistory: { type: string; source: number; target: number }[] = [];
+const MAX_TRACE_SIZE = 200;
+
 // Shared memory references, to be initialized from the worker
 let registersView: DataView | null = null;
 let memoryView: Uint8Array | null = null;
@@ -119,6 +124,26 @@ export function setClockSpeed(speed: number) {
 
 export function setBreakOnBrk(enabled: boolean) {
 	breakOnBrk = enabled;
+}
+
+export function setTrace(enabled: boolean) {
+	traceEnabled = enabled;
+}
+
+export function getTrace() {
+	return traceHistory;
+}
+
+export function clearTrace() {
+	traceHistory.length = 0;
+}
+
+function logTrace(type: string, source: number, target: number) {
+	if (!traceEnabled) return;
+	traceHistory.push({ type, source, target });
+	if (traceHistory.length > MAX_TRACE_SIZE) {
+		traceHistory.shift();
+	}
 }
 
 function updateCyclesPerTimeslice() {
@@ -1919,6 +1944,7 @@ function executeInstruction(): number {
 			case 0x4c: {
 				// JMP Absolute
 				const addr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
+				logTrace("JMP", startPC, addr);
 				pc = addr;
 				cycles = 3;
 				break;
@@ -1927,6 +1953,7 @@ function executeInstruction(): number {
 				// JMP Indirect (6502 bug fixed in 65C02)
 				const pointer = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
 				const addr = bus.read(pointer) | (bus.read(pointer + 1) << 8);
+				logTrace("JMP", startPC, addr);
 				pc = addr;
 				cycles = 6; // 65C02 is 6 cycles, 6502 is 5
 				break;
@@ -1936,6 +1963,7 @@ function executeInstruction(): number {
 				const basePointer = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
 				const pointer = basePointer + registersView.getUint8(REG_X_OFFSET);
 				const addr = bus.read(pointer) | (bus.read(pointer + 1) << 8);
+				logTrace("JMP", startPC, addr);
 				pc = addr;
 				cycles = 6;
 				break;
@@ -1951,6 +1979,7 @@ function executeInstruction(): number {
 				bus.write(STACK_PAGE_HI | s, returnAddr & 0xff);
 				s = (s - 1) & 0xff;
 				registersView.setUint8(REG_SP_OFFSET, s);
+				logTrace("JSR", startPC, targetAddr);
 				pc = targetAddr;
 				cycles = 6;
 				break;

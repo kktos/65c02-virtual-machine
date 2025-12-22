@@ -45,6 +45,7 @@ export class VirtualMachine {
 
 	public onmessage?: (event: MessageEvent) => void;
 	public onStateChange?: (state: Record<string, unknown>) => void;
+	public onTraceReceived?: (history: { type: string; source: number; target: number }[]) => void;
 
 	private keyHandler = this.handleKeyDown.bind(this);
 
@@ -53,10 +54,12 @@ export class VirtualMachine {
 		this.worker = new Worker(new URL("./cpu/cpu.worker.ts", import.meta.url), { type: "module" });
 
 		this.worker.onmessage = (event) => {
-			const { command, colors } = event.data;
+			const { command, colors, type, history } = event.data;
 			if (command === "setPalette") {
 				if (this.videoOutput) this.videoOutput.setPalette(colors);
 				else this.pendingPalette = colors;
+			} else if (type === "trace") {
+				this.onTraceReceived?.(history);
 			} else if (this.onmessage) {
 				this.onmessage(event);
 			}
@@ -236,6 +239,10 @@ export class VirtualMachine {
 	public clearBPs() {
 		this.worker.postMessage({ command: "clearBPs" });
 	}
+
+	public setTrace = (enabled: boolean) => this.worker.postMessage({ command: "setTrace", enabled });
+	public getTrace = () => this.worker.postMessage({ command: "getTrace" });
+	public clearTrace = () => this.worker.postMessage({ command: "clearTrace" });
 
 	public read(address: number): number {
 		return this.bus ? this.bus.read(address) : (this.sharedMemory[address] ?? 0);
