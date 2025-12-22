@@ -85,6 +85,23 @@ export class AppleBus implements IBus {
 		this.registers.setUint8(MACHINE_STATE_OFFSET + 1, byte2);
 	}
 
+	public reset() {
+		this.lcBank2 = false;
+		this.lcReadRam = false;
+		this.lcWriteRam = false;
+		this.lcPreWriteCount = 0;
+
+		this.store80 = false;
+		this.ramRdAux = false;
+		this.ramWrAux = false;
+		this.altZp = false;
+
+		this.intCxRom = false;
+		this.slotC3Rom = false;
+
+		this.syncState();
+	}
+
 	public readStateFromBuffer(view: DataView): Record<string, boolean> {
 		const byte1 = view.getUint8(MACHINE_STATE_OFFSET);
 		const byte2 = view.getUint8(MACHINE_STATE_OFFSET + 1);

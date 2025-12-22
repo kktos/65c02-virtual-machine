@@ -49,4 +49,5 @@ export interface IBus {
 	readStateFromBuffer?(view: DataView): Record<string, boolean>;
 	setRegistersView?(view: DataView): void;
 	syncState?(): void;
+	reset?(): void;
 }

@@ -97,6 +97,7 @@ self.onmessage = async (event: MessageEvent) => {
 			break;
 		case "reset":
 			if (video) video.reset();
+			if (bus?.reset) bus.reset();
 			resetCPU();
 			break;
 		case "addBP":
