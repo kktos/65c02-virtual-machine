@@ -1,6 +1,14 @@
 import type { IBus } from "@/cpu/bus.interface";
 import type { Video } from "@/video/video.interface";
 
+type CharMetrics = {
+	charWidth: number;
+	charHeight: number;
+	cols: number;
+	rows: number;
+	offsetTop: number;
+	offsetLeft: number;
+};
 type VideoMode = "TEXT40" | "TEXT80";
 // Other modes to be added
 
@@ -49,7 +57,10 @@ export class AppleVideo implements Video {
 	private readonly charWidth: number;
 	private readonly charHeight: number;
 
-	constructor(parent: Worker, mem: Uint8Array, width: number, height: number, bus: IBus) {
+	private charmap: ImageBitmap | null = null;
+	private charMetrics: CharMetrics | null = null;
+
+	constructor(parent: Worker, mem: Uint8Array, width: number, height: number, bus: IBus, payload?: unknown) {
 		this.parent = parent;
 		this.buffer = mem;
 		this.bus = bus;
@@ -65,10 +76,12 @@ export class AppleVideo implements Video {
 
 		console.log("AppleVideo", `view w${width}h${height}`, `char w${this.charWidth}h${this.charHeight}`);
 
-		//FontFaceSet.check();
-		if (((parent as any).fonts as FontFaceSet).check("16px PrintChar21")) console.log("AppleVideo", "Font loaded");
-
 		this.initPalette();
+
+		if (payload?.charmap) {
+			this.charmap = payload.charmap;
+			this.charMetrics = payload.metrics;
+		}
 	}
 
 	private initPalette() {
@@ -90,39 +103,14 @@ export class AppleVideo implements Video {
 	}
 
 	public tick() {
-		console.log("AppleVideo.tick", this.mode);
+		this.ctx.fillStyle = "black";
+		this.ctx.fillRect(0, 0, this.offscreenCanvas.width, this.offscreenCanvas.height);
 
 		switch (this.mode) {
 			case "TEXT40":
 				this.renderText40();
 				break;
 			// other modes...
-		}
-
-		if (this.bus.syncState) this.bus.syncState();
-	}
-
-	private renderText40() {
-		this.ctx.fillStyle = "black";
-		this.ctx.fillRect(0, 0, this.offscreenCanvas.width, this.offscreenCanvas.height);
-
-		this.ctx.fillStyle = "white";
-		this.ctx.font = `${this.charHeight}px "PrintChar21"`; // Using a pixel font
-		this.ctx.textAlign = "center";
-		this.ctx.textBaseline = "middle";
-
-		for (let y = 0; y < AppleVideo.TEXT_ROWS; y++) {
-			const lineBase = AppleVideo.TEXT_PAGE_1_BASE + (AppleVideo.textScreenLineOffsets[y] ?? 0);
-			for (let x = 0; x < AppleVideo.TEXT_COLS; x++) {
-				const charCode = this.bus.read(lineBase + x);
-				const char = mapAppleChr(charCode);
-
-				// Calculate position to draw the character
-				const drawX = AppleVideo.SCREEN_MARGIN_X + (x + 0.5) * this.charWidth;
-				const drawY = AppleVideo.SCREEN_MARGIN_Y + (y + 0.5) * this.charHeight;
-
-				this.ctx.fillText(char, drawX, drawY);
-			}
 		}
 
 		const imageData = this.ctx.getImageData(0, 0, this.offscreenCanvas.width, this.offscreenCanvas.height);
@@ -136,6 +124,46 @@ export class AppleVideo implements Video {
 			const val = src32[i] ?? 0;
 			const brightness = val & 0xff; // Use Red channel for brightness
 			dest[i] = Math.floor((brightness / 256) * 16);
+		}
+
+		if (this.bus.syncState) this.bus.syncState();
+	}
+
+	private drawChar(charCode: number, x: number, y: number) {
+		if (!this.charmap || !this.charMetrics) return;
+
+		// Calculate source position in atlas (simple math, very fast)
+		const col = charCode % this.charMetrics.cols;
+		const row = Math.floor(charCode / this.charMetrics.rows);
+
+		const srcX = col * this.charMetrics.charWidth;
+		const srcY = row * this.charMetrics.charHeight;
+
+		// Draw from atlas
+		this.ctx.drawImage(
+			this.charmap,
+			srcX,
+			srcY,
+			this.charMetrics.charWidth,
+			this.charMetrics.charHeight, // source
+			x,
+			y,
+			this.charWidth,
+			this.charHeight, // destination
+		);
+	}
+
+	private renderText40() {
+		for (let y = 0; y < AppleVideo.TEXT_ROWS; y++) {
+			const lineBase = AppleVideo.TEXT_PAGE_1_BASE + (AppleVideo.textScreenLineOffsets[y] ?? 0);
+			for (let x = 0; x < AppleVideo.TEXT_COLS; x++) {
+				const charCode = mapAppleChr(this.bus.read(lineBase + x)).charCodeAt(0);
+
+				const drawX = AppleVideo.SCREEN_MARGIN_X + x * this.charWidth;
+				const drawY = AppleVideo.SCREEN_MARGIN_Y + y * this.charHeight;
+
+				this.drawChar(charCode, drawX, drawY);
+			}
 		}
 	}
 

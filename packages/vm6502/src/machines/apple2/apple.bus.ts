@@ -102,6 +102,50 @@ export class AppleBus implements IBus {
 		this.syncState();
 	}
 
+	public async prepareWorkerPayloads(): Promise<{ video?: any; bus?: any }> {
+		if (typeof document === "undefined") return {};
+
+		// Ensure the font is loaded
+		await document.fonts.load("14px PrintChar21");
+
+		const canvas = document.createElement("canvas");
+		const ctx = canvas.getContext("2d");
+		if (!ctx) return {};
+
+		// Create a 16x16 grid for 256 characters
+		const charWidth = 14;
+		const charHeight = 14;
+		const cols = 16;
+		const rows = 16;
+
+		canvas.width = cols * charWidth;
+		canvas.height = rows * charHeight;
+
+		ctx.clearRect(0, 0, canvas.width, canvas.height);
+		ctx.fillStyle = "white";
+		ctx.font = "14px PrintChar21";
+		ctx.textAlign = "center";
+		ctx.textBaseline = "middle";
+
+		for (let i = 0; i < 256; i++) {
+			const char = mapAppleChr(i); //String.fromCharCode(i);
+			const col = i % cols;
+			const row = Math.floor(i / cols);
+			const x = col * charWidth + charWidth / 2;
+			const y = row * charHeight + charHeight / 2;
+			ctx.fillText(char, x, y);
+		}
+
+		const charmap = await createImageBitmap(canvas);
+
+		return {
+			video: {
+				charmap,
+				metrics: { charWidth, charHeight, cols, rows, offsetTop: 2, offsetLeft: 3 },
+			},
+		};
+	}
+
 	public readStateFromBuffer(view: DataView): Record<string, boolean> {
 		const byte1 = view.getUint8(MACHINE_STATE_OFFSET);
 		const byte2 = view.getUint8(MACHINE_STATE_OFFSET + 1);
@@ -142,15 +186,22 @@ export class AppleBus implements IBus {
 		// Slot ROMs / Internal ROM ($C100-$CFFF)
 		if (address >= 0xc100 && address <= 0xcfff) {
 			const offset = address - 0xc100;
-			// INTCXROM ($C015) overrides everything to Internal
-			if (this.intCxRom) return this.romC[offset];
+			let value = 0;
 
-			// Slot C3 handling ($C300-$C3FF)
-			if (address >= 0xc300 && address <= 0xc3ff && !this.slotC3Rom) {
-				return this.romC[offset];
+			// INTCXROM ($C015) overrides everything to Internal
+			if (this.intCxRom) {
+				value = this.romC[offset];
+			} else if (address >= 0xc300 && address <= 0xc3ff && !this.slotC3Rom) {
+				// Slot C3 handling ($C300-$C3FF)
+				value = this.romC[offset];
+			} else {
+				value = this.slotRoms[offset];
 			}
 
-			return this.slotRoms[offset];
+			// Reading from $CFFF disables the internal Cx ROM
+			if (address === 0xcfff) this.intCxRom = false;
+
+			return value;
 		}
 
 		if (address >= 0xd000) {
@@ -545,4 +596,22 @@ export class AppleBus implements IBus {
 		this.intCxRom = state.intCxRom ?? this.intCxRom;
 		this.slotC3Rom = state.slotC3Rom ?? this.slotC3Rom;
 	}
+}
+
+// Helper to convert Apple's weird character codes to something renderable
+// This is a simplified mapping for "normal" characters (white on black)
+function mapAppleChr(char: number): string {
+	// For normal text mode characters, the high bit is set.
+	// We're ignoring inverse and flashing for now.
+	const ascii = char & 0x7f;
+
+	// Characters in the range 0x40-0x7F are standard ASCII
+	if (ascii >= 0x40 && ascii <= 0x7f) return String.fromCharCode(ascii);
+
+	// Other ranges map to symbols or lowercase letters in special ways
+	// This is a simplification.
+	if (ascii < 0x20) return String.fromCharCode(ascii + 0x40); // Treat as control characters -> @, A, B...
+
+	// For now, return a placeholder for unhandled characters
+	return String.fromCharCode(ascii);
 }

@@ -1166,6 +1166,167 @@ function executeInstruction(): number {
 				break;
 			}
 
+			// --- Rotate Operations ---
+			case 0x6a: {
+				// ROR Accumulator
+				let value = registersView.getUint8(REG_A_OFFSET);
+				let status = registersView.getUint8(REG_STATUS_OFFSET);
+				const oldCarry = status & FLAG_C_MASK ? 0x80 : 0;
+				status = value & 0x01 ? status | FLAG_C_MASK : status & ~FLAG_C_MASK;
+				value = (value >> 1) | oldCarry;
+				registersView.setUint8(REG_A_OFFSET, value);
+				status = value === 0 ? status | FLAG_Z_MASK : status & ~FLAG_Z_MASK;
+				status = value & 0x80 ? status | FLAG_N_MASK : status & ~FLAG_N_MASK;
+				registersView.setUint8(REG_STATUS_OFFSET, status);
+				cycles = 2;
+				break;
+			}
+			case 0x66: {
+				// ROR Zero Page
+				const addr = bus.read(pc, true);
+				pc++;
+				let value = bus.read(addr);
+				let status = registersView.getUint8(REG_STATUS_OFFSET);
+				const oldCarry = status & FLAG_C_MASK ? 0x80 : 0;
+				status = value & 0x01 ? status | FLAG_C_MASK : status & ~FLAG_C_MASK;
+				value = (value >> 1) | oldCarry;
+				bus.write(addr, value);
+				status = value === 0 ? status | FLAG_Z_MASK : status & ~FLAG_Z_MASK;
+				status = value & 0x80 ? status | FLAG_N_MASK : status & ~FLAG_N_MASK;
+				registersView.setUint8(REG_STATUS_OFFSET, status);
+				cycles = 5;
+				break;
+			}
+			case 0x76: {
+				// ROR Zero Page,X
+				const addr = (bus.read(pc, true) + registersView.getUint8(REG_X_OFFSET)) & 0xff;
+				pc++;
+				let value = bus.read(addr);
+				let status = registersView.getUint8(REG_STATUS_OFFSET);
+				const oldCarry = status & FLAG_C_MASK ? 0x80 : 0;
+				status = value & 0x01 ? status | FLAG_C_MASK : status & ~FLAG_C_MASK;
+				value = (value >> 1) | oldCarry;
+				bus.write(addr, value);
+				status = value === 0 ? status | FLAG_Z_MASK : status & ~FLAG_Z_MASK;
+				status = value & 0x80 ? status | FLAG_N_MASK : status & ~FLAG_N_MASK;
+				registersView.setUint8(REG_STATUS_OFFSET, status);
+				cycles = 6;
+				break;
+			}
+			case 0x6e: {
+				// ROR Absolute
+				const addr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
+				pc += 2;
+				let value = bus.read(addr);
+				let status = registersView.getUint8(REG_STATUS_OFFSET);
+				const oldCarry = status & FLAG_C_MASK ? 0x80 : 0;
+				status = value & 0x01 ? status | FLAG_C_MASK : status & ~FLAG_C_MASK;
+				value = (value >> 1) | oldCarry;
+				bus.write(addr, value);
+				status = value === 0 ? status | FLAG_Z_MASK : status & ~FLAG_Z_MASK;
+				status = value & 0x80 ? status | FLAG_N_MASK : status & ~FLAG_N_MASK;
+				registersView.setUint8(REG_STATUS_OFFSET, status);
+				cycles = 6;
+				break;
+			}
+			case 0x7e: {
+				// ROR Absolute,X
+				const baseAddr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
+				pc += 2;
+				const addr = baseAddr + registersView.getUint8(REG_X_OFFSET);
+				let value = bus.read(addr);
+				let status = registersView.getUint8(REG_STATUS_OFFSET);
+				const oldCarry = status & FLAG_C_MASK ? 0x80 : 0;
+				status = value & 0x01 ? status | FLAG_C_MASK : status & ~FLAG_C_MASK;
+				value = (value >> 1) | oldCarry;
+				bus.write(addr, value);
+				status = value === 0 ? status | FLAG_Z_MASK : status & ~FLAG_Z_MASK;
+				status = value & 0x80 ? status | FLAG_N_MASK : status & ~FLAG_N_MASK;
+				registersView.setUint8(REG_STATUS_OFFSET, status);
+				cycles = 7;
+				break;
+			}
+
+			case 0x2a: {
+				// ROL Accumulator
+				let value = registersView.getUint8(REG_A_OFFSET);
+				let status = registersView.getUint8(REG_STATUS_OFFSET);
+				const oldCarry = status & FLAG_C_MASK ? 1 : 0;
+				status = value & 0x80 ? status | FLAG_C_MASK : status & ~FLAG_C_MASK;
+				value = ((value << 1) | oldCarry) & 0xff;
+				registersView.setUint8(REG_A_OFFSET, value);
+				status = value === 0 ? status | FLAG_Z_MASK : status & ~FLAG_Z_MASK;
+				status = value & 0x80 ? status | FLAG_N_MASK : status & ~FLAG_N_MASK;
+				registersView.setUint8(REG_STATUS_OFFSET, status);
+				cycles = 2;
+				break;
+			}
+			case 0x26: {
+				// ROL Zero Page
+				const addr = bus.read(pc, true);
+				pc++;
+				let value = bus.read(addr);
+				let status = registersView.getUint8(REG_STATUS_OFFSET);
+				const oldCarry = status & FLAG_C_MASK ? 1 : 0;
+				status = value & 0x80 ? status | FLAG_C_MASK : status & ~FLAG_C_MASK;
+				value = ((value << 1) | oldCarry) & 0xff;
+				bus.write(addr, value);
+				status = value === 0 ? status | FLAG_Z_MASK : status & ~FLAG_Z_MASK;
+				status = value & 0x80 ? status | FLAG_N_MASK : status & ~FLAG_N_MASK;
+				registersView.setUint8(REG_STATUS_OFFSET, status);
+				cycles = 5;
+				break;
+			}
+			case 0x36: {
+				// ROL Zero Page,X
+				const addr = (bus.read(pc, true) + registersView.getUint8(REG_X_OFFSET)) & 0xff;
+				pc++;
+				let value = bus.read(addr);
+				let status = registersView.getUint8(REG_STATUS_OFFSET);
+				const oldCarry = status & FLAG_C_MASK ? 1 : 0;
+				status = value & 0x80 ? status | FLAG_C_MASK : status & ~FLAG_C_MASK;
+				value = ((value << 1) | oldCarry) & 0xff;
+				bus.write(addr, value);
+				status = value === 0 ? status | FLAG_Z_MASK : status & ~FLAG_Z_MASK;
+				status = value & 0x80 ? status | FLAG_N_MASK : status & ~FLAG_N_MASK;
+				registersView.setUint8(REG_STATUS_OFFSET, status);
+				cycles = 6;
+				break;
+			}
+			case 0x2e: {
+				// ROL Absolute
+				const addr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
+				pc += 2;
+				let value = bus.read(addr);
+				let status = registersView.getUint8(REG_STATUS_OFFSET);
+				const oldCarry = status & FLAG_C_MASK ? 1 : 0;
+				status = value & 0x80 ? status | FLAG_C_MASK : status & ~FLAG_C_MASK;
+				value = ((value << 1) | oldCarry) & 0xff;
+				bus.write(addr, value);
+				status = value === 0 ? status | FLAG_Z_MASK : status & ~FLAG_Z_MASK;
+				status = value & 0x80 ? status | FLAG_N_MASK : status & ~FLAG_N_MASK;
+				registersView.setUint8(REG_STATUS_OFFSET, status);
+				cycles = 6;
+				break;
+			}
+			case 0x3e: {
+				// ROL Absolute,X
+				const baseAddr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
+				pc += 2;
+				const addr = baseAddr + registersView.getUint8(REG_X_OFFSET);
+				let value = bus.read(addr);
+				let status = registersView.getUint8(REG_STATUS_OFFSET);
+				const oldCarry = status & FLAG_C_MASK ? 1 : 0;
+				status = value & 0x80 ? status | FLAG_C_MASK : status & ~FLAG_C_MASK;
+				value = ((value << 1) | oldCarry) & 0xff;
+				bus.write(addr, value);
+				status = value === 0 ? status | FLAG_Z_MASK : status & ~FLAG_Z_MASK;
+				status = value & 0x80 ? status | FLAG_N_MASK : status & ~FLAG_N_MASK;
+				registersView.setUint8(REG_STATUS_OFFSET, status);
+				cycles = 7;
+				break;
+			}
+
 			// --- Arithmetic Operations ---
 			case 0x69: {
 				// ADC #Immediate

@@ -49,5 +49,6 @@ export interface IBus {
 	readStateFromBuffer?(view: DataView): Record<string, boolean>;
 	setRegistersView?(view: DataView): void;
 	syncState?(): void;
+	prepareWorkerPayloads?(): Promise<{ video?: any; bus?: any }>;
 	reset?(): void;
 }

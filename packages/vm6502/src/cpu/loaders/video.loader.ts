@@ -28,9 +28,9 @@ export async function loadVideo(videoConfig: VideoConfig, bus: IBus) {
 	}
 	const [, VideoClass]: [
 		string,
-		new (parent: typeof self, mem: Uint8Array, width: number, height: number, bus: IBus) => Video,
+		new (parent: typeof self, mem: Uint8Array, width: number, height: number, bus: IBus, payload?: unknown) => Video,
 	] = exportedVideoEntry;
 
 	const videoMemory = new Uint8Array(videoConfig.buffer, 0, videoConfig.width * videoConfig.height);
-	return new VideoClass(self, videoMemory, videoConfig.width, videoConfig.height, bus);
+	return new VideoClass(self, videoMemory, videoConfig.width, videoConfig.height, bus, videoConfig.payload);
 }

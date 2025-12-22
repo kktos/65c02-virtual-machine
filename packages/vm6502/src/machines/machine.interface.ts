@@ -18,6 +18,7 @@ export interface VideoConfig {
 	class: string; // exported class name
 	path: string; // Path relative to the worker for dynamic import
 	buffer?: SharedArrayBuffer;
+	payload?: any;
 }
 
 export interface MachineConfig {
@@ -26,7 +27,8 @@ export interface MachineConfig {
 	memory: MemoryConfig;
 	bus: {
 		class: string; // exported class name
-		path: string; // Path relative to the worker for dynamic import}
+		path: string; // Path relative to the worker for dynamic import
+		payload?: any;
 	};
 	video?: VideoConfig;
 	css?: string[];

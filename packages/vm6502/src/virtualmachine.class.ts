@@ -77,32 +77,6 @@ export class VirtualMachine {
 
 		// 2. Load data into memory from the main thread
 		this.sharedMemory.fill(0);
-		const chunks = this.machineConfig.memory.chunks?.map((chunk) => ({
-			...chunk,
-			data: typeof chunk.data === "string" ? parseHexData(chunk.data) : chunk.data,
-		}));
-
-		// 3. Initialize the worker with the prepared buffer and necessary config
-		this.worker.postMessage({
-			command: "init",
-			machine: {
-				name: this.machineConfig.name,
-				bus: { path: this.machineConfig.bus.path, class: this.machineConfig.bus.class },
-				video: {
-					width: this.machineConfig.video?.width,
-					height: this.machineConfig.video?.height,
-					path: this.machineConfig.video?.path,
-					class: this.machineConfig.video?.class,
-					buffer: this.videoBuffer,
-				},
-				memory: { buffer: this.sharedBuffer, size: this.machineConfig.memory.size, chunks },
-			},
-		});
-
-		this.worker.postMessage({
-			command: "setSpeed",
-			speed: this.machineConfig.speed ?? 1,
-		});
 
 		this.loadCSS();
 		this.ready = this.loadBus();
@@ -146,6 +120,41 @@ export class VirtualMachine {
 		const [, BusClass]: [string, new (mem: Uint8Array) => IBus] = exportedBusEntry;
 		this.bus = new BusClass(this.sharedMemory);
 		console.log(`VM: Bus ${busConfig.class} loaded on main thread.`);
+
+		// 3. Prepare worker payloads (if any)
+		let payloads: { video?: unknown; bus?: unknown } = {};
+		if (this.bus.prepareWorkerPayloads) {
+			payloads = await this.bus.prepareWorkerPayloads();
+		}
+
+		// 4. Initialize the worker with the prepared buffer, config, and payloads
+		const chunks = this.machineConfig.memory.chunks?.map((chunk) => ({
+			...chunk,
+			data: typeof chunk.data === "string" ? parseHexData(chunk.data) : chunk.data,
+		}));
+
+		this.worker.postMessage({
+			command: "init",
+			machine: {
+				name: this.machineConfig.name,
+				bus: {
+					path: this.machineConfig.bus.path,
+					class: this.machineConfig.bus.class,
+					payload: payloads.bus,
+				},
+				video: {
+					width: this.machineConfig.video?.width,
+					height: this.machineConfig.video?.height,
+					path: this.machineConfig.video?.path,
+					class: this.machineConfig.video?.class,
+					buffer: this.videoBuffer,
+					payload: payloads.video,
+				},
+				memory: { buffer: this.sharedBuffer, size: this.machineConfig.memory.size, chunks },
+			},
+		});
+
+		this.setSpeed(this.machineConfig.speed ?? 1);
 	}
 
 	public initVideo(canvas: HTMLCanvasElement) {
@@ -214,8 +223,8 @@ export class VirtualMachine {
 	public pause = () => this.worker.postMessage({ command: "pause" });
 	public reset = () => this.worker.postMessage({ command: "reset" });
 	public step = () => this.worker.postMessage({ command: "step" });
-	public stepOut = () => console.log("Not yet implemented !");
-	public stepOver = () => console.log("Not yet implemented !");
+	public stepOut = () => this.worker.postMessage({ command: "stepOut" });
+	public stepOver = () => this.worker.postMessage({ command: "stepOver" });
 
 	public addBP(type: Breakpoint["type"], address: number) {
 		this.worker.postMessage({ command: "addBP", type, address });
