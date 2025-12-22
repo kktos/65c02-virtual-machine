@@ -49,6 +49,10 @@ export class AppleBus implements IBus {
 	private lastKey = 0x00;
 	private keyStrobe = false;
 
+	// Game I/O / Pushbutton State
+	private pb0 = false; // Open Apple (Left Alt)
+	private pb1 = false; // Solid Apple (Right Alt)
+
 	constructor(memory: Uint8Array) {
 		this.memory = memory;
 		// Map Bank 2 and ROM to the beginning of shared memory
@@ -307,6 +311,10 @@ export class AppleBus implements IBus {
 				return this.intCxRom ? 0x80 : 0x00;
 			case SoftSwitches.SLOTC3ROM:
 				return this.slotC3Rom ? 0x80 : 0x00;
+			case SoftSwitches.PB0:
+				return this.pb0 ? 0x80 : 0x00;
+			case SoftSwitches.PB1:
+				return this.pb1 ? 0x80 : 0x00;
 		}
 		return 0;
 	}
@@ -406,7 +414,15 @@ export class AppleBus implements IBus {
 		} else console.error(`AppleBus: Load out of bounds: 0x$physicalAddress.toString(16)`);
 	}
 
-	public pressKey(key: string) {
+	public pressKey(key: string, code?: string) {
+		if (code === "AltLeft") {
+			this.pb0 = true;
+			return;
+		} else if (code === "AltRight") {
+			this.pb1 = true;
+			return;
+		}
+
 		let ascii = 0;
 		if (key.length === 1) {
 			ascii = key.charCodeAt(0);
@@ -428,6 +444,14 @@ export class AppleBus implements IBus {
 		if (ascii > 0) {
 			this.lastKey = ascii & 0x7f;
 			this.keyStrobe = true;
+		}
+	}
+
+	public releaseKey(key: string, code?: string) {
+		if (code === "AltLeft") {
+			this.pb0 = false;
+		} else if (code === "AltRight") {
+			this.pb1 = false;
 		}
 	}
 

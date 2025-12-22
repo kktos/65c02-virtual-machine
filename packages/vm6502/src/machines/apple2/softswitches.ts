@@ -226,6 +226,11 @@ export const LC_C08F = 0xc08f;
 
 export const BANKSEL = 0xc073;
 
+// R7 =1 open apple is pressed
+export const PB0 = 0xc061;
+// R7 =1 solid apple is pressed
+export const PB1 = 0xc062;
+
 export const PADDL0 = 0xc064;
 export const PADDL1 = 0xc065;
 export const PADDL2 = 0xc066;
