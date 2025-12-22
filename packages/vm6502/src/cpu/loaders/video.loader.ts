@@ -7,8 +7,6 @@ const videoModules = import.meta.glob("../../machines/*/*.video.ts");
 const BASE_PATH = "../../machines";
 
 export async function loadVideo(videoConfig: VideoConfig, bus: IBus) {
-	// const videoBufferOffset = MEMORY_OFFSET + machine.memory.size;
-	// videoView = new Uint8Array(sharedBuffer, videoBufferOffset, machine.video.size);
 	if (!(videoConfig.buffer instanceof SharedArrayBuffer)) {
 		console.error("Worker: Did not receive a video SharedArrayBuffer.");
 		return null;

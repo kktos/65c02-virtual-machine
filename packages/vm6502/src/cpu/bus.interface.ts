@@ -19,6 +19,9 @@ export interface IBus {
 	/** Reads an 8-bit value from the specified address. */
 	read(address: number, isOpcodeFetch?: boolean): number;
 
+	/** Reads memory directly, bypassing mapping logic if possible. */
+	readRaw?(address: number): number;
+
 	/** Writes an 8-bit value to the specified address. */
 	write(address: number, value: number): void;
 
@@ -52,6 +55,6 @@ export interface IBus {
 	readStateFromBuffer?(view: DataView): Record<string, boolean>;
 	setRegistersView?(view: DataView): void;
 	syncState?(): void;
-	prepareWorkerPayloads?(): Promise<{ video?: any; bus?: any }>;
+	prepareWorkerPayloads?(): Promise<{ video?: unknown; bus?: unknown }>;
 	reset?(): void;
 }

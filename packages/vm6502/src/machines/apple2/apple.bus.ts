@@ -49,6 +49,7 @@ export class AppleBus implements IBus {
 
 	// Slot ROM State
 	private intCxRom = false; // false = Slot, true = Internal
+	private intC8Rom = false; // Hardware hack for Slot 3 (Internal C800)
 	private slotC3Rom = false; // false = Internal, true = Slot
 
 	// Video State
@@ -121,6 +122,7 @@ export class AppleBus implements IBus {
 		this.altZp = false;
 
 		this.intCxRom = false;
+		this.intC8Rom = false;
 		this.slotC3Rom = false;
 
 		this.col80 = false;
@@ -201,42 +203,43 @@ export class AppleBus implements IBus {
 	}
 
 	read(address: number): number {
-		if (address >= 0xc000 && address <= 0xc0ff) {
-			return this.readSoftSwitch(address);
-		}
+		if (address >= 0xc000 && address <= 0xc0ff) return this.readSoftSwitch(address);
 
 		this.lcPreWriteCount = 0;
 
 		let bankOffset = 0;
-		if (address < 0x0200 && this.altZp) {
-			bankOffset = 0x10000;
-		} else if (address >= 0x0200 && address < 0xc000 && this.ramRdAux) {
-			bankOffset = 0x10000;
-		} else if (address >= 0xd000 && this.altZp) {
-			bankOffset = 0x10000;
-		}
-
-		if (bankOffset > 0) {
-			return this.memory[RAM_OFFSET + address + bankOffset] ?? 0;
-		}
+		if (address < 0x0200 && this.altZp) bankOffset = 0x10000;
+		else if (address >= 0x0200 && address < 0xc000 && this.ramRdAux) bankOffset = 0x10000;
+		else if (address >= 0xd000 && this.altZp) bankOffset = 0x10000;
+		if (bankOffset > 0) return this.memory[RAM_OFFSET + address + bankOffset] ?? 0;
 
 		// Slot ROMs / Internal ROM ($C100-$CFFF)
 		if (address >= 0xc100 && address <= 0xcfff) {
 			const offset = address - 0xc100;
+
+			// Hardware hack: Accessing Internal C3 ($C3xx) enables intC8Rom
+			if (address >= 0xc300 && address <= 0xc3ff && this.slotC3Rom) {
+				this.intC8Rom = true;
+				return this.romC[offset] ?? 0;
+			}
+
+			// intC8Rom forces Internal
+			if (address >= 0xc7ff && this.intC8Rom) return this.romC[offset] ?? 0;
+
 			let value = 0;
 
 			// INTCXROM ($C015) overrides everything to Internal
 			if (this.intCxRom) {
-				value = this.romC[offset];
-			} else if (address >= 0xc300 && address <= 0xc3ff && !this.slotC3Rom) {
-				// Slot C3 handling ($C300-$C3FF)
-				value = this.romC[offset];
+				value = this.romC[offset] ?? 0;
 			} else {
-				value = this.slotRoms[offset];
+				value = this.slotRoms[offset] ?? 0;
 			}
 
 			// Reading from $CFFF disables the internal Cx ROM
-			if (address === 0xcfff) this.intCxRom = false;
+			if (address === 0xcfff) {
+				// this.intCxRom = false;
+				this.intC8Rom = false;
+			}
 
 			return value;
 		}
@@ -251,6 +254,10 @@ export class AppleBus implements IBus {
 			}
 		}
 
+		return this.memory[RAM_OFFSET + address] ?? 0;
+	}
+
+	public readRaw(address: number): number {
 		return this.memory[RAM_OFFSET + address] ?? 0;
 	}
 
@@ -539,23 +546,25 @@ export class AppleBus implements IBus {
 	readDebug(address: number, overrides?: Record<string, unknown>): number {
 		if (address > 0xffff) return this.memory[RAM_OFFSET + address] ?? 0;
 
-		if (address >= 0xc100 && address <= 0xcfff) {
-			const view = overrides?.cxView;
-			if (view === "INT") return this.romC[address - 0xc100] ?? 0;
-			if (view === "SLOT") return this.slotRoms[address - 0xc100] ?? 0;
-		}
-
 		if (address < 0xc000) return this.memory[RAM_OFFSET + address] ?? 0;
 
 		if (address >= 0xc100 && address <= 0xcfff) {
 			const offset = address - 0xc100;
-			if (this.intCxRom) return this.romC[offset];
 
-			if (address >= 0xc300 && address <= 0xc3ff && !this.slotC3Rom) {
-				return this.romC[offset];
+			if (overrides) {
+				const view = overrides?.cxView;
+				if (view === "INT") return this.romC[offset] ?? 0;
+				if (view === "SLOT") return this.slotRoms[offset] ?? 0;
 			}
 
-			return this.slotRoms[offset];
+			// intC8Rom forces Internal
+			if (address >= 0xc7ff && this.intC8Rom) return this.romC[offset] ?? 0;
+
+			if (this.intCxRom) return this.romC[offset] ?? 0;
+
+			if (address >= 0xc300 && address <= 0xc3ff && this.slotC3Rom) return this.romC[offset] ?? 0;
+
+			return this.slotRoms[offset] ?? 0;
 		}
 
 		if (address >= 0xd000) {
@@ -668,6 +677,7 @@ export class AppleBus implements IBus {
 			{ id: "altZp", label: "Alt Zero Page", type: "led", group: "Main/Aux" },
 			{ id: "intCxRom", label: "Internal Cx ROM", type: "led", group: "Slot ROMs" },
 			{ id: "slotC3Rom", label: "Slot C3 ROM", type: "led", group: "Slot ROMs" },
+			{ id: "intC8Rom", label: "Internal C8 ROM", type: "led", group: "Slot ROMs" },
 			{ id: "col80", label: "80 Columns", type: "led", group: "Video" },
 			{ id: "altChar", label: "Alt Charset", type: "led", group: "Video" },
 			{ id: "text", label: "Text Mode", type: "led", group: "Video" },
@@ -687,6 +697,7 @@ export class AppleBus implements IBus {
 			ramWrAux: this.ramWrAux,
 			altZp: this.altZp,
 			intCxRom: this.intCxRom,
+			intC8Rom: this.intC8Rom,
 			slotC3Rom: this.slotC3Rom,
 			col80: this.col80,
 			altChar: this.altChar,
@@ -706,6 +717,7 @@ export class AppleBus implements IBus {
 		this.ramWrAux = state.ramWrAux ?? this.ramWrAux;
 		this.altZp = state.altZp ?? this.altZp;
 		this.intCxRom = state.intCxRom ?? this.intCxRom;
+		this.intC8Rom = state.intC8Rom ?? this.intC8Rom;
 		this.slotC3Rom = state.slotC3Rom ?? this.slotC3Rom;
 		this.col80 = state.col80 ?? this.col80;
 		this.altChar = state.altChar ?? this.altChar;

@@ -23,8 +23,7 @@ const textScreenLineOffsets = [
 const SCREEN_MARGIN_X = 10;
 const SCREEN_MARGIN_Y = 10;
 
-const MAIN_RAM_OFFSET = 0x4000;
-const AUX_RAM_OFFSET = 0x14000;
+const AUX_BANK_OFFSET = 0x10000;
 
 export class AppleVideo implements Video {
 	private parent: Worker;
@@ -137,7 +136,7 @@ export class AppleVideo implements Video {
 		for (let y = 0; y < TEXT_ROWS; y++) {
 			const lineBase = textScreenLineOffsets[y] ?? 0;
 			for (let x = 0; x < TEXT_COLS; x++) {
-				const charCode = this.bus.read(lineBase + x);
+				const charCode = this.bus.readRaw?.(lineBase + x) ?? 0;
 
 				const drawX = SCREEN_MARGIN_X + x * this.charWidth;
 				const drawY = SCREEN_MARGIN_Y + y * this.charHeight;
@@ -155,12 +154,12 @@ export class AppleVideo implements Video {
 				const drawY = SCREEN_MARGIN_Y + y * this.charHeight;
 
 				// Aux char (Even column)
-				const auxVal = this.buffer[AUX_RAM_OFFSET + lineBase + x] as number;
+				const auxVal = this.bus.readRaw?.(AUX_BANK_OFFSET + lineBase + x) ?? 0;
 				const drawXAux = SCREEN_MARGIN_X + x * 2 * charWidth80;
 				this.drawChar(auxVal, drawXAux, drawY, charWidth80);
 
 				// Main char (Odd column)
-				const mainVal = this.buffer[MAIN_RAM_OFFSET + lineBase + x] as number;
+				const mainVal = this.bus.readRaw?.(lineBase + x) ?? 0;
 				const drawXMain = SCREEN_MARGIN_X + (x * 2 + 1) * charWidth80;
 				this.drawChar(mainVal, drawXMain, drawY, charWidth80);
 			}
