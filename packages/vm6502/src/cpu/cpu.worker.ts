@@ -66,7 +66,7 @@ async function init(machine: MachineConfig) {
 }
 
 self.onmessage = async (event: MessageEvent) => {
-	const { command, speed, machine, key } = event.data;
+	const { command, speed, machine, key, code } = event.data;
 
 	if (command === "init") return init(machine);
 
@@ -115,7 +115,10 @@ self.onmessage = async (event: MessageEvent) => {
 			clearBreakpoints();
 			break;
 		case "keydown":
-			if (bus?.pressKey) bus.pressKey(key);
+			if (bus?.pressKey) bus.pressKey(key, code);
+			break;
+		case "keyup":
+			if (bus?.releaseKey) bus.releaseKey(key, code);
 			break;
 		case "setTrace":
 			setTrace(event.data.enabled);
@@ -125,6 +128,9 @@ self.onmessage = async (event: MessageEvent) => {
 			break;
 		case "clearTrace":
 			clearTrace();
+			break;
+		case "refreshVideo":
+			if (video) video.tick();
 			break;
 	}
 };
