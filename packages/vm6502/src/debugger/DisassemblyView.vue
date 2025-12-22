@@ -6,6 +6,29 @@
 				Disassembly
 			</h2>
 
+			<div class="flex items-center space-x-2 mx-4">
+				<div class="relative group">
+					<span class="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500 text-xs font-mono">$</span>
+					<input
+						v-model="gotoAddressInput"
+						@keydown.enter="handleGotoAddress"
+						type="text"
+						class="w-20 bg-gray-900 text-gray-200 text-xs font-mono rounded px-2 pl-4 py-1 border border-gray-700 focus:border-cyan-500 focus:outline-none transition-all focus:w-24"
+						placeholder="Addr"
+						title="Enter address (hex)"
+					/>
+				</div>
+				<button
+					@click="syncToPc"
+					:class="['p-1 rounded transition-colors', isFollowingPc ? 'text-cyan-400 bg-cyan-400/10' : 'text-gray-500 hover:text-gray-300 hover:bg-gray-700']"
+					title="Sync with PC"
+				>
+					<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+						<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+					</svg>
+				</button>
+			</div>
+
 			<button
 				@click="handleExplain"
 				:disabled="isLoading || (disassembly && disassembly.length === 0)"
@@ -141,6 +164,28 @@ import type { VirtualMachine } from "@/virtualmachine.class";
 
 	const disassemblyStartAddress = ref(fullPcAddress.value);
 	const disassembly = ref<DisassemblyLine[]>([]);
+	const isFollowingPc = ref(true);
+	const gotoAddressInput = ref("");
+
+	const handleGotoAddress = () => {
+		let val = gotoAddressInput.value.trim();
+		if (!val) return;
+		// Remove $ or 0x prefixes
+		val = val.replace(/^\$/, '').replace(/^0x/i, '');
+		const addr = parseInt(val, 16);
+		if (!Number.isNaN(addr)) {
+			disassemblyStartAddress.value = addr;
+			isFollowingPc.value = false;
+			gotoAddressInput.value = "";
+		}
+	};
+
+	const syncToPc = () => {
+		isFollowingPc.value = !isFollowingPc.value;
+		if (isFollowingPc.value) {
+			disassemblyStartAddress.value = fullPcAddress.value;
+		}
+	};
 
 	let memoryProxy:Uint8Array<ArrayBufferLike>;
 
@@ -170,6 +215,8 @@ import type { VirtualMachine } from "@/virtualmachine.class";
 	};
 
 	const handleScroll = (event: WheelEvent) => {
+		if (isFollowingPc.value) isFollowingPc.value = false;
+
 		if (!disassembly.value || disassembly.value.length < 2) return;
 
 		if (event.deltaY < 0) { // Scroll Up
@@ -227,6 +274,8 @@ import type { VirtualMachine } from "@/virtualmachine.class";
 	watch(
 		() => fullPcAddress.value,
 		(newAddress, oldAddress) => {
+			if (!isFollowingPc.value) return;
+
 			// Try to keep the PC at the same visual row index as before.
 			const oldIndex = disassembly.value.findIndex((line) => line.address === oldAddress);
 
