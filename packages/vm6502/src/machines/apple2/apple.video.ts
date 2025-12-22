@@ -9,8 +9,6 @@ type CharMetrics = {
 	offsetTop: number;
 	offsetLeft: number;
 };
-type VideoMode = "TEXT40" | "TEXT80";
-// Other modes to be added
 
 export class AppleVideo implements Video {
 	private parent: Worker;
@@ -18,8 +16,6 @@ export class AppleVideo implements Video {
 	private bus: IBus;
 	private offscreenCanvas: OffscreenCanvas;
 	private ctx: OffscreenCanvasRenderingContext2D;
-
-	private mode: VideoMode = "TEXT40";
 
 	private static readonly TEXT_ROWS = 24;
 	private static readonly TEXT_COLS = 40;
@@ -35,6 +31,9 @@ export class AppleVideo implements Video {
 
 	private static readonly SCREEN_MARGIN_X = 10;
 	private static readonly SCREEN_MARGIN_Y = 10;
+
+	private static readonly MAIN_RAM_OFFSET = 0x4000;
+	private static readonly AUX_RAM_OFFSET = 0x14000;
 
 	private readonly charWidth: number;
 	private readonly charHeight: number;
@@ -88,11 +87,12 @@ export class AppleVideo implements Video {
 		this.ctx.fillStyle = "black";
 		this.ctx.fillRect(0, 0, this.offscreenCanvas.width, this.offscreenCanvas.height);
 
-		switch (this.mode) {
-			case "TEXT40":
-				this.renderText40();
-				break;
-			// other modes...
+		const isText = (this.bus.read(0xc01a) & 0x80) !== 0;
+
+		if (isText) {
+			const is80Col = (this.bus.read(0xc01f) & 0x80) !== 0;
+			if (is80Col) this.renderText80();
+			else this.renderText40();
 		}
 
 		const imageData = this.ctx.getImageData(0, 0, this.offscreenCanvas.width, this.offscreenCanvas.height);
@@ -111,7 +111,7 @@ export class AppleVideo implements Video {
 		if (this.bus.syncState) this.bus.syncState();
 	}
 
-	private drawChar(charCode: number, x: number, y: number) {
+	private drawChar(charCode: number, x: number, y: number, width?: number) {
 		if (!this.charmap || !this.charMetrics) return;
 
 		// Calculate source position in atlas (simple math, very fast)
@@ -130,7 +130,7 @@ export class AppleVideo implements Video {
 			this.charMetrics.charHeight, // source
 			x,
 			y,
-			this.charWidth,
+			width ?? this.charWidth,
 			this.charHeight, // destination
 		);
 	}
@@ -145,6 +145,26 @@ export class AppleVideo implements Video {
 				const drawY = AppleVideo.SCREEN_MARGIN_Y + y * this.charHeight;
 
 				this.drawChar(charCode, drawX, drawY);
+			}
+		}
+	}
+
+	private renderText80() {
+		const charWidth80 = this.charWidth / 2;
+		for (let y = 0; y < AppleVideo.TEXT_ROWS; y++) {
+			const lineBase = AppleVideo.TEXT_PAGE_1_BASE + (AppleVideo.textScreenLineOffsets[y] ?? 0);
+			for (let x = 0; x < AppleVideo.TEXT_COLS; x++) {
+				const drawY = AppleVideo.SCREEN_MARGIN_Y + y * this.charHeight;
+
+				// Aux char (Even column)
+				const auxVal = this.buffer[AppleVideo.AUX_RAM_OFFSET + lineBase + x] as number;
+				const drawXAux = AppleVideo.SCREEN_MARGIN_X + x * 2 * charWidth80;
+				this.drawChar(auxVal, drawXAux, drawY, charWidth80);
+
+				// Main char (Odd column)
+				const mainVal = this.buffer[AppleVideo.MAIN_RAM_OFFSET + lineBase + x] as number;
+				const drawXMain = AppleVideo.SCREEN_MARGIN_X + (x * 2 + 1) * charWidth80;
+				this.drawChar(mainVal, drawXMain, drawY, charWidth80);
 			}
 		}
 	}
