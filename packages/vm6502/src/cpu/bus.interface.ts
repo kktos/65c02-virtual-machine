@@ -26,7 +26,10 @@ export interface IBus {
 	load(address: number, data: Uint8Array, bank?: number, tag?: string): void;
 
 	/** Optional method to handle keyboard input. */
-	pressKey?(key: string): void;
+	pressKey?(key: string, code?: string): void;
+
+	/** Optional method to handle key release. */
+	releaseKey?(key: string, code?: string): void;
 
 	/** Reads memory with optional overrides for debugging/inspection. */
 	readDebug?(address: number, overrides?: Record<string, unknown>): number;
