@@ -48,6 +48,7 @@ export class VirtualMachine {
 	public onTraceReceived?: (history: { type: string; source: number; target: number }[]) => void;
 
 	private keyHandler = this.handleKeyDown.bind(this);
+	private keyUpHandler = this.handleKeyUp.bind(this);
 
 	constructor(machineConfig: MachineConfig) {
 		this.machineConfig = machineConfig;
@@ -179,6 +180,7 @@ export class VirtualMachine {
 
 		// Attach keyboard listener
 		window.addEventListener("keydown", this.keyHandler);
+		window.addEventListener("keyup", this.keyUpHandler);
 
 		this.isRendering = true;
 		this.renderFrame();
@@ -188,10 +190,10 @@ export class VirtualMachine {
 		const target = event.target as HTMLElement;
 		if (target && (kbdElements.has(target.tagName) || target.isContentEditable)) return;
 
-		this.worker.postMessage({ command: "keydown", key: event.key });
+		this.worker.postMessage({ command: "keydown", key: event.key, code: event.code });
 
 		// Prevent default browser actions for handled keys (except F-keys, etc)
-		if (!event.ctrlKey && !event.metaKey && !event.altKey) {
+		if (!event.ctrlKey && !event.metaKey && (!event.altKey || event.key === "Alt")) {
 			if (
 				event.key.length === 1 ||
 				["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Backspace", "Enter"].includes(event.key)
@@ -199,6 +201,13 @@ export class VirtualMachine {
 				event.preventDefault();
 			}
 		}
+	}
+
+	private handleKeyUp(event: KeyboardEvent) {
+		const target = event.target as HTMLElement;
+		if (target && (kbdElements.has(target.tagName) || target.isContentEditable)) return;
+
+		this.worker.postMessage({ command: "keyup", key: event.key, code: event.code });
 	}
 
 	private syncBusState() {
@@ -243,6 +252,7 @@ export class VirtualMachine {
 	public setTrace = (enabled: boolean) => this.worker.postMessage({ command: "setTrace", enabled });
 	public getTrace = () => this.worker.postMessage({ command: "getTrace" });
 	public clearTrace = () => this.worker.postMessage({ command: "clearTrace" });
+	public refreshVideo = () => this.worker.postMessage({ command: "refreshVideo" });
 
 	public read(address: number): number {
 		return this.bus ? this.bus.read(address) : (this.sharedMemory[address] ?? 0);
@@ -329,6 +339,7 @@ export class VirtualMachine {
 		this.isRendering = false;
 		this.worker.terminate();
 		window.removeEventListener("keydown", this.keyHandler);
+		window.removeEventListener("keyup", this.keyUpHandler);
 		console.log("VM: Worker terminated.");
 	}
 }
