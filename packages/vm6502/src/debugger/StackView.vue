@@ -18,8 +18,8 @@
 						v-for="(item, index) in visibleStackSlice"
 						:key="index"
 						:class="[
-							'hover:bg-gray-700/50 transition duration-100',
-							item.address === stackPointerAddress ? 'bg-indigo-900/50 text-indigo-100 font-bold border-l-4 border-indigo-400' : 'text-gray-300'
+							'hover:bg-gray-700/50 transition duration-100 border-l-4',
+							item.address === stackPointerAddress ? 'bg-indigo-900/50 text-indigo-100 font-bold border-indigo-400' : 'text-gray-300 border-transparent'
 						]"
 						:ref="el => { if (item.address === stackPointerAddress) spElement = el as HTMLElement }"
 					>
@@ -55,10 +55,9 @@ import type { VirtualMachine } from "@/virtualmachine.class";
 	const subscribeToUiUpdates= inject<(callback: () => void) => void>("subscribeToUiUpdates");
 
 	interface Props {
-		stackData: Uint8Array<ArrayBufferLike>;
 		registers: EmulatorState['registers']
 	}
-	const { stackData, registers } = defineProps<Props>();
+	const { registers } = defineProps<Props>();
 
 	const ROW_HEIGHT_ESTIMATE = 25;
 	const scrollContainer = ref<HTMLElement | null>(null);
@@ -83,7 +82,6 @@ import type { VirtualMachine } from "@/virtualmachine.class";
 		tick.value;
 
 		const currentSP = viewCenterOffset.value ?? 0xFF; // This is the SP offset (0-255)
-		if (!stackData || stackData.length < 0x0200) return [];
 
 		const numRows = visibleRowCount.value;
 		if (numRows === 0) return [];
@@ -107,7 +105,7 @@ import type { VirtualMachine } from "@/virtualmachine.class";
 		const slice = [];
 		for (let i = startSP; i < endSP; i++) {
 			const address = stackBase + i;
-			const value = stackData[address];
+			const value = vm?.value?.readDebug(address) ?? 0;
 			slice.push({ address, value });
 		}
 
@@ -146,23 +144,6 @@ import type { VirtualMachine } from "@/virtualmachine.class";
 		}
 	});
 
-	// onMounted(() => {
-	// 	if (scrollContainer.value) {
-	// 		resizeObserver = new ResizeObserver(entries => {
-	// 			const height = entries[0].contentRect.height;
-	// 			const newVisibleLines = Math.ceil(height / ROW_HEIGHT_ESTIMATE) + 2; // +2 for buffer
-	// 			if (newVisibleLines !== visibleLines.value) {
-	// 				visibleLines.value = newVisibleLines;
-	// 			}
-	// 		});
-	// 		resizeObserver.observe(scrollContainer.value);
-	// 	}
-	// });
-
-	// onUnmounted(() => {
-	// 	resizeObserver?.disconnect();
-	// });
-
 	watch(() => registers.SP, (newSP) => {
 		// When the real SP changes, snap the view's center to it.
 		viewCenterOffset.value = newSP;
@@ -177,7 +158,7 @@ import type { VirtualMachine } from "@/virtualmachine.class";
 		const target = event.target as HTMLInputElement;
 		const value = parseInt(target.value, 16);
 		if (!Number.isNaN(value) && value >= 0 && value <= 0xFF)
-			vm?.value.updateMemory(addr, value);
+			vm?.value.writeDebug(addr, value);
 
 	};
 
