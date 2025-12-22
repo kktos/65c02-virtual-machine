@@ -59,6 +59,15 @@
 		</ButtonGroup>
 
 		<ButtonGroup>
+			<Button @click="vm?.refreshVideo"
+				size="sm"
+				:disabled="isRunning"
+				class="hover:bg-gray-600 disabled:opacity-50"
+				title="Force a video refresh (useful when paused)"
+			>Refresh Video</Button>
+		</ButtonGroup>
+
+		<ButtonGroup>
 			<Button @click="vm?.reset"
 				size="sm"
 				class="hover:bg-gray-600"
