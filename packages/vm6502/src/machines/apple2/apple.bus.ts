@@ -165,7 +165,7 @@ export class AppleBus implements IBus {
 
 	read(address: number): number {
 		if (address >= 0xc000 && address <= 0xc0ff) {
-			return this.accessSoftSwitch(address, null);
+			return this.readSoftSwitch(address);
 		}
 
 		this.lcPreWriteCount = 0;
@@ -219,7 +219,7 @@ export class AppleBus implements IBus {
 
 	write(address: number, value: number): void {
 		if (address >= 0xc000 && address <= 0xc0ff) {
-			this.accessSoftSwitch(address, value);
+			this.writeSoftSwitch(address, value);
 			return;
 		}
 
@@ -256,113 +256,108 @@ export class AppleBus implements IBus {
 		this.memory[RAM_OFFSET + address] = value & 0xff;
 	}
 
-	private accessSoftSwitch(address: number, writeValue: number | null): number {
-		const isWrite = writeValue !== null;
+	private updateLcState(address: number) {
+		const bit0 = (address & 1) !== 0; // 0=Read RAM/ROM, 1=Write RAM (maybe)
+		const bit1 = (address & 2) !== 0; // 0=Read RAM/ROM, 1=Read ROM
+		const bit3 = (address & 8) !== 0; // 0=Bank 2, 1=Bank 1
 
-		// Language Card Switches ($C080 - $C08F)
-		if (address >= SoftSwitches.LCRAMIN2 && address <= SoftSwitches.LC_C08F) {
-			const bit0 = (address & 1) !== 0; // 0=Read RAM/ROM, 1=Write RAM (maybe)
-			const bit1 = (address & 2) !== 0; // 0=Read RAM/ROM, 1=Read ROM
-			const bit3 = (address & 8) !== 0; // 0=Bank 2, 1=Bank 1
+		this.lcBank2 = !bit3;
+		this.lcReadRam = !bit1; // If bit1 is set, we read ROM. If clear, we read RAM.
 
-			this.lcBank2 = !bit3;
-			this.lcReadRam = !bit1; // If bit1 is set, we read ROM. If clear, we read RAM.
-
-			// Write Enable Logic:
-			// If bit0 is clear ($C080, $C082...), write is disabled immediately.
-			// If bit0 is set ($C081, $C083...), write is enabled ONLY if this is the second consecutive read.
-			if (!bit0) {
-				this.lcWriteRam = false;
-				this.lcPreWriteCount = 0;
-			} else {
-				this.lcPreWriteCount++;
-				if (this.lcPreWriteCount > 1) {
-					this.lcWriteRam = true;
-					this.lcPreWriteCount = 0; // Reset after enabling? Behavior varies, but usually stays enabled.
-				}
+		// Write Enable Logic:
+		// If bit0 is clear ($C080, $C082...), write is disabled immediately.
+		// If bit0 is set ($C081, $C083...), write is enabled ONLY if this is the second consecutive read.
+		if (!bit0) {
+			this.lcWriteRam = false;
+			this.lcPreWriteCount = 0;
+		} else {
+			this.lcPreWriteCount++;
+			if (this.lcPreWriteCount > 1) {
+				this.lcWriteRam = true;
+				this.lcPreWriteCount = 0; // Reset after enabling? Behavior varies, but usually stays enabled.
 			}
+		}
+	}
 
-			// console.log(
-			// 	`LC Switch ${address.toString(16)}: Bank2=${this.lcBank2}, ReadRAM=${this.lcReadRam}, WriteRAM=${this.lcWriteRam}`,
-			// );
-			return 0; // Floating bus usually
+	private readSoftSwitch(address: number): number {
+		if (address >= SoftSwitches.LCRAMIN2 && address <= SoftSwitches.LC_C08F) {
+			this.updateLcState(address);
+			return 0;
 		}
 
-		// Other switches
 		switch (address) {
-			// Write switches
+			case SoftSwitches.KBD:
+				return this.lastKey | (this.keyStrobe ? 0x80 : 0x00);
+			case SoftSwitches.KBDSTRB:
+				this.keyStrobe = false;
+				return 0;
+			case SoftSwitches.STORE80:
+				return this.store80 ? 0x80 : 0x00;
+			case SoftSwitches.RAMRD:
+				return this.ramRdAux ? 0x80 : 0x00;
+			case SoftSwitches.RAMWRT:
+				return this.ramWrAux ? 0x80 : 0x00;
+			case SoftSwitches.ALTZP:
+				return this.altZp ? 0x80 : 0x00;
+			case SoftSwitches.RDLCBNK2:
+				return this.lcBank2 ? 0x80 : 0x00;
+			case SoftSwitches.RDLCRAM:
+				return this.lcReadRam ? 0x80 : 0x00;
+			case SoftSwitches.INTCXROM:
+				return this.intCxRom ? 0x80 : 0x00;
+			case SoftSwitches.SLOTC3ROM:
+				return this.slotC3Rom ? 0x80 : 0x00;
+		}
+		return 0;
+	}
+
+	private writeSoftSwitch(address: number, _value: number): void {
+		if (address >= SoftSwitches.LCRAMIN2 && address <= SoftSwitches.LC_C08F) {
+			this.updateLcState(address);
+			return;
+		}
+
+		switch (address) {
 			case SoftSwitches.STORE80OFF:
-				if (isWrite) this.store80 = false;
+				this.store80 = false;
 				break;
 			case SoftSwitches.STORE80ON:
-				if (isWrite) this.store80 = true;
+				this.store80 = true;
 				break;
 			case SoftSwitches.RAMRDOFF:
-				if (isWrite) this.ramRdAux = false;
+				this.ramRdAux = false;
 				break;
 			case SoftSwitches.RAMRDON:
-				if (isWrite) this.ramRdAux = true;
+				this.ramRdAux = true;
 				break;
 			case SoftSwitches.RAMWRTOFF:
-				if (isWrite) this.ramWrAux = false;
+				this.ramWrAux = false;
 				break;
 			case SoftSwitches.RAMWRTON:
-				if (isWrite) this.ramWrAux = true;
+				this.ramWrAux = true;
 				break;
 			case SoftSwitches.ALTZPOFF:
-				if (isWrite) this.altZp = false;
+				this.altZp = false;
 				break;
 			case SoftSwitches.ALTZPON:
-				if (isWrite) this.altZp = true;
+				this.altZp = true;
 				break;
 			case SoftSwitches.INTCXROMOFF:
-				if (isWrite) this.intCxRom = false;
+				this.intCxRom = false;
 				break;
 			case SoftSwitches.INTCXROMON:
-				if (isWrite) this.intCxRom = true;
+				this.intCxRom = true;
 				break;
 			case SoftSwitches.SLOTC3ROMOFF:
-				if (isWrite) this.slotC3Rom = false;
+				this.slotC3Rom = false;
 				break;
 			case SoftSwitches.SLOTC3ROMON:
-				if (isWrite) this.slotC3Rom = true;
-				break;
-
-			// Read switches / status flags
-			case SoftSwitches.KBD:
-				// Note: Writing to $C000 is STORE80OFF, handled above.
-				if (!isWrite) return this.lastKey | (this.keyStrobe ? 0x80 : 0x00);
+				this.slotC3Rom = true;
 				break;
 			case SoftSwitches.KBDSTRB:
 				this.keyStrobe = false;
-				return 0; // Return value is not defined
-			case SoftSwitches.STORE80:
-				if (!isWrite) return this.store80 ? 0x80 : 0x00;
-				break;
-			case SoftSwitches.RAMRD:
-				if (!isWrite) return this.ramRdAux ? 0x80 : 0x00;
-				break;
-			case SoftSwitches.RAMWRT:
-				if (!isWrite) return this.ramWrAux ? 0x80 : 0x00;
-				break;
-			case SoftSwitches.ALTZP:
-				if (!isWrite) return this.altZp ? 0x80 : 0x00;
-				break;
-			case SoftSwitches.RDLCBNK2:
-				if (!isWrite) return this.lcBank2 ? 0x80 : 0x00;
-				break;
-			case SoftSwitches.RDLCRAM:
-				if (!isWrite) return this.lcReadRam ? 0x80 : 0x00;
-				break;
-			case SoftSwitches.INTCXROM:
-				if (!isWrite) return this.intCxRom ? 0x80 : 0x00;
-				break;
-			case SoftSwitches.SLOTC3ROM:
-				if (!isWrite) return this.slotC3Rom ? 0x80 : 0x00;
 				break;
 		}
-
-		return 0;
 	}
 
 	load(address: number, data: Uint8Array, bank: number = 0, tag?: string): void {
