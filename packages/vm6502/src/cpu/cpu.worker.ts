@@ -7,6 +7,7 @@ import {
 	initCPU,
 	removeBreakpoint,
 	resetCPU,
+	setBreakOnBrk,
 	setClockSpeed,
 	setRunning,
 	stepInstruction,
@@ -42,9 +43,7 @@ async function init(machine: MachineConfig) {
 	if (!bus) return;
 
 	// Give bus access to the registers view for state syncing
-	if ("setRegistersView" in bus && typeof bus.setRegistersView === "function") {
-		(bus as any).setRegistersView(registersView);
-	}
+	if (bus.setRegistersView) bus.setRegistersView(registersView);
 
 	if (machine.memory.chunks) {
 		for (const chunk of machine.memory.chunks) {
@@ -69,7 +68,7 @@ self.onmessage = async (event: MessageEvent) => {
 	if (command === "init") return init(machine);
 
 	if (!sharedBuffer || !registersView || !memoryView) {
-		console.error("Worker: Not initialized. Send 'init' command with buffer first.");
+		console.error(`Worker: Not initialized. Send 'init' command with buffer first. Command: ${command}`);
 		return;
 	}
 
@@ -94,6 +93,9 @@ self.onmessage = async (event: MessageEvent) => {
 				setClockSpeed(speed);
 				console.log(`%cWorker:%c Clock speed set to ${speed} MHz.`, COLORED_LOG, COLORDEFAULT_LOG);
 			}
+			break;
+		case "setBreakOnBrk":
+			setBreakOnBrk(event.data.enabled);
 			break;
 		case "reset":
 			if (video) video.reset();

@@ -216,6 +216,7 @@ export class VirtualMachine {
 
 	public setSpeed = (speed: number) => this.worker.postMessage({ command: "setSpeed", speed });
 	public getSpeed = () => this.sharedRegisters.getFloat64(REG_SPEED_OFFSET, true);
+	public setBreakOnBrk = (enabled: boolean) => this.worker.postMessage({ command: "setBreakOnBrk", enabled });
 
 	public resetCPU = () => this.worker.postMessage({ command: "reset" });
 

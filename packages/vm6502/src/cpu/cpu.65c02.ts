@@ -33,6 +33,7 @@ const memoryWriteBreakpoints = new Set<number>();
 const memoryAccessBreakpoints = new Set<number>();
 let stepBPAddress: number | null = null;
 let stepAddedBreakpoint = false;
+let breakOnBrk = false;
 
 // Shared memory references, to be initialized from the worker
 let registersView: DataView | null = null;
@@ -114,6 +115,10 @@ export function setClockSpeed(speed: number) {
 			registersView.setFloat64(REG_SPEED_OFFSET, clockSpeedMhz, true);
 		}
 	}
+}
+
+export function setBreakOnBrk(enabled: boolean) {
+	breakOnBrk = enabled;
 }
 
 function updateCyclesPerTimeslice() {
@@ -437,6 +442,13 @@ function executeInstruction(): number {
 			// --- BRK ---
 			case 0x00: {
 				// BRK
+				if (breakOnBrk && isRunning) {
+					setRunning(false);
+					pc--; // Point back to the BRK instruction so the user sees it
+					self.postMessage({ type: "breakpointHit", breakpointType: "brk", address: pc });
+					cycles = 0;
+					break;
+				}
 
 				{
 					let s = registersView.getUint8(REG_SP_OFFSET);
