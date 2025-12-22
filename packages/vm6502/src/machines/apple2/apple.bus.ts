@@ -20,6 +20,7 @@ const APPLE_TEXT_MASK = 0b0000_1000;
 const APPLE_MIXED_MASK = 0b0001_0000;
 const APPLE_PAGE2_MASK = 0b0010_0000;
 const APPLE_HIRES_MASK = 0b0100_0000;
+const APPLE_INTC8ROM_MASK = 0b1000_0000;
 
 const RAM_OFFSET = 0x4000; // 16KB reserved for Bank2 (4KB) + ROM (12KB) at the beginning
 
@@ -107,6 +108,7 @@ export class AppleBus implements IBus {
 		if (this.mixed) byte2 |= APPLE_MIXED_MASK;
 		if (this.page2) byte2 |= APPLE_PAGE2_MASK;
 		if (this.hires) byte2 |= APPLE_HIRES_MASK;
+		if (this.intC8Rom) byte2 |= APPLE_INTC8ROM_MASK;
 		this.registers.setUint8(MACHINE_STATE_OFFSET + 1, byte2);
 	}
 
@@ -199,6 +201,7 @@ export class AppleBus implements IBus {
 			mixed: (byte2 & APPLE_MIXED_MASK) !== 0,
 			page2: (byte2 & APPLE_PAGE2_MASK) !== 0,
 			hires: (byte2 & APPLE_HIRES_MASK) !== 0,
+			intC8Rom: (byte2 & APPLE_INTC8ROM_MASK) !== 0,
 		};
 	}
 

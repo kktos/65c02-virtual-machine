@@ -128,7 +128,6 @@ import type { VirtualMachine } from "@/virtualmachine.class";
 		registers: EmulatorState['registers'];
 	}
 	const { address, memory, registers} = defineProps<Props>();
-	// const disassemblyContainer = ref<HTMLElement | null>(null);
 
 	const { pcBreakpoints, toggleBreakpoint } = useBreakpoints();
 
@@ -309,6 +308,9 @@ import type { VirtualMachine } from "@/virtualmachine.class";
 		() => [disassemblyStartAddress.value, memory, visibleRowCount.value, busState.value, registers],
 		() => {
 			if (memory) {
+
+				vm?.value?.syncBusState();
+
 				// Disassemble enough lines to fill the view (e.g., 50 lines)
 				disassembly.value = disassemble(memoryProxy, disassemblyStartAddress.value, visibleRowCount.value, registers);
 			}

@@ -210,7 +210,7 @@ export class VirtualMachine {
 		this.worker.postMessage({ command: "keyup", key: event.key, code: event.code });
 	}
 
-	private syncBusState() {
+	public syncBusState() {
 		if (this.bus?.readStateFromBuffer) {
 			const state = this.bus.readStateFromBuffer(this.sharedRegisters);
 			if (this.bus.loadState) this.bus.loadState(state);
