@@ -52,15 +52,10 @@ export class VirtualMachine {
 		this.worker = new Worker(new URL("./cpu/cpu.worker.ts", import.meta.url), { type: "module" });
 
 		this.worker.onmessage = (event) => {
-			const { command, colors, state } = event.data;
+			const { command, colors } = event.data;
 			if (command === "setPalette") {
 				if (this.videoOutput) this.videoOutput.setPalette(colors);
 				else this.pendingPalette = colors;
-			} else if (command === "syncState") {
-				if (this.bus?.loadState) {
-					this.bus.loadState(state);
-				}
-				this.busState = state;
 			} else if (this.onmessage) {
 				this.onmessage(event);
 			}
@@ -193,8 +188,19 @@ export class VirtualMachine {
 		}
 	}
 
+	private syncBusState() {
+		if (this.bus && "readStateFromBuffer" in this.bus) {
+			const state = (this.bus as any).readStateFromBuffer(this.sharedRegisters);
+			if (this.bus.loadState) {
+				this.bus.loadState(state);
+			}
+			this.busState = state;
+		}
+	}
+
 	private renderFrame() {
 		if (!this.isRendering) return;
+		this.syncBusState();
 		this.videoOutput?.render();
 		requestAnimationFrame(() => this.renderFrame());
 	}

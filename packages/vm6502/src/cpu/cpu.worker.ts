@@ -41,6 +41,11 @@ async function init(machine: MachineConfig) {
 	bus = await loadBus(machine.bus, memoryView);
 	if (!bus) return;
 
+	// Give bus access to the registers view for state syncing
+	if ("setRegistersView" in bus && typeof bus.setRegistersView === "function") {
+		(bus as any).setRegistersView(registersView);
+	}
+
 	if (machine.memory.chunks) {
 		for (const chunk of machine.memory.chunks) {
 			const data = chunk.data as Uint8Array;

@@ -99,7 +99,9 @@ export class AppleVideo implements Video {
 			// other modes...
 		}
 
-		if (this.bus.saveState) this.parent.postMessage({ command: "syncState", state: this.bus.saveState() });
+		if ("syncState" in this.bus) {
+			(this.bus as any).syncState();
+		}
 	}
 
 	private renderText40() {

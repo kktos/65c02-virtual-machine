@@ -1,10 +1,25 @@
 import type { DebugOption, IBus, MachineStateSpec } from "@/cpu/bus.interface";
+import { MACHINE_STATE_OFFSET } from "@/cpu/shared-memory";
 import * as SoftSwitches from "./softswitches";
+
+// Apple II specific flags (packed into the MACHINE_STATE bytes)
+// Byte at MACHINE_STATE_OFFSET
+const APPLE_LC_BANK2_MASK = 0b0000_0001;
+const APPLE_LC_READRAM_MASK = 0b0000_0010;
+const APPLE_LC_WRITERAM_MASK = 0b0000_0100;
+const APPLE_STORE80_MASK = 0b0000_1000;
+const APPLE_RAMRD_AUX_MASK = 0b0001_0000;
+const APPLE_RAMWR_AUX_MASK = 0b0010_0000;
+const APPLE_ALTZP_MASK = 0b0100_0000;
+const APPLE_INTCXROM_MASK = 0b1000_0000;
+// Byte at MACHINE_STATE_OFFSET + 1
+const APPLE_SLOTC3ROM_MASK = 0b0000_0001;
 
 const RAM_OFFSET = 0x4000; // 16KB reserved for Bank2 (4KB) + ROM (12KB) at the beginning
 
 export class AppleBus implements IBus {
 	private memory: Uint8Array;
+	private registers?: DataView;
 	// Private storage for the system ROM ($D000-$FFFF)
 	private rom: Uint8Array;
 	// Private storage for Language Card Bank 2 RAM ($D000-$DFFF)
@@ -45,6 +60,46 @@ export class AppleBus implements IBus {
 		this.romC = this.memory.subarray(RAM_OFFSET + 0xc100, RAM_OFFSET + 0xd000);
 		// Slot ROMs: $C100-$CFFF in aux RAM
 		this.slotRoms = this.memory.subarray(RAM_OFFSET + 0x1c100, RAM_OFFSET + 0x1d000);
+	}
+
+	public setRegistersView(view: DataView) {
+		this.registers = view;
+	}
+
+	public syncState() {
+		if (!this.registers) return;
+
+		let byte1 = 0;
+		if (this.lcBank2) byte1 |= APPLE_LC_BANK2_MASK;
+		if (this.lcReadRam) byte1 |= APPLE_LC_READRAM_MASK;
+		if (this.lcWriteRam) byte1 |= APPLE_LC_WRITERAM_MASK;
+		if (this.store80) byte1 |= APPLE_STORE80_MASK;
+		if (this.ramRdAux) byte1 |= APPLE_RAMRD_AUX_MASK;
+		if (this.ramWrAux) byte1 |= APPLE_RAMWR_AUX_MASK;
+		if (this.altZp) byte1 |= APPLE_ALTZP_MASK;
+		if (this.intCxRom) byte1 |= APPLE_INTCXROM_MASK;
+		this.registers.setUint8(MACHINE_STATE_OFFSET, byte1);
+
+		let byte2 = 0;
+		if (this.slotC3Rom) byte2 |= APPLE_SLOTC3ROM_MASK;
+		this.registers.setUint8(MACHINE_STATE_OFFSET + 1, byte2);
+	}
+
+	public readStateFromBuffer(view: DataView): Record<string, boolean> {
+		const byte1 = view.getUint8(MACHINE_STATE_OFFSET);
+		const byte2 = view.getUint8(MACHINE_STATE_OFFSET + 1);
+
+		return {
+			lcBank2: (byte1 & APPLE_LC_BANK2_MASK) !== 0,
+			lcReadRam: (byte1 & APPLE_LC_READRAM_MASK) !== 0,
+			lcWriteRam: (byte1 & APPLE_LC_WRITERAM_MASK) !== 0,
+			store80: (byte1 & APPLE_STORE80_MASK) !== 0,
+			ramRdAux: (byte1 & APPLE_RAMRD_AUX_MASK) !== 0,
+			ramWrAux: (byte1 & APPLE_RAMWR_AUX_MASK) !== 0,
+			altZp: (byte1 & APPLE_ALTZP_MASK) !== 0,
+			intCxRom: (byte1 & APPLE_INTCXROM_MASK) !== 0,
+			slotC3Rom: (byte2 & APPLE_SLOTC3ROM_MASK) !== 0,
+		};
 	}
 
 	read(address: number): number {

@@ -45,4 +45,8 @@ export interface IBus {
 
 	/** Loads the internal state of the bus. */
 	loadState?(state: Record<string, unknown>): void;
+
+	readStateFromBuffer?(view: DataView): Record<string, boolean>;
+	setRegistersView?(view: DataView): void;
+	syncState?(): void;
 }
