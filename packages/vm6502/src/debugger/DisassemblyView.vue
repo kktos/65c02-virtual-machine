@@ -24,7 +24,7 @@
 		<!-- Scrollable disassembly table -->
 		<div
 			ref="disassemblyContainer"
-			class="font-mono text-xs overflow-y-auto flex-grow min-h-0 bg-gray-900 p-2 rounded-md"
+			class="font-mono text-xs overflow-y-hidden flex-grow min-h-0 bg-gray-900 p-2 rounded-md"
 			@wheel.prevent="handleScroll"
 		>
 			<p v-if="!disassembly || disassembly.length === 0" class="text-gray-500 italic p-4 text-center">
