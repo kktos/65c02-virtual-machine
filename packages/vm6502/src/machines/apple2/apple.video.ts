@@ -10,30 +10,28 @@ type CharMetrics = {
 	offsetLeft: number;
 };
 
+const TEXT_ROWS = 24;
+const TEXT_COLS = 40;
+
+// Offsets for each of the 24 lines in the text screen memory
+// Includes the Text Page 1 Base ($400)
+const textScreenLineOffsets = [
+	0x400, 0x480, 0x500, 0x580, 0x600, 0x680, 0x700, 0x780, 0x428, 0x4a8, 0x528, 0x5a8, 0x628, 0x6a8, 0x728, 0x7a8, 0x450,
+	0x4d0, 0x550, 0x5d0, 0x650, 0x6d0, 0x750, 0x7d0,
+];
+
+const SCREEN_MARGIN_X = 10;
+const SCREEN_MARGIN_Y = 10;
+
+const MAIN_RAM_OFFSET = 0x4000;
+const AUX_RAM_OFFSET = 0x14000;
+
 export class AppleVideo implements Video {
 	private parent: Worker;
 	private buffer: Uint8Array;
 	private bus: IBus;
 	private offscreenCanvas: OffscreenCanvas;
 	private ctx: OffscreenCanvasRenderingContext2D;
-
-	private static readonly TEXT_ROWS = 24;
-	private static readonly TEXT_COLS = 40;
-
-	// Offsets for each of the 24 lines in the text screen memory
-	private static readonly textScreenLineOffsets = [
-		0x000, 0x080, 0x100, 0x180, 0x200, 0x280, 0x300, 0x380, 0x028, 0x0a8, 0x128, 0x1a8, 0x228, 0x2a8, 0x328, 0x3a8,
-		0x050, 0x0d0, 0x150, 0x1d0, 0x250, 0x2d0, 0x350, 0x3d0,
-	];
-
-	// Base of the primary text page
-	private static readonly TEXT_PAGE_1_BASE = 0x400;
-
-	private static readonly SCREEN_MARGIN_X = 10;
-	private static readonly SCREEN_MARGIN_Y = 10;
-
-	private static readonly MAIN_RAM_OFFSET = 0x4000;
-	private static readonly AUX_RAM_OFFSET = 0x14000;
 
 	private readonly charWidth: number;
 	private readonly charHeight: number;
@@ -52,8 +50,8 @@ export class AppleVideo implements Video {
 		this.ctx = context;
 		this.ctx.imageSmoothingEnabled = false;
 
-		this.charWidth = (this.offscreenCanvas.width - AppleVideo.SCREEN_MARGIN_X * 2) / AppleVideo.TEXT_COLS;
-		this.charHeight = (this.offscreenCanvas.height - AppleVideo.SCREEN_MARGIN_Y * 2) / AppleVideo.TEXT_ROWS;
+		this.charWidth = (this.offscreenCanvas.width - SCREEN_MARGIN_X * 2) / TEXT_COLS;
+		this.charHeight = (this.offscreenCanvas.height - SCREEN_MARGIN_Y * 2) / TEXT_ROWS;
 
 		console.log("AppleVideo", `view w${width}h${height}`, `char w${this.charWidth}h${this.charHeight}`);
 
@@ -136,13 +134,13 @@ export class AppleVideo implements Video {
 	}
 
 	private renderText40() {
-		for (let y = 0; y < AppleVideo.TEXT_ROWS; y++) {
-			const lineBase = AppleVideo.TEXT_PAGE_1_BASE + (AppleVideo.textScreenLineOffsets[y] ?? 0);
-			for (let x = 0; x < AppleVideo.TEXT_COLS; x++) {
-				const charCode = this.bus.read(lineBase + x); //mapAppleChr(this.bus.read(lineBase + x)).charCodeAt(0);
+		for (let y = 0; y < TEXT_ROWS; y++) {
+			const lineBase = textScreenLineOffsets[y] ?? 0;
+			for (let x = 0; x < TEXT_COLS; x++) {
+				const charCode = this.bus.read(lineBase + x);
 
-				const drawX = AppleVideo.SCREEN_MARGIN_X + x * this.charWidth;
-				const drawY = AppleVideo.SCREEN_MARGIN_Y + y * this.charHeight;
+				const drawX = SCREEN_MARGIN_X + x * this.charWidth;
+				const drawY = SCREEN_MARGIN_Y + y * this.charHeight;
 
 				this.drawChar(charCode, drawX, drawY);
 			}
@@ -151,19 +149,19 @@ export class AppleVideo implements Video {
 
 	private renderText80() {
 		const charWidth80 = this.charWidth / 2;
-		for (let y = 0; y < AppleVideo.TEXT_ROWS; y++) {
-			const lineBase = AppleVideo.TEXT_PAGE_1_BASE + (AppleVideo.textScreenLineOffsets[y] ?? 0);
-			for (let x = 0; x < AppleVideo.TEXT_COLS; x++) {
-				const drawY = AppleVideo.SCREEN_MARGIN_Y + y * this.charHeight;
+		for (let y = 0; y < TEXT_ROWS; y++) {
+			const lineBase = textScreenLineOffsets[y] ?? 0;
+			for (let x = 0; x < TEXT_COLS; x++) {
+				const drawY = SCREEN_MARGIN_Y + y * this.charHeight;
 
 				// Aux char (Even column)
-				const auxVal = this.buffer[AppleVideo.AUX_RAM_OFFSET + lineBase + x] as number;
-				const drawXAux = AppleVideo.SCREEN_MARGIN_X + x * 2 * charWidth80;
+				const auxVal = this.buffer[AUX_RAM_OFFSET + lineBase + x] as number;
+				const drawXAux = SCREEN_MARGIN_X + x * 2 * charWidth80;
 				this.drawChar(auxVal, drawXAux, drawY, charWidth80);
 
 				// Main char (Odd column)
-				const mainVal = this.buffer[AppleVideo.MAIN_RAM_OFFSET + lineBase + x] as number;
-				const drawXMain = AppleVideo.SCREEN_MARGIN_X + (x * 2 + 1) * charWidth80;
+				const mainVal = this.buffer[MAIN_RAM_OFFSET + lineBase + x] as number;
+				const drawXMain = SCREEN_MARGIN_X + (x * 2 + 1) * charWidth80;
 				this.drawChar(mainVal, drawXMain, drawY, charWidth80);
 			}
 		}
