@@ -17,7 +17,9 @@ import { loadBus } from "./loaders/bus.loader";
 import { loadVideo } from "./loaders/video.loader";
 import { MEMORY_OFFSET } from "./shared-memory";
 
-console.log("CPU Worker script loaded.");
+const COLORED_LOG = "color:magenta;font-weight:bold;";
+const COLORDEFAULT_LOG = "color:inherit;font-weight:normal;";
+console.log("%cWorker:%c Loaded.", COLORED_LOG, COLORDEFAULT_LOG);
 
 // --- Worker State ---
 let sharedBuffer: SharedArrayBuffer | null = null;
@@ -53,7 +55,7 @@ async function init(machine: MachineConfig) {
 
 	initCPU(bus, registersView, video, memoryView);
 
-	console.log(`Worker: Initialized with ${machine.name} machine configuration.`);
+	console.log(`%cWorker:%c Initialized with "${machine.name}".`, COLORED_LOG, COLORDEFAULT_LOG);
 }
 
 self.onmessage = async (event: MessageEvent) => {
@@ -85,7 +87,7 @@ self.onmessage = async (event: MessageEvent) => {
 		case "setSpeed":
 			if (typeof speed === "number" && speed >= 0) {
 				setClockSpeed(speed);
-				console.log(`Worker: Clock speed set to ${speed} MHz.`);
+				console.log(`%cWorker:%c Clock speed set to ${speed} MHz.`, COLORED_LOG, COLORDEFAULT_LOG);
 			}
 			break;
 		case "reset":
