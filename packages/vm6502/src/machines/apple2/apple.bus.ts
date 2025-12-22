@@ -14,6 +14,12 @@ const APPLE_ALTZP_MASK = 0b0100_0000;
 const APPLE_INTCXROM_MASK = 0b1000_0000;
 // Byte at MACHINE_STATE_OFFSET + 1
 const APPLE_SLOTC3ROM_MASK = 0b0000_0001;
+const APPLE_80COL_MASK = 0b0000_0010;
+const APPLE_ALTCHAR_MASK = 0b0000_0100;
+const APPLE_TEXT_MASK = 0b0000_1000;
+const APPLE_MIXED_MASK = 0b0001_0000;
+const APPLE_PAGE2_MASK = 0b0010_0000;
+const APPLE_HIRES_MASK = 0b0100_0000;
 
 const RAM_OFFSET = 0x4000; // 16KB reserved for Bank2 (4KB) + ROM (12KB) at the beginning
 
@@ -44,6 +50,14 @@ export class AppleBus implements IBus {
 	// Slot ROM State
 	private intCxRom = false; // false = Slot, true = Internal
 	private slotC3Rom = false; // false = Internal, true = Slot
+
+	// Video State
+	private col80 = false; // 80 Column Store/Display
+	private altChar = false; // Alternate Character Set
+	private text = true; // Text Mode
+	private mixed = false; // Mixed Mode
+	private page2 = false; // Page 2
+	private hires = false; // Hi-Res Mode
 
 	// Keyboard State
 	private lastKey = 0x00;
@@ -86,6 +100,12 @@ export class AppleBus implements IBus {
 
 		let byte2 = 0;
 		if (this.slotC3Rom) byte2 |= APPLE_SLOTC3ROM_MASK;
+		if (this.col80) byte2 |= APPLE_80COL_MASK;
+		if (this.altChar) byte2 |= APPLE_ALTCHAR_MASK;
+		if (this.text) byte2 |= APPLE_TEXT_MASK;
+		if (this.mixed) byte2 |= APPLE_MIXED_MASK;
+		if (this.page2) byte2 |= APPLE_PAGE2_MASK;
+		if (this.hires) byte2 |= APPLE_HIRES_MASK;
 		this.registers.setUint8(MACHINE_STATE_OFFSET + 1, byte2);
 	}
 
@@ -103,10 +123,17 @@ export class AppleBus implements IBus {
 		this.intCxRom = false;
 		this.slotC3Rom = false;
 
+		this.col80 = false;
+		this.altChar = false;
+		this.text = true;
+		this.mixed = false;
+		this.page2 = false;
+		this.hires = false;
+
 		this.syncState();
 	}
 
-	public async prepareWorkerPayloads(): Promise<{ video?: any; bus?: any }> {
+	public async prepareWorkerPayloads(): Promise<{ video?: unknown; bus?: unknown }> {
 		if (typeof document === "undefined") return {};
 
 		// Ensure the font is loaded
@@ -164,6 +191,12 @@ export class AppleBus implements IBus {
 			altZp: (byte1 & APPLE_ALTZP_MASK) !== 0,
 			intCxRom: (byte1 & APPLE_INTCXROM_MASK) !== 0,
 			slotC3Rom: (byte2 & APPLE_SLOTC3ROM_MASK) !== 0,
+			col80: (byte2 & APPLE_80COL_MASK) !== 0,
+			altChar: (byte2 & APPLE_ALTCHAR_MASK) !== 0,
+			text: (byte2 & APPLE_TEXT_MASK) !== 0,
+			mixed: (byte2 & APPLE_MIXED_MASK) !== 0,
+			page2: (byte2 & APPLE_PAGE2_MASK) !== 0,
+			hires: (byte2 & APPLE_HIRES_MASK) !== 0,
 		};
 	}
 
@@ -315,6 +348,18 @@ export class AppleBus implements IBus {
 				return this.pb0 ? 0x80 : 0x00;
 			case SoftSwitches.PB1:
 				return this.pb1 ? 0x80 : 0x00;
+			case SoftSwitches.COL80: // 80COL
+				return this.col80 ? 0x80 : 0x00;
+			case SoftSwitches.ALTCHARSET: // ALTCHAR
+				return this.altChar ? 0x80 : 0x00;
+			case SoftSwitches.TEXT: // TEXT
+				return this.text ? 0x80 : 0x00;
+			case SoftSwitches.MIXED: // MIXED
+				return this.mixed ? 0x80 : 0x00;
+			case SoftSwitches.PAGE2: // PAGE2
+				return this.page2 ? 0x80 : 0x00;
+			case SoftSwitches.HIRES: // HIRES
+				return this.hires ? 0x80 : 0x00;
 		}
 		return 0;
 	}
@@ -364,6 +409,42 @@ export class AppleBus implements IBus {
 				break;
 			case SoftSwitches.KBDSTRB:
 				this.keyStrobe = false;
+				break;
+			case SoftSwitches.COL80OFF: // 80COL OFF
+				this.col80 = false;
+				break;
+			case SoftSwitches.COL80ON: // 80COL ON
+				this.col80 = true;
+				break;
+			case SoftSwitches.ALTCHARSETOFF: // ALTCHAR OFF
+				this.altChar = false;
+				break;
+			case SoftSwitches.ALTCHARSETON: // ALTCHAR ON
+				this.altChar = true;
+				break;
+			case SoftSwitches.TEXTOFF: // TEXT OFF
+				this.text = false;
+				break;
+			case SoftSwitches.TEXTON: // TEXT ON
+				this.text = true;
+				break;
+			case SoftSwitches.MIXEDOFF: // MIXED OFF
+				this.mixed = false;
+				break;
+			case SoftSwitches.MIXEDON: // MIXED ON
+				this.mixed = true;
+				break;
+			case SoftSwitches.PAGE2OFF: // PAGE2 OFF
+				this.page2 = false;
+				break;
+			case SoftSwitches.PAGE2ON: // PAGE2 ON
+				this.page2 = true;
+				break;
+			case SoftSwitches.HIRESOFF: // HIRES OFF
+				this.hires = false;
+				break;
+			case SoftSwitches.HIRESON: // HIRES ON
+				this.hires = true;
 				break;
 		}
 	}
@@ -587,6 +668,12 @@ export class AppleBus implements IBus {
 			{ id: "altZp", label: "Alt Zero Page", type: "led", group: "Main/Aux" },
 			{ id: "intCxRom", label: "Internal Cx ROM", type: "led", group: "Slot ROMs" },
 			{ id: "slotC3Rom", label: "Slot C3 ROM", type: "led", group: "Slot ROMs" },
+			{ id: "col80", label: "80 Columns", type: "led", group: "Video" },
+			{ id: "altChar", label: "Alt Charset", type: "led", group: "Video" },
+			{ id: "text", label: "Text Mode", type: "led", group: "Video" },
+			{ id: "mixed", label: "Mixed Mode", type: "led", group: "Video" },
+			{ id: "page2", label: "Page 2", type: "led", group: "Video" },
+			{ id: "hires", label: "Hi-Res", type: "led", group: "Video" },
 		];
 	}
 
@@ -601,6 +688,12 @@ export class AppleBus implements IBus {
 			altZp: this.altZp,
 			intCxRom: this.intCxRom,
 			slotC3Rom: this.slotC3Rom,
+			col80: this.col80,
+			altChar: this.altChar,
+			text: this.text,
+			mixed: this.mixed,
+			page2: this.page2,
+			hires: this.hires,
 		};
 	}
 
@@ -614,6 +707,12 @@ export class AppleBus implements IBus {
 		this.altZp = state.altZp ?? this.altZp;
 		this.intCxRom = state.intCxRom ?? this.intCxRom;
 		this.slotC3Rom = state.slotC3Rom ?? this.slotC3Rom;
+		this.col80 = state.col80 ?? this.col80;
+		this.altChar = state.altChar ?? this.altChar;
+		this.text = state.text ?? this.text;
+		this.mixed = state.mixed ?? this.mixed;
+		this.page2 = state.page2 ?? this.page2;
+		this.hires = state.hires ?? this.hires;
 	}
 }
 
