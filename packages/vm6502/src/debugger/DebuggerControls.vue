@@ -39,6 +39,16 @@
 		</ButtonGroup>
 
 		<ButtonGroup>
+			<Button @click="toggleBreakOnBrk"
+				size="sm"
+				:class="[ breakOnBrk ? 'bg-yellow-600 hover:bg-yellow-500' : 'hover:bg-gray-600']"
+				title="Pause execution when a BRK instruction (opcode $00) is encountered"
+			>
+				BRK
+			</Button>
+		</ButtonGroup>
+
+		<ButtonGroup>
 			<Button @click="vm?.reset"
 				size="sm"
 				class="hover:bg-gray-600"
@@ -49,7 +59,7 @@
 </template>
 
 <script lang="ts" setup>
-import { inject, type Ref } from "vue";
+import { inject, type Ref, ref } from "vue";
 import { Button } from '@/components/ui/button';
 import { ButtonGroup } from '@/components/ui/button-group';
 import type { VirtualMachine } from "@/virtualmachine.class";
@@ -66,5 +76,11 @@ import type { VirtualMachine } from "@/virtualmachine.class";
 			vm?.value.pause();
 		 else
 		 	vm?.value.play();
+	};
+
+	const breakOnBrk = ref(false);
+	const toggleBreakOnBrk = () => {
+		breakOnBrk.value = !breakOnBrk.value;
+		vm?.value?.setBreakOnBrk(breakOnBrk.value);
 	};
 </script>
