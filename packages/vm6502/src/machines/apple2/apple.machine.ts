@@ -39,7 +39,7 @@ export const apple2e: MachineConfig = {
 			{
 				bank: 0,
 				addr: 0x0300,
-				data: "00 11 22 33 44 55 66 77 88 99 AA BB CC DD EE FF",
+				data: "8d 06 c0 8d 07 c0 66 77 88 99 AA BB CC DD EE FF",
 			},
 		],
 	},

@@ -99,9 +99,7 @@ export class AppleVideo implements Video {
 			// other modes...
 		}
 
-		if ("syncState" in this.bus) {
-			(this.bus as any).syncState();
-		}
+		if (this.bus.syncState) this.bus.syncState();
 	}
 
 	private renderText40() {

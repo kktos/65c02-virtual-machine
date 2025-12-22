@@ -23,7 +23,7 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, inject, type Ref, ref, watch } from "vue";
+import { computed, inject, onUnmounted, type Ref, ref, shallowRef, watch } from "vue";
 import type { MachineStateSpec } from "@/cpu/bus.interface";
 import type { VirtualMachine } from "@/virtualmachine.class";
 import DebuggerPanelTitle from './DebuggerPanelTitle.vue';
@@ -31,7 +31,7 @@ import DebuggerPanelTitle from './DebuggerPanelTitle.vue';
 const vm = inject<Ref<VirtualMachine>>("vm");
 
 const specs = ref<MachineStateSpec[]>([]);
-const busState = computed(() => vm?.value?.busState ?? {});
+const busState = shallowRef<Record<string, unknown>>({});
 
 const groupedSpecs = computed(() => {
 	const groups: Record<string, { name: string; specs: MachineStateSpec[] }> = {};
@@ -45,12 +45,23 @@ const groupedSpecs = computed(() => {
 	return Object.values(groups);
 });
 
-watch(() => vm?.value, async (newVm) => {
+watch(() => vm?.value, async (newVm, oldVm) => {
+	if (oldVm) {
+		oldVm.onStateChange = undefined;
+	}
 	if (newVm) {
 		await newVm.ready;
 		if (newVm.getMachineStateSpecs) {
 			specs.value = newVm.getMachineStateSpecs();
 		}
+		busState.value = newVm.busState;
+		newVm.onStateChange = (state) => {
+			busState.value = state;
+		};
 	}
 }, { immediate: true });
+
+onUnmounted(() => {
+	if (vm?.value) vm.value.onStateChange = undefined;
+});
 </script>

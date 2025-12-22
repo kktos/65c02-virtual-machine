@@ -44,6 +44,7 @@ export class VirtualMachine {
 	public ready: Promise<void>;
 
 	public onmessage?: (event: MessageEvent) => void;
+	public onStateChange?: (state: Record<string, unknown>) => void;
 
 	private keyHandler = this.handleKeyDown.bind(this);
 
@@ -189,12 +190,11 @@ export class VirtualMachine {
 	}
 
 	private syncBusState() {
-		if (this.bus && "readStateFromBuffer" in this.bus) {
-			const state = (this.bus as any).readStateFromBuffer(this.sharedRegisters);
-			if (this.bus.loadState) {
-				this.bus.loadState(state);
-			}
+		if (this.bus?.readStateFromBuffer) {
+			const state = this.bus.readStateFromBuffer(this.sharedRegisters);
+			if (this.bus.loadState) this.bus.loadState(state);
 			this.busState = state;
+			this.onStateChange?.(state);
 		}
 	}
 
