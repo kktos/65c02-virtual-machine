@@ -1,5 +1,20 @@
-import type { Breakpoint } from "@/types/breakpoint.interface";
 import type { Video } from "@/video/video.interface";
+import {
+	addBreakpoint,
+	BreakpointError,
+	breakOnBrk,
+	cleanStepBP,
+	clearBreakpoints,
+	memoryAccessBreakpoints,
+	memoryReadBreakpoints,
+	memoryWriteBreakpoints,
+	pcBreakpoints,
+	removeBreakpoint,
+	setBreakOnBrk,
+	setStepAddedBreakpoint,
+	setStepBPAddress,
+	stepBPAddress,
+} from "./breakpoints";
 import type { IBus } from "./bus.interface";
 import {
 	FLAG_5_MASK,
@@ -26,15 +41,6 @@ let cyclesPerTimeslice = 10000; // Number of cycles to run before yielding
 let lastPerfTime = 0;
 let cyclesSinceLastPerf = 0;
 
-// --- Breakpoint State ---
-const pcBreakpoints = new Set<number>();
-const memoryReadBreakpoints = new Set<number>();
-const memoryWriteBreakpoints = new Set<number>();
-const memoryAccessBreakpoints = new Set<number>();
-let stepBPAddress: number | null = null;
-let stepAddedBreakpoint = false;
-let breakOnBrk = false;
-
 // --- Trace State ---
 let traceEnabled = false;
 const traceHistory: { type: string; source: number; target: number }[] = [];
@@ -53,16 +59,8 @@ const FLAG_D_MASK = 0x08;
 // const FLAG_B_MASK = 0x10;
 const FLAG_V_MASK = 0x40;
 
-class BreakpointError extends Error {
-	public type: "read" | "write";
-	public address: number;
-
-	constructor(type: "read" | "write", address: number) {
-		super();
-		this.type = type;
-		this.address = address;
-	}
-}
+// Re-export breakpoint functions for external use
+export { addBreakpoint, removeBreakpoint, clearBreakpoints, setBreakOnBrk };
 
 export function initCPU(systemBus: IBus, regView: DataView, videoSystem: Video | null, memView: Uint8Array) {
 	bus = systemBus;
@@ -76,26 +74,16 @@ export function initCPU(systemBus: IBus, regView: DataView, videoSystem: Video |
 	// Wrap bus methods to check for breakpoints
 	const originalRead = bus.read.bind(bus);
 	bus.read = (address: number, isOpcodeFetch = false): number => {
-		if (!isOpcodeFetch && isRunning) {
-			if (memoryReadBreakpoints.has(address) || memoryAccessBreakpoints.has(address))
-				throw new BreakpointError("read", address);
-		}
-		const value = originalRead(address, isOpcodeFetch);
-		return value;
+		if (!isOpcodeFetch && isRunning && (memoryReadBreakpoints.has(address) || memoryAccessBreakpoints.has(address)))
+			throw new BreakpointError("read", address);
+
+		return originalRead(address, isOpcodeFetch);
 	};
 
 	const originalWrite = bus.write.bind(bus);
 	bus.write = (address: number, value: number): void => {
-		// const pc = registersView?.getUint16(REG_PC_OFFSET, true);
-		// console.log(
-		// 	`${pc?.toString(16).padStart(4, "0")} write ${address.toString(16).padStart(4, "0")}:${(value & 0xff).toString(16).padStart(2, "0")}`,
-		// );
-
-		if (isRunning) {
-			if (memoryWriteBreakpoints.has(address) || memoryAccessBreakpoints.has(address)) {
-				throw new BreakpointError("write", address);
-			}
-		}
+		if (isRunning && (memoryWriteBreakpoints.has(address) || memoryAccessBreakpoints.has(address)))
+			throw new BreakpointError("write", address);
 		originalWrite(address, value);
 	};
 
@@ -122,10 +110,6 @@ export function setClockSpeed(speed: number) {
 	}
 }
 
-export function setBreakOnBrk(enabled: boolean) {
-	breakOnBrk = enabled;
-}
-
 export function setTrace(enabled: boolean) {
 	traceEnabled = enabled;
 }
@@ -141,9 +125,7 @@ export function clearTrace() {
 function logTrace(type: string, source: number, target: number) {
 	if (!traceEnabled) return;
 	traceHistory.push({ type, source, target });
-	if (traceHistory.length > MAX_TRACE_SIZE) {
-		traceHistory.shift();
-	}
+	if (traceHistory.length > MAX_TRACE_SIZE) traceHistory.shift();
 }
 
 function updateCyclesPerTimeslice() {
@@ -154,60 +136,6 @@ function updateCyclesPerTimeslice() {
 		// Run for approx 10ms per timeslice
 		cyclesPerTimeslice = clockSpeedMhz * 1000000 * 0.01;
 	}
-}
-
-export function addBreakpoint(type: Breakpoint["type"], address: number) {
-	switch (type) {
-		case "pc":
-			pcBreakpoints.add(address);
-			break;
-		case "read":
-			memoryReadBreakpoints.add(address);
-			break;
-		case "write":
-			memoryWriteBreakpoints.add(address);
-			break;
-		case "access":
-			memoryAccessBreakpoints.add(address);
-			break;
-	}
-}
-
-export function removeBreakpoint(type: Breakpoint["type"], address: number) {
-	switch (type) {
-		case "pc":
-			pcBreakpoints.delete(address);
-			break;
-		case "read":
-			memoryReadBreakpoints.delete(address);
-			break;
-		case "write":
-			memoryWriteBreakpoints.delete(address);
-			break;
-		case "access":
-			memoryAccessBreakpoints.delete(address);
-			break;
-	}
-}
-
-export function clearBreakpoints() {
-	pcBreakpoints.clear();
-	memoryReadBreakpoints.clear();
-	memoryWriteBreakpoints.clear();
-	memoryAccessBreakpoints.clear();
-}
-
-export function stepInstruction() {
-	if (isRunning) return;
-	executeInstruction();
-	if (video && memoryView) video.tick();
-}
-
-function cleanStepBP() {
-	// biome-ignore lint/style/noNonNullAssertion: the test is done before
-	if (stepAddedBreakpoint) pcBreakpoints.delete(stepBPAddress!);
-	stepBPAddress = null;
-	stepAddedBreakpoint = false;
 }
 
 export function stepOverInstruction() {
@@ -222,9 +150,10 @@ export function stepOverInstruction() {
 	if (opcode === 0x20) {
 		// JSR Absolute
 		const target = (pc + 3) & 0xffff;
-		stepBPAddress = target;
-		stepAddedBreakpoint = !pcBreakpoints.has(target);
-		if (stepAddedBreakpoint) pcBreakpoints.add(target);
+		setStepBPAddress(target);
+		const added = !pcBreakpoints.has(target);
+		setStepAddedBreakpoint(added);
+		if (added) pcBreakpoints.add(target);
 
 		setRunning(true);
 	} else {
@@ -243,11 +172,18 @@ export function stepOutInstruction() {
 	const hi = bus.read(STACK_PAGE_HI | ((sp + 2) & 0xff));
 	const target = (((hi << 8) | lo) + 1) & 0xffff;
 
-	stepBPAddress = target;
-	stepAddedBreakpoint = !pcBreakpoints.has(target);
-	if (stepAddedBreakpoint) pcBreakpoints.add(target);
+	setStepBPAddress(target);
+	const added = !pcBreakpoints.has(target);
+	setStepAddedBreakpoint(added);
+	if (added) pcBreakpoints.add(target);
 
 	setRunning(true);
+}
+
+export function stepInstruction() {
+	if (isRunning) return;
+	executeInstruction();
+	if (video && memoryView) video.tick();
 }
 
 export function resetCPU() {
@@ -273,9 +209,7 @@ export function resetCPU() {
 	setRunning(false);
 
 	if (stepBPAddress !== null) {
-		if (stepAddedBreakpoint) pcBreakpoints.delete(stepBPAddress);
-		stepBPAddress = null;
-		stepAddedBreakpoint = false;
+		cleanStepBP();
 	}
 }
 
@@ -286,10 +220,6 @@ function run() {
 	const initialCycles = cyclesThisSlice;
 
 	while (cyclesThisSlice > 0) {
-		// let pc = registersView.getUint16(REG_PC_OFFSET, true);
-		// const opcode = bus.read(pc);
-		// pc++;
-
 		const cycles = executeInstruction();
 		cyclesThisSlice -= cycles;
 
