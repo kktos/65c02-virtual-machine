@@ -1,5 +1,7 @@
 import type { DebugOption, IBus, MachineStateSpec } from "@/cpu/bus.interface";
 import { MACHINE_STATE_OFFSET } from "@/cpu/shared-memory";
+import type { ISlotCard } from "./slotcard.interface";
+import { SmartPortCard } from "./smartport.card";
 import * as SoftSwitches from "./softswitches";
 
 // Apple II specific flags (packed into the MACHINE_STATE bytes)
@@ -35,6 +37,10 @@ export class AppleBus implements IBus {
 	private romC: Uint8Array;
 	// Slot ROMs ($C100-$CFFF) mapped to aux RAM bank
 	private slotRoms: Uint8Array;
+
+	// Slot System
+	private slots: (ISlotCard | null)[] = new Array(8).fill(null);
+	private activeExpansionSlot = 0;
 
 	// Language Card State
 	private lcBank2 = false; // false = Bank 1 ($D000), true = Bank 2 ($D000)
@@ -80,10 +86,25 @@ export class AppleBus implements IBus {
 		this.romC = this.memory.subarray(RAM_OFFSET + 0xc100, RAM_OFFSET + 0xd000);
 		// Slot ROMs: $C100-$CFFF in aux RAM
 		this.slotRoms = this.memory.subarray(RAM_OFFSET + 0x1c100, RAM_OFFSET + 0x1d000);
+
+		// Install SmartPort Card in Slot 5
+		const slot5Rom = this.slotRoms.subarray(0x400, 0x500);
+		this.installCard(5, new SmartPortCard(5, slot5Rom));
+	}
+
+	public installCard(slot: number, card: ISlotCard) {
+		if (slot >= 1 && slot <= 7) {
+			this.slots[slot] = card;
+			if (this.registers && card.setRegisters) card.setRegisters(this.registers);
+			if (card.setBus) card.setBus(this);
+		}
 	}
 
 	public setRegistersView(view: DataView) {
 		this.registers = view;
+		this.slots.forEach((card) => {
+			card?.setRegisters?.(view);
+		});
 	}
 
 	public syncState() {
@@ -226,6 +247,12 @@ export class AppleBus implements IBus {
 		if (address >= 0xc100 && address <= 0xcfff) {
 			const offset = address - 0xc100;
 
+			// Reading from $CFFF disables the internal Cx ROM and resets expansion
+			if (address === 0xcfff) {
+				this.intC8Rom = false;
+				this.activeExpansionSlot = 0;
+			}
+
 			// Hardware hack: Accessing Internal C3 ($C3xx) enables intC8Rom
 			if (address >= 0xc300 && address <= 0xc3ff && this.slotC3Rom) {
 				this.intC8Rom = true;
@@ -233,22 +260,34 @@ export class AppleBus implements IBus {
 			}
 
 			// intC8Rom forces Internal
-			if (address >= 0xc7ff && this.intC8Rom) return this.romC[offset] ?? 0;
-
-			let value = 0;
+			if (address >= 0xc800 && this.intC8Rom) return this.romC[offset] ?? 0;
 
 			// INTCXROM ($C015) overrides everything to Internal
-			if (this.intCxRom) {
-				value = this.romC[offset] ?? 0;
-			} else {
-				value = this.slotRoms[offset] ?? 0;
+			if (this.intCxRom) return this.romC[offset] ?? 0;
+
+			// Handle Expansion ROM ($C800-$CFFF)
+			if (address >= 0xc800) {
+				if (this.activeExpansionSlot > 0 && this.slots[this.activeExpansionSlot]) {
+					return this.slots[this.activeExpansionSlot]!.readExpansion(address - 0xc800);
+				}
+				return this.slotRoms[offset] ?? 0;
 			}
 
-			// Reading from $CFFF disables the internal Cx ROM
-			if (address === 0xcfff) {
-				// this.intCxRom = false;
-				this.intC8Rom = false;
+			// Handle Slot ROMs ($C100-$C7FF)
+			// Determine slot number from address (C1xx = Slot 1, etc.)
+			const slot = (address >> 8) & 0x0f;
+
+			// Special case for C3: Check slotC3Rom softswitch
+			if (slot === 3 && !this.slotC3Rom) {
+				return this.romC[offset] ?? 0;
 			}
+
+			if (this.slots[slot]) {
+				this.activeExpansionSlot = slot;
+				return this.slots[slot]!.readRom(address & 0xff);
+			}
+
+			const value = this.slotRoms[offset] ?? 0;
 
 			return value;
 		}
@@ -343,6 +382,12 @@ export class AppleBus implements IBus {
 			return 0;
 		}
 
+		// Slot I/O ($C090-$C0FF)
+		if (address >= 0xc090 && address <= 0xc0ff) {
+			const slot = ((address >> 4) & 0x0f) - 8;
+			if (this.slots[slot]) return this.slots[slot]!.readIo(address & 0x0f);
+		}
+
 		switch (address) {
 			case SoftSwitches.KBD:
 				return this.lastKey | (this.keyStrobe ? 0x80 : 0x00);
@@ -414,9 +459,16 @@ export class AppleBus implements IBus {
 		return 0;
 	}
 
-	private writeSoftSwitch(address: number, _value: number): void {
+	private writeSoftSwitch(address: number, value: number): void {
 		if (address >= SoftSwitches.LCRAMIN2 && address <= SoftSwitches.LC_C08F) {
 			this.updateLcState(address);
+			return;
+		}
+
+		// Slot I/O ($C090-$C0FF)
+		if (address >= 0xc090 && address <= 0xc0ff) {
+			const slot = ((address >> 4) & 0x0f) - 8;
+			if (this.slots[slot]) this.slots[slot]!.writeIo(address & 0x0f, value);
 			return;
 		}
 
@@ -783,6 +835,15 @@ export class AppleBus implements IBus {
 		this.mixed = state.mixed ?? this.mixed;
 		this.page2 = state.page2 ?? this.page2;
 		this.hires = state.hires ?? this.hires;
+	}
+
+	public insertMedia(data: Uint8Array, metadata?: Record<string, unknown>) {
+		if (metadata && typeof metadata.slot === "number") {
+			const card = this.slots[metadata.slot];
+			if (card && card.insertMedia) {
+				card.insertMedia(data);
+			}
+		}
 	}
 }
 
