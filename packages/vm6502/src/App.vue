@@ -132,12 +132,13 @@ import { VirtualMachine } from "./virtualmachine.class";
 	const selectedMachine = ref<MachineConfig>(availableMachines[1] as MachineConfig);
 
 	provide('vm', vm);
-	const { loadBreakpoints, breakpoints } = useBreakpoints();
+	const { loadBreakpoints } = useBreakpoints();
 
 	onMounted(() => {
 
-		vm.value = markRaw(new VirtualMachine(selectedMachine.value));
-		loadBreakpoints();
+		const machine= new VirtualMachine(selectedMachine.value);
+		vm.value = markRaw(machine);
+		loadBreakpoints(machine);
 
 		cpuWorker.value = vm.value.worker; // Provide worker for legacy reasons if needed
 
