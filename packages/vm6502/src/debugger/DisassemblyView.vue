@@ -113,6 +113,7 @@
 
 import { computed, inject, onMounted, onUnmounted, type Ref, ref, watch } from "vue";
 import { useBreakpoints } from "@/composables/useBreakpoints";
+import { useDisassembly } from "@/composables/useDisassembly";
 import { useLabeling } from "@/composables/useLabeling";
 import { disassemble } from "@/lib/disassembler";
 import { handleExplainCode } from "@/lib/gemini.utils";
@@ -130,6 +131,7 @@ import type { VirtualMachine } from "@/virtualmachine.class";
 	const { address, memory, registers} = defineProps<Props>();
 
 	const { pcBreakpoints, toggleBreakpoint } = useBreakpoints();
+	const { jumpEvent } = useDisassembly();
 
 	const onToggleBreakpoint = (address: number) => {
 		toggleBreakpoint({ type: 'pc', address }, vm?.value);
@@ -317,6 +319,14 @@ import type { VirtualMachine } from "@/virtualmachine.class";
 		},
 		{ immediate: true, deep: true },
 	);
+
+	// Watch for external jump requests (e.g. from TraceView)
+	watch(jumpEvent, (event) => {
+		if (event) {
+			isFollowingPc.value = false;
+			disassemblyStartAddress.value = event.address;
+		}
+	});
 
 	const getBranchPrediction = (opcode: string) => {
 		// Defensive check for props.registers (already added in last iteration, keeping it)

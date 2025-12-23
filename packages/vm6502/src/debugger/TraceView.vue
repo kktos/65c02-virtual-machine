@@ -37,7 +37,13 @@
 				</thead>
 				<tbody>
 					<tr v-for="(entry, index) in traceHistory" :key="index" class="hover:bg-gray-800 text-gray-300">
-						<td class="py-0.5 text-yellow-500">{{ formatAddress(entry.source) }}</td>
+						<td
+							class="py-0.5 text-yellow-500 cursor-pointer hover:text-yellow-300 hover:underline"
+							@click="handleJumpToSource(entry.source)"
+							title="Jump to disassembly"
+						>
+							{{ formatAddress(entry.source) }}
+						</td>
 						<td class="py-0.5 text-gray-400">{{ entry.type }}</td>
 						<td class="py-0.5 text-cyan-400">{{ formatAddress(entry.target) }}</td>
 					</tr>
@@ -54,9 +60,11 @@
 
 <script lang="ts" setup>
 import { inject, onMounted, onUnmounted, type Ref, ref, watch } from "vue";
+import { useDisassembly } from "@/composables/useDisassembly";
 import type { VirtualMachine } from "@/virtualmachine.class";
 
 const vm = inject<Ref<VirtualMachine>>("vm");
+const { requestJump } = useDisassembly();
 const traceHistory = ref<{ type: string; source: number; target: number }[]>([]);
 
 const formatAddress = (addr: number) => {
@@ -68,6 +76,10 @@ const refreshTrace = () => vm?.value?.getTrace();
 const clearTrace = () => {
 	vm?.value?.clearTrace();
 	traceHistory.value = [];
+};
+
+const handleJumpToSource = (addr: number) => {
+	requestJump(addr);
 };
 
 watch(() => vm?.value, (newVm) => {
