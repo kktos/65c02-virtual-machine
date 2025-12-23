@@ -229,7 +229,7 @@ export class AppleBus implements IBus {
 	read(address: number): number {
 		if (address >= 0xc000 && address <= 0xc0ff) return this.readSoftSwitch(address);
 
-		this.lcPreWriteCount = 0;
+		// this.lcPreWriteCount = 0;
 
 		let bankOffset = 0;
 		if (address < 0x0200 && this.altZp) bankOffset = 0x10000;
@@ -315,7 +315,7 @@ export class AppleBus implements IBus {
 			return;
 		}
 
-		this.lcPreWriteCount = 0;
+		// this.lcPreWriteCount = 0;
 
 		let bankOffset = 0;
 		if (address < 0x0200 && this.altZp) {
@@ -359,7 +359,7 @@ export class AppleBus implements IBus {
 		const bit3 = (address & 8) !== 0; // 0=Bank 2, 1=Bank 1
 
 		this.lcBank2 = !bit3;
-		this.lcReadRam = !bit1; // If bit1 is set, we read ROM. If clear, we read RAM.
+		this.lcReadRam = bit0 === bit1;
 
 		// Write Enable Logic:
 		// If bit0 is clear ($C080, $C082...), write is disabled immediately.
