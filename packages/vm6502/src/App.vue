@@ -55,7 +55,7 @@
 							<BreakpointsList />
 						</TabsContent>
 						<TabsContent value="state" class="h-full">
-							<MachineInspector />
+							<MachineStateView />
 						</TabsContent>
 					</Tabs>
 				</div>
@@ -110,7 +110,7 @@ import {
 import BreakpointsList from './debugger/BreakpointsList.vue';
 import DebuggerControls from './debugger/DebuggerControls.vue';
 import DisassemblyView from './debugger/DisassemblyView.vue';
-import MachineInspector from "./debugger/MachineInspector.vue";
+import MachineStateView from "./debugger/MachineStateView.vue";
 import MemoryViewer from './debugger/MemoryViewer.vue';
 import RegistersView from './debugger/RegistersView.vue';
 import StackView from './debugger/StackView.vue';
