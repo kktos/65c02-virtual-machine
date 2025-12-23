@@ -21,7 +21,7 @@
 					<StatusPanel />
 				</div>
 
-				<div class=" grid grid-cols-[300px_1fr] gap-6 h-full">
+				<div class="grid grid-cols-[300px_1fr] gap-4 h-full ml-4 mr-4">
 
 					<!-- Registers and Flags stacked vertically in the first column -->
 					<div class="grid grid-col gap-2">

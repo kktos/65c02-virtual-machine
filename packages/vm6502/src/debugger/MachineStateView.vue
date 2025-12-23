@@ -3,7 +3,7 @@
 		<div class="overflow-y-auto space-y-4 text-xs">
 			<div v-for="group in groupedSpecs" :key="group.name">
 				<h3 class="font-bold text-gray-300 mb-2">{{ group.name }}</h3>
-				<div class="grid grid-cols-[150px_150px] gap-x-4 gap-y-2 pl-2">
+				<div class="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-x-4 gap-y-2 pl-2">
 					<div v-for="spec in group.specs" :key="spec.id" class="flex items-center gap-x-2">
 						<div v-if="spec.type === 'led'" class="flex items-center">
 							<span
