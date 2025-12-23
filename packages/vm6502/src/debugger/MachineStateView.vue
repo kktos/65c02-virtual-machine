@@ -7,7 +7,7 @@
 					<div v-for="spec in group.specs" :key="spec.id" class="flex items-center gap-x-2">
 						<div v-if="spec.type === 'led'" class="flex items-center">
 							<span
-							:class="['w-3 h-3 rounded-full transition-colors', busState[spec.id] ? 'bg-green-500 shadow-[0_0_6px_rgba(34,197,94,0.6)]' : 'bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.6)]']"
+							:class="['w-3 h-3 rounded-full transition-colors', busState[spec.id] ? 'bg-green-500 shadow-[0_0_6px_rgba(34,197,94,0.6)]' : 'bg-red-900 shadow-[0_0_6px_rgba(239,68,68,0.6)]']"
 							></span>
 						</div>
 						<span v-else class="font-mono text-yellow-300">
