@@ -98,6 +98,8 @@ export const KBD = 0xc000;
 // R KBDSTRB
 export const KBDSTRB = 0xc010;
 
+export const SPEAKER = 0xc030;
+
 // W 80STOREOFF Allow page2 to switch video page1 page2
 export const STORE80OFF = 0xc000;
 // W 80STOREON Allow page2 to switch main & aux video memory
@@ -236,6 +238,18 @@ export const PADDL1 = 0xc065;
 export const PADDL2 = 0xc066;
 export const PADDL3 = 0xc067;
 export const PTRIG = 0xc070;
+
+// Anunciator I/O
+export const CLRAN0 = 0xc058;
+export const SETAN0 = 0xc059;
+export const CLRAN1 = 0xc05a;
+export const SETAN1 = 0xc05b;
+export const CLRAN2 = 0xc05c;
+export const SETAN2 = 0xc05d;
+export const CLRAN3 = 0xc05e;
+export const SETAN3 = 0xc05f;
+
+// Slot 7
 
 export const SLOT7F1 = 0xc0f1;
 

@@ -212,8 +212,14 @@ export class AppleBus implements IBus {
 
 		let bankOffset = 0;
 		if (address < 0x0200 && this.altZp) bankOffset = 0x10000;
-		else if (address >= 0x0200 && address < 0xc000 && this.ramRdAux) bankOffset = 0x10000;
-		else if (address >= 0xd000 && this.altZp) bankOffset = 0x10000;
+		else if (address >= 0x0200 && address < 0xc000) {
+			let aux = this.ramRdAux;
+			if (this.store80) {
+				if (address >= 0x0400 && address <= 0x07ff) aux = this.page2;
+				else if (this.hires && address >= 0x2000 && address <= 0x3fff) aux = this.page2;
+			}
+			if (aux) bankOffset = 0x10000;
+		} else if (address >= 0xd000 && this.altZp) bankOffset = 0x10000;
 		if (bankOffset > 0) return this.memory[RAM_OFFSET + address + bankOffset] ?? 0;
 
 		// Slot ROMs / Internal ROM ($C100-$CFFF)
@@ -275,8 +281,13 @@ export class AppleBus implements IBus {
 		let bankOffset = 0;
 		if (address < 0x0200 && this.altZp) {
 			bankOffset = 0x10000;
-		} else if (address >= 0x0200 && address < 0xc000 && this.ramWrAux) {
-			bankOffset = 0x10000;
+		} else if (address >= 0x0200 && address < 0xc000) {
+			let aux = this.ramWrAux;
+			if (this.store80) {
+				if (address >= 0x0400 && address <= 0x07ff) aux = this.page2;
+				else if (this.hires && address >= 0x2000 && address <= 0x3fff) aux = this.page2;
+			}
+			if (aux) bankOffset = 0x10000;
 		} else if (address >= 0xd000 && this.altZp) {
 			bankOffset = 0x10000;
 		}
@@ -338,6 +349,9 @@ export class AppleBus implements IBus {
 			case SoftSwitches.KBDSTRB:
 				this.keyStrobe = false;
 				return 0;
+			case SoftSwitches.SPEAKER:
+				// to be implemented
+				return 0;
 			case SoftSwitches.STORE80:
 				return this.store80 ? 0x80 : 0x00;
 			case SoftSwitches.RAMRD:
@@ -370,6 +384,32 @@ export class AppleBus implements IBus {
 				return this.page2 ? 0x80 : 0x00;
 			case SoftSwitches.HIRES: // HIRES
 				return this.hires ? 0x80 : 0x00;
+			case SoftSwitches.PAGE2OFF: // PAGE2 OFF
+				this.page2 = false;
+				break;
+			case SoftSwitches.PAGE2ON: // PAGE2 ON
+				this.page2 = true;
+				break;
+			case SoftSwitches.HIRESOFF: // HIRES OFF
+				this.hires = false;
+				break;
+			case SoftSwitches.TEXTON: // TEXT ON
+				this.text = true;
+				break;
+			case SoftSwitches.CLRAN0:
+				// to be implemented
+				break;
+			case SoftSwitches.CLRAN1:
+				// to be implemented
+				break;
+			case SoftSwitches.SETAN2:
+				// to be implemented
+				break;
+			case SoftSwitches.SETAN3:
+				// to be implemented
+				break;
+			default:
+				if (address < 0xc090) console.error("Unknown soft switch read:", address.toString(16));
 		}
 		return 0;
 	}
@@ -456,6 +496,8 @@ export class AppleBus implements IBus {
 			case SoftSwitches.HIRESON: // HIRES ON
 				this.hires = true;
 				break;
+			default:
+				if (address < 0xc090) console.error("Unknown soft switch write:", address.toString(16));
 		}
 	}
 
