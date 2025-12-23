@@ -536,6 +536,19 @@ export class AppleBus implements IBus {
 					return;
 				}
 				console.error("AppleBus: Load out of bounds: slots.rom");
+				break;
+			case "slot.rom":
+				if (data.length !== 0x100) {
+					console.error("AppleBus: Load out of bounds: slot.rom should be $100 bytes");
+					return;
+				}
+				if (address < 1 || address > 7) {
+					console.error("AppleBus: Load out of bounds: slot.rom should be from 1 to 7");
+					return;
+				}
+				this.slotRoms.set(data, (address - 1) * 0x100);
+				console.log(`AppleBus: Loaded ${data.length} bytes into Slot ${address} ROM`);
+				return;
 		}
 
 		// Default load to physical RAM
