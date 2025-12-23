@@ -63,6 +63,7 @@ async function init(machine: MachineConfig) {
 	initCPU(bus, registersView, video, memoryView);
 
 	console.log(`%cWorker:%c Initialized with "${machine.name}".`, COLORED_LOG, COLORDEFAULT_LOG);
+	self.postMessage({ type: "ready" });
 }
 
 self.onmessage = async (event: MessageEvent) => {
@@ -71,7 +72,7 @@ self.onmessage = async (event: MessageEvent) => {
 	if (command === "init") return init(machine);
 
 	if (!sharedBuffer || !registersView || !memoryView) {
-		console.error(`Worker: Not initialized. Send 'init' command with buffer first. Command: ${command}`);
+		console.error(`Worker: Not initialized. Send 'init' command with buffer first. ${JSON.stringify(event.data)}`);
 		return;
 	}
 
@@ -106,10 +107,10 @@ self.onmessage = async (event: MessageEvent) => {
 			resetCPU();
 			break;
 		case "addBP":
-			addBreakpoint(event.data.type, event.data.address);
+			addBreakpoint(event.data.type, event.data.address, event.data.endAddress);
 			break;
 		case "removeBP":
-			removeBreakpoint(event.data.type, event.data.address);
+			removeBreakpoint(event.data.type, event.data.address, event.data.endAddress);
 			break;
 		case "clearBPs":
 			clearBreakpoints();

@@ -1,14 +1,14 @@
 import type { Video } from "@/video/video.interface";
 import {
 	addBreakpoint,
+	BP_PC,
+	BP_READ,
+	BP_WRITE,
 	BreakpointError,
 	breakOnBrk,
+	breakpointMap,
 	cleanStepBP,
 	clearBreakpoints,
-	memoryAccessBreakpoints,
-	memoryReadBreakpoints,
-	memoryWriteBreakpoints,
-	pcBreakpoints,
 	removeBreakpoint,
 	setBreakOnBrk,
 	setStepAddedBreakpoint,
@@ -74,16 +74,14 @@ export function initCPU(systemBus: IBus, regView: DataView, videoSystem: Video |
 	// Wrap bus methods to check for breakpoints
 	const originalRead = bus.read.bind(bus);
 	bus.read = (address: number, isOpcodeFetch = false): number => {
-		if (!isOpcodeFetch && isRunning && (memoryReadBreakpoints.has(address) || memoryAccessBreakpoints.has(address)))
-			throw new BreakpointError("read", address);
+		if (!isOpcodeFetch && isRunning && breakpointMap[address] & BP_READ) throw new BreakpointError("read", address);
 
 		return originalRead(address, isOpcodeFetch);
 	};
 
 	const originalWrite = bus.write.bind(bus);
 	bus.write = (address: number, value: number): void => {
-		if (isRunning && (memoryWriteBreakpoints.has(address) || memoryAccessBreakpoints.has(address)))
-			throw new BreakpointError("write", address);
+		if (isRunning && breakpointMap[address] & BP_WRITE) throw new BreakpointError("write", address);
 		originalWrite(address, value);
 	};
 
@@ -151,9 +149,9 @@ export function stepOverInstruction() {
 		// JSR Absolute
 		const target = (pc + 3) & 0xffff;
 		setStepBPAddress(target);
-		const added = !pcBreakpoints.has(target);
+		const added = (breakpointMap[target] & BP_PC) === 0;
 		setStepAddedBreakpoint(added);
-		if (added) pcBreakpoints.add(target);
+		if (added) addBreakpoint("pc", target);
 
 		setRunning(true);
 	} else {
@@ -173,9 +171,9 @@ export function stepOutInstruction() {
 	const target = (((hi << 8) | lo) + 1) & 0xffff;
 
 	setStepBPAddress(target);
-	const added = !pcBreakpoints.has(target);
+	const added = (breakpointMap[target] & BP_PC) === 0;
 	setStepAddedBreakpoint(added);
-	if (added) pcBreakpoints.add(target);
+	if (added) addBreakpoint("pc", target);
 
 	setRunning(true);
 }
@@ -371,7 +369,7 @@ function executeInstruction(): number {
 
 	// Check for PC breakpoint before executing
 	// Only halt if we are in "run" mode. If we are single-stepping, we want to execute the instruction.
-	if (isRunning && pcBreakpoints.has(pc)) {
+	if (isRunning && breakpointMap[pc] & BP_PC) {
 		setRunning(false);
 
 		let type = "pc";

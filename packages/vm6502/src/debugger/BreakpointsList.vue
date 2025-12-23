@@ -10,7 +10,8 @@
 			<input
 				v-model="newBpAddressStr"
 				type="text"
-				placeholder="Addr (Hex)"
+				placeholder="Addr or Range (Hex)"
+				title="A900 or 2000-2FFF or 2000:2FFF"
 				class="bg-gray-700 text-white text-xs rounded p-1 border border-gray-600 focus:border-indigo-500 outline-none w-24 font-mono"
 				@keydown.enter="handleAddBreakpoint"
 			/>
@@ -40,7 +41,12 @@
 					<span :class="['px-2 py-0.5 text-xs font-semibold rounded-full min-w-[70px] text-center text-white', getTypeStyles(bp.type).bg, !bp.enabled ? 'opacity-50' : '']">
 						{{ bp.type }}
 					</span>
-					<span :class="['text-indigo-300', !bp.enabled ? 'opacity-50' : '']">{{ '$' + bp.address.toString(16).toUpperCase().padStart(4, '0') }}</span>
+					<span :class="['text-indigo-300', !bp.enabled ? 'opacity-50' : '']">
+						{{ '$' + bp.address.toString(16).toUpperCase().padStart(4, '0') }}
+						<span v-if="bp.endAddress && bp.endAddress !== bp.address">
+							- {{ '$' + bp.endAddress.toString(16).toUpperCase().padStart(4, '0') }}
+						</span>
+					</span>
 				</div>
 				<button
 					@click="handleRemoveBreakpoint(bp)"
@@ -56,7 +62,7 @@
 </template>
 
 <script lang="ts" setup>
-import { inject, type Ref, ref } from "vue";
+import { inject, type Ref, ref, watch } from "vue";
 import { useBreakpoints } from "@/composables/useBreakpoints";
 import type { Breakpoint } from "@/types/breakpoint.interface";
 import type { VirtualMachine } from "@/virtualmachine.class";
@@ -65,16 +71,32 @@ import { ScrollArea } from '../components/ui/scroll-area';
 	/** biome-ignore-all lint/correctness/noUnusedVariables: vue */
 
 	const vm = inject<Ref<VirtualMachine>>("vm");
-	const { breakpoints, addBreakpoint, removeBreakpoint, toggleBreakpointEnable } = useBreakpoints();
+	const { breakpoints, addBreakpoint, removeBreakpoint, toggleBreakpointEnable, loadBreakpoints } = useBreakpoints();
+
+	watch(() => vm?.value, (newVm) => {
+		if (newVm) {
+			loadBreakpoints(newVm);
+		}
+	}, { immediate: true });
 
 	const newBpType = ref<Breakpoint['type']>('pc');
 	const newBpAddressStr = ref('');
 
 	const handleAddBreakpoint = () => {
-		const addr = parseInt(newBpAddressStr.value, 16);
+		const parts = newBpAddressStr.value.split(/[-:]/) as [string, string];
+		const addr = parseInt(parts[0], 16);
 		if (Number.isNaN(addr)) return;
 
+		let endAddr = addr;
+		if (parts.length > 1) {
+			const end = parseInt(parts[1], 16);
+			if (!Number.isNaN(end)) {
+				endAddr = end;
+			}
+		}
+
 		const bp: Breakpoint = { type: newBpType.value, address: addr };
+		if (endAddr !== addr) bp.endAddress = endAddr;
 
 		addBreakpoint(bp, vm?.value);
 		newBpAddressStr.value = '';

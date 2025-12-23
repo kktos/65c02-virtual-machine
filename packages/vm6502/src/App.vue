@@ -166,15 +166,6 @@ import { VirtualMachine } from "./virtualmachine.class";
 			vm.value.initVideo(newCanvasEl);
 	}, { once: true });
 
-	// Sync breakpoints when VM is ready
-	watch(() => vm.value, (newVm) => {
-		if (newVm && breakpoints.value.length > 0) {
-			breakpoints.value.forEach(bp => {
-				if (bp.enabled) newVm.addBP(bp.type, bp.address);
-			});
-		}
-	});
-
 	// --- UI Update Subscription ---
 	// Allow child components to subscribe to the animation frame loop
 	const uiUpdateSubscribers = new Set<() => void>();

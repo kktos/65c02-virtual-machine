@@ -10,7 +10,7 @@ const STORAGE_KEY = "vm6502-breakpoints";
 
 type UseBreakpointsResult = {
 	breakpoints: Ref<BreakpointState[]>;
-	loadBreakpoints: () => void;
+	loadBreakpoints: (vm?: VirtualMachine) => Promise<void>;
 	addBreakpoint: (bp: Breakpoint, vm?: VirtualMachine) => void;
 	removeBreakpoint: (bp: Breakpoint, vm?: VirtualMachine) => void;
 	toggleBreakpoint: (bp: Breakpoint, vm?: VirtualMachine) => void;
@@ -23,14 +23,22 @@ export function useBreakpoints(): UseBreakpointsResult {
 		localStorage.setItem(STORAGE_KEY, JSON.stringify(breakpoints.value));
 	};
 
-	const loadBreakpoints = () => {
+	const loadBreakpoints = async (vm?: VirtualMachine) => {
 		const stored = localStorage.getItem(STORAGE_KEY);
 		if (stored) {
 			try {
-				breakpoints.value = JSON.parse(stored).map((bp: BreakpointState) => ({
+				const loaded = JSON.parse(stored).map((bp: BreakpointState) => ({
 					...bp,
 					enabled: bp.enabled ?? true,
 				}));
+				breakpoints.value = loaded;
+
+				if (vm) {
+					await vm.ready;
+					loaded.forEach((bp: BreakpointState) => {
+						if (bp.enabled) vm.addBP(bp.type, bp.address, bp.endAddress);
+					});
+				}
 			} catch (e) {
 				console.error("Failed to load breakpoints", e);
 			}
@@ -39,19 +47,22 @@ export function useBreakpoints(): UseBreakpointsResult {
 
 	const addBreakpoint = (bp: Breakpoint, vm?: VirtualMachine) => {
 		// Prevent duplicates
-		if (breakpoints.value.some((b) => b.type === bp.type && b.address === bp.address)) return;
+		if (breakpoints.value.some((b) => b.type === bp.type && b.address === bp.address && b.endAddress === bp.endAddress))
+			return;
 
 		const newBp: BreakpointState = { ...bp, enabled: true };
 		breakpoints.value.push(newBp);
 		saveBreakpoints();
-		vm?.addBP(bp.type, bp.address);
+		vm?.addBP(bp.type, bp.address, bp.endAddress);
 	};
 
 	const removeBreakpoint = (bp: Breakpoint, vm?: VirtualMachine) => {
-		const index = breakpoints.value.findIndex((b) => b.type === bp.type && b.address === bp.address);
+		const index = breakpoints.value.findIndex(
+			(b) => b.type === bp.type && b.address === bp.address && b.endAddress === bp.endAddress,
+		);
 		if (index !== -1) {
 			// Always remove from VM to ensure sync, regardless of enabled state
-			vm?.removeBP(bp.type, bp.address);
+			vm?.removeBP(bp.type, bp.address, bp.endAddress);
 
 			breakpoints.value.splice(index, 1);
 			saveBreakpoints();
@@ -59,7 +70,9 @@ export function useBreakpoints(): UseBreakpointsResult {
 	};
 
 	const toggleBreakpoint = (bp: Breakpoint, vm?: VirtualMachine) => {
-		const exists = breakpoints.value.some((b) => b.type === bp.type && b.address === bp.address);
+		const exists = breakpoints.value.some(
+			(b) => b.type === bp.type && b.address === bp.address && b.endAddress === bp.endAddress,
+		);
 		if (exists) {
 			removeBreakpoint(bp, vm);
 		} else {
@@ -68,14 +81,16 @@ export function useBreakpoints(): UseBreakpointsResult {
 	};
 
 	const toggleBreakpointEnable = (bp: Breakpoint, vm?: VirtualMachine) => {
-		const item = breakpoints.value.find((b) => b.type === bp.type && b.address === bp.address);
+		const item = breakpoints.value.find(
+			(b) => b.type === bp.type && b.address === bp.address && b.endAddress === bp.endAddress,
+		);
 		if (item) {
 			item.enabled = !item.enabled;
 			saveBreakpoints();
 			if (item.enabled) {
-				vm?.addBP(item.type, item.address);
+				vm?.addBP(item.type, item.address, item.endAddress);
 			} else {
-				vm?.removeBP(item.type, item.address);
+				vm?.removeBP(item.type, item.address, item.endAddress);
 			}
 		}
 	};

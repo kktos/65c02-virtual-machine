@@ -43,6 +43,9 @@ export class VirtualMachine {
 	public bus?: IBus;
 	public ready: Promise<void>;
 
+	private workerReadyPromise: Promise<void>;
+	private resolveWorkerReady!: () => void;
+
 	public onmessage?: (event: MessageEvent) => void;
 	public onStateChange?: (state: Record<string, unknown>) => void;
 	public onTraceReceived?: (history: { type: string; source: number; target: number }[]) => void;
@@ -54,11 +57,17 @@ export class VirtualMachine {
 		this.machineConfig = machineConfig;
 		this.worker = new Worker(new URL("./cpu/cpu.worker.ts", import.meta.url), { type: "module" });
 
+		this.workerReadyPromise = new Promise<void>((resolve) => {
+			this.resolveWorkerReady = resolve;
+		});
+
 		this.worker.onmessage = (event) => {
 			const { command, colors, type, history } = event.data;
 			if (command === "setPalette") {
 				if (this.videoOutput) this.videoOutput.setPalette(colors);
 				else this.pendingPalette = colors;
+			} else if (type === "ready") {
+				this.resolveWorkerReady();
 			} else if (type === "trace") {
 				this.onTraceReceived?.(history);
 			} else if (this.onmessage) {
@@ -159,6 +168,7 @@ export class VirtualMachine {
 		});
 
 		this.setSpeed(this.machineConfig.speed ?? 1);
+		await this.workerReadyPromise;
 	}
 
 	public initVideo(canvas: HTMLCanvasElement) {
@@ -229,9 +239,7 @@ export class VirtualMachine {
 	public setSpeed = (speed: number) => this.worker.postMessage({ command: "setSpeed", speed });
 	public getSpeed = () => this.sharedRegisters.getFloat64(REG_SPEED_OFFSET, true);
 	public setBreakOnBrk = (enabled: boolean) => this.worker.postMessage({ command: "setBreakOnBrk", enabled });
-
 	public resetCPU = () => this.worker.postMessage({ command: "reset" });
-
 	public play = () => this.worker.postMessage({ command: "run" });
 	public pause = () => this.worker.postMessage({ command: "pause" });
 	public reset = () => this.worker.postMessage({ command: "reset" });
@@ -239,11 +247,11 @@ export class VirtualMachine {
 	public stepOut = () => this.worker.postMessage({ command: "stepOut" });
 	public stepOver = () => this.worker.postMessage({ command: "stepOver" });
 
-	public addBP(type: Breakpoint["type"], address: number) {
-		this.worker.postMessage({ command: "addBP", type, address });
+	public addBP(type: Breakpoint["type"], address: number, endAddress?: number) {
+		this.worker.postMessage({ command: "addBP", type, address, endAddress });
 	}
-	public removeBP(type: Breakpoint["type"], address: number) {
-		this.worker.postMessage({ command: "removeBP", type, address });
+	public removeBP(type: Breakpoint["type"], address: number, endAddress?: number) {
+		this.worker.postMessage({ command: "removeBP", type, address, endAddress });
 	}
 	public clearBPs() {
 		this.worker.postMessage({ command: "clearBPs" });

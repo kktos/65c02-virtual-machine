@@ -12,10 +12,11 @@ export class BreakpointError extends Error {
 }
 
 // --- Breakpoint State ---
-export const pcBreakpoints = new Set<number>();
-export const memoryReadBreakpoints = new Set<number>();
-export const memoryWriteBreakpoints = new Set<number>();
-export const memoryAccessBreakpoints = new Set<number>();
+export const BP_PC = 0x01;
+export const BP_READ = 0x02;
+export const BP_WRITE = 0x04;
+
+export const breakpointMap = new Uint8Array(65536);
 
 export let stepBPAddress: number | null = null;
 export let stepAddedBreakpoint = false;
@@ -33,49 +34,57 @@ export function setBreakOnBrk(enabled: boolean) {
 	breakOnBrk = enabled;
 }
 
-export function addBreakpoint(type: Breakpoint["type"], address: number) {
+export function addBreakpoint(type: Breakpoint["type"], startAddress: number, endAddress: number = startAddress) {
+	let flag = 0;
 	switch (type) {
 		case "pc":
-			pcBreakpoints.add(address);
+			flag = BP_PC;
 			break;
 		case "read":
-			memoryReadBreakpoints.add(address);
+			flag = BP_READ;
 			break;
 		case "write":
-			memoryWriteBreakpoints.add(address);
+			flag = BP_WRITE;
 			break;
 		case "access":
-			memoryAccessBreakpoints.add(address);
+			flag = BP_READ | BP_WRITE;
 			break;
+	}
+	for (let i = startAddress; i <= endAddress; i++) {
+		breakpointMap[i] |= flag;
 	}
 }
 
-export function removeBreakpoint(type: Breakpoint["type"], address: number) {
+export function removeBreakpoint(type: Breakpoint["type"], startAddress: number, endAddress: number = startAddress) {
+	let flag = 0;
 	switch (type) {
 		case "pc":
-			pcBreakpoints.delete(address);
+			flag = BP_PC;
 			break;
 		case "read":
-			memoryReadBreakpoints.delete(address);
+			flag = BP_READ;
 			break;
 		case "write":
-			memoryWriteBreakpoints.delete(address);
+			flag = BP_WRITE;
 			break;
 		case "access":
-			memoryAccessBreakpoints.delete(address);
+			flag = BP_READ | BP_WRITE;
 			break;
+	}
+	const mask = ~flag;
+	for (let i = startAddress; i <= endAddress; i++) {
+		breakpointMap[i] &= mask;
 	}
 }
 
 export function clearBreakpoints() {
-	pcBreakpoints.clear();
-	memoryReadBreakpoints.clear();
-	memoryWriteBreakpoints.clear();
-	memoryAccessBreakpoints.clear();
+	breakpointMap.fill(0);
 }
 
 export function cleanStepBP() {
-	if (stepAddedBreakpoint && stepBPAddress !== null) pcBreakpoints.delete(stepBPAddress);
+	if (stepAddedBreakpoint && stepBPAddress !== null) {
+		breakpointMap[stepBPAddress] &= ~BP_PC;
+	}
 	stepBPAddress = null;
 	stepAddedBreakpoint = false;
 }
