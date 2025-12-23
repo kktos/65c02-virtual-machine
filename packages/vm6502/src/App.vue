@@ -18,6 +18,7 @@
 			<ResizablePanel :default-size="41" class="grid gap-1" @resize="dbgTopPanelResize">
 				<div class="flex items-center justify-between pr-2">
 					<DebuggerControls :isRunning="isRunning" />
+					<DiskDriveControl />
 					<StatusPanel />
 				</div>
 
@@ -110,6 +111,7 @@ import {
 import BreakpointsList from './debugger/BreakpointsList.vue';
 import DebuggerControls from './debugger/DebuggerControls.vue';
 import DisassemblyView from './debugger/DisassemblyView.vue';
+import DiskDriveControl from "./debugger/DiskDriveControl.vue";
 import MachineStateView from "./debugger/MachineStateView.vue";
 import MemoryViewer from './debugger/MemoryViewer.vue';
 import RegistersView from './debugger/RegistersView.vue';

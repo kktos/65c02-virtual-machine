@@ -257,6 +257,10 @@ export class VirtualMachine {
 		this.worker.postMessage({ command: "clearBPs" });
 	}
 
+	public insertDisk(data: Uint8Array, metadata: Record<string, unknown> = {}) {
+		this.worker.postMessage({ command: "insertMedia", data, metadata });
+	}
+
 	public setTrace = (enabled: boolean) => this.worker.postMessage({ command: "setTrace", enabled });
 	public getTrace = () => this.worker.postMessage({ command: "getTrace" });
 	public clearTrace = () => this.worker.postMessage({ command: "clearTrace" });

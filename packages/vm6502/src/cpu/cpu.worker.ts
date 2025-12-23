@@ -115,6 +115,9 @@ self.onmessage = async (event: MessageEvent) => {
 		case "clearBPs":
 			clearBreakpoints();
 			break;
+		case "insertMedia":
+			if (bus?.insertMedia) bus.insertMedia(event.data.data, event.data.metadata);
+			break;
 		case "keydown":
 			if (bus?.pressKey) bus.pressKey(key, code);
 			break;

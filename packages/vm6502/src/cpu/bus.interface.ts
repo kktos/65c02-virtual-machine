@@ -57,4 +57,7 @@ export interface IBus {
 	syncState?(): void;
 	prepareWorkerPayloads?(): Promise<{ video?: unknown; bus?: unknown }>;
 	reset?(): void;
+
+	/** Inserts media (disk, tape, etc.) into the machine. Metadata can specify drive/slot. */
+	insertMedia?(data: Uint8Array, metadata?: Record<string, unknown>): void;
 }
