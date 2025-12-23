@@ -1,6 +1,5 @@
 <template>
 	<div class="p-4 bg-gray-800 rounded-lg shadow-xl flex flex-col">
-		<!-- <DebuggerPanelTitle title="Machine State" /> -->
 		<div class="overflow-y-auto space-y-4 text-xs">
 			<div v-for="group in groupedSpecs" :key="group.name">
 				<h3 class="font-bold text-gray-300 mb-2">{{ group.name }}</h3>
