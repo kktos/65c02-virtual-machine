@@ -3,7 +3,6 @@ import { C1_C7_INTROM, C8_CF_INTROM, LG_CARD_ROM } from "./rom/C1_FF";
 import { romSlot1 } from "./rom/slot1.rom";
 import { romSlot2 } from "./rom/slot2.rom";
 import { romSlot3 } from "./rom/slot3.rom";
-import { romSlot6 } from "./rom/slot6.rom";
 
 export const apple2e: MachineConfig = {
 	name: "Apple //e",
@@ -20,7 +19,7 @@ export const apple2e: MachineConfig = {
 			romSlot1,
 			romSlot2,
 			romSlot3,
-			romSlot6,
+			// romSlot6,
 			{
 				bank: 0,
 				addr: 0xd000,

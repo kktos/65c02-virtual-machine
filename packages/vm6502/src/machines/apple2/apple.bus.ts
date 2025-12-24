@@ -173,51 +173,56 @@ export class AppleBus implements IBus {
 		if (typeof document === "undefined") return {};
 
 		// Ensure the font is loaded
-		await document.fonts.load("14px PrintChar21");
+		await Promise.all([document.fonts.load("14px PrintChar21"), document.fonts.load("16px PRNumber3")]);
 
-		const canvas = document.createElement("canvas");
-		const ctx = canvas.getContext("2d");
-		if (!ctx) return {};
+		const generateCharmap = async (font: string, charWidth: number, charHeight: number) => {
+			const canvas = document.createElement("canvas");
+			const ctx = canvas.getContext("2d");
+			if (!ctx) return null;
 
-		// Create a 16x16 grid for 256 characters
-		const charWidth = 14;
-		const charHeight = 14 + 1;
-		const cols = 16;
-		const rows = 16;
+			const cols = 16;
+			const rows = 16;
 
-		canvas.width = cols * charWidth;
-		canvas.height = rows * charHeight;
+			canvas.width = cols * charWidth;
+			canvas.height = rows * charHeight;
 
-		ctx.clearRect(0, 0, canvas.width, canvas.height);
-		ctx.font = "14px PrintChar21";
-		ctx.textAlign = "center";
-		ctx.textBaseline = "middle";
+			ctx.clearRect(0, 0, canvas.width, canvas.height);
+			ctx.font = font;
+			ctx.textAlign = "center";
+			ctx.textBaseline = "middle";
 
-		for (let i = 0; i < 256; i++) {
-			const char = mapAppleChr(i); //String.fromCharCode(i);
-			const col = i % cols;
-			const row = Math.floor(i / cols);
-			const x = col * charWidth + charWidth / 2;
-			const y = row * charHeight + charHeight / 2;
+			for (let i = 0; i < 256; i++) {
+				const char = mapAppleChr(i);
+				const col = i % cols;
+				const row = Math.floor(i / cols);
+				const x = col * charWidth + charWidth / 2;
+				const y = row * charHeight + charHeight / 2;
 
-			// Inverse handling: 0x00-0x7F is Inverse (Bit 7 clear)
-			// 0x80-0xFF is Normal (Bit 7 set)
-			if (i <= 0x7f) {
-				ctx.fillStyle = "white";
-				ctx.fillRect(col * charWidth, row * charHeight, charWidth, charHeight);
-				ctx.fillStyle = "black";
-			} else {
-				ctx.fillStyle = "white";
+				if (i <= 0x7f) {
+					ctx.fillStyle = "white";
+					ctx.fillRect(col * charWidth, row * charHeight, charWidth, charHeight);
+					ctx.fillStyle = "black";
+				} else {
+					ctx.fillStyle = "white";
+				}
+				ctx.fillText(char, x, y, charWidth);
 			}
-			ctx.fillText(char, x, y);
-		}
+			const bitmap = await createImageBitmap(canvas);
+			return {
+				bitmap,
+				metrics: { charWidth, charHeight, cols, rows, offsetTop: 2, offsetLeft: 3 },
+			};
+		};
 
-		const charmap = await createImageBitmap(canvas);
+		const map40 = await generateCharmap("14px PrintChar21", 14, 14);
+		const map80 = await generateCharmap("16px PRNumber3", 7, 16);
 
 		return {
 			video: {
-				charmap,
-				metrics: { charWidth, charHeight, cols, rows, offsetTop: 2, offsetLeft: 3 },
+				charmap40: map40?.bitmap,
+				metrics40: map40?.metrics,
+				charmap80: map80?.bitmap,
+				metrics80: map80?.metrics,
 			},
 		};
 	}
@@ -644,6 +649,15 @@ export class AppleBus implements IBus {
 					break;
 				case "ArrowRight":
 					ascii = 21; // Apple II Right is NAK (21)
+					break;
+				case "ArrowUp":
+					ascii = 0x8b;
+					break;
+				case "ArrowDown":
+					ascii = 0x8a;
+					break;
+				case "Escape":
+					ascii = 0x9b;
 					break;
 			}
 		}

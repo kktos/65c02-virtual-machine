@@ -55,8 +55,10 @@ export class AppleVideo implements Video {
 	private readonly charWidth: number;
 	private readonly charHeight: number;
 
-	private charmap: ImageBitmap | null = null;
-	private charMetrics: CharMetrics | null = null;
+	private charmap40: ImageBitmap | null = null;
+	private metrics40: CharMetrics | null = null;
+	private charmap80: ImageBitmap | null = null;
+	private metrics80: CharMetrics | null = null;
 
 	constructor(parent: Worker, mem: Uint8Array, width: number, height: number, bus: IBus, payload?: unknown) {
 		this.parent = parent;
@@ -76,9 +78,11 @@ export class AppleVideo implements Video {
 
 		this.initPalette();
 
-		if (payload?.charmap) {
-			this.charmap = payload.charmap;
-			this.charMetrics = payload.metrics;
+		if (payload?.charmap40) {
+			this.charmap40 = payload.charmap40;
+			this.metrics40 = payload.metrics40;
+			this.charmap80 = payload.charmap80;
+			this.metrics80 = payload.metrics80;
 		}
 	}
 
@@ -131,26 +135,29 @@ export class AppleVideo implements Video {
 		if (this.bus.syncState) this.bus.syncState();
 	}
 
-	private drawChar(charCode: number, x: number, y: number, width?: number) {
-		if (!this.charmap || !this.charMetrics) return;
+	private drawChar(charCode: number, x: number, y: number, width: number, is80Col: boolean) {
+		const charmap = is80Col ? this.charmap80 : this.charmap40;
+		const metrics = is80Col ? this.metrics80 : this.metrics40;
+
+		if (!charmap || !metrics) return;
 
 		// Calculate source position in atlas (simple math, very fast)
-		const col = charCode % this.charMetrics.cols;
-		const row = Math.floor(charCode / this.charMetrics.rows);
+		const col = charCode % metrics.cols;
+		const row = Math.floor(charCode / metrics.rows);
 
-		const srcX = col * this.charMetrics.charWidth;
-		const srcY = row * this.charMetrics.charHeight;
+		const srcX = col * metrics.charWidth;
+		const srcY = row * metrics.charHeight;
 
 		// Draw from atlas
 		this.ctx.drawImage(
-			this.charmap,
+			charmap,
 			srcX,
 			srcY,
-			this.charMetrics.charWidth,
-			this.charMetrics.charHeight, // source
+			metrics.charWidth,
+			metrics.charHeight, // source
 			x,
 			y,
-			width ?? this.charWidth,
+			width,
 			this.charHeight, // destination
 		);
 	}
@@ -164,7 +171,7 @@ export class AppleVideo implements Video {
 				const drawX = SCREEN_MARGIN_X + x * this.charWidth;
 				const drawY = SCREEN_MARGIN_Y + y * this.charHeight;
 
-				this.drawChar(charCode, drawX, drawY);
+				this.drawChar(charCode, drawX, drawY, this.charWidth, false);
 			}
 		}
 	}
@@ -179,12 +186,12 @@ export class AppleVideo implements Video {
 				// Aux char (Even column)
 				const auxVal = this.bus.readRaw?.(AUX_BANK_OFFSET + lineBase + x) ?? 0;
 				const drawXAux = SCREEN_MARGIN_X + x * 2 * charWidth80;
-				this.drawChar(auxVal, drawXAux, drawY, charWidth80);
+				this.drawChar(auxVal, drawXAux, drawY, charWidth80, true);
 
 				// Main char (Odd column)
 				const mainVal = this.bus.readRaw?.(lineBase + x) ?? 0;
 				const drawXMain = SCREEN_MARGIN_X + (x * 2 + 1) * charWidth80;
-				this.drawChar(mainVal, drawXMain, drawY, charWidth80);
+				this.drawChar(mainVal, drawXMain, drawY, charWidth80, true);
 			}
 		}
 	}
