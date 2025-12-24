@@ -46,6 +46,8 @@ export function installSoftSwitches(bus: AppleBus) {
 	onRead(SoftSwitches.HIRES, () => (bus.hires ? 0x80 : 0x00));
 	onRead(SoftSwitches.TBCOLOR, () => bus.tbColor);
 
+	onRead(SoftSwitches.RDVBLBAR, () => (bus.fakingVBL ? 0x80 : 0x00));
+
 	// --- Video State Writes ---
 	onWrite(SoftSwitches.STORE80OFF, () => {
 		bus.store80 = false;
