@@ -72,6 +72,7 @@ export class AppleBus implements IBus {
 	public page2 = false; // Page 2
 	public hires = false; // Hi-Res Mode
 	public tbColor = DEFAULT_TEXT_COLORS; // IIgs text/bg color (black bg, white text)
+	public fakingVBL = false;
 
 	// Keyboard State
 	public lastKey = 0x00;
@@ -123,6 +124,8 @@ export class AppleBus implements IBus {
 
 	public syncState() {
 		if (!this.registers) return;
+
+		this.fakingVBL = !this.fakingVBL;
 
 		let byte1 = 0;
 		if (this.lcBank2) byte1 |= APPLE_LC_BANK2_MASK;
