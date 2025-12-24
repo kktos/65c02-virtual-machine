@@ -189,7 +189,6 @@ export class AppleBus implements IBus {
 		canvas.height = rows * charHeight;
 
 		ctx.clearRect(0, 0, canvas.width, canvas.height);
-		ctx.fillStyle = "white";
 		ctx.font = "14px PrintChar21";
 		ctx.textAlign = "center";
 		ctx.textBaseline = "middle";
@@ -200,6 +199,16 @@ export class AppleBus implements IBus {
 			const row = Math.floor(i / cols);
 			const x = col * charWidth + charWidth / 2;
 			const y = row * charHeight + charHeight / 2;
+
+			// Inverse handling: 0x00-0x7F is Inverse (Bit 7 clear)
+			// 0x80-0xFF is Normal (Bit 7 set)
+			if (i <= 0x7f) {
+				ctx.fillStyle = "white";
+				ctx.fillRect(col * charWidth, row * charHeight, charWidth, charHeight);
+				ctx.fillStyle = "black";
+			} else {
+				ctx.fillStyle = "white";
+			}
 			ctx.fillText(char, x, y);
 		}
 
