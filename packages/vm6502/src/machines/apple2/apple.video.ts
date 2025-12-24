@@ -141,7 +141,7 @@ export class AppleVideo implements Video {
 			const fgColorIndex = (tbColor >> 4) & 0x0f;
 
 			let startIdx = 0;
-			if (isMixed) {
+			if (isMixed && !isText) {
 				// Mixed Mode: Copy only the bottom 4 lines of text (lines 20-23)
 				const width = this.offscreenCanvas.width;
 				const scanlineHeight = this.charHeight / 8;
