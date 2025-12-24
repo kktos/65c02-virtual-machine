@@ -47,6 +47,8 @@ const HGR_GREEN = 12;
 const HGR_VIOLET = 3;
 const HGR_ORANGE = 9;
 const HGR_BLUE = 6;
+const HGR_LINES = 192;
+const HGR_MIXED_LINES = 160;
 
 const SCREEN_MARGIN_X = 10;
 const SCREEN_MARGIN_Y = 10;
@@ -113,41 +115,57 @@ export class AppleVideo implements Video {
 
 		const isText = (this.bus.read(SoftSwitches.TEXT) & 0x80) !== 0;
 		const isHgr = (this.bus.read(SoftSwitches.HIRES) & 0x80) !== 0;
-
-		if (isHgr) this.renderHgr();
-		else if (isText) {
-			const is80Col = (this.bus.read(SoftSwitches.COL80) & 0x80) !== 0;
-			if (is80Col) this.renderText80();
-			else this.renderText40();
-		}
-
-		const imageData = this.ctx.getImageData(0, 0, this.offscreenCanvas.width, this.offscreenCanvas.height);
-		const src32 = new Uint32Array(imageData.data.buffer);
-		const dest = this.buffer;
+		const isMixed = (this.bus.read(SoftSwitches.MIXED) & 0x80) !== 0;
+		const is80Col = (this.bus.read(SoftSwitches.COL80) & 0x80) !== 0;
 
 		if (isText) {
+			if (is80Col) this.renderText80();
+			else this.renderText40();
+		} else if (isHgr) {
+			this.renderHgr(0, isMixed ? HGR_MIXED_LINES : HGR_LINES);
+			if (isMixed) {
+				if (is80Col) this.renderText80(20, 24);
+				else this.renderText40(20, 24);
+			}
+		}
+
+		const dest = this.buffer;
+
+		// Only read back from canvas if we rendered text
+		if (isText || isMixed) {
+			const imageData = this.ctx.getImageData(0, 0, this.offscreenCanvas.width, this.offscreenCanvas.height);
+			const src32 = new Uint32Array(imageData.data.buffer);
+
 			const tbColor = this.bus.read(SoftSwitches.TBCOLOR);
 			const bgColorIndex = tbColor & 0x0f;
 			const fgColorIndex = (tbColor >> 4) & 0x0f;
 
+			let startIdx = 0;
+			if (isMixed) {
+				// Mixed Mode: Copy only the bottom 4 lines of text (lines 20-23)
+				const width = this.offscreenCanvas.width;
+				const scanlineHeight = this.charHeight / 8;
+				// Start at line 160 (Mixed mode split point)
+				const mixedTopY = Math.floor(SCREEN_MARGIN_Y + 160 * scanlineHeight);
+				startIdx = mixedTopY * width;
+			}
+
 			// Convert RGBA pixels to 8-bit indices
-			for (let i = 0; i < dest.length; i++) {
+			for (let i = startIdx; i < dest.length; i++) {
 				// Since we render white text on black, any color channel can be used for brightness.
 				const val = src32[i] ?? 0;
 				const brightness = val & 0xff; // Use Red channel for brightness
+				// Only overwrite if we have text pixels (brightness > 0) or if we want to enforce text background
+				// For mixed mode, we usually want the text background to overwrite the HGR garbage below it
 				dest[i] = brightness > 128 ? fgColorIndex : bgColorIndex;
 			}
-		} else {
-			// For graphics modes, just output black for now as we don't handle them yet.
-			dest.fill(0); // Black is index 0
 		}
 
 		if (this.bus.syncState) this.bus.syncState();
 	}
 
-	private renderHgr() {
+	private renderHgr(startLine = 0, endLine = HGR_LINES) {
 		const isPage2 = (this.bus.read(SoftSwitches.PAGE2) & 0x80) !== 0;
-		const isMixed = (this.bus.read(SoftSwitches.MIXED) & 0x80) !== 0;
 		const baseAddr = isPage2 ? 0x4000 : 0x2000;
 
 		const width = this.offscreenCanvas.width;
@@ -156,10 +174,7 @@ export class AppleVideo implements Video {
 		const scanlineHeight = this.charHeight / 8; // 192 scanlines map to 24 text rows
 
 		// Iterate over all 192 scanlines
-		for (let y = 0; y < 192; y++) {
-			// Mixed Mode: Lines 160-191 are handled by text rendering
-			if (isMixed && y >= 160) continue;
-
+		for (let y = startLine; y < endLine; y++) {
 			// Calculate HGR Memory Address
 			// Address = Base + (y/64)*0x28 + (y%8)*0x400 + ((y/8)%8)*0x80
 			const rowOffset = Math.floor(y / 64) * 0x28 + (y % 8) * 0x400 + (Math.floor(y / 8) & 7) * 0x80;
@@ -241,8 +256,8 @@ export class AppleVideo implements Video {
 		);
 	}
 
-	private renderText40() {
-		for (let y = 0; y < TEXT_ROWS; y++) {
+	private renderText40(startRow = 0, endRow = TEXT_ROWS) {
+		for (let y = startRow; y < endRow; y++) {
 			const lineBase = textScreenLineOffsets[y] ?? 0;
 			for (let x = 0; x < TEXT_COLS; x++) {
 				const charCode = this.bus.readRaw?.(lineBase + x) ?? 0;
@@ -255,9 +270,9 @@ export class AppleVideo implements Video {
 		}
 	}
 
-	private renderText80() {
+	private renderText80(startRow = 0, endRow = TEXT_ROWS) {
 		const charWidth80 = this.charWidth / 2;
-		for (let y = 0; y < TEXT_ROWS; y++) {
+		for (let y = startRow; y < endRow; y++) {
 			const lineBase = textScreenLineOffsets[y] ?? 0;
 			for (let x = 0; x < TEXT_COLS; x++) {
 				const drawY = SCREEN_MARGIN_Y + y * this.charHeight;
