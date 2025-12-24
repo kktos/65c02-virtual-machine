@@ -1,5 +1,12 @@
 import type { IBus } from "@/cpu/bus.interface";
-import { FLAG_C_MASK, REG_A_OFFSET, REG_STATUS_OFFSET, REG_X_OFFSET, REG_Y_OFFSET } from "@/cpu/shared-memory";
+import {
+	FLAG_C_MASK,
+	REG_A_OFFSET,
+	REG_SP_OFFSET,
+	REG_STATUS_OFFSET,
+	REG_X_OFFSET,
+	REG_Y_OFFSET,
+} from "@/cpu/shared-memory";
 import type { ISlotCard } from "./slotcard.interface";
 
 export class SmartPortCard implements ISlotCard {
@@ -47,7 +54,7 @@ export class SmartPortCard implements ISlotCard {
 		this.rom[0xfe] = 0xff; // device info flags
 		this.rom[0xff] = 0x0a; // Lo MLI ENtrypoint
 
-		// --- HLE Trigger ($Cn40) ---
+		// --- HLE Trigger 1: Registers ($Cn40) ---
 		const ioBase = 0xc080 + (this.slot << 4);
 		const ioLo = ioBase & 0xff;
 		const ioHi = ioBase >> 8;
@@ -57,6 +64,12 @@ export class SmartPortCard implements ISlotCard {
 		this.rom[0x42] = ioHi;
 		// this.rom[0x43] = 0x18; // CLC
 		this.rom[0x43] = 0x60; // RTS
+
+		// --- HLE Trigger 2: Inline ($Cn44) ---
+		this.rom[0x44] = 0x8d; // STA Absolute
+		this.rom[0x45] = ioLo + 1; // Offset 1 triggers Inline handler
+		this.rom[0x46] = ioHi;
+		this.rom[0x47] = 0x60; // RTS
 
 		// --- SmartPort ProDOS Block-level Interface ($Cn0A) ---
 		this.rom[0x0a] = 0x4c; // JMP $Cn40
@@ -70,8 +83,8 @@ export class SmartPortCard implements ISlotCard {
 					.dw CMDLIST
 					bcs ERROR
 		 */
-		this.rom[0x0d] = 0x4c; // JMP $Cn40
-		this.rom[0x0e] = 0x40;
+		this.rom[0x0d] = 0x4c; // JMP $Cn44
+		this.rom[0x0e] = 0x44;
 		this.rom[0x0f] = 0xc0 + this.slot;
 
 		// --- Boot Routine ($Cn20) ---
@@ -155,23 +168,58 @@ export class SmartPortCard implements ISlotCard {
 	}
 
 	writeIo(offset: number, _value: number): void {
-		// We use offset 0 as the trigger from our ROM trampoline
-		if (offset === 0) this.handleHleCommand();
+		if (offset === 0) this.handleBlockCommand();
+		if (offset === 1) this.handleSmartPortCommand();
 	}
 
-	private handleHleCommand() {
+	// Handle Standard Block Device call (zp addresses)
+	private handleBlockCommand() {
 		if (!this.registers || !this.bus) return;
 
-		// Read CPU State
+		const cmd = this.bus.read(0x42);
+		const paramAddr = 0x42;
 		// const cmd = this.registers.getUint8(REG_A_OFFSET);
 		// const paramLo = this.registers.getUint8(REG_X_OFFSET);
 		// const paramHi = this.registers.getUint8(REG_Y_OFFSET);
 		// const paramAddr = (paramHi << 8) | paramLo;
-		// console.log(`SmartPort(${this.slot}) Cmd: ${cmd.toString(16)} ParamAddr: $${paramAddr.toString(16)}`);
 
-		const cmd = this.bus.read(0x42);
-		const paramAddr = 0x42;
-		console.log(`SmartPort(${this.slot}) Cmd: ${cmd.toString(16)}`);
+		this.executeCommand(cmd, paramAddr);
+	}
+
+	// Handle SmartPort MLI call (Inline)
+	private handleSmartPortCommand() {
+		if (!this.registers || !this.bus) return;
+
+		// 1. Get Return Address from Stack
+		const sp = this.registers.getUint8(REG_SP_OFFSET);
+		const stackBase = 0x100;
+		// Stack contains Return Address - 1 (pointing to last byte of JSR)
+		const retLo = this.bus.read(stackBase + sp + 1);
+		const retHi = this.bus.read(stackBase + sp + 2);
+		const retAddr = (retHi << 8) | retLo;
+
+		// 2. Read Inline Parameters (following JSR)
+		// JSR is 3 bytes. retAddr points to 3rd byte.
+		// Data starts at retAddr + 1.
+		const cmd = this.bus.read(retAddr + 1);
+		const paramLo = this.bus.read(retAddr + 2);
+		const paramHi = this.bus.read(retAddr + 3);
+		const paramAddr = (paramHi << 8) | paramLo;
+
+		// 3. Execute
+		this.executeCommand(cmd, paramAddr);
+
+		// 4. Fix Stack to skip inline data
+		// We consumed 3 bytes (Cmd, Lo, Hi).
+		// New return address should be retAddr + 3.
+		const newRet = retAddr + 3;
+		this.bus.write(stackBase + sp + 1, newRet & 0xff);
+		this.bus.write(stackBase + sp + 2, (newRet >> 8) & 0xff);
+	}
+
+	private executeCommand(cmd: number, paramAddr: number) {
+		if (!this.registers) return;
+		console.log(`SmartPort(${this.slot}) Cmd: ${cmd.toString(16)} ParamAddr: $${paramAddr.toString(16)}`);
 
 		let error = 0;
 
