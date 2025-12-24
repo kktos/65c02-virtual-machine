@@ -1,5 +1,6 @@
 import type { DebugOption, IBus, MachineStateSpec } from "@/cpu/bus.interface";
 import { MACHINE_STATE_OFFSET } from "@/cpu/shared-memory";
+import { generateApple2Assets } from "./apple.assets";
 import type { ISlotCard } from "./slotcard.interface";
 import { SmartPortCard } from "./smartport.card";
 import * as SoftSwitches from "./softswitches";
@@ -170,61 +171,7 @@ export class AppleBus implements IBus {
 	}
 
 	public async prepareWorkerPayloads(): Promise<{ video?: unknown; bus?: unknown }> {
-		if (typeof document === "undefined") return {};
-
-		// Ensure the font is loaded
-		await Promise.all([document.fonts.load("14px PrintChar21"), document.fonts.load("16px PRNumber3")]);
-
-		const generateCharmap = async (font: string, charWidth: number, charHeight: number) => {
-			const canvas = document.createElement("canvas");
-			const ctx = canvas.getContext("2d");
-			if (!ctx) return null;
-
-			const cols = 16;
-			const rows = 16;
-
-			canvas.width = cols * charWidth;
-			canvas.height = rows * charHeight;
-
-			ctx.clearRect(0, 0, canvas.width, canvas.height);
-			ctx.font = font;
-			ctx.textAlign = "center";
-			ctx.textBaseline = "middle";
-
-			for (let i = 0; i < 256; i++) {
-				const char = mapAppleChr(i);
-				const col = i % cols;
-				const row = Math.floor(i / cols);
-				const x = col * charWidth + charWidth / 2;
-				const y = row * charHeight + charHeight / 2;
-
-				if (i <= 0x7f) {
-					ctx.fillStyle = "white";
-					ctx.fillRect(col * charWidth, row * charHeight, charWidth, charHeight);
-					ctx.fillStyle = "black";
-				} else {
-					ctx.fillStyle = "white";
-				}
-				ctx.fillText(char, x, y, charWidth);
-			}
-			const bitmap = await createImageBitmap(canvas);
-			return {
-				bitmap,
-				metrics: { charWidth, charHeight, cols, rows, offsetTop: 2, offsetLeft: 3 },
-			};
-		};
-
-		const map40 = await generateCharmap("14px PrintChar21", 14, 14);
-		const map80 = await generateCharmap("16px PRNumber3", 7, 16);
-
-		return {
-			video: {
-				charmap40: map40?.bitmap,
-				metrics40: map40?.metrics,
-				charmap80: map80?.bitmap,
-				metrics80: map80?.metrics,
-			},
-		};
+		return generateApple2Assets();
 	}
 
 	public readStateFromBuffer(view: DataView): Record<string, boolean> {
