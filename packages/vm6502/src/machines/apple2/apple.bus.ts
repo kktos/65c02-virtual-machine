@@ -1,9 +1,10 @@
 import type { DebugOption, IBus, MachineStateSpec } from "@/cpu/bus.interface";
 import { MACHINE_STATE_OFFSET } from "@/cpu/shared-memory";
-import { generateApple2Assets } from "./apple.assets";
-import { installSoftSwitches } from "./apple.switches";
-import type { ISlotCard } from "./slotcard.interface";
-import { SmartPortCard } from "./smartport.card";
+import { generateApple2Assets } from "./bus/apple.assets";
+import { loadMemoryChunks } from "./bus/apple.loader";
+import { installSoftSwitches } from "./bus/apple.switches";
+import type { ISlotCard } from "./slots/slotcard.interface";
+import { SmartPortCard } from "./slots/smartport.card";
 
 // Apple II specific flags (packed into the MACHINE_STATE bytes)
 // Byte at MACHINE_STATE_OFFSET
@@ -31,16 +32,16 @@ const RAM_OFFSET = 0x4000; // 16KB reserved for Bank2 (4KB) + ROM (12KB) at the 
 const DEFAULT_TEXT_COLORS = 0xf2;
 
 export class AppleBus implements IBus {
-	private memory: Uint8Array;
+	public memory: Uint8Array;
 	private registers?: DataView;
 	// Private storage for the system ROM ($D000-$FFFF)
-	private rom: Uint8Array;
+	public rom: Uint8Array;
 	// Private storage for Language Card Bank 2 RAM ($D000-$DFFF)
-	private bank2: Uint8Array;
+	public bank2: Uint8Array;
 	// Internal ROM ($C100-$CFFF) mapped to main RAM bank
-	private romC: Uint8Array;
+	public romC: Uint8Array;
 	// Slot ROMs ($C100-$CFFF) mapped to aux RAM bank
-	private slotRoms: Uint8Array;
+	public slotRoms: Uint8Array;
 
 	// Slot System
 	public slots: (ISlotCard | null)[] = new Array(8).fill(null);
@@ -81,8 +82,8 @@ export class AppleBus implements IBus {
 	public pb1 = false; // Solid Apple (Right Alt)
 
 	// Soft Switch Dispatch Tables (0xC000 - 0xC0FF)
-	private readHandlers: Array<() => number> = new Array(256);
-	private writeHandlers: Array<(val: number) => void> = new Array(256);
+	private readHandlers: Array<() => number>;
+	private writeHandlers: Array<(val: number) => void>;
 
 	constructor(memory: Uint8Array) {
 		this.memory = memory;
@@ -100,11 +101,9 @@ export class AppleBus implements IBus {
 		const slot5Rom = this.slotRoms.subarray(0x400, 0x500);
 		this.installCard(5, new SmartPortCard(5, slot5Rom));
 
-		// Initialize with default no-op/error handlers
-		this.readHandlers.fill(() => 0);
-		this.writeHandlers.fill(() => {});
-
-		installSoftSwitches(this);
+		const handlers = installSoftSwitches(this);
+		this.readHandlers = handlers.readHandlers;
+		this.writeHandlers = handlers.writeHandlers;
 	}
 
 	public installCard(slot: number, card: ISlotCard) {
@@ -333,71 +332,8 @@ export class AppleBus implements IBus {
 		this.memory[RAM_OFFSET + address] = value & 0xff;
 	}
 
-	public onRead(address: number, handler: () => number) {
-		this.readHandlers[address & 0xff] = handler;
-	}
-
-	public onWrite(address: number, handler: (val: number) => void) {
-		this.writeHandlers[address & 0xff] = handler;
-	}
-
 	load(address: number, data: Uint8Array, bank: number = 0, tag?: string): void {
-		switch (tag) {
-			// If loading into the Language Card range ($D000+), load into ROM buffer
-			case "lgcard.rom": {
-				if (data.length <= this.rom.length) {
-					this.rom.set(data);
-					console.log(`AppleBus: Loaded ${data.length} bytes into ROM at $D000`);
-					return;
-				}
-				console.error(`AppleBus: Load out of bounds: lgcard.rom`);
-				break;
-			}
-			case "lgcard.bank2":
-				if (data.length <= this.rom.length) {
-					this.bank2.set(data);
-					console.log(`AppleBus: Loaded ${data.length} bytes into LC RAM 2 at $D000`);
-					return;
-				}
-				console.error(`AppleBus: Load out of bounds: lgcard.bank2`);
-				break;
-			case "int.rom.cx":
-				if (data.length <= this.romC.length) {
-					this.romC.set(data);
-					console.log(`AppleBus: Loaded ${data.length} bytes into Internal ROM C at $C100`);
-					return;
-				}
-				console.error(`AppleBus: Load out of bounds: system.rom.c`);
-				break;
-			case "slots.rom":
-				if (data.length <= this.slotRoms.length) {
-					this.slotRoms.set(data);
-					console.log(`AppleBus: Loaded ${data.length} bytes into Slot ROMs at $C100`);
-					return;
-				}
-				console.error("AppleBus: Load out of bounds: slots.rom");
-				break;
-			case "slot.rom":
-				if (data.length !== 0x100) {
-					console.error("AppleBus: Load out of bounds: slot.rom should be $100 bytes");
-					return;
-				}
-				if (address < 1 || address > 7) {
-					console.error("AppleBus: Load out of bounds: slot.rom should be from 1 to 7");
-					return;
-				}
-				this.slotRoms.set(data, (address - 1) * 0x100);
-				console.log(`AppleBus: Loaded ${data.length} bytes into Slot ${address} ROM`);
-				return;
-		}
-
-		// Default load to physical RAM
-		// Handle Bank 1 (Aux) offset if bank=1
-		const physicalAddress = RAM_OFFSET + address + bank * 0x10000;
-		if (physicalAddress + data.length <= this.memory.length) {
-			this.memory.set(data, physicalAddress);
-			console.log(`AppleBus: Loaded ${data.length} bytes into RAM at $${physicalAddress.toString(16)}`);
-		} else console.error(`AppleBus: Load out of bounds: 0x$physicalAddress.toString(16)`);
+		loadMemoryChunks(this, address, data, bank, tag);
 	}
 
 	public pressKey(key: string, code?: string) {
@@ -640,22 +576,4 @@ export class AppleBus implements IBus {
 			if (card?.insertMedia) card.insertMedia(data);
 		}
 	}
-}
-
-// Helper to convert Apple's weird character codes to something renderable
-// This is a simplified mapping for "normal" characters (white on black)
-function mapAppleChr(char: number): string {
-	// For normal text mode characters, the high bit is set.
-	// We're ignoring inverse and flashing for now.
-	const ascii = char & 0x7f;
-
-	// Characters in the range 0x40-0x7F are standard ASCII
-	if (ascii >= 0x40 && ascii <= 0x7f) return String.fromCharCode(ascii);
-
-	// Other ranges map to symbols or lowercase letters in special ways
-	// This is a simplification.
-	if (ascii < 0x20) return String.fromCharCode(ascii + 0x40); // Treat as control characters -> @, A, B...
-
-	// For now, return a placeholder for unhandled characters
-	return String.fromCharCode(ascii);
 }

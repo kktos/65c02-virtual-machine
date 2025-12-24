@@ -1,6 +1,6 @@
 import type { IBus } from "@/cpu/bus.interface";
 import type { Video } from "@/video/video.interface";
-import * as SoftSwitches from "./softswitches";
+import * as SoftSwitches from "./bus/softswitches";
 
 type CharMetrics = {
 	charWidth: number;
