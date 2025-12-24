@@ -23,16 +23,24 @@
 </template>
 
 <script lang="ts" setup>
-import { inject, onMounted, type Ref, ref } from "vue";
+import { inject, onMounted, type Ref, ref, watch } from "vue";
+import { useEmulatorSpeed } from "@/composables/useEmulatorSpeed";
 import type { VirtualMachine } from "@/virtualmachine.class";
 
 const vm = inject<Ref<VirtualMachine>>("vm");
 const subscribeToUiUpdates = inject<(callback: () => void) => void>("subscribeToUiUpdates");
 
 const speedMhz = ref(0);
-const targetSpeed = ref(1);
+const { targetSpeed } = useEmulatorSpeed();
 
 const updateSpeed = () => vm?.value.setSpeed(targetSpeed.value);
+
+watch(() => vm?.value, async (newVm) => {
+	if (newVm) {
+		await newVm.ready;
+		newVm.setSpeed(targetSpeed.value);
+	}
+}, { immediate: true });
 
 onMounted(() => {
 	subscribeToUiUpdates?.(() => {speedMhz.value = vm?.value.getSpeed() ?? 0});
