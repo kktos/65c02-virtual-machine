@@ -15,10 +15,16 @@ export function installSoftSwitches(bus: AppleBus) {
 	const onWrite = (address: number, handler: (val: number) => void) => {
 		writeHandlers[address & 0xff] = handler;
 	};
-	// const onRW = (address: number, handler: () => number) => {
-	// 	readHandlers[address & 0xff] = handler;
-	// 	writeHandlers[address & 0xff] = handler;
-	// };
+
+	const onAccess = (address: number, handler: () => void) => {
+		onRead(address, () => {
+			handler();
+			return 0;
+		});
+		onWrite(address, () => {
+			handler();
+		});
+	};
 
 	// --- Keyboard ---
 	onRead(SoftSwitches.KBD, () => bus.lastKey | (bus.keyStrobe ? 0x80 : 0x00));
@@ -59,58 +65,34 @@ export function installSoftSwitches(bus: AppleBus) {
 	onWrite(SoftSwitches.ALTCHARSETON, () => {
 		bus.altChar = true;
 	});
-	onWrite(SoftSwitches.TEXTOFF, () => {
-		bus.text = false;
-	});
-	onWrite(SoftSwitches.TEXTON, () => {
-		bus.text = true;
-	});
-	onWrite(SoftSwitches.MIXEDOFF, () => {
-		bus.mixed = false;
-	});
-	onWrite(SoftSwitches.MIXEDON, () => {
-		bus.mixed = true;
-	});
-	onWrite(SoftSwitches.PAGE2OFF, () => {
-		bus.page2 = false;
-	});
-	onWrite(SoftSwitches.PAGE2ON, () => {
-		bus.page2 = true;
-	});
-	onWrite(SoftSwitches.HIRESOFF, () => {
-		bus.hires = false;
-	});
-	onWrite(SoftSwitches.HIRESON, () => {
-		bus.hires = true;
-	});
 	onWrite(SoftSwitches.TBCOLOR, (v) => {
 		bus.tbColor = v;
 	});
 
-	// Read-only switches that trigger state changes
-	onRead(SoftSwitches.PAGE2OFF, () => {
-		bus.page2 = false;
-		return 0;
-	});
-	onRead(SoftSwitches.PAGE2ON, () => {
-		bus.page2 = true;
-		return 0;
-	});
-	onRead(SoftSwitches.HIRESOFF, () => {
-		bus.hires = false;
-		return 0;
-	});
-	onRead(SoftSwitches.HIRESON, () => {
-		bus.hires = true;
-		return 0;
-	});
-	onRead(SoftSwitches.TEXTON, () => {
-		bus.text = true;
-		return 0;
-	});
-	onRead(SoftSwitches.TEXTOFF, () => {
+	// R/W switches that trigger state changes
+	onAccess(SoftSwitches.TEXTOFF, () => {
 		bus.text = false;
-		return 0;
+	});
+	onAccess(SoftSwitches.TEXTON, () => {
+		bus.text = true;
+	});
+	onAccess(SoftSwitches.MIXEDOFF, () => {
+		bus.mixed = false;
+	});
+	onAccess(SoftSwitches.MIXEDON, () => {
+		bus.mixed = true;
+	});
+	onAccess(SoftSwitches.PAGE2OFF, () => {
+		bus.page2 = false;
+	});
+	onAccess(SoftSwitches.PAGE2ON, () => {
+		bus.page2 = true;
+	});
+	onAccess(SoftSwitches.HIRESOFF, () => {
+		bus.hires = false;
+	});
+	onAccess(SoftSwitches.HIRESON, () => {
+		bus.hires = true;
 	});
 
 	// --- Memory Management ---
