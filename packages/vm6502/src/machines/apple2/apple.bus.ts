@@ -79,6 +79,10 @@ export class AppleBus implements IBus {
 	private pb0 = false; // Open Apple (Left Alt)
 	private pb1 = false; // Solid Apple (Right Alt)
 
+	// Soft Switch Dispatch Tables (0xC000 - 0xC0FF)
+	private readHandlers: Array<() => number> = new Array(256);
+	private writeHandlers: Array<(val: number) => void> = new Array(256);
+
 	constructor(memory: Uint8Array) {
 		this.memory = memory;
 		// Map Bank 2 and ROM to the beginning of shared memory
@@ -94,6 +98,8 @@ export class AppleBus implements IBus {
 		// Install SmartPort Card in Slot 5
 		const slot5Rom = this.slotRoms.subarray(0x400, 0x500);
 		this.installCard(5, new SmartPortCard(5, slot5Rom));
+
+		this.setupSoftSwitches();
 	}
 
 	public installCard(slot: number, card: ISlotCard) {
@@ -232,7 +238,8 @@ export class AppleBus implements IBus {
 	}
 
 	read(address: number): number {
-		if (address >= 0xc000 && address <= 0xc0ff) return this.readSoftSwitch(address);
+		// biome-ignore lint/style/noNonNullAssertion: all handlers are defined
+		if (address >= 0xc000 && address <= 0xc0ff) return this.readHandlers[address & 0xff]!();
 
 		// this.lcPreWriteCount = 0;
 
@@ -273,6 +280,7 @@ export class AppleBus implements IBus {
 			// Handle Expansion ROM ($C800-$CFFF)
 			if (address >= 0xc800) {
 				if (this.activeExpansionSlot > 0 && this.slots[this.activeExpansionSlot]) {
+					// biome-ignore lint/style/noNonNullAssertion: all slots are defined
 					return this.slots[this.activeExpansionSlot]!.readExpansion(address - 0xc800);
 				}
 				return this.slotRoms[offset] ?? 0;
@@ -289,6 +297,7 @@ export class AppleBus implements IBus {
 
 			if (this.slots[slot]) {
 				this.activeExpansionSlot = slot;
+				// biome-ignore lint/style/noNonNullAssertion: all slots are defined
 				return this.slots[slot]!.readRom(address & 0xff);
 			}
 
@@ -316,7 +325,8 @@ export class AppleBus implements IBus {
 
 	write(address: number, value: number): void {
 		if (address >= 0xc000 && address <= 0xc0ff) {
-			this.writeSoftSwitch(address, value);
+			// biome-ignore lint/style/noNonNullAssertion: all handlers are defined
+			this.writeHandlers[address & 0xff]!(value);
 			return;
 		}
 
@@ -381,185 +391,165 @@ export class AppleBus implements IBus {
 		}
 	}
 
-	private readSoftSwitch(address: number): number {
-		if (address >= SoftSwitches.LCRAMIN2 && address <= SoftSwitches.LC_C08F) {
-			this.updateLcState(address);
+	private setupSoftSwitches() {
+		// Initialize with default no-op/error handlers
+		this.readHandlers.fill(() => 0);
+		this.writeHandlers.fill(() => {});
+
+		// Helper to register handlers
+		const onRead = (addr: number, fn: () => number) => {
+			this.readHandlers[addr & 0xff] = fn;
+		};
+		const onWrite = (addr: number, fn: (v: number) => void) => {
+			this.writeHandlers[addr & 0xff] = fn;
+		};
+
+		// --- Keyboard ---
+		onRead(SoftSwitches.KBD, () => this.lastKey | (this.keyStrobe ? 0x80 : 0x00));
+		onRead(SoftSwitches.KBDSTRB, () => {
+			this.keyStrobe = false;
 			return 0;
-		}
+		});
+		onWrite(SoftSwitches.KBDSTRB, () => {
+			this.keyStrobe = false;
+		});
 
-		// Slot I/O ($C090-$C0FF)
-		if (address >= 0xc090 && address <= 0xc0ff) {
-			const slot = ((address >> 4) & 0x0f) - 8;
-			if (this.slots[slot]) return this.slots[slot]!.readIo(address & 0x0f);
-		}
+		// --- Video State Reads ---
+		onRead(SoftSwitches.STORE80, () => (this.store80 ? 0x80 : 0x00));
+		onRead(SoftSwitches.COL80, () => (this.col80 ? 0x80 : 0x00));
+		onRead(SoftSwitches.ALTCHARSET, () => (this.altChar ? 0x80 : 0x00));
+		onRead(SoftSwitches.TEXT, () => (this.text ? 0x80 : 0x00));
+		onRead(SoftSwitches.MIXED, () => (this.mixed ? 0x80 : 0x00));
+		onRead(SoftSwitches.PAGE2, () => (this.page2 ? 0x80 : 0x00));
+		onRead(SoftSwitches.HIRES, () => (this.hires ? 0x80 : 0x00));
+		onRead(SoftSwitches.TBCOLOR, () => this.tbColor);
 
-		switch (address) {
-			case SoftSwitches.KBD:
-				return this.lastKey | (this.keyStrobe ? 0x80 : 0x00);
-			case SoftSwitches.KBDSTRB:
-				this.keyStrobe = false;
+		// --- Video State Writes ---
+		onWrite(SoftSwitches.STORE80OFF, () => {
+			this.store80 = false;
+		});
+		onWrite(SoftSwitches.STORE80ON, () => {
+			this.store80 = true;
+		});
+		onWrite(SoftSwitches.COL80OFF, () => {
+			this.col80 = false;
+		});
+		onWrite(SoftSwitches.COL80ON, () => {
+			this.col80 = true;
+		});
+		onWrite(SoftSwitches.ALTCHARSETOFF, () => {
+			this.altChar = false;
+		});
+		onWrite(SoftSwitches.ALTCHARSETON, () => {
+			this.altChar = true;
+		});
+		onWrite(SoftSwitches.TEXTOFF, () => {
+			this.text = false;
+		});
+		onWrite(SoftSwitches.TEXTON, () => {
+			this.text = true;
+		});
+		onWrite(SoftSwitches.MIXEDOFF, () => {
+			this.mixed = false;
+		});
+		onWrite(SoftSwitches.MIXEDON, () => {
+			this.mixed = true;
+		});
+		onWrite(SoftSwitches.PAGE2OFF, () => {
+			this.page2 = false;
+		});
+		onWrite(SoftSwitches.PAGE2ON, () => {
+			this.page2 = true;
+		});
+		onWrite(SoftSwitches.HIRESOFF, () => {
+			this.hires = false;
+		});
+		onWrite(SoftSwitches.HIRESON, () => {
+			this.hires = true;
+		});
+		onWrite(SoftSwitches.TBCOLOR, (v) => {
+			this.tbColor = v;
+		});
+
+		// Read-only switches that trigger state changes
+		onRead(SoftSwitches.PAGE2OFF, () => {
+			this.page2 = false;
+			return 0;
+		});
+		onRead(SoftSwitches.PAGE2ON, () => {
+			this.page2 = true;
+			return 0;
+		});
+		onRead(SoftSwitches.HIRESOFF, () => {
+			this.hires = false;
+			return 0;
+		});
+		onRead(SoftSwitches.TEXTON, () => {
+			this.text = true;
+			return 0;
+		});
+
+		// --- Memory Management ---
+		onRead(SoftSwitches.RAMRD, () => (this.ramRdAux ? 0x80 : 0x00));
+		onRead(SoftSwitches.RAMWRT, () => (this.ramWrAux ? 0x80 : 0x00));
+		onRead(SoftSwitches.ALTZP, () => (this.altZp ? 0x80 : 0x00));
+		onRead(SoftSwitches.INTCXROM, () => (this.intCxRom ? 0x80 : 0x00));
+		onRead(SoftSwitches.SLOTC3ROM, () => (this.slotC3Rom ? 0x80 : 0x00));
+		onRead(SoftSwitches.RDLCBNK2, () => (this.lcBank2 ? 0x80 : 0x00));
+		onRead(SoftSwitches.RDLCRAM, () => (this.lcReadRam ? 0x80 : 0x00));
+
+		onWrite(SoftSwitches.RAMRDOFF, () => {
+			this.ramRdAux = false;
+		});
+		onWrite(SoftSwitches.RAMRDON, () => {
+			this.ramRdAux = true;
+		});
+		onWrite(SoftSwitches.RAMWRTOFF, () => {
+			this.ramWrAux = false;
+		});
+		onWrite(SoftSwitches.RAMWRTON, () => {
+			this.ramWrAux = true;
+		});
+		onWrite(SoftSwitches.ALTZPOFF, () => {
+			this.altZp = false;
+		});
+		onWrite(SoftSwitches.ALTZPON, () => {
+			this.altZp = true;
+		});
+		onWrite(SoftSwitches.INTCXROMOFF, () => {
+			this.intCxRom = false;
+		});
+		onWrite(SoftSwitches.INTCXROMON, () => {
+			this.intCxRom = true;
+		});
+		onWrite(SoftSwitches.SLOTC3ROMOFF, () => {
+			this.slotC3Rom = false;
+		});
+		onWrite(SoftSwitches.SLOTC3ROMON, () => {
+			this.slotC3Rom = true;
+		});
+
+		// --- Game I/O ---
+		onRead(SoftSwitches.PB0, () => (this.pb0 ? 0x80 : 0x00));
+		onRead(SoftSwitches.PB1, () => (this.pb1 ? 0x80 : 0x00));
+
+		// --- Language Card ($C080-$C08F) ---
+		// We register these in a loop to handle the echoes and specific addresses
+		for (let addr = 0xc080; addr <= 0xc08f; addr++) {
+			onRead(addr, () => {
+				this.updateLcState(addr);
 				return 0;
-			case SoftSwitches.SPEAKER:
-				// to be implemented
-				return 0;
-			case SoftSwitches.TBCOLOR:
-				return this.tbColor;
-			case SoftSwitches.STORE80:
-				return this.store80 ? 0x80 : 0x00;
-			case SoftSwitches.RAMRD:
-				return this.ramRdAux ? 0x80 : 0x00;
-			case SoftSwitches.RAMWRT:
-				return this.ramWrAux ? 0x80 : 0x00;
-			case SoftSwitches.ALTZP:
-				return this.altZp ? 0x80 : 0x00;
-			case SoftSwitches.RDLCBNK2:
-				return this.lcBank2 ? 0x80 : 0x00;
-			case SoftSwitches.RDLCRAM:
-				return this.lcReadRam ? 0x80 : 0x00;
-			case SoftSwitches.INTCXROM:
-				return this.intCxRom ? 0x80 : 0x00;
-			case SoftSwitches.SLOTC3ROM:
-				return this.slotC3Rom ? 0x80 : 0x00;
-			case SoftSwitches.PB0:
-				return this.pb0 ? 0x80 : 0x00;
-			case SoftSwitches.PB1:
-				return this.pb1 ? 0x80 : 0x00;
-			case SoftSwitches.COL80: // 80COL
-				return this.col80 ? 0x80 : 0x00;
-			case SoftSwitches.ALTCHARSET: // ALTCHAR
-				return this.altChar ? 0x80 : 0x00;
-			case SoftSwitches.TEXT: // TEXT
-				return this.text ? 0x80 : 0x00;
-			case SoftSwitches.MIXED: // MIXED
-				return this.mixed ? 0x80 : 0x00;
-			case SoftSwitches.PAGE2: // PAGE2
-				return this.page2 ? 0x80 : 0x00;
-			case SoftSwitches.HIRES: // HIRES
-				return this.hires ? 0x80 : 0x00;
-			case SoftSwitches.PAGE2OFF: // PAGE2 OFF
-				this.page2 = false;
-				break;
-			case SoftSwitches.PAGE2ON: // PAGE2 ON
-				this.page2 = true;
-				break;
-			case SoftSwitches.HIRESOFF: // HIRES OFF
-				this.hires = false;
-				break;
-			case SoftSwitches.TEXTON: // TEXT ON
-				this.text = true;
-				break;
-			case SoftSwitches.CLRAN0:
-				// to be implemented
-				break;
-			case SoftSwitches.CLRAN1:
-				// to be implemented
-				break;
-			case SoftSwitches.SETAN2:
-				// to be implemented
-				break;
-			case SoftSwitches.SETAN3:
-				// to be implemented
-				break;
-			default:
-				if (address < 0xc090) console.error("Unknown soft switch read:", address.toString(16));
-		}
-		return 0;
-	}
-
-	private writeSoftSwitch(address: number, value: number): void {
-		if (address >= SoftSwitches.LCRAMIN2 && address <= SoftSwitches.LC_C08F) {
-			this.updateLcState(address);
-			return;
+			});
+			onWrite(addr, () => this.updateLcState(addr));
 		}
 
-		// Slot I/O ($C090-$C0FF)
-		if (address >= 0xc090 && address <= 0xc0ff) {
-			const slot = ((address >> 4) & 0x0f) - 8;
-			if (this.slots[slot]) this.slots[slot]!.writeIo(address & 0x0f, value);
-			return;
-		}
-
-		switch (address) {
-			case SoftSwitches.STORE80OFF:
-				this.store80 = false;
-				break;
-			case SoftSwitches.STORE80ON:
-				this.store80 = true;
-				break;
-			case SoftSwitches.RAMRDOFF:
-				this.ramRdAux = false;
-				break;
-			case SoftSwitches.RAMRDON:
-				this.ramRdAux = true;
-				break;
-			case SoftSwitches.RAMWRTOFF:
-				this.ramWrAux = false;
-				break;
-			case SoftSwitches.RAMWRTON:
-				this.ramWrAux = true;
-				break;
-			case SoftSwitches.ALTZPOFF:
-				this.altZp = false;
-				break;
-			case SoftSwitches.ALTZPON:
-				this.altZp = true;
-				break;
-			case SoftSwitches.INTCXROMOFF:
-				this.intCxRom = false;
-				break;
-			case SoftSwitches.INTCXROMON:
-				this.intCxRom = true;
-				break;
-			case SoftSwitches.SLOTC3ROMOFF:
-				this.slotC3Rom = false;
-				break;
-			case SoftSwitches.SLOTC3ROMON:
-				this.slotC3Rom = true;
-				break;
-			case SoftSwitches.KBDSTRB:
-				this.keyStrobe = false;
-				break;
-			case SoftSwitches.COL80OFF: // 80COL OFF
-				this.col80 = false;
-				break;
-			case SoftSwitches.COL80ON: // 80COL ON
-				this.col80 = true;
-				break;
-			case SoftSwitches.ALTCHARSETOFF: // ALTCHAR OFF
-				this.altChar = false;
-				break;
-			case SoftSwitches.ALTCHARSETON: // ALTCHAR ON
-				this.altChar = true;
-				break;
-			case SoftSwitches.TEXTOFF: // TEXT OFF
-				this.text = false;
-				break;
-			case SoftSwitches.TEXTON: // TEXT ON
-				this.text = true;
-				break;
-			case SoftSwitches.MIXEDOFF: // MIXED OFF
-				this.mixed = false;
-				break;
-			case SoftSwitches.MIXEDON: // MIXED ON
-				this.mixed = true;
-				break;
-			case SoftSwitches.PAGE2OFF: // PAGE2 OFF
-				this.page2 = false;
-				break;
-			case SoftSwitches.PAGE2ON: // PAGE2 ON
-				this.page2 = true;
-				break;
-			case SoftSwitches.HIRESOFF: // HIRES OFF
-				this.hires = false;
-				break;
-			case SoftSwitches.HIRESON: // HIRES ON
-				this.hires = true;
-				break;
-			case SoftSwitches.TBCOLOR:
-				this.tbColor = value;
-				break;
-			default:
-				if (address < 0xc090) console.error("Unknown soft switch write:", address.toString(16));
+		// --- Slot I/O ($C090-$C0FF) ---
+		// Pre-calculate slot index to avoid bit-shifting at runtime
+		for (let addr = 0xc090; addr <= 0xc0ff; addr++) {
+			const slot = ((addr >> 4) & 0x0f) - 8;
+			const offset = addr & 0x0f;
+			onRead(addr, () => this.slots[slot]?.readIo(offset) ?? 0);
+			onWrite(addr, (v) => this.slots[slot]?.writeIo(offset, v));
 		}
 	}
 
@@ -850,9 +840,7 @@ export class AppleBus implements IBus {
 	public insertMedia(data: Uint8Array, metadata?: Record<string, unknown>) {
 		if (metadata && typeof metadata.slot === "number") {
 			const card = this.slots[metadata.slot];
-			if (card && card.insertMedia) {
-				card.insertMedia(data);
-			}
+			if (card?.insertMedia) card.insertMedia(data);
 		}
 	}
 }
