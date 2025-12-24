@@ -48,7 +48,7 @@ $C015 R7 INTCXROM 1=main $C100-$CFFF ROM active 0=slot active
 $C016 R7 ALTZP 1=aux $0000-$1FF+auxBSR 0=main available
 $C017 R7 SLOTC3ROM 1=slot $C3 ROM active 0=main $C3 ROM active
 $C018 R7 80STORE 1=page2 switches main/aux 0=page2 video
-$C019 R7 VERTBLANK 1=vertical retrace on 0=vertical retrace off
+$C019 R7 VERTBLANK 1=vertical retrace on 0=vertical retrace off RDVBLBAR
 $C01A R7 TEXT 1=text mode is active 0=graphics mode active
 $C01B R7 MIXED 1=mixed graphics & text 0=full screen
 $C01C R7 PAGE2 1=video page2 selected or aux
@@ -294,3 +294,5 @@ export const SLOT3_0F = 0xc0bf;
 
 // R/W TBCOLOR IIgs Screen Color: (0-3) Low Nibble is BG, (4-7) High Nibble is Text
 export const TBCOLOR = 0xc022;
+//$C019 R7 VERTBLANK 1=vertical retrace on 0=vertical retrace off RDVBLBAR
+export const RDVBLBAR = 0xc019;
