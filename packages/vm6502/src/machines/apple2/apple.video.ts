@@ -1,5 +1,6 @@
 import type { IBus } from "@/cpu/bus.interface";
 import type { Video } from "@/video/video.interface";
+import * as SoftSwitches from "./softswitches";
 
 type CharMetrics = {
 	charWidth: number;
@@ -18,6 +19,25 @@ const TEXT_COLS = 40;
 const textScreenLineOffsets = [
 	0x400, 0x480, 0x500, 0x580, 0x600, 0x680, 0x700, 0x780, 0x428, 0x4a8, 0x528, 0x5a8, 0x628, 0x6a8, 0x728, 0x7a8, 0x450,
 	0x4d0, 0x550, 0x5d0, 0x650, 0x6d0, 0x750, 0x7d0,
+];
+
+const IIgsPaletteRGB = [
+	[0x00, 0x00, 0x00], // 0 Black
+	[0xd0, 0x00, 0x30], // 1 Deep Red
+	[0x00, 0x00, 0x90], // 2 Dark Blue
+	[0xd0, 0x20, 0xb0], // 3 Purple
+	[0x00, 0x70, 0x20], // 4 Dark Green
+	[0x50, 0x50, 0x50], // 5 Dark Gray
+	[0x20, 0x20, 0xff], // 6 Medium Blue
+	[0x60, 0xa0, 0xff], // 7 Light Blue
+	[0x80, 0x50, 0x00], // 8 Brown
+	[0xff, 0x60, 0x00], // 9 Orange
+	[0xa0, 0xa0, 0xa0], // 10 Light Gray
+	[0xff, 0x90, 0x80], // 11 Pink
+	[0x00, 0xd0, 0x00], // 12 Green
+	[0xff, 0xff, 0x00], // 13 Yellow
+	[0x00, 0xff, 0x90], // 14 Aquamarine
+	[0xff, 0xff, 0xff], // 15 White
 ];
 
 const SCREEN_MARGIN_X = 10;
@@ -64,16 +84,11 @@ export class AppleVideo implements Video {
 
 	private initPalette() {
 		const palette = new Uint8Array(256 * 4);
-		// Create a 16-step grayscale-to-green palette for anti-aliasing
-		const greenR = 0xee;
-		const greenG = 0xee;
-		const greenB = 0xee;
-
+		// IIgs 16-color palette
 		for (let i = 0; i < 16; i++) {
-			const step = i / 15; // 0 to 1
-			palette[i * 4 + 0] = Math.round(greenR * step);
-			palette[i * 4 + 1] = Math.round(greenG * step);
-			palette[i * 4 + 2] = Math.round(greenB * step);
+			palette[i * 4 + 0] = IIgsPaletteRGB[i]![0];
+			palette[i * 4 + 1] = IIgsPaletteRGB[i]![1];
+			palette[i * 4 + 2] = IIgsPaletteRGB[i]![2];
 			palette[i * 4 + 3] = 0xff;
 		}
 
@@ -84,10 +99,10 @@ export class AppleVideo implements Video {
 		this.ctx.fillStyle = "black";
 		this.ctx.fillRect(0, 0, this.offscreenCanvas.width, this.offscreenCanvas.height);
 
-		const isText = (this.bus.read(0xc01a) & 0x80) !== 0;
+		const isText = (this.bus.read(SoftSwitches.TEXT) & 0x80) !== 0;
 
 		if (isText) {
-			const is80Col = (this.bus.read(0xc01f) & 0x80) !== 0;
+			const is80Col = (this.bus.read(SoftSwitches.COL80) & 0x80) !== 0;
 			if (is80Col) this.renderText80();
 			else this.renderText40();
 		}
@@ -96,13 +111,21 @@ export class AppleVideo implements Video {
 		const src32 = new Uint32Array(imageData.data.buffer);
 		const dest = this.buffer;
 
-		// Convert RGBA pixels to 8-bit indices
-		for (let i = 0; i < dest.length; i++) {
-			// Since we render white text, any color channel can be used for brightness.
-			// We scale the 0-255 brightness to a 0-15 palette index.
-			const val = src32[i] ?? 0;
-			const brightness = val & 0xff; // Use Red channel for brightness
-			dest[i] = Math.floor((brightness / 256) * 16);
+		if (isText) {
+			const tbColor = this.bus.read(SoftSwitches.TBCOLOR);
+			const bgColorIndex = tbColor & 0x0f;
+			const fgColorIndex = (tbColor >> 4) & 0x0f;
+
+			// Convert RGBA pixels to 8-bit indices
+			for (let i = 0; i < dest.length; i++) {
+				// Since we render white text on black, any color channel can be used for brightness.
+				const val = src32[i] ?? 0;
+				const brightness = val & 0xff; // Use Red channel for brightness
+				dest[i] = brightness > 128 ? fgColorIndex : bgColorIndex;
+			}
+		} else {
+			// For graphics modes, just output black for now as we don't handle them yet.
+			dest.fill(0); // Black is index 0
 		}
 
 		if (this.bus.syncState) this.bus.syncState();

@@ -26,6 +26,9 @@ const APPLE_INTC8ROM_MASK = 0b1000_0000;
 
 const RAM_OFFSET = 0x4000; // 16KB reserved for Bank2 (4KB) + ROM (12KB) at the beginning
 
+// IIgs default colors - white on blue
+const DEFAULT_TEXT_COLORS = 0xf2;
+
 export class AppleBus implements IBus {
 	private memory: Uint8Array;
 	private registers?: DataView;
@@ -66,6 +69,7 @@ export class AppleBus implements IBus {
 	private mixed = false; // Mixed Mode
 	private page2 = false; // Page 2
 	private hires = false; // Hi-Res Mode
+	private tbColor = DEFAULT_TEXT_COLORS; // IIgs text/bg color (black bg, white text)
 
 	// Keyboard State
 	private lastKey = 0x00;
@@ -154,6 +158,7 @@ export class AppleBus implements IBus {
 		this.mixed = false;
 		this.page2 = false;
 		this.hires = false;
+		this.tbColor = DEFAULT_TEXT_COLORS;
 
 		this.syncState();
 	}
@@ -397,6 +402,8 @@ export class AppleBus implements IBus {
 			case SoftSwitches.SPEAKER:
 				// to be implemented
 				return 0;
+			case SoftSwitches.TBCOLOR:
+				return this.tbColor;
 			case SoftSwitches.STORE80:
 				return this.store80 ? 0x80 : 0x00;
 			case SoftSwitches.RAMRD:
@@ -547,6 +554,9 @@ export class AppleBus implements IBus {
 				break;
 			case SoftSwitches.HIRESON: // HIRES ON
 				this.hires = true;
+				break;
+			case SoftSwitches.TBCOLOR:
+				this.tbColor = value;
 				break;
 			default:
 				if (address < 0xc090) console.error("Unknown soft switch write:", address.toString(16));

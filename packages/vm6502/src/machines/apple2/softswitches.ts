@@ -157,9 +157,6 @@ export const PAGE2ON = 0xc055;
 // R7 PAGE2 1=video page2 selected or aux
 export const PAGE2 = 0xc01c;
 
-// R/W TBCOLOR IIgs Screen Color: (0-3) Low Nibble is BG, (4-7) High Nibble is Text
-export const TBCOLOR = 0xc022;
-
 // W INTCXROMOFF Enable slot ROM from $C100-$C7FF (but $C800-$CFFF depends on INTC8ROM)
 export const INTCXROMOFF = 0xc006;
 // W INTCXROMON Enable main ROM from $C100-$CFFF
@@ -272,3 +269,28 @@ export const SLOT3_0C = 0xc0bc;
 export const SLOT3_0D = 0xc0bd;
 export const SLOT3_0E = 0xc0be;
 export const SLOT3_0F = 0xc0bf;
+
+/*
+	IIgs specific
+*/
+
+// Text/background color selection  register
+// $0 = Black
+// $1 = Deep red
+// $2 = Dark blue
+// $3 = Purple
+// $4= Dark green
+// $5 = Dark gray
+// $6 Medium blue
+// $7 = Light blue
+// $8= Brown
+// $9 = Orange
+// $A = Light gray
+// $B Pink
+// $C = Green
+// $D= Yellow
+// $E = Aquamarine
+// $F = White
+
+// R/W TBCOLOR IIgs Screen Color: (0-3) Low Nibble is BG, (4-7) High Nibble is Text
+export const TBCOLOR = 0xc022;
