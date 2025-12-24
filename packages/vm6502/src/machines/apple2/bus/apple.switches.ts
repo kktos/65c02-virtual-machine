@@ -12,10 +12,13 @@ export function installSoftSwitches(bus: AppleBus) {
 	const onRead = (address: number, handler: () => number) => {
 		readHandlers[address & 0xff] = handler;
 	};
-
 	const onWrite = (address: number, handler: (val: number) => void) => {
 		writeHandlers[address & 0xff] = handler;
 	};
+	// const onRW = (address: number, handler: () => number) => {
+	// 	readHandlers[address & 0xff] = handler;
+	// 	writeHandlers[address & 0xff] = handler;
+	// };
 
 	// --- Keyboard ---
 	onRead(SoftSwitches.KBD, () => bus.lastKey | (bus.keyStrobe ? 0x80 : 0x00));
@@ -97,8 +100,16 @@ export function installSoftSwitches(bus: AppleBus) {
 		bus.hires = false;
 		return 0;
 	});
+	onRead(SoftSwitches.HIRESON, () => {
+		bus.hires = true;
+		return 0;
+	});
 	onRead(SoftSwitches.TEXTON, () => {
 		bus.text = true;
+		return 0;
+	});
+	onRead(SoftSwitches.TEXTOFF, () => {
+		bus.text = false;
 		return 0;
 	});
 
