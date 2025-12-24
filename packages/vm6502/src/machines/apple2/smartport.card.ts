@@ -39,7 +39,9 @@ export class SmartPortCard implements ISlotCard {
 		this.rom[0x05] = 0x03; // ID Byte
 		this.rom[0x07] = 0x00; // ID Byte
 
+		// 7.....10 : bit7=extended; bit1=SCSI; bit0=RAMCard
 		this.rom[0xfb] = 0x00; // SP ID type
+
 		this.rom[0xfc] = 0x00; // block count
 		this.rom[0xfd] = 0x00; //
 		this.rom[0xfe] = 0xff; // device info flags
@@ -56,11 +58,18 @@ export class SmartPortCard implements ISlotCard {
 		// this.rom[0x43] = 0x18; // CLC
 		this.rom[0x43] = 0x60; // RTS
 
-		// --- SmartPort MLI ($Cn0A) ---
+		// --- SmartPort ProDOS Block-level Interface ($Cn0A) ---
 		this.rom[0x0a] = 0x4c; // JMP $Cn40
 		this.rom[0x0b] = 0x40;
 		this.rom[0x0c] = 0xc0 + this.slot;
-		// --- SmartPort ProDOS Block-level Interface ($Cn0D) ---
+
+		// --- SmartPort MLI ($Cn0D) ---
+		/**
+		 SP_CALL	jsr $Cn0D		;Call SmartPort command dispatcher
+		 			.db CMDNUM		;This specifies the command type
+					.dw CMDLIST
+					bcs ERROR
+		 */
 		this.rom[0x0d] = 0x4c; // JMP $Cn40
 		this.rom[0x0e] = 0x40;
 		this.rom[0x0f] = 0xc0 + this.slot;
@@ -154,10 +163,15 @@ export class SmartPortCard implements ISlotCard {
 		if (!this.registers || !this.bus) return;
 
 		// Read CPU State
+		// const cmd = this.registers.getUint8(REG_A_OFFSET);
+		// const paramLo = this.registers.getUint8(REG_X_OFFSET);
+		// const paramHi = this.registers.getUint8(REG_Y_OFFSET);
+		// const paramAddr = (paramHi << 8) | paramLo;
+		// console.log(`SmartPort(${this.slot}) Cmd: ${cmd.toString(16)} ParamAddr: $${paramAddr.toString(16)}`);
+
 		const cmd = this.bus.read(0x42);
 		const paramAddr = 0x42;
-
-		// console.log(`SmartPort HLE: Slot ${this.slot} Cmd: ${cmd} ParamAddr: $${paramAddr.toString(16)}`);
+		console.log(`SmartPort(${this.slot}) Cmd: ${cmd.toString(16)}`);
 
 		let error = 0;
 
@@ -216,7 +230,7 @@ export class SmartPortCard implements ISlotCard {
 		const blkHi = this.bus.read(paramAddr + 5);
 		const block = (blkHi << 8) | blkLo;
 
-		console.log(`SmartPort HLE: Slot ${this.slot} Read: ${block} addr: $${bufferAddr.toString(16)}`);
+		console.log(`SmartPort Read - block: ${block} addr: $${bufferAddr.toString(16)}`);
 
 		const offset = block * 512;
 		if (offset + 512 > this.diskData.length) return 0x27; // I/O Error
