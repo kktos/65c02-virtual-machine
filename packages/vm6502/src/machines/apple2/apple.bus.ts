@@ -1,9 +1,9 @@
 import type { DebugOption, IBus, MachineStateSpec } from "@/cpu/bus.interface";
 import { MACHINE_STATE_OFFSET } from "@/cpu/shared-memory";
 import { generateApple2Assets } from "./apple.assets";
+import { installSoftSwitches } from "./apple.switches";
 import type { ISlotCard } from "./slotcard.interface";
 import { SmartPortCard } from "./smartport.card";
-import * as SoftSwitches from "./softswitches";
 
 // Apple II specific flags (packed into the MACHINE_STATE bytes)
 // Byte at MACHINE_STATE_OFFSET
@@ -43,42 +43,42 @@ export class AppleBus implements IBus {
 	private slotRoms: Uint8Array;
 
 	// Slot System
-	private slots: (ISlotCard | null)[] = new Array(8).fill(null);
+	public slots: (ISlotCard | null)[] = new Array(8).fill(null);
 	private activeExpansionSlot = 0;
 
 	// Language Card State
-	private lcBank2 = false; // false = Bank 1 ($D000), true = Bank 2 ($D000)
-	private lcReadRam = false; // false = Read ROM, true = Read RAM
-	private lcWriteRam = false; // false = Write Protect, true = Write Enable
-	private lcPreWriteCount = 0; // Counter for the double-read write enable mechanism
+	public lcBank2 = false; // false = Bank 1 ($D000), true = Bank 2 ($D000)
+	public lcReadRam = false; // false = Read ROM, true = Read RAM
+	public lcWriteRam = false; // false = Write Protect, true = Write Enable
+	public lcPreWriteCount = 0; // Counter for the double-read write enable mechanism
 
 	// Main/Aux Memory State
-	private store80 = false;
-	private ramRdAux = false; // Read from Aux memory ($0200-$BFFF)
-	private ramWrAux = false; // Write to Aux memory ($0200-$BFFF)
-	private altZp = false; // Use Aux for ZP/Stack and LC area
+	public store80 = false;
+	public ramRdAux = false; // Read from Aux memory ($0200-$BFFF)
+	public ramWrAux = false; // Write to Aux memory ($0200-$BFFF)
+	public altZp = false; // Use Aux for ZP/Stack and LC area
 
 	// Slot ROM State
-	private intCxRom = false; // false = Slot, true = Internal
-	private intC8Rom = false; // Hardware hack for Slot 3 (Internal C800)
-	private slotC3Rom = false; // false = Internal, true = Slot
+	public intCxRom = false; // false = Slot, true = Internal
+	public intC8Rom = false; // Hardware hack for Slot 3 (Internal C800)
+	public slotC3Rom = false; // false = Internal, true = Slot
 
 	// Video State
-	private col80 = false; // 80 Column Store/Display
-	private altChar = false; // Alternate Character Set
-	private text = true; // Text Mode
-	private mixed = false; // Mixed Mode
-	private page2 = false; // Page 2
-	private hires = false; // Hi-Res Mode
-	private tbColor = DEFAULT_TEXT_COLORS; // IIgs text/bg color (black bg, white text)
+	public col80 = false; // 80 Column Store/Display
+	public altChar = false; // Alternate Character Set
+	public text = true; // Text Mode
+	public mixed = false; // Mixed Mode
+	public page2 = false; // Page 2
+	public hires = false; // Hi-Res Mode
+	public tbColor = DEFAULT_TEXT_COLORS; // IIgs text/bg color (black bg, white text)
 
 	// Keyboard State
-	private lastKey = 0x00;
-	private keyStrobe = false;
+	public lastKey = 0x00;
+	public keyStrobe = false;
 
 	// Game I/O / Pushbutton State
-	private pb0 = false; // Open Apple (Left Alt)
-	private pb1 = false; // Solid Apple (Right Alt)
+	public pb0 = false; // Open Apple (Left Alt)
+	public pb1 = false; // Solid Apple (Right Alt)
 
 	// Soft Switch Dispatch Tables (0xC000 - 0xC0FF)
 	private readHandlers: Array<() => number> = new Array(256);
@@ -100,7 +100,11 @@ export class AppleBus implements IBus {
 		const slot5Rom = this.slotRoms.subarray(0x400, 0x500);
 		this.installCard(5, new SmartPortCard(5, slot5Rom));
 
-		this.setupSoftSwitches();
+		// Initialize with default no-op/error handlers
+		this.readHandlers.fill(() => 0);
+		this.writeHandlers.fill(() => {});
+
+		installSoftSwitches(this);
 	}
 
 	public installCard(slot: number, card: ISlotCard) {
@@ -329,189 +333,12 @@ export class AppleBus implements IBus {
 		this.memory[RAM_OFFSET + address] = value & 0xff;
 	}
 
-	private updateLcState(address: number) {
-		const bit0 = (address & 1) !== 0; // 0=Read RAM/ROM, 1=Write RAM (maybe)
-		const bit1 = (address & 2) !== 0; // 0=Read RAM/ROM, 1=Read ROM
-		const bit3 = (address & 8) !== 0; // 0=Bank 2, 1=Bank 1
-
-		this.lcBank2 = !bit3;
-		this.lcReadRam = bit0 === bit1;
-
-		// Write Enable Logic:
-		// If bit0 is clear ($C080, $C082...), write is disabled immediately.
-		// If bit0 is set ($C081, $C083...), write is enabled ONLY if this is the second consecutive read.
-		if (!bit0) {
-			this.lcWriteRam = false;
-			this.lcPreWriteCount = 0;
-		} else {
-			this.lcPreWriteCount++;
-			if (this.lcPreWriteCount > 1) {
-				this.lcWriteRam = true;
-				this.lcPreWriteCount = 0; // Reset after enabling? Behavior varies, but usually stays enabled.
-			}
-		}
+	public onRead(address: number, handler: () => number) {
+		this.readHandlers[address & 0xff] = handler;
 	}
 
-	private setupSoftSwitches() {
-		// Initialize with default no-op/error handlers
-		this.readHandlers.fill(() => 0);
-		this.writeHandlers.fill(() => {});
-
-		// Helper to register handlers
-		const onRead = (addr: number, fn: () => number) => {
-			this.readHandlers[addr & 0xff] = fn;
-		};
-		const onWrite = (addr: number, fn: (v: number) => void) => {
-			this.writeHandlers[addr & 0xff] = fn;
-		};
-
-		// --- Keyboard ---
-		onRead(SoftSwitches.KBD, () => this.lastKey | (this.keyStrobe ? 0x80 : 0x00));
-		onRead(SoftSwitches.KBDSTRB, () => {
-			this.keyStrobe = false;
-			return 0;
-		});
-		onWrite(SoftSwitches.KBDSTRB, () => {
-			this.keyStrobe = false;
-		});
-
-		// --- Video State Reads ---
-		onRead(SoftSwitches.STORE80, () => (this.store80 ? 0x80 : 0x00));
-		onRead(SoftSwitches.COL80, () => (this.col80 ? 0x80 : 0x00));
-		onRead(SoftSwitches.ALTCHARSET, () => (this.altChar ? 0x80 : 0x00));
-		onRead(SoftSwitches.TEXT, () => (this.text ? 0x80 : 0x00));
-		onRead(SoftSwitches.MIXED, () => (this.mixed ? 0x80 : 0x00));
-		onRead(SoftSwitches.PAGE2, () => (this.page2 ? 0x80 : 0x00));
-		onRead(SoftSwitches.HIRES, () => (this.hires ? 0x80 : 0x00));
-		onRead(SoftSwitches.TBCOLOR, () => this.tbColor);
-
-		// --- Video State Writes ---
-		onWrite(SoftSwitches.STORE80OFF, () => {
-			this.store80 = false;
-		});
-		onWrite(SoftSwitches.STORE80ON, () => {
-			this.store80 = true;
-		});
-		onWrite(SoftSwitches.COL80OFF, () => {
-			this.col80 = false;
-		});
-		onWrite(SoftSwitches.COL80ON, () => {
-			this.col80 = true;
-		});
-		onWrite(SoftSwitches.ALTCHARSETOFF, () => {
-			this.altChar = false;
-		});
-		onWrite(SoftSwitches.ALTCHARSETON, () => {
-			this.altChar = true;
-		});
-		onWrite(SoftSwitches.TEXTOFF, () => {
-			this.text = false;
-		});
-		onWrite(SoftSwitches.TEXTON, () => {
-			this.text = true;
-		});
-		onWrite(SoftSwitches.MIXEDOFF, () => {
-			this.mixed = false;
-		});
-		onWrite(SoftSwitches.MIXEDON, () => {
-			this.mixed = true;
-		});
-		onWrite(SoftSwitches.PAGE2OFF, () => {
-			this.page2 = false;
-		});
-		onWrite(SoftSwitches.PAGE2ON, () => {
-			this.page2 = true;
-		});
-		onWrite(SoftSwitches.HIRESOFF, () => {
-			this.hires = false;
-		});
-		onWrite(SoftSwitches.HIRESON, () => {
-			this.hires = true;
-		});
-		onWrite(SoftSwitches.TBCOLOR, (v) => {
-			this.tbColor = v;
-		});
-
-		// Read-only switches that trigger state changes
-		onRead(SoftSwitches.PAGE2OFF, () => {
-			this.page2 = false;
-			return 0;
-		});
-		onRead(SoftSwitches.PAGE2ON, () => {
-			this.page2 = true;
-			return 0;
-		});
-		onRead(SoftSwitches.HIRESOFF, () => {
-			this.hires = false;
-			return 0;
-		});
-		onRead(SoftSwitches.TEXTON, () => {
-			this.text = true;
-			return 0;
-		});
-
-		// --- Memory Management ---
-		onRead(SoftSwitches.RAMRD, () => (this.ramRdAux ? 0x80 : 0x00));
-		onRead(SoftSwitches.RAMWRT, () => (this.ramWrAux ? 0x80 : 0x00));
-		onRead(SoftSwitches.ALTZP, () => (this.altZp ? 0x80 : 0x00));
-		onRead(SoftSwitches.INTCXROM, () => (this.intCxRom ? 0x80 : 0x00));
-		onRead(SoftSwitches.SLOTC3ROM, () => (this.slotC3Rom ? 0x80 : 0x00));
-		onRead(SoftSwitches.RDLCBNK2, () => (this.lcBank2 ? 0x80 : 0x00));
-		onRead(SoftSwitches.RDLCRAM, () => (this.lcReadRam ? 0x80 : 0x00));
-
-		onWrite(SoftSwitches.RAMRDOFF, () => {
-			this.ramRdAux = false;
-		});
-		onWrite(SoftSwitches.RAMRDON, () => {
-			this.ramRdAux = true;
-		});
-		onWrite(SoftSwitches.RAMWRTOFF, () => {
-			this.ramWrAux = false;
-		});
-		onWrite(SoftSwitches.RAMWRTON, () => {
-			this.ramWrAux = true;
-		});
-		onWrite(SoftSwitches.ALTZPOFF, () => {
-			this.altZp = false;
-		});
-		onWrite(SoftSwitches.ALTZPON, () => {
-			this.altZp = true;
-		});
-		onWrite(SoftSwitches.INTCXROMOFF, () => {
-			this.intCxRom = false;
-		});
-		onWrite(SoftSwitches.INTCXROMON, () => {
-			this.intCxRom = true;
-		});
-		onWrite(SoftSwitches.SLOTC3ROMOFF, () => {
-			this.slotC3Rom = false;
-		});
-		onWrite(SoftSwitches.SLOTC3ROMON, () => {
-			this.slotC3Rom = true;
-		});
-
-		// --- Game I/O ---
-		onRead(SoftSwitches.PB0, () => (this.pb0 ? 0x80 : 0x00));
-		onRead(SoftSwitches.PB1, () => (this.pb1 ? 0x80 : 0x00));
-
-		// --- Language Card ($C080-$C08F) ---
-		// We register these in a loop to handle the echoes and specific addresses
-		for (let addr = 0xc080; addr <= 0xc08f; addr++) {
-			onRead(addr, () => {
-				this.updateLcState(addr);
-				return 0;
-			});
-			onWrite(addr, () => this.updateLcState(addr));
-		}
-
-		// --- Slot I/O ($C090-$C0FF) ---
-		// Pre-calculate slot index to avoid bit-shifting at runtime
-		for (let addr = 0xc090; addr <= 0xc0ff; addr++) {
-			const slot = ((addr >> 4) & 0x0f) - 8;
-			const offset = addr & 0x0f;
-			onRead(addr, () => this.slots[slot]?.readIo(offset) ?? 0);
-			onWrite(addr, (v) => this.slots[slot]?.writeIo(offset, v));
-		}
+	public onWrite(address: number, handler: (val: number) => void) {
+		this.writeHandlers[address & 0xff] = handler;
 	}
 
 	load(address: number, data: Uint8Array, bank: number = 0, tag?: string): void {
