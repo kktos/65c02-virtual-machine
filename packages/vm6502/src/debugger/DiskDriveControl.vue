@@ -1,46 +1,41 @@
 <template>
-	<div class="p-4 bg-gray-800 rounded-lg shadow-xl">
-		<h2 class="text-sm font-semibold text-cyan-400 uppercase tracking-wider mb-3">
-			SmartPort Drive (Slot 5)
-		</h2>
-		<div class="flex flex-col gap-3">
-			<div class="flex items-center gap-2">
-				<label class="flex-grow cursor-pointer">
-					<span class="sr-only">Choose Disk Image</span>
-					<input
-						type="file"
-						accept=".po,.2mg,.dsk,.hdv"
-						@change="handleFileSelect"
-						class="block w-full text-xs text-gray-400
-							file:mr-2 file:py-1 file:px-2
-							file:rounded-full file:border-0
-							file:text-xs file:font-semibold
-							file:bg-indigo-600 file:text-white
-							hover:file:bg-indigo-500
-							cursor-pointer focus:outline-none"
-					/>
-				</label>
-			</div>
-			<div v-if="fileName" class="text-xs text-gray-300 bg-gray-900 p-2 rounded border border-gray-700">
-				<div class="flex justify-between items-center">
-					<span class="truncate max-w-[150px]" :title="fileName">{{ fileName }}</span>
-					<span class="text-gray-500 font-mono">{{ formatSize(fileSize) }}</span>
-				</div>
-			</div>
-			<div v-else class="text-xs text-gray-500 italic text-center p-1">
-				No disk inserted
+	<div class="flex items-center space-x-3 bg-gray-800 p-2 rounded-lg shadow-md border border-gray-700">
+		<label class="cursor-pointer group relative flex items-center justify-center w-10 h-10 bg-gray-700 hover:bg-gray-600 rounded border border-gray-600 transition-colors shrink-0">
+			<span class="sr-only">Insert Disk</span>
+			<input
+				type="file"
+				accept=".po,.2mg,.dsk,.hdv"
+				@change="handleFileSelect"
+				class="hidden"
+			/>
+			<!-- Floppy Disk Icon -->
+			<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-cyan-400 group-hover:text-cyan-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2" />
+			</svg>
+		</label>
+
+		<div class="flex flex-col overflow-hidden min-w-[8rem]">
+			<span class="text-[10px] uppercase text-gray-400 font-bold tracking-wider">SmartPort (S5)</span>
+			<div
+				class="text-xs font-mono truncate text-gray-300 cursor-help"
+				:title="fileName ? `Size: ${formatSize(fileSize)}` : 'No disk inserted'"
+			>
+				{{ fileName || 'Empty' }}
 			</div>
 		</div>
 	</div>
 </template>
 
 <script lang="ts" setup>
-import { inject, type Ref, ref } from 'vue';
+import { inject, type Ref, ref, watch } from 'vue';
+import { useDiskStorage } from '@/composables/useDiskStorage';
 import type { VirtualMachine } from '@/virtualmachine.class';
 
 const vm = inject<Ref<VirtualMachine>>('vm');
 const fileName = ref('');
 const fileSize = ref(0);
+const { saveDisk, loadDisk } = useDiskStorage();
+const SLOT = 5;
 
 const formatSize = (bytes: number) => {
 	if (bytes < 1024) return `${bytes} B`;
@@ -56,6 +51,19 @@ const handleFileSelect = async (event: Event) => {
 		fileName.value = file.name;
 		fileSize.value = file.size;
 		vm?.value?.insertDisk(data, { slot: 5, name: file.name });
+		await saveDisk(SLOT, file.name, buffer);
 	}
 };
+
+watch(() => vm?.value, async (newVm) => {
+	if (newVm) {
+		await newVm.ready;
+		const saved = await loadDisk(SLOT);
+		if (saved) {
+			fileName.value = saved.name;
+			fileSize.value = saved.size;
+			newVm.insertDisk(new Uint8Array(saved.data), { slot: SLOT, name: saved.name });
+		}
+	}
+}, { immediate: true });
 </script>
