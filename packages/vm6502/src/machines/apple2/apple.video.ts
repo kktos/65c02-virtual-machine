@@ -169,58 +169,73 @@ export class AppleVideo implements Video {
 		const baseAddr = isPage2 ? 0x4000 : 0x2000;
 
 		const width = this.offscreenCanvas.width;
-		// Calculate scaling factors to map 280x192 to the canvas dimensions
 		const scaleX = (width - 2 * SCREEN_MARGIN_X) / 280;
-		const scanlineHeight = this.charHeight / 8; // 192 scanlines map to 24 text rows
+		const scanlineHeight = this.charHeight / 8;
 
-		// Iterate over all 192 scanlines
 		for (let y = startLine; y < endLine; y++) {
-			// Calculate HGR Memory Address
-			// Address = Base + (y/64)*0x28 + (y%8)*0x400 + ((y/8)%8)*0x80
 			const rowOffset = Math.floor(y / 64) * 0x28 + (y % 8) * 0x400 + (Math.floor(y / 8) & 7) * 0x80;
 			const addr = baseAddr + rowOffset;
 
-			// Calculate Y screen bounds for this scanline
 			const drawYStart = Math.floor(SCREEN_MARGIN_Y + y * scanlineHeight);
 			const drawYEnd = Math.floor(SCREEN_MARGIN_Y + (y + 1) * scanlineHeight);
 
-			// Process 40 bytes per line (280 pixels)
 			for (let byteIdx = 0; byteIdx < 40; byteIdx++) {
 				const byte = this.bus.readRaw(addr + byteIdx);
 				const paletteShift = (byte & 0x80) !== 0;
 
-				// Process 7 pixels per byte
+				const prevByte = byteIdx > 0 ? this.bus.readRaw(addr + byteIdx - 1) : 0;
+				const nextByte = byteIdx < 39 ? this.bus.readRaw(addr + byteIdx + 1) : 0;
+
 				for (let bit = 0; bit < 7; bit++) {
 					const xHgr = byteIdx * 7 + bit;
 					const pixelOn = (byte & (1 << bit)) !== 0;
 
 					let color = HGR_BLACK;
 					if (pixelOn) {
-						// Even/Odd column determines color group
 						const isEven = xHgr % 2 === 0;
-						if (paletteShift) {
-							color = isEven ? HGR_ORANGE : HGR_BLUE;
-						} else {
-							color = isEven ? HGR_GREEN : HGR_VIOLET;
+
+						// Check neighbors
+						let prevPixelOn = false;
+						let nextPixelOn = false;
+
+						if (bit > 0) {
+							prevPixelOn = (byte & (1 << (bit - 1))) !== 0;
+						} else if (byteIdx > 0) {
+							prevPixelOn = (prevByte & (1 << 6)) !== 0;
 						}
 
-						// Simple White detection: Check if next pixel is also ON
-						// (This is a basic approximation; real hardware artifacting is complex)
-						const nextBit = bit + 1;
-						if (nextBit < 7) {
-							if ((byte & (1 << nextBit)) !== 0) color = HGR_WHITE;
+						if (bit < 6) {
+							nextPixelOn = (byte & (1 << (bit + 1))) !== 0;
+						} else if (byteIdx < 39) {
+							nextPixelOn = (nextByte & 1) !== 0;
 						}
-						// Note: To handle white correctly across byte boundaries,
-						// we would need to peek at the next byte.
+
+						// Two adjacent ON pixels = white
+						if (prevPixelOn || nextPixelOn) {
+							color = HGR_WHITE;
+						} else {
+							// Single isolated pixel = color (may appear dim on real hardware)
+							// But we'll render it as the full color
+							if (paletteShift) {
+								color = isEven ? HGR_BLUE : HGR_ORANGE;
+							} else {
+								color = isEven ? HGR_VIOLET : HGR_GREEN;
+							}
+						}
 					}
 
-					// Draw the pixel scaled horizontally and vertically
+					// const drawXStart = Math.floor(SCREEN_MARGIN_X + xHgr * scaleX);
+					// const drawXEnd = Math.floor(SCREEN_MARGIN_X + (xHgr + 1) * scaleX);
+
 					const drawXStart = Math.floor(SCREEN_MARGIN_X + xHgr * scaleX);
 					const drawXEnd = Math.floor(SCREEN_MARGIN_X + (xHgr + 1) * scaleX);
 
+					// Ensure we always draw at least one pixel
+					const actualXEnd = Math.max(drawXEnd, drawXStart + 1);
+
 					for (let dy = drawYStart; dy < drawYEnd; dy++) {
 						const bufRow = dy * width;
-						for (let dx = drawXStart; dx < drawXEnd; dx++) {
+						for (let dx = drawXStart; dx < actualXEnd; dx++) {
 							this.buffer[bufRow + dx] = color;
 						}
 					}
