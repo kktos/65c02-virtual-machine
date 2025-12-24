@@ -39,7 +39,11 @@ export class SmartPortCard implements ISlotCard {
 		this.rom[0x05] = 0x03; // ID Byte
 		this.rom[0x07] = 0x00; // ID Byte
 
-		this.rom[0xff] = 0x0a; // ID Byte
+		this.rom[0xfb] = 0x00; // SP ID type
+		this.rom[0xfc] = 0x00; // block count
+		this.rom[0xfd] = 0x00; //
+		this.rom[0xfe] = 0xff; // device info flags
+		this.rom[0xff] = 0x0a; // Lo MLI ENtrypoint
 
 		// --- HLE Trigger ($Cn40) ---
 		const ioBase = 0xc080 + (this.slot << 4);
@@ -49,13 +53,17 @@ export class SmartPortCard implements ISlotCard {
 		this.rom[0x40] = 0x8d; // STA Absolute
 		this.rom[0x41] = ioLo;
 		this.rom[0x42] = ioHi;
-		this.rom[0x43] = 0x18; // CLC
-		this.rom[0x44] = 0x60; // RTS
+		// this.rom[0x43] = 0x18; // CLC
+		this.rom[0x43] = 0x60; // RTS
 
-		// --- SmartPort Dispatcher ($Cn0A) ---
+		// --- SmartPort MLI ($Cn0A) ---
 		this.rom[0x0a] = 0x4c; // JMP $Cn40
 		this.rom[0x0b] = 0x40;
 		this.rom[0x0c] = 0xc0 + this.slot;
+		// --- SmartPort ProDOS Block-level Interface ($Cn0D) ---
+		this.rom[0x0d] = 0x4c; // JMP $Cn40
+		this.rom[0x0e] = 0x40;
+		this.rom[0x0f] = 0xc0 + this.slot;
 
 		// --- Boot Routine ($Cn20) ---
 		// 1. Setup Params at $42 for Block 0 Read to $0800
@@ -149,7 +157,7 @@ export class SmartPortCard implements ISlotCard {
 		const cmd = this.bus.read(0x42);
 		const paramAddr = 0x42;
 
-		console.log(`SmartPort HLE: Slot ${this.slot} Cmd: ${cmd} ParamAddr: $${paramAddr.toString(16)}`);
+		// console.log(`SmartPort HLE: Slot ${this.slot} Cmd: ${cmd} ParamAddr: $${paramAddr.toString(16)}`);
 
 		let error = 0;
 
@@ -207,6 +215,8 @@ export class SmartPortCard implements ISlotCard {
 		const blkLo = this.bus.read(paramAddr + 4);
 		const blkHi = this.bus.read(paramAddr + 5);
 		const block = (blkHi << 8) | blkLo;
+
+		console.log(`SmartPort HLE: Slot ${this.slot} Read: ${block} addr: $${bufferAddr.toString(16)}`);
 
 		const offset = block * 512;
 		if (offset + 512 > this.diskData.length) return 0x27; // I/O Error
