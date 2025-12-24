@@ -183,7 +183,7 @@ export class SmartPortCard implements ISlotCard {
 		// const paramHi = this.registers.getUint8(REG_Y_OFFSET);
 		// const paramAddr = (paramHi << 8) | paramLo;
 
-		this.executeCommand(cmd, paramAddr);
+		this.executeCommand(cmd, paramAddr, false);
 	}
 
 	// Handle SmartPort MLI call (Inline)
@@ -207,7 +207,7 @@ export class SmartPortCard implements ISlotCard {
 		const paramAddr = (paramHi << 8) | paramLo;
 
 		// 3. Execute
-		this.executeCommand(cmd, paramAddr);
+		this.executeCommand(cmd, paramAddr, true);
 
 		// 4. Fix Stack to skip inline data
 		// We consumed 3 bytes (Cmd, Lo, Hi).
@@ -217,7 +217,7 @@ export class SmartPortCard implements ISlotCard {
 		this.bus.write(stackBase + sp + 2, (newRet >> 8) & 0xff);
 	}
 
-	private executeCommand(cmd: number, paramAddr: number) {
+	private executeCommand(cmd: number, paramAddr: number, isSmartPort: boolean) {
 		if (!this.registers) return;
 		console.log(`SmartPort(${this.slot}) Cmd: ${cmd.toString(16)} ParamAddr: $${paramAddr.toString(16)}`);
 
@@ -225,7 +225,8 @@ export class SmartPortCard implements ISlotCard {
 
 		switch (cmd) {
 			case 0x00: // STATUS
-				error = this.handleStatus(paramAddr);
+				if (isSmartPort) error = this.handleSmartPortStatus(paramAddr);
+				else error = this.handleBlockStatus(paramAddr);
 				break;
 			case 0x01: // READ
 				error = this.handleRead(paramAddr);
@@ -250,7 +251,7 @@ export class SmartPortCard implements ISlotCard {
 		}
 	}
 
-	private handleStatus(_paramAddr: number): number {
+	private handleBlockStatus(_paramAddr: number): number {
 		if (!this.diskData) return 0x2f; // Device Offline
 
 		// ProDOS Status: Returns block count in X (Lo) and Y (Hi)
@@ -258,6 +259,58 @@ export class SmartPortCard implements ISlotCard {
 		this.registers?.setUint8(REG_X_OFFSET, blocks & 0xff);
 		this.registers?.setUint8(REG_Y_OFFSET, (blocks >> 8) & 0xff);
 
+		return 0;
+	}
+
+	private handleSmartPortStatus(paramAddr: number): number {
+		if (!this.bus || !this.diskData) return 0x2f; // Device Offline
+
+		// Param List: [Count, Unit, PtrLo, PtrHi, Code]
+		const listPtrLo = this.bus.read(paramAddr + 2);
+		const listPtrHi = this.bus.read(paramAddr + 3);
+		const listPtr = (listPtrHi << 8) | listPtrLo;
+		const code = this.bus.read(paramAddr + 4);
+
+		switch (code) {
+			case 0x00: {
+				// Device Status
+				// Byte 0: Status (0x86 = Active, R/W, Format Allowed)
+				this.bus.write(listPtr, 0b1111_1000);
+
+				const blocks = Math.floor(this.diskData.length / 512);
+				// Byte 1-3: Blocks
+				this.bus.write(listPtr + 1, blocks & 0xff);
+				this.bus.write(listPtr + 2, (blocks >> 8) & 0xff);
+				this.bus.write(listPtr + 3, (blocks >> 16) & 0xff);
+				break;
+			}
+			case 0x01: // Device Control Block (DCB)
+				// TODO: Implement DCB if required
+				break;
+			case 0x02: // Newline Status
+				// TODO: Implement Newline if required (Character devices)
+				break;
+			case 0x03: {
+				// Device Info Block (DIB)
+				// Byte 0: Device Type (0x02 = Hard Disk)
+				// Byte 1: Subtype (0x20)
+				// Byte 2-3: Version (0x0100)
+				// Byte 4: Caps (0x03 = Read/Write)
+				// Byte 5: Name Len (16)
+				// Byte 6..21: "SmartPort Drive "
+				this.bus.write(listPtr + 0, 0x02);
+				this.bus.write(listPtr + 1, 0x20);
+				this.bus.write(listPtr + 2, 0x00);
+				this.bus.write(listPtr + 3, 0x01);
+				this.bus.write(listPtr + 4, 0x03);
+				const name = "SmartPort Drive ";
+				this.bus.write(listPtr + 5, name.length);
+				for (let i = 0; i < name.length; i++) this.bus.write(listPtr + 6 + i, name.charCodeAt(i));
+				break;
+			}
+			default:
+				return 0x21; // Bad Code
+		}
 		return 0;
 	}
 
