@@ -30,7 +30,7 @@ export interface IBus {
 	load(address: number, data: Uint8Array, bank?: number, tag?: string): void;
 
 	/** Optional method to handle keyboard input. */
-	pressKey?(key: string, code?: string): void;
+	pressKey?(key: string, code?: string, ctrl?: boolean, shift?: boolean, alt?: boolean, meta?: boolean): void;
 
 	/** Optional method to handle key release. */
 	releaseKey?(key: string, code?: string): void;

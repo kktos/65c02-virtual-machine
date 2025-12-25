@@ -339,7 +339,7 @@ export class AppleBus implements IBus {
 		loadMemoryChunks(this, address, data, bank, tag);
 	}
 
-	public pressKey(key: string, code?: string) {
+	public pressKey(key: string, code?: string, ctrl?: boolean) {
 		if (code === "AltLeft") {
 			this.pb0 = true;
 			return;
@@ -351,6 +351,9 @@ export class AppleBus implements IBus {
 		let ascii = 0;
 		if (key.length === 1) {
 			ascii = key.charCodeAt(0);
+			if (ctrl) {
+				ascii = (ascii - 0x60) | 0x80;
+			}
 		} else {
 			switch (key) {
 				case "Enter":

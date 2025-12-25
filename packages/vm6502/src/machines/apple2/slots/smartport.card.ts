@@ -219,7 +219,7 @@ export class SmartPortCard implements ISlotCard {
 
 	private executeCommand(cmd: number, paramAddr: number, isSmartPort: boolean) {
 		if (!this.registers) return;
-		console.log(`SmartPort(${this.slot}) Cmd: ${cmd.toString(16)} ParamAddr: $${paramAddr.toString(16)}`);
+		// console.log(`SmartPort(${this.slot}) Cmd: ${cmd.toString(16)} ParamAddr: $${paramAddr.toString(16)}`);
 
 		let error = 0;
 
@@ -331,7 +331,7 @@ export class SmartPortCard implements ISlotCard {
 		const blkHi = this.bus.read(paramAddr + 5);
 		const block = (blkHi << 8) | blkLo;
 
-		console.log(`SmartPort Read - block: ${block} addr: $${bufferAddr.toString(16)}`);
+		// console.log(`SmartPort Read - block: ${block} addr: $${bufferAddr.toString(16)}`);
 
 		const offset = block * 512;
 		if (offset + 512 > this.diskData.length) return 0x27; // I/O Error

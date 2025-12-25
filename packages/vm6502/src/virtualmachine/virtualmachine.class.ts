@@ -201,10 +201,18 @@ export class VirtualMachine {
 		const target = event.target as HTMLElement;
 		if (target && (kbdElements.has(target.tagName) || target.isContentEditable)) return;
 
-		this.worker.postMessage({ command: "keydown", key: event.key, code: event.code });
+		this.worker.postMessage({
+			command: "keydown",
+			key: event.key,
+			code: event.code,
+			ctrl: event.ctrlKey,
+			shift: event.shiftKey,
+			alt: event.altKey,
+			meta: event.metaKey,
+		});
 
 		// Prevent default browser actions for handled keys (except F-keys, etc)
-		if (!event.ctrlKey && !event.metaKey && (!event.altKey || event.key === "Alt")) {
+		if (!event.metaKey && (!event.altKey || event.key === "Alt")) {
 			if (
 				event.key.length === 1 ||
 				["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Backspace", "Enter"].includes(event.key)

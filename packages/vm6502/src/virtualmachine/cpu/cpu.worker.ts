@@ -119,7 +119,7 @@ self.onmessage = async (event: MessageEvent) => {
 			if (bus?.insertMedia) bus.insertMedia(event.data.data, event.data.metadata);
 			break;
 		case "keydown":
-			if (bus?.pressKey) bus.pressKey(key, code);
+			if (bus?.pressKey) bus.pressKey(key, code, event.data.ctrl, event.data.shift, event.data.alt, event.data.meta);
 			break;
 		case "keyup":
 			if (bus?.releaseKey) bus.releaseKey(key, code);
