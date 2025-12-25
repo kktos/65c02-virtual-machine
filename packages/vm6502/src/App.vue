@@ -3,8 +3,12 @@
 
     <ResizablePanel class="flex flex-col bg-white bg-[conic-gradient(#000_0_25%,#333_0_50%,#000_0_75%,#333_0_100%)] [background-size:1rem_1rem]">
 		<div class="flex items-center justify-between pr-2 bg-gray-900">
-			<MachineSelector :machines="availableMachines" :selected-machine="selectedMachine" @machine-selected="handleMachineSelected"/>
-			<VideoControl />
+			<MachineSelector :machines="availableMachines" :selected-machine="selectedMachine" @machine-selected="handleMachineSelected" @power-cycle="handlePowerCycle"/>
+			<div class="flex items-center space-x-2">
+				<VideoControl />
+				<DiskDriveControl />
+				<StatusPanel />
+			</div>
 		</div>
 		<canvas
 			ref="videoCanvas"
@@ -19,10 +23,8 @@
 
 		<ResizablePanelGroup direction="vertical" auto-save-id="debuggerPanelLayout">
 			<ResizablePanel :default-size="41" class="grid gap-1" @resize="dbgTopPanelResize">
-				<div class="flex items-center justify-between pr-2">
+				<div class="flex items-center justify-start pr-2">
 					<DebuggerControls :isRunning="isRunning" />
-					<DiskDriveControl />
-					<StatusPanel />
 				</div>
 
 				<div class="grid grid-cols-[300px_1fr] gap-4 h-full ml-4 mr-4">
@@ -223,14 +225,24 @@ import { VirtualMachine } from "./virtualmachine.class";
 
 	const isRunning = ref(false);
 
+	const loadMachine = (newMachine: MachineConfig) => {
+		console.log(`Main: Loading machine ${newMachine.name}`);
+		vm.value?.terminate();
+		vm.value = markRaw(new VirtualMachine(newMachine));
+		if(videoCanvas.value) vm.value.initVideo(videoCanvas.value);
+		cpuWorker.value = vm.value.worker;
+		selectedMachine.value = newMachine;
+	};
+
 	const handleMachineSelected = (newMachine: MachineConfig) => {
 		if (newMachine && newMachine.name !== vm.value?.machineConfig.name) {
-			console.log(`Main: Switching machine to ${newMachine.name}`);
-			vm.value?.terminate();
-			vm.value = markRaw(new VirtualMachine(newMachine));
-			if(videoCanvas.value) vm.value.initVideo(videoCanvas.value);
-			cpuWorker.value = vm.value.worker;
-			selectedMachine.value = newMachine;
+			loadMachine(newMachine);
+		}
+	};
+
+	const handlePowerCycle = () => {
+		if (selectedMachine.value) {
+			loadMachine(selectedMachine.value);
 		}
 	};
 </script>

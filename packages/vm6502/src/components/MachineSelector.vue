@@ -25,11 +25,14 @@
         {{ selectedMachine.name }}
       </div>
     </div>
+    <button @click="$emit('power-cycle')" class="group flex items-center justify-center w-8 h-8 bg-gray-700 hover:bg-red-900/30 rounded border border-gray-600 transition-colors shrink-0 ml-auto" title="Hard Power Cycle">
+      <Power class="h-4 w-4 text-red-400 group-hover:text-red-300" />
+    </button>
   </div>
 </template>
 
 <script setup lang="ts">
-import { Check, Cpu } from 'lucide-vue-next';
+import { Check, Cpu, Power } from 'lucide-vue-next';
 import { ref } from 'vue';
 import {
 	Command,
@@ -49,7 +52,10 @@ const props = defineProps<{
   selectedMachine: MachineConfig
 }>();
 
-const emit = defineEmits<(e: 'machine-selected', machine: MachineConfig) => void>();
+const emit = defineEmits<{
+  (e: 'machine-selected', machine: MachineConfig): void;
+  (e: 'power-cycle'): void;
+}>();
 
 const open = ref(false);
 
