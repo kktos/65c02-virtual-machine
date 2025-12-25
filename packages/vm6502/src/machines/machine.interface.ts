@@ -1,3 +1,5 @@
+import type { DebugOption } from "@/cpu/bus.interface";
+
 export interface MemoryChunk {
 	bank?: number; // Optional for single-bank machines
 	addr: number;
@@ -39,4 +41,5 @@ export interface MachineConfig {
 	video?: VideoConfig;
 	disk?: DiskConfig;
 	css?: string[];
+	debugOptions?: DebugOption[];
 }
