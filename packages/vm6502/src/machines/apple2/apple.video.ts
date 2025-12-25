@@ -74,6 +74,8 @@ export class AppleVideo implements Video {
 	private charmap80: ImageBitmap | null = null;
 	private metrics80: CharMetrics | null = null;
 
+	private overrides: Record<string, unknown> = {};
+
 	constructor(parent: Worker, mem: Uint8Array, width: number, height: number, bus: IBus, payload?: unknown) {
 		this.parent = parent;
 		this.buffer = mem;
@@ -115,20 +117,38 @@ export class AppleVideo implements Video {
 		this.parent.postMessage({ command: "setPalette", colors: palette });
 	}
 
+	public setDebugOverrides(overrides: Record<string, unknown>) {
+		this.overrides = overrides;
+	}
+
 	public tick() {
 		this.ctx.fillStyle = "black";
 		this.ctx.fillRect(0, 0, this.offscreenCanvas.width, this.offscreenCanvas.height);
 
-		const isText = (this.bus.read(SoftSwitches.TEXT) & 0x80) !== 0;
-		const isHgr = (this.bus.read(SoftSwitches.HIRES) & 0x80) !== 0;
+		let isText = (this.bus.read(SoftSwitches.TEXT) & 0x80) !== 0;
+		let isHgr = (this.bus.read(SoftSwitches.HIRES) & 0x80) !== 0;
 		const isMixed = (this.bus.read(SoftSwitches.MIXED) & 0x80) !== 0;
 		const is80Col = (this.bus.read(SoftSwitches.COL80) & 0x80) !== 0;
+		let isPage2 = (this.bus.read(SoftSwitches.PAGE2) & 0x80) !== 0;
+
+		if (this.overrides.videoMode === "TEXT") {
+			isText = true;
+		} else if (this.overrides.videoMode === "HGR") {
+			isText = false;
+			isHgr = true;
+		}
+
+		if (this.overrides.videoPage === "PAGE1") {
+			isPage2 = false;
+		} else if (this.overrides.videoPage === "PAGE2") {
+			isPage2 = true;
+		}
 
 		if (isText) {
 			if (is80Col) this.renderText80();
 			else this.renderText40();
 		} else if (isHgr) {
-			this.renderHgr(0, isMixed ? HGR_MIXED_LINES : HGR_LINES);
+			this.renderHgr(0, isMixed ? HGR_MIXED_LINES : HGR_LINES, isPage2);
 			if (isMixed) {
 				if (is80Col) this.renderText80(20, 24);
 				else this.renderText40(20, 24);
@@ -223,8 +243,8 @@ export class AppleVideo implements Video {
 		if (this.bus.syncState) this.bus.syncState();
 	}
 
-	private renderHgr(startLine = 0, endLine = HGR_LINES) {
-		const isPage2 = (this.bus.read(SoftSwitches.PAGE2) & 0x80) !== 0;
+	private renderHgr(startLine = 0, endLine = HGR_LINES, isPage2: boolean) {
+		// const isPage2 = (this.bus.read(SoftSwitches.PAGE2) & 0x80) !== 0;
 		const baseAddr = isPage2 ? 0x4000 : 0x2000;
 
 		// Scale HGR to fit the target buffer
