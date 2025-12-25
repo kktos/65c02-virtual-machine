@@ -2,6 +2,7 @@ export interface DebugOption {
 	id: string;
 	label: string;
 	type: "boolean" | "select";
+	category?: string;
 	options?: { label: string; value: string }[];
 }
 
