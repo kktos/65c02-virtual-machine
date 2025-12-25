@@ -15,6 +15,11 @@ export class VideoOutput {
 		this.canvas.width = this.width;
 		this.canvas.height = this.height;
 
+		this.canvas.style.width = "100%";
+		this.canvas.style.height = "100%";
+		this.canvas.style.objectFit = "contain";
+		this.canvas.style.imageRendering = "pixelated";
+
 		const gl = this.canvas.getContext("webgl2");
 		if (!gl) throw new Error("Could not get WebGL2 context");
 		this.gl = gl;
@@ -102,6 +107,7 @@ export class VideoOutput {
 		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
 		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
 		// Use R8 for single byte index
+		gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
 		gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8, this.width, this.height, 0, gl.RED, gl.UNSIGNED_BYTE, null);
 	}
 
@@ -128,10 +134,39 @@ export class VideoOutput {
 
 	public render() {
 		const gl = this.gl;
+		gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
 		gl.activeTexture(gl.TEXTURE0);
 		gl.bindTexture(gl.TEXTURE_2D, this.imageTexture);
 		gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, this.width, this.height, gl.RED, gl.UNSIGNED_BYTE, this.videoBuffer);
 		gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+		if ((globalThis as any).DEBUG_VIDEO_OUTPUT) {
+			(globalThis as any).DEBUG_VIDEO_OUTPUT = false;
+			const width = gl.drawingBufferWidth;
+			const height = gl.drawingBufferHeight;
+			const pixels = new Uint8Array(width * height * 4);
+			gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+
+			const canvas = document.createElement("canvas");
+			canvas.width = width;
+			canvas.height = height;
+			const ctx = canvas.getContext("2d");
+			if (ctx) {
+				const imageData = ctx.createImageData(width, height);
+				// WebGL reads pixels upside down relative to Canvas
+				for (let y = 0; y < height; y++) {
+					const srcY = height - 1 - y;
+					const row = pixels.subarray(srcY * width * 4, (srcY + 1) * width * 4);
+					imageData.data.set(row, y * width * 4);
+				}
+				ctx.putImageData(imageData, 0, 0);
+				console.log("VideoOutput Snapshot:", width, height);
+				console.log(
+					"%c  ",
+					`font-size: 1px; padding: ${height / 2}px ${width / 2}px; background: url(${canvas.toDataURL()}) no-repeat; background-size: contain;`,
+				);
+			}
+		}
 	}
 
 	public setPalette(colors: Uint8Array) {

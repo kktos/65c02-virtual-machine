@@ -50,8 +50,10 @@ const HGR_BLUE = 6;
 const HGR_LINES = 192;
 const HGR_MIXED_LINES = 160;
 
-const SCREEN_MARGIN_X = 10;
-const SCREEN_MARGIN_Y = 10;
+const SCREEN_MARGIN_X = 0;
+const SCREEN_MARGIN_Y = 0;
+const NATIVE_WIDTH = 560;
+const NATIVE_HEIGHT = 192;
 
 const AUX_BANK_OFFSET = 0x10000;
 
@@ -61,6 +63,8 @@ export class AppleVideo implements Video {
 	private bus: IBus;
 	private offscreenCanvas: OffscreenCanvas;
 	private ctx: OffscreenCanvasRenderingContext2D;
+	private targetWidth: number;
+	private targetHeight: number;
 
 	private readonly charWidth: number;
 	private readonly charHeight: number;
@@ -74,15 +78,17 @@ export class AppleVideo implements Video {
 		this.parent = parent;
 		this.buffer = mem;
 		this.bus = bus;
-		this.offscreenCanvas = new OffscreenCanvas(width, height);
+		this.targetWidth = width;
+		this.targetHeight = height;
+		this.offscreenCanvas = new OffscreenCanvas(NATIVE_WIDTH + SCREEN_MARGIN_X * 2, NATIVE_HEIGHT + SCREEN_MARGIN_Y * 2);
 		const context = this.offscreenCanvas.getContext("2d", { willReadFrequently: true });
 		if (!context) throw new Error("Could not get 2D context from OffscreenCanvas");
 
 		this.ctx = context;
 		this.ctx.imageSmoothingEnabled = false;
 
-		this.charWidth = (this.offscreenCanvas.width - SCREEN_MARGIN_X * 2) / TEXT_COLS;
-		this.charHeight = (this.offscreenCanvas.height - SCREEN_MARGIN_Y * 2) / TEXT_ROWS;
+		this.charWidth = NATIVE_WIDTH / TEXT_COLS;
+		this.charHeight = NATIVE_HEIGHT / TEXT_ROWS;
 
 		console.log("AppleVideo", `view w${width}h${height}`, `char w${this.charWidth}h${this.charHeight}`);
 
@@ -130,34 +136,87 @@ export class AppleVideo implements Video {
 		}
 
 		const dest = this.buffer;
+		const scaleY = this.targetHeight / this.offscreenCanvas.height;
 
 		// Only read back from canvas if we rendered text
 		if (isText || isMixed) {
 			const imageData = this.ctx.getImageData(0, 0, this.offscreenCanvas.width, this.offscreenCanvas.height);
 			const src32 = new Uint32Array(imageData.data.buffer);
+			const srcWidth = this.offscreenCanvas.width;
 
 			const tbColor = this.bus.read(SoftSwitches.TBCOLOR);
 			const bgColorIndex = tbColor & 0x0f;
 			const fgColorIndex = (tbColor >> 4) & 0x0f;
 
-			let startIdx = 0;
+			let startY = 0;
 			if (isMixed && !isText) {
 				// Mixed Mode: Copy only the bottom 4 lines of text (lines 20-23)
-				const width = this.offscreenCanvas.width;
-				const scanlineHeight = this.charHeight / 8;
 				// Start at line 160 (Mixed mode split point)
-				const mixedTopY = Math.floor(SCREEN_MARGIN_Y + 160 * scanlineHeight);
-				startIdx = mixedTopY * width;
+				// We need to calculate the Y position in the TARGET buffer
+				startY = Math.floor((SCREEN_MARGIN_Y + 160) * scaleY);
 			}
 
 			// Convert RGBA pixels to 8-bit indices
-			for (let i = startIdx; i < dest.length; i++) {
-				// Since we render white text on black, any color channel can be used for brightness.
-				const val = src32[i] ?? 0;
-				const brightness = val & 0xff; // Use Red channel for brightness
-				// Only overwrite if we have text pixels (brightness > 0) or if we want to enforce text background
-				// For mixed mode, we usually want the text background to overwrite the HGR garbage below it
-				dest[i] = brightness > 128 ? fgColorIndex : bgColorIndex;
+			// We loop over the DESTINATION buffer dimensions
+			for (let y = startY; y < this.targetHeight; y++) {
+				const srcY = Math.floor(y / scaleY);
+				const srcRowOffset = srcY * srcWidth;
+				const destRowOffset = y * this.targetWidth;
+
+				for (let x = 0; x < this.targetWidth; x++) {
+					// Simple nearest neighbor for X (assuming width matches for now, but safe to scale)
+					// If targetWidth == srcWidth (560), this maps 1:1
+					const val = src32[srcRowOffset + x] ?? 0;
+					const brightness = val & 0xff;
+
+					dest[destRowOffset + x] = brightness > 128 ? fgColorIndex : bgColorIndex;
+				}
+			}
+		}
+
+		if ((globalThis as any).DEBUG_VIDEO) {
+			(globalThis as any).DEBUG_VIDEO = false;
+			this.offscreenCanvas.convertToBlob().then((blob) => {
+				const reader = new FileReader();
+				reader.onload = () => {
+					const url = reader.result as string;
+					console.log("AppleVideo Canvas Snapshot:", this.offscreenCanvas.width, this.offscreenCanvas.height);
+					console.log(
+						"%c  ",
+						`font-size: 1px; padding: ${this.offscreenCanvas.height / 2}px ${this.offscreenCanvas.width / 2}px; background: url(${url}) no-repeat; background-size: contain;`,
+					);
+				};
+				reader.readAsDataURL(blob);
+			});
+
+			// Reconstruct image from the buffer to verify the copy process
+			const width = this.targetWidth;
+			const height = this.targetHeight;
+			const debugCanvas = new OffscreenCanvas(width, height);
+			const debugCtx = debugCanvas.getContext("2d");
+			if (debugCtx) {
+				const imgData = debugCtx.createImageData(width, height);
+				for (let i = 0; i < width * height; i++) {
+					const colorIdx = this.buffer[i];
+					const rgb = IIgsPaletteRGB[colorIdx & 0x0f] || [0, 0, 0];
+					imgData.data[i * 4 + 0] = rgb[0];
+					imgData.data[i * 4 + 1] = rgb[1];
+					imgData.data[i * 4 + 2] = rgb[2];
+					imgData.data[i * 4 + 3] = 255;
+				}
+				debugCtx.putImageData(imgData, 0, 0);
+				debugCanvas.convertToBlob().then((blob) => {
+					const reader = new FileReader();
+					reader.onload = () => {
+						const url = reader.result as string;
+						console.log("AppleVideo Buffer Snapshot:", width, height);
+						console.log(
+							"%c  ",
+							`font-size: 1px; padding: ${height / 2}px ${width / 2}px; background: url(${url}) no-repeat; background-size: contain;`,
+						);
+					};
+					reader.readAsDataURL(blob);
+				});
 			}
 		}
 
@@ -168,16 +227,16 @@ export class AppleVideo implements Video {
 		const isPage2 = (this.bus.read(SoftSwitches.PAGE2) & 0x80) !== 0;
 		const baseAddr = isPage2 ? 0x4000 : 0x2000;
 
-		const width = this.offscreenCanvas.width;
-		const scaleX = (width - 2 * SCREEN_MARGIN_X) / 280;
-		const scanlineHeight = this.charHeight / 8;
+		// Scale HGR to fit the target buffer
+		const scaleX = (this.targetWidth - 2 * SCREEN_MARGIN_X) / 280;
+		const scanlineHeight = this.targetHeight / HGR_LINES;
 
 		for (let y = startLine; y < endLine; y++) {
 			const rowOffset = Math.floor(y / 64) * 0x28 + (y % 8) * 0x400 + (Math.floor(y / 8) & 7) * 0x80;
 			const addr = baseAddr + rowOffset;
 
-			const drawYStart = Math.floor(SCREEN_MARGIN_Y + y * scanlineHeight);
-			const drawYEnd = Math.floor(SCREEN_MARGIN_Y + (y + 1) * scanlineHeight);
+			const drawYStart = Math.floor(SCREEN_MARGIN_Y * (this.targetHeight / NATIVE_HEIGHT) + y * scanlineHeight);
+			const drawYEnd = Math.floor(SCREEN_MARGIN_Y * (this.targetHeight / NATIVE_HEIGHT) + (y + 1) * scanlineHeight);
 
 			for (let byteIdx = 0; byteIdx < 40; byteIdx++) {
 				const byte = this.bus.readRaw(addr + byteIdx);
@@ -234,7 +293,7 @@ export class AppleVideo implements Video {
 					const actualXEnd = Math.max(drawXEnd, drawXStart + 1);
 
 					for (let dy = drawYStart; dy < drawYEnd; dy++) {
-						const bufRow = dy * width;
+						const bufRow = dy * this.targetWidth;
 						for (let dx = drawXStart; dx < actualXEnd; dx++) {
 							this.buffer[bufRow + dx] = color;
 						}
