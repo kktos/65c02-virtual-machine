@@ -17,27 +17,59 @@ export function useDiskStorage() {
 		});
 	};
 
-	const saveDisk = async (slot: number, name: string, data: ArrayBuffer) => {
+	const saveDisk = async (key: IDBValidKey, name: string, data: ArrayBuffer) => {
 		const db = await getDb();
 		return new Promise<void>((resolve, reject) => {
 			const transaction = db.transaction(STORE_NAME, "readwrite");
 			const store = transaction.objectStore(STORE_NAME);
-			const request = store.put({ name, size: data.byteLength, data }, slot);
+			const request = store.put({ name, size: data.byteLength, data }, key);
 			request.onsuccess = () => resolve();
 			request.onerror = () => reject(request.error);
 		});
 	};
 
-	const loadDisk = async (slot: number) => {
+	const loadDisk = async (key: IDBValidKey) => {
 		const db = await getDb();
 		return new Promise<{ name: string; size: number; data: ArrayBuffer } | undefined>((resolve, reject) => {
 			const transaction = db.transaction(STORE_NAME, "readonly");
 			const store = transaction.objectStore(STORE_NAME);
-			const request = store.get(slot);
+			const request = store.get(key);
 			request.onsuccess = () => resolve(request.result);
 			request.onerror = () => reject(request.error);
 		});
 	};
 
-	return { saveDisk, loadDisk };
+	const getAllDisks = async () => {
+		const db = await getDb();
+		return new Promise<{ key: IDBValidKey; name: string; size: number }[]>((resolve, reject) => {
+			const transaction = db.transaction(STORE_NAME, "readonly");
+			const store = transaction.objectStore(STORE_NAME);
+			const request = store.openCursor();
+			const results: { key: IDBValidKey; name: string; size: number }[] = [];
+
+			request.onsuccess = (event) => {
+				const cursor = (event.target as IDBRequest).result as IDBCursorWithValue;
+				if (cursor) {
+					results.push({ key: cursor.key, name: cursor.value.name, size: cursor.value.size });
+					cursor.continue();
+				} else {
+					resolve(results);
+				}
+			};
+			request.onerror = () => reject(request.error);
+		});
+	};
+
+	const deleteDisk = async (key: IDBValidKey) => {
+		const db = await getDb();
+		return new Promise<void>((resolve, reject) => {
+			const transaction = db.transaction(STORE_NAME, "readwrite");
+			const store = transaction.objectStore(STORE_NAME);
+			const request = store.delete(key);
+			request.onsuccess = () => resolve();
+			request.onerror = () => reject(request.error);
+		});
+	};
+
+	return { saveDisk, loadDisk, getAllDisks, deleteDisk };
 }

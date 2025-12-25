@@ -1,18 +1,65 @@
 <template>
 	<div class="flex items-center space-x-3 bg-gray-800 p-2 rounded-lg shadow-md border border-gray-700">
-		<label class="cursor-pointer group relative flex items-center justify-center w-10 h-10 bg-gray-700 hover:bg-gray-600 rounded border border-gray-600 transition-colors shrink-0">
-			<span class="sr-only">Insert Disk</span>
-			<input
-				type="file"
-				accept=".po,.2mg,.dsk,.hdv"
-				@change="handleFileSelect"
-				class="hidden"
-			/>
-			<!-- Floppy Disk Icon -->
-			<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-cyan-400 group-hover:text-cyan-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2" />
-			</svg>
-		</label>
+		<!-- Library Sheet -->
+		<Sheet v-model:open="isSheetOpen">
+			<SheetTrigger as-child>
+				<button class="group flex items-center justify-center w-10 h-10 bg-gray-700 hover:bg-gray-600 rounded border border-gray-600 transition-colors shrink-0" title="Disk Library">
+					<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-yellow-400 hover:text-yellow-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+					</svg>
+
+				</button>
+			</SheetTrigger>
+			<SheetContent side="right" class="bg-gray-900 border-gray-700 text-gray-100 overflow-y-auto w-[400px]">
+				<SheetHeader>
+					<SheetTitle class="text-gray-100">Disk Library</SheetTitle>
+					<SheetDescription class="text-gray-400">
+						Select a disk to insert into the SmartPort drive.
+					</SheetDescription>
+				</SheetHeader>
+
+				<div class="mt-6 space-y-4">
+					<div v-if="savedDisks.length === 0" class="text-center text-gray-500 py-8">
+						No disks saved. Upload one to get started.
+					</div>
+
+					<div v-for="disk in savedDisks" :key="disk.key.toString()" class="flex items-center justify-between p-3 bg-gray-800 rounded border border-gray-700">
+						<div class="overflow-hidden mr-3">
+							<div class="font-medium truncate text-sm text-gray-200" :title="disk.name">{{ disk.name }}</div>
+							<div class="text-xs text-gray-500">{{ formatSize(disk.size) }}</div>
+						</div>
+						<div class="flex space-x-2 shrink-0">
+							<button @click="handleLoadFromLibrary(disk.key)" class="p-1.5 text-green-400 hover:bg-gray-700 rounded" title="Load">
+								<svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+								</svg>
+							</button>
+							<button @click="handleDelete(disk.key)" class="p-1.5 text-red-400 hover:bg-gray-700 rounded" title="Delete">
+								<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+								</svg>
+							</button>
+						</div>
+					</div>
+				</div>
+
+				<div class="mt-6 pt-6 border-t border-gray-800">
+					<label class="flex items-center justify-center px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded border border-gray-600 cursor-pointer transition-colors">
+						<span class="mr-2">Upload New Disk</span>
+						<input
+							type="file"
+							accept=".po,.2mg,.dsk,.hdv"
+							@change="handleFileSelect"
+							class="hidden"
+						/>
+						<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-cyan-400 group-hover:text-cyan-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+						</svg>
+					</label>
+				</div>
+			</SheetContent>
+		</Sheet>
 
 		<div class="flex flex-col overflow-hidden min-w-[8rem]">
 			<span class="text-[10px] uppercase text-gray-400 font-bold tracking-wider">SmartPort (S5)</span>
@@ -28,18 +75,42 @@
 
 <script lang="ts" setup>
 import { inject, type Ref, ref, watch } from 'vue';
+import {
+	Sheet,
+	SheetContent,
+	SheetDescription,
+	SheetHeader,
+	SheetTitle,
+	SheetTrigger,
+} from '@/components/ui/sheet';
 import { useDiskStorage } from '@/composables/useDiskStorage';
 import type { VirtualMachine } from '@/virtualmachine.class';
 
 const vm = inject<Ref<VirtualMachine>>('vm');
 const fileName = ref('');
 const fileSize = ref(0);
-const { saveDisk, loadDisk } = useDiskStorage();
+const { saveDisk, loadDisk, getAllDisks, deleteDisk } = useDiskStorage();
+const savedDisks = ref<{ key: IDBValidKey; name: string; size: number }[]>([]);
+const isSheetOpen = ref(false);
+
+const ACTIVE_DISK_KEY = 'vm6502_active_disk_name';
 const SLOT = 5;
 
 const formatSize = (bytes: number) => {
 	if (bytes < 1024) return `${bytes} B`;
-	return `${(bytes / 1024).toFixed(1)} KB`;
+	if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+	return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+};
+
+const refreshLibrary = async () => {
+	savedDisks.value = await getAllDisks();
+};
+
+const loadDiskToVM = async (name: string, data: ArrayBuffer) => {
+	fileName.value = name;
+	fileSize.value = data.byteLength;
+	vm?.value?.insertDisk(new Uint8Array(data), { slot: SLOT, name });
+	localStorage.setItem(ACTIVE_DISK_KEY, name);
 };
 
 const handleFileSelect = async (event: Event) => {
@@ -47,22 +118,55 @@ const handleFileSelect = async (event: Event) => {
 	if (input.files && input.files.length > 0) {
 		const file = input.files[0] as File;
 		const buffer = await file.arrayBuffer();
-		const data = new Uint8Array(buffer);
-		fileName.value = file.name;
-		fileSize.value = file.size;
-		vm?.value?.insertDisk(data, { slot: 5, name: file.name });
-		await saveDisk(SLOT, file.name, buffer);
+
+		// Save to Library
+		await saveDisk(file.name, file.name, buffer);
+		await refreshLibrary();
+
+		// Load to VM
+		await loadDiskToVM(file.name, buffer);
+
+		// Reset input
+		input.value = '';
+	}
+};
+
+const handleLoadFromLibrary = async (key: IDBValidKey) => {
+	const disk = await loadDisk(key);
+	if (disk) {
+		await loadDiskToVM(disk.name, disk.data);
+		isSheetOpen.value = false;
+	}
+};
+
+const handleDelete = async (key: IDBValidKey) => {
+	if (confirm('Are you sure you want to delete this disk?')) {
+		await deleteDisk(key);
+		await refreshLibrary();
 	}
 };
 
 watch(() => vm?.value, async (newVm) => {
 	if (newVm) {
 		await newVm.ready;
-		const saved = await loadDisk(SLOT);
-		if (saved) {
-			fileName.value = saved.name;
-			fileSize.value = saved.size;
-			newVm.insertDisk(new Uint8Array(saved.data), { slot: SLOT, name: saved.name });
+		await refreshLibrary();
+
+		// Try to load last active disk
+		const lastDiskName = localStorage.getItem(ACTIVE_DISK_KEY);
+		if (lastDiskName) {
+			const saved = await loadDisk(lastDiskName);
+			if (saved) {
+				await loadDiskToVM(saved.name, saved.data);
+			}
+		} else {
+			// Fallback to legacy slot 5 if exists
+			const legacy = await loadDisk(5);
+			if (legacy) {
+				await loadDiskToVM(legacy.name, legacy.data);
+				// Migrate to new system
+				await saveDisk(legacy.name, legacy.name, legacy.data);
+				localStorage.setItem(ACTIVE_DISK_KEY, legacy.name);
+			}
 		}
 	}
 }, { immediate: true });
