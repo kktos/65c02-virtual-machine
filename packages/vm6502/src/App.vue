@@ -2,7 +2,10 @@
   <ResizablePanelGroup v-if="vm" direction="horizontal" class="h-screen bg-gray-900 text-white" auto-save-id="appPanelLayout">
 
     <ResizablePanel class="flex flex-col bg-white bg-[conic-gradient(#000_0_25%,#333_0_50%,#000_0_75%,#333_0_100%)] [background-size:1rem_1rem]">
-		<MachineSelector :machines="availableMachines" :selected-machine="selectedMachine" @machine-selected="handleMachineSelected" class="bg-black"/>
+		<div class="flex items-center justify-between pr-2 bg-gray-900">
+			<MachineSelector :machines="availableMachines" :selected-machine="selectedMachine" @machine-selected="handleMachineSelected"/>
+			<VideoControl />
+		</div>
 		<canvas
 			ref="videoCanvas"
 			class="flex-grow w-full object-contain border"
@@ -119,6 +122,7 @@ import StackView from './debugger/StackView.vue';
 import StatusFlagsView from './debugger/StatusFlagsView.vue';
 import StatusPanel from './debugger/StatusPanel.vue';
 import TraceView from './debugger/TraceView.vue';
+import VideoControl from "./debugger/VideoControl.vue";
 import { availableMachines } from "./machines";
 import type { MachineConfig } from "./machines/machine.interface";
 import type { EmulatorState } from "./types/emulatorstate.interface";
