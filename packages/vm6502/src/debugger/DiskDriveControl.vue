@@ -10,41 +10,43 @@
 
 				</button>
 			</SheetTrigger>
-			<SheetContent side="right" class="bg-gray-900 border-gray-700 text-gray-100 overflow-y-auto w-[400px]">
-				<SheetHeader>
+			<SheetContent side="right" class="bg-gray-900 border-gray-700 text-gray-100 w-[400px] flex flex-col h-full overflow-hidden">
+				<SheetHeader class="shrink-0">
 					<SheetTitle class="text-gray-100">Disk Library</SheetTitle>
 					<SheetDescription class="text-gray-400">
 						Select a disk to insert into the SmartPort drive.
 					</SheetDescription>
 				</SheetHeader>
 
-				<div class="mt-6 space-y-4">
-					<div v-if="savedDisks.length === 0" class="text-center text-gray-500 py-8">
-						No disks saved. Upload one to get started.
-					</div>
-
-					<div v-for="disk in savedDisks" :key="disk.key.toString()" class="flex items-center justify-between p-3 bg-gray-800 rounded border border-gray-700">
-						<div class="overflow-hidden mr-3">
-							<div class="font-medium truncate text-sm text-gray-200" :title="disk.name">{{ disk.name }}</div>
-							<div class="text-xs text-gray-500">{{ formatSize(disk.size) }}</div>
+				<ScrollArea class="mt-6 flex-1 min-h-0 pr-4">
+					<div class="space-y-4">
+						<div v-if="savedDisks.length === 0" class="text-center text-gray-500 py-8">
+							No disks saved. Upload one to get started.
 						</div>
-						<div class="flex space-x-2 shrink-0">
-							<button @click="handleLoadFromLibrary(disk.key)" class="p-1.5 text-green-400 hover:bg-gray-700 rounded" title="Load">
-								<svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-								</svg>
-							</button>
-							<button @click="handleDelete(disk.key)" class="p-1.5 text-red-400 hover:bg-gray-700 rounded" title="Delete">
-								<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-								</svg>
-							</button>
+
+						<div v-for="disk in savedDisks" :key="disk.key.toString()" class="flex items-center justify-between p-3 bg-gray-800 rounded border border-gray-700">
+							<div class="overflow-hidden mr-3">
+								<div class="font-medium truncate text-sm text-gray-200" :title="disk.name">{{ disk.name }}</div>
+								<div class="text-xs text-gray-500">{{ formatSize(disk.size) }}</div>
+							</div>
+							<div class="flex space-x-2 shrink-0">
+								<button @click="handleLoadFromLibrary(disk.key)" class="p-1.5 text-green-400 hover:bg-gray-700 rounded" title="Load">
+									<svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+									</svg>
+								</button>
+								<button @click="handleDelete(disk.key)" class="p-1.5 text-red-400 hover:bg-gray-700 rounded" title="Delete">
+									<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+									</svg>
+								</button>
+							</div>
 						</div>
 					</div>
-				</div>
+				</ScrollArea>
 
-				<div class="mt-6 pt-6 border-t border-gray-800">
+				<div class="mt-6 pt-6 border-t border-gray-800 shrink-0">
 					<label class="flex items-center justify-center px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded border border-gray-600 cursor-pointer transition-colors">
 						<span class="mr-2">Upload New Disk</span>
 						<input
@@ -75,6 +77,7 @@
 
 <script lang="ts" setup>
 import { inject, type Ref, ref, watch } from 'vue';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import {
 	Sheet,
 	SheetContent,
