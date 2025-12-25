@@ -82,7 +82,20 @@
 					<tr class="text-gray-400 sticky top-0 bg-gray-900 border-b border-gray-700 shadow-md">
 						<th class="py-1 text-left w-16">Addr</th>
 						<th v-for="i in BYTES_PER_LINE" :key="i" class="text-center w-[1.5rem]">{{ '+' + (i - 1).toString(16).toUpperCase() }}</th>
-						<th class="py-1 text-left w-auto pl-4">ASCII</th>
+						<th class="py-1 text-left w-auto pl-4">
+							<div class="flex items-center justify-between pr-2">
+								<span>ASCII</span>
+								<div class="flex items-center space-x-1" title="Set High Bit (bit 7) for ASCII input">
+									<input
+										type="checkbox"
+										id="highBit"
+										v-model="highBitEnabled"
+										class="rounded bg-gray-700 border-gray-600 text-cyan-500 focus:ring-cyan-500 h-3 w-3"
+									/>
+									<label for="highBit" class="text-[10px] text-gray-400 cursor-pointer select-none font-normal">High Bit</label>
+								</div>
+							</div>
+						</th>
 					</tr>
 				</thead>
 				<tbody v-if="visibleRowCount > 0">
@@ -94,19 +107,31 @@
 						<td v-for="byteIndex in BYTES_PER_LINE" :key="byteIndex" class="p-0">
 							<input
 								type="text"
-								:value="editingIndex === ((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1)) ? editingValue : currentMemorySlice[(lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1)]?.toString(16).toUpperCase().padStart(2, '0')"
-								:ref="(el) => setInputRef(el, (lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1))"
-								@keydown="handleKeyDown((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1), $event)"
-								@input="handleByteChange((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1), $event)"
-								@focus="handleFocus((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1), $event)"
+								:value="editingIndex === ((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1)) && editingMode === 'hex' ? editingValue : currentMemorySlice[(lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1)]?.toString(16).toUpperCase().padStart(2, '0')"
+								:ref="(el) => setHexInputRef(el, (lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1))"
+								@keydown="handleKeyDown((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1), $event, 'hex')"
+								@input="handleHexChange((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1), $event)"
+								@focus="handleHexFocus((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1), $event)"
 								@blur="handleBlur"
 								maxlength="2"
 								class="w-full text-center bg-transparent focus:bg-gray-600 focus:outline-none focus:ring-1 focus:ring-cyan-500 rounded-none tabular-nums text-xs"
 							/>
 						</td>
 
-						<td class="py-0.5 text-left text-green-300 font-bold pl-4 whitespace-nowrap">
-							{{ bytesToAscii(currentMemorySlice.slice((lineIndex - 1) * BYTES_PER_LINE, lineIndex * BYTES_PER_LINE)) }}
+						<td class="py-0.5 pl-4 whitespace-nowrap flex">
+							<input
+								v-for="byteIndex in BYTES_PER_LINE"
+								:key="byteIndex"
+								type="text"
+								:value="getAsciiChar(currentMemorySlice[(lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1)])"
+								:ref="(el) => setAsciiInputRef(el, (lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1))"
+								@keydown="handleKeyDown((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1), $event, 'ascii')"
+								@input="handleAsciiChange((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1), $event)"
+								@focus="handleAsciiFocus((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1), $event)"
+								@blur="handleBlur"
+								maxlength="1"
+								:class="['w-[1.2ch] text-center focus:bg-gray-600 focus:outline-none focus:ring-1 focus:ring-cyan-500 rounded-none tabular-nums text-xs p-0 border-none font-bold', getAsciiClass(currentMemorySlice[(lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1)])]"
+							/>
 						</td>
 					</tr>
 				</tbody>
@@ -123,7 +148,6 @@ import { computed, inject, nextTick, onMounted, onUnmounted, type Ref, ref, watc
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import type { DebugOption } from "@/cpu/bus.interface";
-import { bytesToAscii } from "@/lib/array.utils";
 import type { VirtualMachine } from "@/virtualmachine.class";
 
 	const vm= inject<Ref<VirtualMachine>>("vm");
@@ -143,6 +167,8 @@ import type { VirtualMachine } from "@/virtualmachine.class";
 	});
 
 	const openBankSelect = ref(false);
+
+	const highBitEnabled = ref(false);
 
 	const availableBanks = computed(() => {
 		console.log("BANKS:",vm?.value?.machineConfig?.memory?.banks);
@@ -187,7 +213,7 @@ import type { VirtualMachine } from "@/virtualmachine.class";
 	watch(() => vm?.value, async (newVm) => {
 		if (newVm) {
 			await newVm.ready;
-			debugOptions.value = newVm.getDebugOptions();
+			debugOptions.value = newVm.getDebugOptions().filter((opt) => opt.category === "memory");
 			// Initialize overrides
 			debugOverrides.value = {};
 			debugOptions.value.forEach((opt) => {
@@ -199,6 +225,10 @@ import type { VirtualMachine } from "@/virtualmachine.class";
 			});
 		}
 	}, { immediate: true });
+
+	// watch(debugOverrides, (newVal) => {
+	// 	vm?.value.setDebugOverrides(newVal);
+	// }, { deep: true });
 
 	const handleOffsetChange = (event: Event) => {
 		const target = event.target as HTMLInputElement;
@@ -215,29 +245,48 @@ import type { VirtualMachine } from "@/virtualmachine.class";
 	};
 
 	const editingIndex = ref<number | null>(null);
+	const editingMode = ref<'hex' | 'ascii' | null>(null);
 	const editingValue = ref("");
-	const inputRefs = ref<Map<number, HTMLInputElement>>(new Map());
+	const hexInputRefs = ref<Map<number, HTMLInputElement>>(new Map());
+	const asciiInputRefs = ref<Map<number, HTMLInputElement>>(new Map());
 
-	const setInputRef = (el: unknown, index: number) => {
+	const setHexInputRef = (el: unknown, index: number) => {
 		if (el) {
-			inputRefs.value.set(index, el as HTMLInputElement);
+			hexInputRefs.value.set(index, el as HTMLInputElement);
 		} else {
-			inputRefs.value.delete(index);
+			hexInputRefs.value.delete(index);
 		}
 	};
 
-	const handleFocus = (index: number, event: FocusEvent) => {
+	const setAsciiInputRef = (el: unknown, index: number) => {
+		if (el) {
+			asciiInputRefs.value.set(index, el as HTMLInputElement);
+		} else {
+			asciiInputRefs.value.delete(index);
+		}
+	};
+
+	const handleHexFocus = (index: number, event: FocusEvent) => {
 		editingIndex.value = index;
+		editingMode.value = 'hex';
 		const target = event.target as HTMLInputElement;
 		editingValue.value = target.value;
 		target.select();
 	};
 
-	const handleBlur = () => {
-		editingIndex.value = null;
+	const handleAsciiFocus = (index: number, event: FocusEvent) => {
+		editingIndex.value = index;
+		editingMode.value = 'ascii';
+		const target = event.target as HTMLInputElement;
+		target.select();
 	};
 
-	const handleKeyDown = (index: number, event: KeyboardEvent) => {
+	const handleBlur = () => {
+		editingIndex.value = null;
+		editingMode.value = null;
+	};
+
+	const handleKeyDown = (index: number, event: KeyboardEvent, mode: 'hex' | 'ascii') => {
 		let direction = 0;
 		if (event.key === "ArrowUp") direction = -BYTES_PER_LINE;
 		else if (event.key === "ArrowDown") direction = BYTES_PER_LINE;
@@ -257,7 +306,8 @@ import type { VirtualMachine } from "@/virtualmachine.class";
 
 		if (targetAbs >= startAddress.value && targetAbs < endAddress) {
 			const targetIndex = targetAbs - startAddress.value;
-			inputRefs.value.get(targetIndex)?.focus();
+			const refs = mode === 'hex' ? hexInputRefs.value : asciiInputRefs.value;
+			refs.get(targetIndex)?.focus();
 		} else {
 			if (targetAbs < startAddress.value) {
 				startAddress.value = Math.max(0, startAddress.value - BYTES_PER_LINE);
@@ -268,19 +318,54 @@ import type { VirtualMachine } from "@/virtualmachine.class";
 			nextTick(() => {
 				const newTargetIndex = targetAbs - startAddress.value;
 				if (newTargetIndex >= 0 && newTargetIndex < visibleBytes) {
-					inputRefs.value.get(newTargetIndex)?.focus();
+					const refs = mode === 'hex' ? hexInputRefs.value : asciiInputRefs.value;
+					refs.get(newTargetIndex)?.focus();
 				}
 			});
 		}
 	};
 
-	const handleByteChange = (index: number, event: Event) => {
+	const handleHexChange = (index: number, event: Event) => {
 		const target = event.target as HTMLInputElement;
-		if (editingIndex.value === index) editingValue.value = target.value;
+		if (editingIndex.value === index && editingMode.value === 'hex') editingValue.value = target.value;
 		const value = parseInt(target.value, 16);
 		if (!Number.isNaN(value) && value >= 0 && value <= 0xFF) {
 			vm?.value.writeDebug(startAddress.value + index, value, debugOverrides.value);
 		}
+	};
+
+	const handleAsciiChange = (index: number, event: Event) => {
+		const target = event.target as HTMLInputElement;
+		const val = target.value;
+		if (val.length > 0) {
+			let code = val.charCodeAt(0);
+			if (highBitEnabled.value) code |= 0x80;
+			vm?.value.writeDebug(startAddress.value + index, code, debugOverrides.value);
+			const nextIndex = index + 1;
+			if (nextIndex < visibleRowCount.value * BYTES_PER_LINE) {
+				nextTick(() => {
+					asciiInputRefs.value.get(nextIndex)?.focus();
+				});
+			} else {
+				target.select();
+			}
+		}
+	};
+
+	const getAsciiChar = (byte: number | undefined) => {
+		if (byte === undefined) return '·';
+		const val = byte & 0x7F;
+		if (val >= 32 && val <= 126) return String.fromCharCode(val);
+		return '·';
+	};
+
+	const getAsciiClass = (byte: number | undefined) => {
+		if (byte === undefined) return 'text-gray-500';
+		const val = byte & 0x7F;
+		if (val < 0x20) return 'text-gray-500';
+		// bit7=0 -> Inverse (Black on White)
+		// bit7=1 -> Normal (Green on Transparent)
+		return (byte & 0x80) ? 'bg-transparent text-green-300' : 'bg-gray-100 text-black';
 	};
 
 	const handleWheel = (event: WheelEvent) => {
