@@ -119,7 +119,7 @@ import { disassemble } from "@/lib/disassembler";
 import { handleExplainCode } from "@/lib/gemini.utils";
 import type { DisassemblyLine } from "@/types/disassemblyline.interface";
 import type { EmulatorState } from "@/types/emulatorstate.interface";
-import type { VirtualMachine } from "@/virtualmachine.class";
+import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 
 	const vm= inject<Ref<VirtualMachine>>("vm");
 

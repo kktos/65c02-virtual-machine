@@ -42,8 +42,8 @@
 import { Monitor } from "lucide-vue-next";
 import { computed, inject, type Ref, ref, watch } from "vue";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import type { DebugOption } from "@/cpu/bus.interface";
-import type { VirtualMachine } from "@/virtualmachine.class";
+import type { DebugOption } from "@/virtualmachine/cpu/bus.interface";
+import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 
 const vm = inject<Ref<VirtualMachine>>("vm");
 const videoOptions = ref<DebugOption[]>([]);

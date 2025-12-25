@@ -1,5 +1,5 @@
-import type { IBus, MachineStateSpec } from "@/cpu/bus.interface";
-import { MACHINE_STATE_OFFSET } from "@/cpu/shared-memory";
+import type { IBus, MachineStateSpec } from "@/virtualmachine/cpu/bus.interface";
+import { MACHINE_STATE_OFFSET } from "@/virtualmachine/cpu/shared-memory";
 import { generateApple2Assets } from "./bus/apple.assets";
 import { loadMemoryChunks } from "./bus/apple.loader";
 import { installSoftSwitches } from "./bus/apple.switches";

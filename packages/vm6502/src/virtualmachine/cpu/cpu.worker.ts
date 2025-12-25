@@ -1,5 +1,5 @@
-import type { MachineConfig } from "@/machines/machine.interface";
-import type { Video } from "@/video/video.interface";
+import type { MachineConfig } from "@/types/machine.interface";
+import type { Video } from "@/types/video.interface";
 import type { IBus } from "./bus.interface";
 import {
 	addBreakpoint,

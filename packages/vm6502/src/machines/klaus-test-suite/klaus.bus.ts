@@ -1,4 +1,4 @@
-import type { IBus } from "@/cpu/bus.interface";
+import type { IBus } from "@/virtualmachine/cpu/bus.interface";
 
 export class Bus implements IBus {
 	private memory: Uint8Array;

@@ -1,4 +1,4 @@
-import type { Video } from "@/video/video.interface";
+import type { Video } from "@/types/video.interface";
 import {
 	addBreakpoint,
 	BP_PC,

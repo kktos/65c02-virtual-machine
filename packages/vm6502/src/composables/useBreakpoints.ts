@@ -1,6 +1,6 @@
 import { type ComputedRef, computed, type Ref, ref } from "vue";
 import type { Breakpoint } from "@/types/breakpoint.interface";
-import type { VirtualMachine } from "@/virtualmachine.class";
+import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 
 // Global state to be shared across components
 export type BreakpointState = Breakpoint & { enabled: boolean };

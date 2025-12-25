@@ -98,12 +98,14 @@
 <script setup lang="ts">
 import { markRaw, onMounted, onUnmounted, provide, reactive, ref, watch } from "vue";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import MachineSelector from './components/MachineSelector.vue';
-import TogglableDisplay from './components/TogglableDisplay.vue';
-import ResizableHandle from './components/ui/resizable/ResizableHandle.vue';
-import ResizablePanel from './components/ui/resizable/ResizablePanel.vue';
-import ResizablePanelGroup from './components/ui/resizable/ResizablePanelGroup.vue';
-import { useBreakpoints } from "./composables/useBreakpoints";
+import TogglableDisplay from '../components/TogglableDisplay.vue';
+import ResizableHandle from '../components/ui/resizable/ResizableHandle.vue';
+import ResizablePanel from '../components/ui/resizable/ResizablePanel.vue';
+import ResizablePanelGroup from '../components/ui/resizable/ResizablePanelGroup.vue';
+import { useBreakpoints } from "../composables/useBreakpoints";
+import { availableMachines } from "../machines";
+import type { EmulatorState } from "../types/emulatorstate.interface";
+import type { MachineConfig } from "../types/machine.interface";
 import {
 	FLAG_B_MASK,
 	FLAG_C_MASK,
@@ -112,23 +114,21 @@ import {
 	FLAG_N_MASK,
 	FLAG_V_MASK,
 	FLAG_Z_MASK, REG_A_OFFSET, REG_PC_OFFSET, REG_SP_OFFSET, REG_STATUS_OFFSET, REG_X_OFFSET, REG_Y_OFFSET
-} from './cpu/shared-memory';
+} from '../virtualmachine/cpu/shared-memory';
+import { VirtualMachine } from "../virtualmachine/virtualmachine.class";
 import BreakpointsList from './debugger/BreakpointsList.vue';
 import DebuggerControls from './debugger/DebuggerControls.vue';
 import DisassemblyView from './debugger/DisassemblyView.vue';
-import DiskDriveControl from "./debugger/DiskDriveControl.vue";
 import MachineStateView from "./debugger/MachineStateView.vue";
 import MemoryViewer from './debugger/MemoryViewer.vue';
 import RegistersView from './debugger/RegistersView.vue';
 import StackView from './debugger/StackView.vue';
 import StatusFlagsView from './debugger/StatusFlagsView.vue';
-import StatusPanel from './debugger/StatusPanel.vue';
 import TraceView from './debugger/TraceView.vue';
-import VideoControl from "./debugger/VideoControl.vue";
-import { availableMachines } from "./machines";
-import type { MachineConfig } from "./machines/machine.interface";
-import type { EmulatorState } from "./types/emulatorstate.interface";
-import { VirtualMachine } from "./virtualmachine.class";
+import DiskDriveControl from "./machine/DiskDriveControl.vue";
+import MachineSelector from './machine/MachineSelector.vue';
+import StatusPanel from './machine/StatusPanel.vue';
+import VideoControl from "./machine/VideoControl.vue";
 
 	const dbgTopPanelResize= (_size:unknown) => {
 		// console.log('dbgTopPanelResize resized', size);

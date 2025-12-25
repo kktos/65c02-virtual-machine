@@ -1,5 +1,5 @@
-import type { IBus } from "@/cpu/bus.interface";
-import type { Video } from "@/video/video.interface";
+import type { Video } from "@/types/video.interface";
+import type { IBus } from "@/virtualmachine/cpu/bus.interface";
 import * as SoftSwitches from "./bus/softswitches";
 
 type CharMetrics = {
@@ -145,13 +145,13 @@ export class AppleVideo implements Video {
 		}
 
 		if (isText) {
-			if (is80Col) this.renderText80();
-			else this.renderText40();
+			if (is80Col) this.renderText80(0, TEXT_ROWS, isPage2);
+			else this.renderText40(0, TEXT_ROWS, isPage2);
 		} else if (isHgr) {
 			this.renderHgr(0, isMixed ? HGR_MIXED_LINES : HGR_LINES, isPage2);
 			if (isMixed) {
-				if (is80Col) this.renderText80(20, 24);
-				else this.renderText40(20, 24);
+				if (is80Col) this.renderText80(20, 24, isPage2);
+				else this.renderText40(20, 24, isPage2);
 			}
 		}
 
@@ -350,9 +350,10 @@ export class AppleVideo implements Video {
 		);
 	}
 
-	private renderText40(startRow = 0, endRow = TEXT_ROWS) {
+	private renderText40(startRow = 0, endRow = TEXT_ROWS, isPage2 = false) {
+		const pageOffset = isPage2 ? 0x400 : 0;
 		for (let y = startRow; y < endRow; y++) {
-			const lineBase = textScreenLineOffsets[y] ?? 0;
+			const lineBase = (textScreenLineOffsets[y] ?? 0) + pageOffset;
 			for (let x = 0; x < TEXT_COLS; x++) {
 				const charCode = this.bus.readRaw?.(lineBase + x) ?? 0;
 
@@ -364,10 +365,11 @@ export class AppleVideo implements Video {
 		}
 	}
 
-	private renderText80(startRow = 0, endRow = TEXT_ROWS) {
+	private renderText80(startRow = 0, endRow = TEXT_ROWS, isPage2 = false) {
+		const pageOffset = isPage2 ? 0x400 : 0;
 		const charWidth80 = this.charWidth / 2;
 		for (let y = startRow; y < endRow; y++) {
-			const lineBase = textScreenLineOffsets[y] ?? 0;
+			const lineBase = (textScreenLineOffsets[y] ?? 0) + pageOffset;
 			for (let x = 0; x < TEXT_COLS; x++) {
 				const drawY = SCREEN_MARGIN_Y + y * this.charHeight;
 

@@ -147,8 +147,8 @@ import { computed, inject, nextTick, onMounted, onUnmounted, type Ref, ref, watc
 	import { Button } from "@/components/ui/button";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import type { DebugOption } from "@/cpu/bus.interface";
-import type { VirtualMachine } from "@/virtualmachine.class";
+import type { DebugOption } from "@/virtualmachine/cpu/bus.interface";
+import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 
 	const vm= inject<Ref<VirtualMachine>>("vm");
 	const subscribeToUiUpdates= inject<(callback: () => void) => void>("subscribeToUiUpdates");

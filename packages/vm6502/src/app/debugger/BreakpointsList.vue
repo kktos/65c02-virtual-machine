@@ -65,8 +65,8 @@
 import { inject, type Ref, ref, watch } from "vue";
 import { useBreakpoints } from "@/composables/useBreakpoints";
 import type { Breakpoint } from "@/types/breakpoint.interface";
-import type { VirtualMachine } from "@/virtualmachine.class";
-import { ScrollArea } from '../components/ui/scroll-area';
+import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
+import { ScrollArea } from '../../components/ui/scroll-area';
 
 	/** biome-ignore-all lint/correctness/noUnusedVariables: vue */
 

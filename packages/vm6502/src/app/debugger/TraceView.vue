@@ -61,7 +61,7 @@
 <script lang="ts" setup>
 import { inject, onMounted, onUnmounted, type Ref, ref, watch } from "vue";
 import { useDisassembly } from "@/composables/useDisassembly";
-import type { VirtualMachine } from "@/virtualmachine.class";
+import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 
 const vm = inject<Ref<VirtualMachine>>("vm");
 const { requestJump } = useDisassembly();

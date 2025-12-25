@@ -1,10 +1,10 @@
-import type { VideoConfig } from "@/machines/machine.interface";
-import type { Video } from "@/video/video.interface";
+import type { VideoConfig } from "@/types/machine.interface";
+import type { Video } from "@/types/video.interface";
 import type { IBus } from "../bus.interface";
 
 // Vite-specific way to handle dynamic imports in workers.
-const videoModules = import.meta.glob("../../machines/*/*.video.ts");
-const BASE_PATH = "../../machines";
+const videoModules = import.meta.glob("../../../machines/*/*.video.ts");
+const BASE_PATH = "../../../machines";
 
 export async function loadVideo(videoConfig: VideoConfig, bus: IBus) {
 	if (!(videoConfig.buffer instanceof SharedArrayBuffer)) {

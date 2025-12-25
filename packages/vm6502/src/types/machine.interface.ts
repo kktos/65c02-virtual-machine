@@ -1,4 +1,4 @@
-import type { DebugOption } from "@/cpu/bus.interface";
+import type { DebugOption } from "@/virtualmachine/cpu/bus.interface";
 
 export interface MemoryChunk {
 	bank?: number; // Optional for single-bank machines

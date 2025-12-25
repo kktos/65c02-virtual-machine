@@ -1,4 +1,4 @@
-import type { MemoryChunk } from "@/machines/machine.interface";
+import type { MemoryChunk } from "@/types/machine.interface";
 
 export const romSlot2: MemoryChunk = {
 	bank: 0,

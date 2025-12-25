@@ -1,4 +1,4 @@
-import type { MachineConfig } from "@/machines/machine.interface";
+import type { MachineConfig } from "@/types/machine.interface";
 import { KlausTest_RAM } from "./65C02_extended_opcodes_test";
 
 export const klausTest: MachineConfig = {

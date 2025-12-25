@@ -35,17 +35,17 @@
 import { Check, Cpu, Power } from 'lucide-vue-next';
 import { ref } from 'vue';
 import {
-	Command,
-	CommandGroup,
-	CommandItem,
-	CommandList,
+    Command,
+    CommandGroup,
+    CommandItem,
+    CommandList,
 } from '@/components/ui/command';
 import {
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
 } from '@/components/ui/popover';
-import type { MachineConfig } from '@/machines/machine.interface';
+import type { MachineConfig } from '@/types/machine.interface';
 
 const props = defineProps<{
   machines: MachineConfig[],

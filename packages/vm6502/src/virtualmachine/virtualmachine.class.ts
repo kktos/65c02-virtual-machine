@@ -1,4 +1,5 @@
-import type { DebugOption, IBus, MachineStateSpec } from "@/cpu/bus.interface";
+import type { MachineConfig } from "@/types/machine.interface";
+import type { DebugOption, IBus, MachineStateSpec } from "@/virtualmachine/cpu/bus.interface";
 import {
 	FLAG_B_MASK,
 	FLAG_C_MASK,
@@ -15,16 +16,15 @@ import {
 	REG_STATUS_OFFSET,
 	REG_X_OFFSET,
 	REG_Y_OFFSET,
-} from "@/cpu/shared-memory";
-import type { MachineConfig } from "@/machines/machine.interface";
-import { VideoOutput } from "@/video/video.output";
-import { parseHexData } from "./lib/array.utils";
-import type { Breakpoint } from "./types/breakpoint.interface";
-import type { EmulatorState } from "./types/emulatorstate.interface";
+} from "@/virtualmachine/cpu/shared-memory";
+import { VideoOutput } from "@/virtualmachine/video/video.output";
+import { parseHexData } from "../lib/array.utils";
+import type { Breakpoint } from "../types/breakpoint.interface";
+import type { EmulatorState } from "../types/emulatorstate.interface";
 
-const MachinesBasePath = "./machines";
-const busModules = import.meta.glob("./machines/*/*.bus.ts");
-const cssModules = import.meta.glob("./machines/**/*.css");
+const MachinesBasePath = "../machines";
+const busModules = import.meta.glob("../machines/*/*.bus.ts");
+const cssModules = import.meta.glob("../machines/**/*.css");
 const kbdElements = new Set<string>(["INPUT", "TEXTAREA", "SELECT"]);
 
 export class VirtualMachine {

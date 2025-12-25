@@ -1,9 +1,9 @@
-import type { MachineConfig } from "@/machines/machine.interface";
+import type { MachineConfig } from "@/types/machine.interface";
 import type { IBus } from "../bus.interface";
 
 // Vite-specific way to handle dynamic imports in workers.
-const busModules = import.meta.glob("../../machines/*/*.bus.ts");
-const BASE_PATH = "../../machines";
+const busModules = import.meta.glob("../../../machines/*/*.bus.ts");
+const BASE_PATH = "../../../machines";
 
 export async function loadBus(busConfig: MachineConfig["bus"], memoryView: Uint8Array) {
 	const busModuleKey = `${BASE_PATH}/${busConfig.path}.ts`;

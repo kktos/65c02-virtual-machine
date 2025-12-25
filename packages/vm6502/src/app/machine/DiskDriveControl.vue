@@ -87,7 +87,7 @@ import {
 	SheetTrigger,
 } from '@/components/ui/sheet';
 import { useDiskStorage } from '@/composables/useDiskStorage';
-import type { VirtualMachine } from '@/virtualmachine.class';
+import type { VirtualMachine } from '@/virtualmachine/virtualmachine.class';
 
 const vm = inject<Ref<VirtualMachine>>('vm');
 const diskConfig = computed(() => vm?.value?.machineConfig?.disk);

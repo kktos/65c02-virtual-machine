@@ -25,7 +25,7 @@
 <script lang="ts" setup>
 import { inject, onMounted, type Ref, ref, watch } from "vue";
 import { useEmulatorSpeed } from "@/composables/useEmulatorSpeed";
-import type { VirtualMachine } from "@/virtualmachine.class";
+import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 
 const vm = inject<Ref<VirtualMachine>>("vm");
 const subscribeToUiUpdates = inject<(callback: () => void) => void>("subscribeToUiUpdates");

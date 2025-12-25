@@ -1,4 +1,4 @@
-import type { MachineConfig } from "@/machines/machine.interface";
+import type { MachineConfig } from "@/types/machine.interface";
 import { C1_C7_INTROM, C8_CF_INTROM, LG_CARD_ROM } from "./rom/C1_FF";
 import { romSlot1 } from "./rom/slot1.rom";
 import { romSlot2 } from "./rom/slot2.rom";

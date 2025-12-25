@@ -47,7 +47,7 @@
 
 import { computed, inject, onMounted, onUnmounted, type Ref, ref, watch } from "vue";
 import type { EmulatorState } from "@/types/emulatorstate.interface";
-import type { VirtualMachine } from "@/virtualmachine.class";
+import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 
 	const stackBase = 0x0100;
 

@@ -23,8 +23,8 @@
 
 <script lang="ts" setup>
 import { computed, inject, onUnmounted, type Ref, ref, shallowRef, watch } from "vue";
-import type { MachineStateSpec } from "@/cpu/bus.interface";
-import type { VirtualMachine } from "@/virtualmachine.class";
+import type { MachineStateSpec } from "@/virtualmachine/cpu/bus.interface";
+import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 
 const vm = inject<Ref<VirtualMachine>>("vm");
 
