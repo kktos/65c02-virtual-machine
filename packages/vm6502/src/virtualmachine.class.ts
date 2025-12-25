@@ -283,6 +283,10 @@ export class VirtualMachine {
 		}
 	}
 
+	public setDebugOverrides(overrides: Record<string, unknown>) {
+		this.worker.postMessage({ command: "setDebugOverrides", overrides: { ...overrides } });
+	}
+
 	public updateMemory(addr: number, value: number) {
 		if (this.bus) this.bus.write(addr, value);
 		else this.sharedMemory[addr] = value;
@@ -341,7 +345,7 @@ export class VirtualMachine {
 	}
 
 	public getDebugOptions(): DebugOption[] {
-		return this.bus?.getDebugOptions ? this.bus.getDebugOptions() : [];
+		return this.machineConfig.debugOptions ?? (this.bus?.getDebugOptions ? this.bus.getDebugOptions() : []);
 	}
 
 	public getMachineStateSpecs(): MachineStateSpec[] {

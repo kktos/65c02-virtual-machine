@@ -136,5 +136,8 @@ self.onmessage = async (event: MessageEvent) => {
 		case "refreshVideo":
 			if (video) video.tick();
 			break;
+		case "setDebugOverrides":
+			if (video?.setDebugOverrides) video.setDebugOverrides(event.data.overrides);
+			break;
 	}
 };
