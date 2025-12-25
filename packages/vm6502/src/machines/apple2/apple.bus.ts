@@ -1,4 +1,4 @@
-import type { DebugOption, IBus, MachineStateSpec } from "@/cpu/bus.interface";
+import type { IBus, MachineStateSpec } from "@/cpu/bus.interface";
 import { MACHINE_STATE_OFFSET } from "@/cpu/shared-memory";
 import { generateApple2Assets } from "./bus/apple.assets";
 import { loadMemoryChunks } from "./bus/apple.loader";
@@ -484,32 +484,6 @@ export class AppleBus implements IBus {
 		if (address >= 0xc000 && address <= 0xc0ff) return;
 
 		this.memory[RAM_OFFSET + address] = value & 0xff;
-	}
-
-	getDebugOptions(): DebugOption[] {
-		return [
-			{
-				id: "lcView",
-				label: "LC ROM",
-				type: "select",
-				options: [
-					{ label: "Auto", value: "AUTO" },
-					{ label: "ROM", value: "ROM" },
-					{ label: "LC Bank 1", value: "BANK1" },
-					{ label: "LC Bank 2", value: "BANK2" },
-				],
-			},
-			{
-				id: "cxView",
-				label: "Cx ROM",
-				type: "select",
-				options: [
-					{ label: "Auto", value: "AUTO" },
-					{ label: "Internal", value: "INT" },
-					{ label: "Slots", value: "SLOT" },
-				],
-			},
-		];
 	}
 
 	getMachineStateSpecs(): MachineStateSpec[] {
