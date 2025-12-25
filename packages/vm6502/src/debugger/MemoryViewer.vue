@@ -4,12 +4,33 @@
 			<div class="flex items-center space-x-2">
 				<span class="text-gray-300 text-sm">Addr:</span>
 				<div class="flex items-center">
-					<input
-						type="text"
-						:value="((startAddress >> 16) & 0xFF).toString(16).toUpperCase().padStart(2, '0')"
-						@input="handleBankChange"
-						class="bg-gray-700 text-yellow-300 font-mono text-sm rounded-l-md px-2 py-1 w-10 border-y border-l border-gray-600 focus:ring-2 focus:ring-cyan-500 tabular-nums text-center outline-none"
-					/>
+					<Popover v-model:open="openBankSelect">
+						<PopoverTrigger as-child>
+							<Button
+								variant="outline"
+								role="combobox"
+								:aria-expanded="openBankSelect"
+								class="w-16 justify-between px-2 font-mono text-sm bg-gray-700 text-yellow-300 border-gray-600 hover:bg-gray-600 hover:text-yellow-300 h-[30px] rounded-l-md rounded-r-none border-r-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+							>
+								{{ currentBank.toString(16).toUpperCase().padStart(2, '0') }}
+								<ChevronsUpDown class="ml-1 h-3 w-3 shrink-0 opacity-50" />
+							</Button>
+						</PopoverTrigger>
+						<PopoverContent class="w-32 p-0 bg-gray-800 border-gray-700">
+							<Command class="bg-gray-800 text-gray-100">
+								<CommandInput class="h-8 text-xs" placeholder="Bank..." />
+								<CommandEmpty class="py-2 text-center text-xs text-gray-500">No bank.</CommandEmpty>
+								<CommandList>
+									<CommandGroup>
+										<CommandItem v-for="bank in availableBanks" :key="bank.value" :value="bank.label" @select="selectBank(bank.value)" class="text-xs font-mono data-[highlighted]:bg-gray-700 data-[highlighted]:text-yellow-300 cursor-pointer text-white">
+											<Check :class="['mr-2 h-3 w-3', currentBank === bank.value ? 'opacity-100' : 'opacity-0']" />
+											{{ bank.label }}
+										</CommandItem>
+									</CommandGroup>
+								</CommandList>
+							</Command>
+						</PopoverContent>
+					</Popover>
 					<span class="bg-gray-700 text-gray-400 font-mono text-sm py-1 border-y border-gray-600">:</span>
 					<input
 						type="text"
@@ -20,24 +41,36 @@
 				</div>
 			</div>
 			<!-- Debug Options -->
-			<div v-for="opt in debugOptions" :key="opt.id" class="flex items-center space-x-1">
-				<input
-					v-if="opt.type === 'boolean'"
-					type="checkbox"
-					:id="opt.id"
-					v-model="debugOverrides[opt.id]"
-					class="rounded bg-gray-700 border-gray-600 text-cyan-500 focus:ring-cyan-500 h-4 w-4"
-				/>
-				<label :for="opt.id" class="text-gray-300 text-xs select-none cursor-pointer">{{ opt.label }}</label>
-				<select
-					v-if="opt.type === 'select'"
-					:id="opt.id"
-					v-model="debugOverrides[opt.id]"
-					class="bg-gray-700 text-yellow-300 font-mono text-xs rounded-md px-2 py-0.5 border border-gray-600 focus:ring-2 focus:ring-cyan-500 outline-none"
-				>
-					<option v-for="option in opt.options" :key="option.value" :value="option.value">{{ option.label }}</option>
-				</select>
-			</div>
+			<Popover v-if="debugOptions.length > 0">
+				<PopoverTrigger as-child>
+					<Button variant="outline" size="sm" class="h-[30px] px-2 text-xs bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600 hover:text-white ml-auto">
+						<Settings2 class="mr-2 h-3 w-3" />
+						Options
+					</Button>
+				</PopoverTrigger>
+				<PopoverContent class="w-64 p-4 bg-gray-800 border-gray-700 text-gray-100" align="end">
+					<div class="space-y-3">
+						<div v-for="opt in debugOptions" :key="opt.id" class="flex items-center justify-between">
+							<label :for="opt.id" class="text-xs text-gray-300 select-none cursor-pointer flex-grow">{{ opt.label }}</label>
+							<input
+								v-if="opt.type === 'boolean'"
+								type="checkbox"
+								:id="opt.id"
+								v-model="debugOverrides[opt.id]"
+								class="rounded bg-gray-700 border-gray-600 text-cyan-500 focus:ring-cyan-500 h-4 w-4 ml-2"
+							/>
+							<select
+								v-if="opt.type === 'select'"
+								:id="opt.id"
+								v-model="debugOverrides[opt.id]"
+								class="bg-gray-700 text-yellow-300 font-mono text-xs rounded-md px-2 py-0.5 border border-gray-600 focus:ring-2 focus:ring-cyan-500 outline-none ml-2 max-w-[120px]"
+							>
+								<option v-for="option in opt.options" :key="option.value" :value="option.value">{{ option.label }}</option>
+							</select>
+						</div>
+					</div>
+				</PopoverContent>
+			</Popover>
 		</div>
 
 		<div
@@ -47,8 +80,8 @@
 			<table class="w-full table-fixed">
 				<thead>
 					<tr class="text-gray-400 sticky top-0 bg-gray-900 border-b border-gray-700 shadow-md">
-						<th class="py-1 text-left w-24">Addr</th>
-						<th v-for="i in BYTES_PER_LINE" :key="i" class="text-center w-[1.75rem]">{{ '+' + (i - 1).toString(16).toUpperCase() }}</th>
+						<th class="py-1 text-left w-16">Addr</th>
+						<th v-for="i in BYTES_PER_LINE" :key="i" class="text-center w-[1.5rem]">{{ '+' + (i - 1).toString(16).toUpperCase() }}</th>
 						<th class="py-1 text-left w-auto pl-4">ASCII</th>
 					</tr>
 				</thead>
@@ -83,9 +116,12 @@
 </template>
 
 <script lang="ts" setup>
-	/** biome-ignore-all lint/correctness/noUnusedVariables: vue */
-
+	import { Check, ChevronsUpDown, Settings2 } from "lucide-vue-next";
 import { computed, inject, nextTick, onMounted, onUnmounted, type Ref, ref, watch } from "vue";
+	/** biome-ignore-all lint/correctness/noUnusedVariables: vue */
+	import { Button } from "@/components/ui/button";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import type { DebugOption } from "@/cpu/bus.interface";
 import { bytesToAscii } from "@/lib/array.utils";
 import type { VirtualMachine } from "@/virtualmachine.class";
@@ -93,7 +129,7 @@ import type { VirtualMachine } from "@/virtualmachine.class";
 	const vm= inject<Ref<VirtualMachine>>("vm");
 	const subscribeToUiUpdates= inject<(callback: () => void) => void>("subscribeToUiUpdates");
 
-	const startAddress = ref(0x0200);
+	const startAddress = ref(0x0000);
 	const BYTES_PER_LINE = 16;
 
 	const scrollContainer = ref<HTMLElement | null>(null);
@@ -105,6 +141,24 @@ import type { VirtualMachine } from "@/virtualmachine.class";
 		if (containerHeight.value === 0) return 10; // Default before mounted
 		return Math.max(1, Math.floor(containerHeight.value / ROW_HEIGHT_ESTIMATE));
 	});
+
+	const openBankSelect = ref(false);
+
+	const availableBanks = computed(() => {
+		console.log("BANKS:",vm?.value?.machineConfig?.memory?.banks);
+		const banks = vm?.value?.machineConfig?.memory?.banks || 1;
+		return Array.from({ length: banks }, (_, i) => ({
+			value: i,
+			label: i.toString(16).toUpperCase().padStart(2, "0"),
+		}));
+	});
+
+	const currentBank = computed(() => (startAddress.value >> 16) & 0xff);
+
+	const selectBank = (bankValue: number) => {
+		startAddress.value = (startAddress.value & 0xffff) | (bankValue << 16);
+		openBankSelect.value = false;
+	};
 
 	// This will be our reactive trigger to update the view
 	const tick = ref(0);
@@ -145,14 +199,6 @@ import type { VirtualMachine } from "@/virtualmachine.class";
 			});
 		}
 	}, { immediate: true });
-
-	const handleBankChange = (event: Event) => {
-		const target = event.target as HTMLInputElement;
-		const val = parseInt(target.value, 16);
-		if (!Number.isNaN(val) && val >= 0 && val <= 0xFF) {
-			startAddress.value = (startAddress.value & 0xFFFF) | (val << 16);
-		}
-	};
 
 	const handleOffsetChange = (event: Event) => {
 		const target = event.target as HTMLInputElement;
