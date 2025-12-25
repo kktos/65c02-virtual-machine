@@ -48,7 +48,7 @@ export async function generateApple2Assets(): Promise<{ video?: unknown; bus?: u
 		const bitmap = await createImageBitmap(canvas);
 
 		const url = canvas.toDataURL();
-		console.log(`Font Atlas: ${font}`);
+		console.log(`Font Atlas: ${font} W${canvas.width} x H${canvas.height} char w${charWidth} h${charHeight}`);
 		console.log(
 			"%c  ",
 			`font-size: 1px; padding: ${canvas.height / 2}px ${canvas.width / 2}px; background: url(${url}) no-repeat; background-size: contain;`,

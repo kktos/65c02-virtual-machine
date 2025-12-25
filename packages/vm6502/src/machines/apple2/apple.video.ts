@@ -52,7 +52,7 @@ const HGR_MIXED_LINES = 160;
 
 const SCREEN_MARGIN_X = 0;
 const SCREEN_MARGIN_Y = 0;
-const NATIVE_WIDTH = 560;
+const NATIVE_WIDTH = 280;
 const NATIVE_HEIGHT = 192;
 
 const AUX_BANK_OFFSET = 0x10000;
@@ -194,51 +194,7 @@ export class AppleVideo implements Video {
 			}
 		}
 
-		if ((globalThis as any).DEBUG_VIDEO) {
-			(globalThis as any).DEBUG_VIDEO = false;
-			this.offscreenCanvas.convertToBlob().then((blob) => {
-				const reader = new FileReader();
-				reader.onload = () => {
-					const url = reader.result as string;
-					console.log("AppleVideo Canvas Snapshot:", this.offscreenCanvas.width, this.offscreenCanvas.height);
-					console.log(
-						"%c  ",
-						`font-size: 1px; padding: ${this.offscreenCanvas.height / 2}px ${this.offscreenCanvas.width / 2}px; background: url(${url}) no-repeat; background-size: contain;`,
-					);
-				};
-				reader.readAsDataURL(blob);
-			});
-
-			// Reconstruct image from the buffer to verify the copy process
-			const width = this.targetWidth;
-			const height = this.targetHeight;
-			const debugCanvas = new OffscreenCanvas(width, height);
-			const debugCtx = debugCanvas.getContext("2d");
-			if (debugCtx) {
-				const imgData = debugCtx.createImageData(width, height);
-				for (let i = 0; i < width * height; i++) {
-					const colorIdx = this.buffer[i];
-					const rgb = IIgsPaletteRGB[colorIdx & 0x0f] || [0, 0, 0];
-					imgData.data[i * 4 + 0] = rgb[0];
-					imgData.data[i * 4 + 1] = rgb[1];
-					imgData.data[i * 4 + 2] = rgb[2];
-					imgData.data[i * 4 + 3] = 255;
-				}
-				debugCtx.putImageData(imgData, 0, 0);
-				debugCanvas.convertToBlob().then((blob) => {
-					const reader = new FileReader();
-					reader.onload = () => {
-						const url = reader.result as string;
-						console.log("AppleVideo Buffer Snapshot:", width, height);
-						console.log(
-							"%c  ",
-							`font-size: 1px; padding: ${height / 2}px ${width / 2}px; background: url(${url}) no-repeat; background-size: contain;`,
-						);
-					};
-					reader.readAsDataURL(blob);
-				});
-			}
-		}
+		if ((globalThis as any).DEBUG_VIDEO) this.handleDebugVideo();
 
 		if (this.bus.syncState) this.bus.syncState();
 	}
@@ -320,6 +276,112 @@ export class AppleVideo implements Video {
 					}
 				}
 			}
+		}
+	}
+
+	private handleDebugVideo() {
+		(globalThis as any).DEBUG_VIDEO = false;
+		this.offscreenCanvas.convertToBlob().then((blob) => {
+			const reader = new FileReader();
+			reader.onload = () => {
+				const url = reader.result as string;
+				console.log("AppleVideo Canvas Snapshot:", this.offscreenCanvas.width, this.offscreenCanvas.height);
+				console.log(
+					"%c  ",
+					`font-size: 1px; padding: ${this.offscreenCanvas.height / 2}px ${this.offscreenCanvas.width / 2}px; background: url(${url}) no-repeat; background-size: contain;`,
+				);
+			};
+			reader.readAsDataURL(blob);
+		});
+
+		// Reconstruct image from the buffer to verify the copy process
+		const width = this.targetWidth;
+		const height = this.targetHeight;
+		const debugCanvas = new OffscreenCanvas(width, height);
+		const debugCtx = debugCanvas.getContext("2d");
+		if (debugCtx) {
+			const imgData = debugCtx.createImageData(width, height);
+			for (let i = 0; i < width * height; i++) {
+				const colorIdx = this.buffer[i];
+				const rgb = IIgsPaletteRGB[colorIdx & 0x0f] || [0, 0, 0];
+				imgData.data[i * 4 + 0] = rgb[0];
+				imgData.data[i * 4 + 1] = rgb[1];
+				imgData.data[i * 4 + 2] = rgb[2];
+				imgData.data[i * 4 + 3] = 255;
+			}
+			debugCtx.putImageData(imgData, 0, 0);
+			debugCanvas.convertToBlob().then((blob) => {
+				const reader = new FileReader();
+				reader.onload = () => {
+					const url = reader.result as string;
+					console.log("AppleVideo Buffer Snapshot:", width, height);
+					console.log(
+						"%c  ",
+						`font-size: 1px; padding: ${height / 2}px ${width / 2}px; background: url(${url}) no-repeat; background-size: contain;`,
+					);
+				};
+				reader.readAsDataURL(blob);
+			});
+		}
+
+		// Lorem Ipsum Debug
+		const padding = 2;
+		const cellWidth = this.charWidth + padding * 2;
+		const cellHeight = this.charHeight + padding * 2;
+		const loremWidth = 40 * cellWidth;
+		const loremHeight = 24 * cellHeight;
+
+		const loremCanvas = new OffscreenCanvas(loremWidth, loremHeight);
+		const loremCtx = loremCanvas.getContext("2d");
+
+		if (loremCtx && this.charmap40 && this.metrics40) {
+			// loremCtx.imageSmoothingEnabled = false;
+			loremCtx.fillStyle = "black";
+			loremCtx.fillRect(0, 0, loremWidth, loremHeight);
+
+			// const text =
+			// 	"Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.";
+
+			let charIndex = 0;
+			for (let y = 0; y < 24; y++) {
+				for (let x = 0; x < 40; x++) {
+					const charCode = (charIndex % 255) | 0x80; //text.charCodeAt(charIndex % text.length) | 0x80;
+					charIndex++;
+
+					const destX = x * cellWidth + padding;
+					const destY = y * cellHeight + padding;
+
+					const m = this.metrics40;
+					const srcX = (charCode % m.cols) * m.charWidth;
+					const srcY = Math.floor(charCode / m.rows) * m.charHeight;
+
+					if (charIndex === 56)
+						loremCtx.drawImage(
+							this.charmap40,
+							srcX,
+							srcY,
+							m.charWidth,
+							m.charHeight,
+							destX,
+							destY,
+							this.charWidth,
+							this.charHeight,
+						);
+				}
+			}
+
+			loremCanvas.convertToBlob().then((blob) => {
+				const reader = new FileReader();
+				reader.onload = () => {
+					const url = reader.result as string;
+					console.log("AppleVideo Lorem Ipsum Snapshot:", loremWidth, loremHeight);
+					console.log(
+						"%c  ",
+						`font-size: 1px; padding: ${loremHeight / 2}px ${loremWidth / 2}px; background: url(${url}) no-repeat; background-size: contain;`,
+					);
+				};
+				reader.readAsDataURL(blob);
+			});
 		}
 	}
 
