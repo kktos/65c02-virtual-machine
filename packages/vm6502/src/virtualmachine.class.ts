@@ -164,6 +164,7 @@ export class VirtualMachine {
 					payload: payloads.video,
 				},
 				memory: { buffer: this.sharedBuffer, size: this.machineConfig.memory.size, chunks },
+				disk: { ...this.machineConfig.disk },
 			},
 		});
 

@@ -1,5 +1,5 @@
 <template>
-	<div class="flex items-center space-x-3 bg-gray-800 p-2 rounded-lg shadow-md border border-gray-700">
+	<div v-if="diskConfig?.enabled" class="flex items-center space-x-3 bg-gray-800 p-2 rounded-lg shadow-md border border-gray-700">
 		<!-- Library Sheet -->
 		<Sheet v-model:open="isSheetOpen">
 			<SheetTrigger as-child>
@@ -64,7 +64,7 @@
 		</Sheet>
 
 		<div class="flex flex-col overflow-hidden min-w-[8rem]">
-			<span class="text-[10px] uppercase text-gray-400 font-bold tracking-wider">SmartPort (S5)</span>
+			<span class="text-[10px] uppercase text-gray-400 font-bold tracking-wider">{{ diskConfig?.name || 'Disk' }}</span>
 			<div
 				class="text-xs font-mono truncate text-gray-300 cursor-help"
 				:title="fileName ? `Size: ${formatSize(fileSize)}` : 'No disk inserted'"
@@ -76,7 +76,7 @@
 </template>
 
 <script lang="ts" setup>
-import { inject, type Ref, ref, watch } from 'vue';
+import { computed, inject, type Ref, ref, watch } from 'vue';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
 	Sheet,
@@ -90,6 +90,7 @@ import { useDiskStorage } from '@/composables/useDiskStorage';
 import type { VirtualMachine } from '@/virtualmachine.class';
 
 const vm = inject<Ref<VirtualMachine>>('vm');
+const diskConfig = computed(() => vm?.value?.machineConfig?.disk);
 const fileName = ref('');
 const fileSize = ref(0);
 const { saveDisk, loadDisk, getAllDisks, deleteDisk } = useDiskStorage();

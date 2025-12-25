@@ -66,4 +66,5 @@ export const apple2e: MachineConfig = {
 		class: "AppleVideo",
 		path: "apple2/apple.video",
 	},
+	disk: { enabled: true, name: "SPDisk" },
 };
