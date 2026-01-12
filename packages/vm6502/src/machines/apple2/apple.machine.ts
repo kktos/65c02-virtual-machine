@@ -1,3 +1,4 @@
+/** biome-ignore-all lint/complexity/useSimpleNumberKeys: Firmware addr in hex */
 import type { MachineConfig } from "@/types/machine.interface";
 import { C1_C7_INTROM, C8_CF_INTROM, LG_CARD_ROM } from "./rom/C1_FF";
 import { romSlot1 } from "./rom/slot1.rom";
@@ -127,9 +128,19 @@ export const apple2e: MachineConfig = {
 		},
 	],
 	labels: {
-		512: "INPUTBUF",
-		1024: "TXT_SCRN_START",
-		49152: "KBD_STROBE",
-		64738: "INIT_SYSTEM",
+		0x0200: "INPUTBUF",
+		0x0400: "TXT_SCRN_START",
+		0xc000: "KBD",
+		0xc010: "KBDSTRB",
+		0xc030: "SPKR",
+		0xc050: "GRAPHICS",
+		0xc051: "TEXT",
+		0xc052: "FULLSCR",
+		0xc053: "MIXED",
+		0xc054: "PAGE1",
+		0xc055: "PAGE2",
+		0xc056: "LORES",
+		0xc057: "HIRES",
+		0xfce2: "INIT_SYSTEM",
 	},
 };
