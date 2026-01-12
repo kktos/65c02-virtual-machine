@@ -5,6 +5,7 @@ import { loadMemoryChunks } from "./bus/apple.loader";
 import { installSoftSwitches } from "./bus/apple.switches";
 import type { ISlotCard } from "./slots/slotcard.interface";
 import { SmartPortCard } from "./slots/smartport.card";
+import { Speaker } from "./speaker";
 
 // Apple II specific flags (packed into the MACHINE_STATE bytes)
 // Byte at MACHINE_STATE_OFFSET
@@ -89,6 +90,8 @@ export class AppleBus implements IBus {
 	private audioBufferIndex = 0;
 	private readonly sampleRate = 44100;
 
+	private speaker: Speaker;
+
 	// Soft Switch Dispatch Tables (0xC000 - 0xC0FF)
 	private readHandlers: Array<() => number>;
 	private writeHandlers: Array<(val: number) => void>;
@@ -114,6 +117,16 @@ export class AppleBus implements IBus {
 		this.writeHandlers = handlers.writeHandlers;
 
 		this.nextSampleTime = performance.now();
+		this.speaker = new Speaker();
+	}
+
+	public tick(deltaCycles: number): void {
+		if (deltaCycles > 0) {
+			const audioChunk = this.speaker.tick(deltaCycles);
+			if (audioChunk) {
+				self.postMessage({ type: "audio", buffer: audioChunk }, [audioChunk.buffer]);
+			}
+		}
 	}
 
 	public installCard(slot: number, card: ISlotCard) {
@@ -122,6 +135,11 @@ export class AppleBus implements IBus {
 			if (this.registers && card.setRegisters) card.setRegisters(this.registers);
 			if (card.setBus) card.setBus(this);
 		}
+	}
+
+	public initAudio(port: MessagePort | null, sampleRate: number): void {
+		this.speaker.init(sampleRate);
+		console.log("AppleBus audio initialized");
 	}
 
 	public setRegistersView(view: DataView) {

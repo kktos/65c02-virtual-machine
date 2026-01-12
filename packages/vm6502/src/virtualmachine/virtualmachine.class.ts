@@ -67,15 +67,15 @@ export class VirtualMachine {
 
 		this.worker.onmessage = (event) => {
 			const { command, colors, type, history, buffer } = event.data;
-			if (command === "setPalette") {
+			if (type === "audio") {
+				this.queueAudioChunk(buffer);
+			} else if (command === "setPalette") {
 				if (this.videoOutput) this.videoOutput.setPalette(colors);
 				else this.pendingPalette = colors;
 			} else if (type === "ready") {
 				this.resolveWorkerReady();
 			} else if (type === "trace") {
 				this.onTraceReceived?.(history);
-			} else if (type === "audio") {
-				this.queueAudioChunk(buffer);
 			} else if (this.onmessage) {
 				this.onmessage(event);
 			}
@@ -100,7 +100,7 @@ export class VirtualMachine {
 		this.loadCSS();
 		this.ready = this.loadBus();
 
-		if (!audioCtx) audioCtx = new window.AudioContext();
+		if (!audioCtx) audioCtx = new AudioContext();
 	}
 
 	private async loadCSS() {
@@ -138,7 +138,7 @@ export class VirtualMachine {
 			console.error(`VM: Could not find class ${busConfig.class} for module ${busModuleKey}`);
 			return;
 		}
-		const [, BusClass]: [string, new (mem: Uint8Array) => IBus] = exportedBusEntry;
+		const [, BusClass]: [unknown, new (mem: Uint8Array) => IBus] = exportedBusEntry;
 		this.bus = new BusClass(this.sharedMemory);
 		console.log(`VM: Bus ${busConfig.class} loaded on main thread.`);
 
@@ -205,6 +205,17 @@ export class VirtualMachine {
 		this.renderFrame();
 	}
 
+	public async initAudio(processorUrl: string) {
+		if (!audioCtx) audioCtx = new AudioContext({ sampleRate: 22050 });
+		if (audioCtx.state === "suspended") {
+			await audioCtx.resume();
+		}
+
+		// Use main thread audio instead of AudioWorklet
+		// Audio will be sent from worker and played here
+		this.worker.postMessage({ command: "initAudio", sampleRate: audioCtx.sampleRate });
+	}
+
 	private handleKeyDown(event: KeyboardEvent) {
 		const target = event.target as HTMLElement;
 		if (target && (kbdElements.has(target.tagName) || target.isContentEditable)) return;
@@ -261,32 +272,25 @@ export class VirtualMachine {
 			audioCtx.resume();
 		}
 
-		// Create an AudioBuffer
-		// 1 channel (mono), length of the chunk, 44100 Hz (must match emulator)
-		const audioBuffer = audioCtx.createBuffer(1, samples.length, 44100);
-
-		// Copy the PCM data into the AudioBuffer
+		const audioBuffer = audioCtx.createBuffer(1, samples.length, audioCtx.sampleRate);
 		audioBuffer.copyToChannel(samples, 0);
 
-		// Create a source node to play this buffer
 		const source = audioCtx.createBufferSource();
 		source.buffer = audioBuffer;
 		source.connect(audioCtx.destination);
 
 		// --- Scheduling Logic ---
-		const now = audioCtx.currentTime;
-
-		// If nextStartTime is in the past (underrun/lag), reset it to 'now'.
-		// This happens if the emulator pauses or runs slower than real-time.
-		// We add a tiny offset (e.g., 20ms) to prevent immediate glitching.
-		if (nextStartTime < now) {
-			nextStartTime = now + 0.02;
+		const currentTime = audioCtx.currentTime;
+		
+		// If nextStartTime is in the past, reset it to now. This can happen
+		// if there was a gap in audio data, preventing runaway playback.
+		if (nextStartTime < currentTime) {
+			nextStartTime = currentTime;
 		}
 
-		// Schedule the chunk to start at the calculated time
 		source.start(nextStartTime);
 
-		// Advance the time pointer by the duration of this chunk
+		// Schedule the next chunk to start right after this one finishes
 		nextStartTime += audioBuffer.duration;
 	}
 

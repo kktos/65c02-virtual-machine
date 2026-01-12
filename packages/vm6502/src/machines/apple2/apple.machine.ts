@@ -56,6 +56,18 @@ export const apple2e: MachineConfig = {
 				ad 0 c3
 				60`,
 			},
+			{
+				bank: 0,
+				addr: 0x0800,
+				data: `
+				20 2f fb 20 58 fc a9 00 48 aa 20 24 08 a0 0a 20 a8 fc 88 d0 fa 68
+				cd 5f 08 f0 06 18 69 01 48 d0 e8 60 a2 00 08 48 98 48 8a cd 5f 08
+				90 02 a9 00 0a aa bd 60 08 8d 5e 08 e8 bd 60 08 8d 40 08 a0 00 98
+				aa 98 20 a8 fc 2c 30 c0 e0 80 f0 0b ca d0 f2 88 d0 ed ce 5e 08 d0
+				e6 68 a8 68 28 60 01 10 01 08 01 18 ff 01 06 10 01 30 20 06 70 06
+				ff 06 01 a0 ff 02 04 1c 01 10 30 0b 30 07 50 09 01 64
+				`,
+			},
 		],
 	},
 	css: ["apple2/fonts/fonts.css"],

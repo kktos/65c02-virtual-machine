@@ -180,7 +180,8 @@ export function stepOutInstruction() {
 
 export function stepInstruction() {
 	if (isRunning) return;
-	executeInstruction();
+	const cycles = executeInstruction();
+	if (bus?.tick) bus.tick(cycles);
 	if (video && memoryView) video.tick();
 }
 
@@ -219,6 +220,7 @@ function run() {
 
 	while (cyclesThisSlice > 0) {
 		const cycles = executeInstruction();
+		if (bus?.tick) bus.tick(cycles);
 		cyclesThisSlice -= cycles;
 
 		if (!isRunning) break;

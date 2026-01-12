@@ -139,5 +139,11 @@ self.onmessage = async (event: MessageEvent) => {
 		case "setDebugOverrides":
 			if (video?.setDebugOverrides) video.setDebugOverrides(event.data.overrides);
 			break;
+		case "initAudio":
+			if (bus && "initAudio" in bus) {
+				// For main thread audio, don't set port
+				(bus as any).initAudio(null, event.data.sampleRate);
+			}
+			break;
 	}
 };

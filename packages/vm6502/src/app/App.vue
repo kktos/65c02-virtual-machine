@@ -167,6 +167,10 @@ import VideoControl from "./machine/VideoControl.vue";
 		// Start the UI update loop
 		requestAnimationFrame(updateUiFromSharedBuffer);
 
+		vm.value.ready.then(()=>{
+			vm.value?.initAudio("./src/machines/apple2/speaker.processor.js");
+		});
+
 	});
 
 	// Wait for the canvas to be mounted by the ResizablePanel before setting it on the VM
