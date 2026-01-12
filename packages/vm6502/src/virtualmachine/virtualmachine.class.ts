@@ -99,8 +99,6 @@ export class VirtualMachine {
 
 		this.loadCSS();
 		this.ready = this.loadBus();
-
-		if (!audioCtx) audioCtx = new AudioContext();
 	}
 
 	private async loadCSS() {
@@ -205,7 +203,7 @@ export class VirtualMachine {
 		this.renderFrame();
 	}
 
-	public async initAudio(processorUrl: string) {
+	public async initAudio() {
 		if (!audioCtx) audioCtx = new AudioContext({ sampleRate: 22050 });
 		if (audioCtx.state === "suspended") {
 			await audioCtx.resume();
@@ -281,7 +279,7 @@ export class VirtualMachine {
 
 		// --- Scheduling Logic ---
 		const currentTime = audioCtx.currentTime;
-		
+
 		// If nextStartTime is in the past, reset it to now. This can happen
 		// if there was a gap in audio data, preventing runaway playback.
 		if (nextStartTime < currentTime) {

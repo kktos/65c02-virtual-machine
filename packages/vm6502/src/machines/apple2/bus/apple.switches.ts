@@ -142,7 +142,7 @@ export function installSoftSwitches(bus: AppleBus) {
 	onRead(SoftSwitches.PB1, () => (bus.pb1 ? 0x80 : 0x00));
 
 	// --- Speaker ---
-	onAccess(SoftSwitches.SPEAKER, () => bus.toggleSpeaker());
+	onAccess(SoftSwitches.SPEAKER, () => bus.speaker.toggle());
 
 	// --- Language Card ($C080-$C08F) ---
 	for (let addr = 0xc080; addr <= 0xc08f; addr++) {

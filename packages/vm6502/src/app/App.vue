@@ -168,7 +168,7 @@ import VideoControl from "./machine/VideoControl.vue";
 		requestAnimationFrame(updateUiFromSharedBuffer);
 
 		vm.value.ready.then(()=>{
-			vm.value?.initAudio("./src/machines/apple2/speaker.processor.js");
+			vm.value?.initAudio();
 		});
 
 	});
