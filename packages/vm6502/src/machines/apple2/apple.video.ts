@@ -236,6 +236,12 @@ export class AppleVideo implements Video {
 		if ((globalThis as any).DEBUG_VIDEO) this.handleDebugVideo();
 
 		if (this.bus.syncState) this.bus.syncState();
+
+		// Flush audio buffer from the bus to the worker
+		const audio = (this.bus as any).getAudioBuffer?.();
+		if (audio) {
+			this.parent.postMessage({ type: "audio", buffer: audio }, [audio.buffer]);
+		}
 	}
 
 	/**

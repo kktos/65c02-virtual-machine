@@ -82,6 +82,13 @@ export class AppleBus implements IBus {
 	public pb0 = false; // Open Apple (Left Alt)
 	public pb1 = false; // Solid Apple (Right Alt)
 
+	// Speaker State
+	private speakerState = false;
+	private nextSampleTime = 0;
+	private audioBuffer = new Float32Array(4096); // Ring buffer or chunk buffer
+	private audioBufferIndex = 0;
+	private readonly sampleRate = 44100;
+
 	// Soft Switch Dispatch Tables (0xC000 - 0xC0FF)
 	private readHandlers: Array<() => number>;
 	private writeHandlers: Array<(val: number) => void>;
@@ -105,6 +112,8 @@ export class AppleBus implements IBus {
 		const handlers = installSoftSwitches(this);
 		this.readHandlers = handlers.readHandlers;
 		this.writeHandlers = handlers.writeHandlers;
+
+		this.nextSampleTime = performance.now();
 	}
 
 	public installCard(slot: number, card: ISlotCard) {
@@ -390,6 +399,36 @@ export class AppleBus implements IBus {
 		} else if (code === "AltRight") {
 			this.pb1 = false;
 		}
+	}
+
+	public toggleSpeaker() {
+		const now = performance.now();
+		const sampleDuration = 1000 / this.sampleRate;
+
+		// Catch up: write samples for the time passed since the last update
+		// using the *current* (pre-toggle) state.
+		while (this.nextSampleTime < now) {
+			if (this.audioBufferIndex < this.audioBuffer.length) {
+				// Volume 0.1 to avoid clipping/loudness
+				this.audioBuffer[this.audioBufferIndex++] = this.speakerState ? 0.1 : -0.1;
+			}
+			this.nextSampleTime += sampleDuration;
+		}
+
+		// If we fell too far behind (e.g. tab inactive), reset time to avoid burst
+		if (now - this.nextSampleTime > 100) {
+			this.nextSampleTime = now;
+		}
+
+		this.speakerState = !this.speakerState;
+	}
+
+	public getAudioBuffer(): Float32Array | null {
+		if (this.audioBufferIndex === 0) return null;
+		// Return the filled portion of the buffer
+		const result = this.audioBuffer.slice(0, this.audioBufferIndex);
+		this.audioBufferIndex = 0;
+		return result;
 	}
 
 	readDebug(address: number, overrides?: Record<string, unknown>): number {

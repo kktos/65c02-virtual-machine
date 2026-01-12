@@ -27,6 +27,10 @@ const busModules = import.meta.glob("../machines/*/*.bus.ts");
 const cssModules = import.meta.glob("../machines/**/*.css");
 const kbdElements = new Set<string>(["INPUT", "TEXTAREA", "SELECT"]);
 
+// 1. Initialize AudioContext (Must be created after a user gesture like a click)
+let audioCtx: AudioContext | null = null;
+let nextStartTime = 0;
+
 export class VirtualMachine {
 	public sharedBuffer: SharedArrayBuffer;
 	public sharedRegisters: DataView;
@@ -62,7 +66,7 @@ export class VirtualMachine {
 		});
 
 		this.worker.onmessage = (event) => {
-			const { command, colors, type, history } = event.data;
+			const { command, colors, type, history, buffer } = event.data;
 			if (command === "setPalette") {
 				if (this.videoOutput) this.videoOutput.setPalette(colors);
 				else this.pendingPalette = colors;
@@ -70,6 +74,8 @@ export class VirtualMachine {
 				this.resolveWorkerReady();
 			} else if (type === "trace") {
 				this.onTraceReceived?.(history);
+			} else if (type === "audio") {
+				this.queueAudioChunk(buffer);
 			} else if (this.onmessage) {
 				this.onmessage(event);
 			}
@@ -93,6 +99,8 @@ export class VirtualMachine {
 
 		this.loadCSS();
 		this.ready = this.loadBus();
+
+		if (!audioCtx) audioCtx = new window.AudioContext();
 	}
 
 	private async loadCSS() {
@@ -243,6 +251,43 @@ export class VirtualMachine {
 		this.syncBusState();
 		this.videoOutput?.render();
 		requestAnimationFrame(() => this.renderFrame());
+	}
+
+	private queueAudioChunk(samples: Float32Array) {
+		if (!audioCtx) return;
+
+		// Ensure context is running (browsers suspend it until user interaction)
+		if (audioCtx.state === "suspended") {
+			audioCtx.resume();
+		}
+
+		// Create an AudioBuffer
+		// 1 channel (mono), length of the chunk, 44100 Hz (must match emulator)
+		const audioBuffer = audioCtx.createBuffer(1, samples.length, 44100);
+
+		// Copy the PCM data into the AudioBuffer
+		audioBuffer.copyToChannel(samples, 0);
+
+		// Create a source node to play this buffer
+		const source = audioCtx.createBufferSource();
+		source.buffer = audioBuffer;
+		source.connect(audioCtx.destination);
+
+		// --- Scheduling Logic ---
+		const now = audioCtx.currentTime;
+
+		// If nextStartTime is in the past (underrun/lag), reset it to 'now'.
+		// This happens if the emulator pauses or runs slower than real-time.
+		// We add a tiny offset (e.g., 20ms) to prevent immediate glitching.
+		if (nextStartTime < now) {
+			nextStartTime = now + 0.02;
+		}
+
+		// Schedule the chunk to start at the calculated time
+		source.start(nextStartTime);
+
+		// Advance the time pointer by the duration of this chunk
+		nextStartTime += audioBuffer.duration;
 	}
 
 	public setSpeed = (speed: number) => this.worker.postMessage({ command: "setSpeed", speed });
