@@ -9,7 +9,7 @@ function mapAppleChr(char: number): string {
 export async function generateApple2Assets(): Promise<{ video?: unknown; bus?: unknown }> {
 	if (typeof document === "undefined") return {};
 
-	await Promise.all([document.fonts.load("14px PrintChar21"), document.fonts.load("16px PRNumber3")]);
+	await Promise.all([document.fonts.load("21px PrintChar21"), document.fonts.load("16px PRNumber3")]);
 
 	const generateCharmap = async (font: string, charWidth: number, charHeight: number) => {
 		const canvas = document.createElement("canvas");
@@ -17,6 +17,7 @@ export async function generateApple2Assets(): Promise<{ video?: unknown; bus?: u
 		if (!ctx) return null;
 
 		ctx.imageSmoothingEnabled = false;
+		canvas.style.imageRendering = "pixelated";
 
 		const cols = 16;
 		const rows = 16;
@@ -60,7 +61,7 @@ export async function generateApple2Assets(): Promise<{ video?: unknown; bus?: u
 		};
 	};
 
-	const map40 = await generateCharmap("14px PrintChar21", 14, 14);
+	const map40 = await generateCharmap("21px PrintChar21", 16, 22);
 	const map80 = await generateCharmap("16px PRNumber3", 7, 16);
 
 	return {

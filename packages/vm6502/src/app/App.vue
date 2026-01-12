@@ -12,7 +12,7 @@
 		</div>
 		<canvas
 			ref="videoCanvas"
-			class="flex-grow w-full object-contain border"
+			class="border"
 			style="image-rendering: pixelated;"
 		></canvas>
 	</ResizablePanel>
