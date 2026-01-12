@@ -21,39 +21,49 @@ export class Speaker {
 		this.speakerOn = !this.speakerOn;
 	}
 
-	public tick(cycles: number): Float32Array | null {
+	public tick(cycles: number): Float32Array[] {
 		this.accumulatedCycles += cycles;
 
 		let samplesToGenerate = Math.floor(this.accumulatedCycles / this.cyclesPerSample);
-
 		if (samplesToGenerate === 0) {
-			return null;
+			return [];
 		}
 
 		this.accumulatedCycles -= samplesToGenerate * this.cyclesPerSample;
 
 		const value = this.speakerOn ? HIGH_LEVEL : LOW_LEVEL;
+		const chunks: Float32Array[] = [];
 
+		// First, see if we can just add to the existing buffer without sending anything
 		if (this.bufferIndex + samplesToGenerate < CHUNK_SIZE) {
 			this.sampleBuffer.fill(value, this.bufferIndex, this.bufferIndex + samplesToGenerate);
 			this.bufferIndex += samplesToGenerate;
-			return null;
+			return [];
 		}
 
+		// --- Buffer will overflow, so we must send at least one chunk ---
+
+		// 1. Fill the rest of the current buffer
 		const spaceLeft = CHUNK_SIZE - this.bufferIndex;
 		this.sampleBuffer.fill(value, this.bufferIndex, CHUNK_SIZE);
+		chunks.push(this.sampleBuffer.slice());
 		samplesToGenerate -= spaceLeft;
 
-		const chunkToSend = this.sampleBuffer.slice();
-
-		const remainingChunks = Math.floor(samplesToGenerate / CHUNK_SIZE);
-		this.bufferIndex = samplesToGenerate % CHUNK_SIZE;
-		this.sampleBuffer.fill(value, 0, this.bufferIndex);
-
-		if (remainingChunks > 0) {
-			console.warn(`Speaker: generating ${remainingChunks} full chunks at once. Audio may be choppy.`);
+		// 2. Send any remaining full chunks
+		while (samplesToGenerate >= CHUNK_SIZE) {
+			// This is slightly inefficient as it re-allocates, but it's clean.
+			// A constant-value chunk doesn't need copying.
+			const newChunk = new Float32Array(CHUNK_SIZE).fill(value);
+			chunks.push(newChunk);
+			samplesToGenerate -= CHUNK_SIZE;
 		}
 
-		return chunkToSend;
+		// 3. Place the final remaining samples at the start of the buffer for next time
+		this.bufferIndex = samplesToGenerate;
+		if (this.bufferIndex > 0) {
+			this.sampleBuffer.fill(value, 0, this.bufferIndex);
+		}
+
+		return chunks;
 	}
 }

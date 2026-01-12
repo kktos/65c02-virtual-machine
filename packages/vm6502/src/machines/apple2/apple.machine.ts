@@ -126,4 +126,10 @@ export const apple2e: MachineConfig = {
 			],
 		},
 	],
+	labels: {
+		512: "INPUTBUF",
+		1024: "TXT_SCRN_START",
+		49152: "KBD_STROBE",
+		64738: "INIT_SYSTEM",
+	},
 };

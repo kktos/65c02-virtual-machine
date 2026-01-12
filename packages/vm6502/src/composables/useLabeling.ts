@@ -1,12 +1,13 @@
+import { inject, type Ref } from "vue";
+import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
+
 export function useLabeling() {
-	const LABELS: Record<number, string> = {
-		512: "INPUTBUF",
-		1024: "TXT_SCRN_START",
-		49152: "KBD_STROBE",
-		64738: "INIT_SYSTEM",
-	};
+	const vm = inject<Ref<VirtualMachine>>("vm");
 
 	const getLabeledInstruction = (opcode: string) => {
+		const labels = vm?.value?.machineConfig?.labels;
+		if (!labels) return { labeledOpcode: opcode, labelComment: null };
+
 		const addressMatch = opcode.match(/\$([0-9A-Fa-f]{2,4}[\w,()]?)/);
 
 		if (addressMatch) {
@@ -16,8 +17,8 @@ export function useLabeling() {
 				const addressHex = addressHexMatch[1] as string;
 				const address = parseInt(addressHex, 16);
 
-				if (LABELS[address]) {
-					const label = LABELS[address];
+				if (labels[address]) {
+					const label = labels[address];
 					// Replace the address part with the label, keeping the addressing mode suffix
 					const suffix = fullAddressExpression.substring(addressHexMatch[0].length);
 					const newOpcode = opcode.replace(fullAddressExpression, label + suffix);
