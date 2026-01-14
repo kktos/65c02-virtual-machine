@@ -10,11 +10,12 @@ import {
 import type { ISlotCard } from "./slotcard.interface";
 
 export class SmartPortCard implements ISlotCard {
+	public slot: number;
+
 	private rom: Uint8Array;
 	private expansionRom = new Uint8Array(2048);
 	private bus?: IBus;
 	private registers?: DataView;
-	private slot: number;
 	private diskData: Uint8Array | null = null;
 
 	constructor(slot: number, rom: Uint8Array) {
