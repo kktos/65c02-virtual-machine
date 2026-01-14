@@ -83,11 +83,33 @@ const HGR_MIXED_LINES = 160;
 
 const SCREEN_MARGIN_X = 10;
 const SCREEN_MARGIN_Y = 10;
-const NATIVE_WIDTH = 480;
-const NATIVE_HEIGHT = 24 * 21;
+const NATIVE_WIDTH = 640; //480;
+const NATIVE_HEIGHT = 25 * 21;
 
 const AUX_BANK_OFFSET = 0x10000;
 
+interface AppleVideoOverrides {
+	videoMode?: "AUTO" | "TEXT" | "HGR";
+	videoPage?: "AUTO" | "PAGE1" | "PAGE2";
+	textRenderer?: "BITMAP" | "FONT";
+	textWidth?: number;
+	backgroundColor?: string;
+	textHeight?: number;
+}
+
+const baseurl = import.meta.url.match(/http:\/\/[^/]+/)?.[0];
+
+function loadFont(name: string) {
+	const fontUrl = new URL(`${baseurl}/fonts/${name}.ttf`).href;
+	const font = new FontFace(name, `url(${fontUrl})`);
+	font
+		.load()
+		.then((loaded) => {
+			self.fonts.add(loaded);
+			console.log("AppleVideo: Loaded font", loaded.family);
+		})
+		.catch((e) => console.warn("Failed to load font in worker:", e));
+}
 export class AppleVideo implements Video {
 	private parent: Worker;
 	private buffer: Uint8Array;
@@ -105,7 +127,7 @@ export class AppleVideo implements Video {
 	private charmap80: ImageBitmap | null = null;
 	private metrics80: CharMetrics | null = null;
 
-	private overrides: Record<string, unknown> = {};
+	private overrides: AppleVideoOverrides = {};
 
 	constructor(parent: Worker, mem: Uint8Array, width: number, height: number, bus: IBus, payload?: unknown) {
 		this.parent = parent;
@@ -116,6 +138,9 @@ export class AppleVideo implements Video {
 		this.offscreenCanvas = new OffscreenCanvas(NATIVE_WIDTH + SCREEN_MARGIN_X * 2, NATIVE_HEIGHT + SCREEN_MARGIN_Y * 2);
 		const context = this.offscreenCanvas.getContext("2d", { willReadFrequently: true });
 		if (!context) throw new Error("Could not get 2D context from OffscreenCanvas");
+
+		loadFont("PrintChar21");
+		loadFont("PRNumber3");
 
 		this.ctx = context;
 		this.ctx.imageSmoothingEnabled = false;
@@ -156,8 +181,36 @@ export class AppleVideo implements Video {
 		this.parent.postMessage({ command: "setPalette", colors: palette });
 	}
 
+	private findNearestColor(r: number, g: number, b: number): number {
+		let minDist = Infinity;
+		let bestIndex = 0;
+
+		for (let i = 0; i < 16; i++) {
+			const p = IIgsPaletteRGB[i];
+			// biome-ignore lint/style/noNonNullAssertion: palette is fixed size
+			const dr = r - p[0]!;
+			// biome-ignore lint/style/noNonNullAssertion: palette is fixed size
+			const dg = g - p[1]!;
+			// biome-ignore lint/style/noNonNullAssertion: palette is fixed size
+			const db = b - p[2]!;
+			const dist = dr * dr + dg * dg + db * db;
+
+			if (dist < minDist) {
+				minDist = dist;
+				bestIndex = i;
+				if (dist === 0) break;
+			}
+		}
+		return bestIndex;
+	}
+
+	private hexToRgb(hex: string): [number, number, number] {
+		const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+		return result ? [parseInt(result[1], 16), parseInt(result[2], 16), parseInt(result[3], 16)] : [0, 0, 0]; // Default to black if parse fails
+	}
+
 	public setDebugOverrides(overrides: Record<string, unknown>) {
-		this.overrides = overrides;
+		this.overrides = overrides as AppleVideoOverrides;
 	}
 
 	public tick() {
@@ -184,12 +237,12 @@ export class AppleVideo implements Video {
 		}
 
 		if (isText) {
-			if (is80Col) this.renderText80(0, TEXT_ROWS, isPage2);
+			if (is80Col) this.renderText80(0, TEXT_ROWS);
 			else this.renderText40(0, TEXT_ROWS, isPage2);
 		} else if (isHgr) {
 			this.renderHgr(0, isMixed ? HGR_MIXED_LINES : HGR_LINES, isPage2);
 			if (isMixed) {
-				if (is80Col) this.renderText80(20, 24, isPage2);
+				if (is80Col) this.renderText80(20, 24);
 				else this.renderText40(20, 24, isPage2);
 			}
 		}
@@ -203,9 +256,22 @@ export class AppleVideo implements Video {
 			const src32 = new Uint32Array(imageData.data.buffer);
 			const srcWidth = this.offscreenCanvas.width;
 
-			const tbColor = this.bus.read(SoftSwitches.TBCOLOR);
-			const bgColorIndex = tbColor & 0x0f;
-			const fgColorIndex = (tbColor >> 4) & 0x0f;
+			const useThresholding = this.overrides.textRenderer === "FONT";
+			const colorCache = useThresholding ? null : new Map<number, number>();
+
+			// When using font rendering, we combat anti-aliasing by snapping each pixel
+			// to either the intended foreground, text background, or global background color.
+			const textBgColor = this.overrides.backgroundColor ?? "#000000";
+			const fgColor = "#FFFFFF";
+			const globalBgColor = "#000000";
+
+			const textBgRgb = this.hexToRgb(textBgColor);
+			const fgRgb = this.hexToRgb(fgColor);
+			const globalBgRgb = this.hexToRgb(globalBgColor);
+
+			const textBgIndex = this.findNearestColor(textBgRgb[0], textBgRgb[1], textBgRgb[2]);
+			const fgIndex = this.findNearestColor(fgRgb[0], fgRgb[1], fgRgb[2]);
+			const globalBgIndex = this.findNearestColor(globalBgRgb[0], globalBgRgb[1], globalBgRgb[2]);
 
 			let startY = 0;
 			if (isMixed && !isText) {
@@ -225,10 +291,50 @@ export class AppleVideo implements Video {
 				for (let x = 0; x < this.targetWidth; x++) {
 					// Simple nearest neighbor for X (assuming width matches for now, but safe to scale)
 					// If targetWidth == srcWidth (560), this maps 1:1
-					const val = src32[srcRowOffset + x] ?? 0;
-					const brightness = val & 0xff;
+					const pixel = src32[srcRowOffset + x] ?? 0;
+					// const key = pixel & 0x00ffffff;
 
-					dest[destRowOffset + x] = brightness > 128 ? fgColorIndex : bgColorIndex;
+					// let colorIndex = colorCache.get(key);
+					// if (colorIndex === undefined) {
+					// 	const r = pixel & 0xff;
+					// 	const g = (pixel >> 8) & 0xff;
+					// 	const b = (pixel >> 16) & 0xff;
+					// 	colorIndex = this.findNearestColor(r, g, b);
+					// 	colorCache.set(key, colorIndex);
+					// }
+
+					let colorIndex: number;
+
+					if (useThresholding) {
+						const r = pixel & 0xff;
+						const g = (pixel >> 8) & 0xff;
+						const b = (pixel >> 16) & 0xff;
+
+						// Calculate squared distance to global background, text background, and foreground
+						const distToGlobalBg = (r - globalBgRgb[0]) ** 2 + (g - globalBgRgb[1]) ** 2 + (b - globalBgRgb[2]) ** 2;
+						const distToTextBg = (r - textBgRgb[0]) ** 2 + (g - textBgRgb[1]) ** 2 + (b - textBgRgb[2]) ** 2;
+						const distToFg = (r - fgRgb[0]) ** 2 + (g - fgRgb[1]) ** 2 + (b - fgRgb[2]) ** 2;
+
+						if (distToFg <= distToTextBg && distToFg <= distToGlobalBg) {
+							colorIndex = fgIndex;
+						} else if (distToTextBg <= distToGlobalBg) {
+							colorIndex = textBgIndex;
+						} else {
+							colorIndex = globalBgIndex;
+						}
+					} else {
+						const key = pixel & 0x00ffffff;
+						colorIndex = colorCache!.get(key);
+						if (colorIndex === undefined) {
+							const r = pixel & 0xff;
+							const g = (pixel >> 8) & 0xff;
+							const b = (pixel >> 16) & 0xff;
+							colorIndex = this.findNearestColor(r, g, b);
+							colorCache!.set(key, colorIndex);
+						}
+					}
+
+					dest[destRowOffset + x] = colorIndex;
 				}
 			}
 		}
@@ -459,6 +565,8 @@ export class AppleVideo implements Video {
 	}
 
 	private renderText40(startRow = 0, endRow = TEXT_ROWS, isPage2 = false) {
+		if (this.overrides.textRenderer === "FONT") return this.renderText40WithFont(startRow, endRow, isPage2);
+
 		const pageOffset = isPage2 ? 0x400 : 0;
 		for (let y = startRow; y < endRow; y++) {
 			const lineBase = (textScreenLineOffsets[y] ?? 0) + pageOffset;
@@ -473,11 +581,12 @@ export class AppleVideo implements Video {
 		}
 	}
 
-	private renderText80(startRow = 0, endRow = TEXT_ROWS, isPage2 = false) {
-		const pageOffset = isPage2 ? 0x400 : 0;
+	private renderText80(startRow = 0, endRow = TEXT_ROWS) {
+		if (this.overrides.textRenderer === "FONT") return this.renderText80WithFont(startRow, endRow);
+
 		const charWidth80 = this.charWidth / 2;
 		for (let y = startRow; y < endRow; y++) {
-			const lineBase = (textScreenLineOffsets[y] ?? 0) + pageOffset;
+			const lineBase = textScreenLineOffsets[y] ?? 0;
 			for (let x = 0; x < TEXT_COLS; x++) {
 				const drawY = SCREEN_MARGIN_Y + y * this.charHeight;
 
@@ -492,6 +601,126 @@ export class AppleVideo implements Video {
 				this.drawChar(mainVal, drawXMain, drawY, charWidth80, true);
 			}
 		}
+	}
+
+	private appleCharCodeToUnicode(charCode: number): string {
+		// let charCode = asciiCode;
+		if (charCode <= 0x1f) charCode += 0xe140;
+		else if (charCode <= 0x3f) charCode += 0xe100;
+		else if (charCode <= 0x5f) charCode += 0xe100;
+		else if (charCode <= 0x7f)
+			charCode += 0xe0c0; // $60-$7F -> $E120-$E13F
+		else if (charCode >= 0xa0) charCode -= 0x80;
+
+		return String.fromCharCode(charCode);
+	}
+
+	private renderText40WithFont(startRow = 0, endRow = TEXT_ROWS, isPage2 = false) {
+		const charHeight = 16;
+		const charWidth = 12;
+
+		this.ctx.font = `${charHeight}px PrintChar21`;
+		this.ctx.textBaseline = "top";
+		this.ctx.textAlign = "left";
+
+		const textBlockWidth = TEXT_COLS * charWidth;
+		const textBlockHeight = TEXT_ROWS * charHeight;
+
+		// Use separate scaling for X and Y to correct aspect ratio.
+		// We limit vertical scale to match 80-column mode (based on 560px width)
+		// while stretching horizontal to fill the screen.
+		const referenceWidth = 560;
+		const scaleY = Math.min(NATIVE_WIDTH / referenceWidth, NATIVE_HEIGHT / textBlockHeight);
+		const scaleX = NATIVE_WIDTH / textBlockWidth;
+
+		const scaledWidth = textBlockWidth * scaleX;
+		const scaledHeight = textBlockHeight * scaleY;
+		const offsetX = SCREEN_MARGIN_X + (NATIVE_WIDTH - scaledWidth) / 2;
+		const offsetY = SCREEN_MARGIN_Y + (NATIVE_HEIGHT - scaledHeight) / 2;
+
+		this.ctx.save();
+		this.ctx.translate(offsetX, offsetY);
+		this.ctx.scale(scaleX, scaleY);
+
+		const pageOffset = isPage2 ? 0x400 : 0;
+		const bgColor = this.overrides.backgroundColor;
+		const drawBg = bgColor && bgColor !== "#000000";
+
+		for (let y = startRow; y < endRow; y++) {
+			const lineBase = (textScreenLineOffsets[y] ?? 0) + pageOffset;
+			const drawY = y * charHeight;
+			for (let x = 0; x < TEXT_COLS; x++) {
+				const charCode = this.bus.readRaw?.(lineBase + x) ?? 0;
+				const drawX = x * charWidth;
+
+				if (drawBg) {
+					this.ctx.fillStyle = bgColor as string;
+					this.ctx.fillRect(drawX, drawY, charWidth, charHeight);
+				}
+
+				if (charCode === 0xa0) continue;
+
+				const char = this.appleCharCodeToUnicode(charCode);
+				this.ctx.fillStyle = "white";
+				this.ctx.fillText(char, drawX, drawY);
+			}
+		}
+		this.ctx.restore();
+	}
+
+	private renderText80WithFont(startRow = 0, endRow = TEXT_ROWS) {
+		const charHeight = this.overrides.textHeight ?? 16;
+		const charWidth = this.overrides.textWidth ?? 7;
+
+		this.ctx.font = `${charHeight}px PRNumber3`;
+		this.ctx.textBaseline = "top";
+		this.ctx.textAlign = "left";
+
+		const textBlockWidth = TEXT_COLS * 2 * charWidth;
+		const textBlockHeight = TEXT_ROWS * charHeight;
+		const scale = Math.min(NATIVE_WIDTH / textBlockWidth, NATIVE_HEIGHT / textBlockHeight);
+		const scaledWidth = textBlockWidth * scale;
+		const scaledHeight = textBlockHeight * scale;
+		const offsetX = SCREEN_MARGIN_X + (NATIVE_WIDTH - scaledWidth) / 2;
+		const offsetY = SCREEN_MARGIN_Y + (NATIVE_HEIGHT - scaledHeight) / 2;
+
+		this.ctx.save();
+		this.ctx.translate(offsetX, offsetY);
+		this.ctx.scale(scale, scale);
+
+		const bgColor = this.overrides.backgroundColor;
+		const drawBg = bgColor && bgColor !== "#000000";
+
+		for (let y = startRow; y < endRow; y++) {
+			const lineBase = textScreenLineOffsets[y] ?? 0;
+			const drawY = y * charHeight;
+
+			for (let x = 0; x < TEXT_COLS; x++) {
+				const evenCharX = x * 2 * charWidth;
+				const oddCharX = evenCharX + charWidth;
+
+				if (drawBg) {
+					this.ctx.fillStyle = bgColor as string;
+					this.ctx.fillRect(evenCharX, drawY, charWidth * 2, charHeight);
+				}
+				this.ctx.fillStyle = "white";
+
+				// Aux char (Even column)
+				const auxVal = this.bus.readRaw?.(AUX_BANK_OFFSET + lineBase + x) ?? 0;
+				if (auxVal !== 0xa0) {
+					const auxChar = this.appleCharCodeToUnicode(auxVal);
+					this.ctx.fillText(auxChar, evenCharX, drawY);
+				}
+
+				// Main char (Odd column)
+				const mainVal = this.bus.readRaw?.(lineBase + x) ?? 0;
+				if (mainVal !== 0xa0) {
+					const mainChar = this.appleCharCodeToUnicode(mainVal);
+					this.ctx.fillText(mainChar, oddCharX, drawY);
+				}
+			}
+		}
+		this.ctx.restore();
 	}
 
 	public reset() {

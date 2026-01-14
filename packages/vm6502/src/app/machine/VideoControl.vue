@@ -25,6 +25,15 @@
 						>
 							<option v-for="option in opt.options" :key="option.value" :value="option.value">{{ option.label }}</option>
 						</select>
+						<input
+							v-if="opt.type === 'number'"
+							type="number"
+							:id="opt.id"
+							:min="opt.min"
+							:max="opt.max"
+							v-model.number="debugOverrides[opt.id]"
+							class="bg-gray-700 text-yellow-300 font-mono text-xs rounded-md px-2 py-0.5 border border-gray-600 focus:ring-2 focus:ring-cyan-500 outline-none ml-2 w-20"
+						/>
 					</div>
 				</div>
 			</PopoverContent>
@@ -42,7 +51,7 @@
 import { Monitor } from "lucide-vue-next";
 import { computed, inject, type Ref, ref, watch } from "vue";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import type { DebugOption } from "@/virtualmachine/cpu/bus.interface";
+import type { DebugOption } from "@/types/machine.interface";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 
 const vm = inject<Ref<VirtualMachine>>("vm");
@@ -63,10 +72,14 @@ watch(() => vm?.value, async (newVm) => {
 		// Initialize defaults
 		const defaults: Record<string, unknown> = {};
 		videoOptions.value.forEach((opt) => {
-			if (opt.type === "select" && opt.options?.length) {
+			if (opt.defaultValue !== undefined) {
+				defaults[opt.id] = opt.defaultValue;
+			} else if (opt.type === "select" && opt.options?.length) {
 				defaults[opt.id] = opt.options[0]?.value;
-			} else {
+			} else if (opt.type === "boolean") {
 				defaults[opt.id] = false;
+			} else if (opt.type === "number") {
+				defaults[opt.id] = undefined;
 			}
 		});
 		debugOverrides.value = defaults;

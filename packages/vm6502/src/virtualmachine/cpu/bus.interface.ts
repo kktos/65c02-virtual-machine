@@ -1,10 +1,4 @@
-export interface DebugOption {
-	id: string;
-	label: string;
-	type: "boolean" | "select";
-	category?: string;
-	options?: { label: string; value: string }[];
-}
+import type { DebugOption } from "@/types/machine.interface";
 
 export interface MachineStateSpec {
 	id: string;

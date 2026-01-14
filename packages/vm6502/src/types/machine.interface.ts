@@ -1,4 +1,13 @@
-import type { DebugOption } from "@/virtualmachine/cpu/bus.interface";
+export interface DebugOption {
+	id: string;
+	label: string;
+	type: "boolean" | "select" | "number";
+	category?: string;
+	options?: { label: string; value: string }[];
+	min?: number;
+	max?: number;
+	defaultValue?: unknown;
+}
 
 export interface MemoryChunk {
 	bank?: number; // Optional for single-bank machines

@@ -1,5 +1,5 @@
-import type { MachineConfig } from "@/types/machine.interface";
-import type { DebugOption, IBus, MachineStateSpec } from "@/virtualmachine/cpu/bus.interface";
+import type { DebugOption, MachineConfig } from "@/types/machine.interface";
+import type { IBus, MachineStateSpec } from "@/virtualmachine/cpu/bus.interface";
 import {
 	FLAG_B_MASK,
 	FLAG_C_MASK,

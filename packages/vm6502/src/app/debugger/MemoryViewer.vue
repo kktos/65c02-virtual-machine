@@ -141,14 +141,15 @@
 </template>
 
 <script lang="ts" setup>
+	/** biome-ignore-all lint/correctness/noUnusedVariables: vue */
+
 	import { Check, ChevronsUpDown, Settings2 } from "lucide-vue-next";
 import { computed, inject, nextTick, onMounted, onUnmounted, type Ref, ref, watch } from "vue";
-	/** biome-ignore-all lint/correctness/noUnusedVariables: vue */
-	import { Button } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useDebuggerNav } from "@/composables/useDebuggerNav";
-import type { DebugOption } from "@/virtualmachine/cpu/bus.interface";
+import type { DebugOption } from "@/types/machine.interface";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 
 	const vm= inject<Ref<VirtualMachine>>("vm");
