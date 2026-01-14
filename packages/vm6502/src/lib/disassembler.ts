@@ -1,14 +1,15 @@
 import type { DisassemblyLine } from "@/types/disassemblyline.interface";
+import type { EmulatorState } from "@/types/emulatorstate.interface";
 import { opcodeMap } from "./opcodes";
 
 const toHex = (v: number | undefined, pad: number) => (v ?? 0).toString(16).toUpperCase().padStart(pad, "0");
 
-export const disassemble = (
+export function disassemble(
 	memory: Uint8Array,
 	fromAddress: number,
 	lineCount: number,
-	registers?: any,
-): DisassemblyLine[] => {
+	registers?: EmulatorState["registers"],
+): DisassemblyLine[] {
 	const disassembly: DisassemblyLine[] = [];
 	if (!memory || memory.length === 0) return disassembly;
 
@@ -25,7 +26,7 @@ export const disassemble = (
 				address,
 				opcode: "???",
 				rawBytes: toHex(opcodeByte, 2),
-				comment: `Unknown opcode`,
+				comment: "",
 				cycles: 1,
 			});
 			pc++;
@@ -35,10 +36,11 @@ export const disassemble = (
 		const { name, bytes, cycles, mode } = opcodeInfo;
 		const line: DisassemblyLine = { address, opcode: name, rawBytes: "", comment: "", cycles };
 
-		const operandBytes: number[] = [];
-		for (let i = 1; i < bytes; i++) operandBytes.push(memory[pc + i] ?? 0); // These reads are now guaranteed to be within bounds
+		const operandBytes: [number, number] = [memory[pc + 1] ?? 0, memory[pc + 2] ?? 0] as const;
+		// for (let i = 1; i < bytes; i++) operandBytes.push(memory[pc + i] ?? 0); // These reads are now guaranteed to be within bounds
 
-		const allBytes = [opcodeByte, ...operandBytes];
+		const actualOperands = operandBytes.slice(0, bytes - 1);
+		const allBytes = [opcodeByte, ...actualOperands];
 		line.rawBytes = allBytes.map((b) => toHex(b, 2)).join(" ");
 
 		let effectiveAddress: number | null = null;
@@ -152,4 +154,4 @@ export const disassemble = (
 	}
 
 	return disassembly;
-};
+}
