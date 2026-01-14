@@ -56,6 +56,7 @@ export class VirtualMachine {
 
 	private keyHandler = this.handleKeyDown.bind(this);
 	private keyUpHandler = this.handleKeyUp.bind(this);
+	private pasteHandler = this.handlePaste.bind(this);
 
 	constructor(machineConfig: MachineConfig) {
 		this.machineConfig = machineConfig;
@@ -198,6 +199,7 @@ export class VirtualMachine {
 		// Attach keyboard listener
 		window.addEventListener("keydown", this.keyHandler);
 		window.addEventListener("keyup", this.keyUpHandler);
+		window.addEventListener("paste", this.pasteHandler);
 
 		this.isRendering = true;
 		this.renderFrame();
@@ -244,6 +246,33 @@ export class VirtualMachine {
 		if (target && (kbdElements.has(target.tagName) || target.isContentEditable)) return;
 
 		this.worker.postMessage({ command: "keyup", key: event.key, code: event.code });
+	}
+
+	private handlePaste(event: ClipboardEvent) {
+		const target = event.target as HTMLElement;
+		if (target && (kbdElements.has(target.tagName) || target.isContentEditable)) return;
+
+		const text = event.clipboardData?.getData("text");
+		if (text) {
+			event.preventDefault();
+			this.typeText(text);
+		}
+	}
+
+	public async typeText(text: string) {
+		const normalized = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+		for (const char of normalized) {
+			if (!this.isRendering) break;
+			let key = char;
+			if (char === "\n") {
+				key = "Enter";
+			}
+
+			this.worker.postMessage({ command: "keydown", key });
+			await new Promise((resolve) => setTimeout(resolve, 5));
+			this.worker.postMessage({ command: "keyup", key });
+			await new Promise((resolve) => setTimeout(resolve, 5));
+		}
 	}
 
 	public syncBusState() {
@@ -412,6 +441,7 @@ export class VirtualMachine {
 		this.worker.terminate();
 		window.removeEventListener("keydown", this.keyHandler);
 		window.removeEventListener("keyup", this.keyUpHandler);
+		window.removeEventListener("paste", this.pasteHandler);
 		console.log("VM: Worker terminated.");
 	}
 }
