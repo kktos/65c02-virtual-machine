@@ -2,9 +2,15 @@
 	<div class="p-4 bg-gray-800 rounded-lg shadow-xl h-full flex flex-col" ref="scrollContainer">
 		<!-- Header combining title, count, and action button -->
 		<div class="flex justify-between items-center mb-3 border-b border-gray-700/50 pb-2 shrink-0">
-			<h2 class="text-sm font-semibold text-cyan-400 uppercase tracking-wider">
-				Disassembly
-			</h2>
+			<!-- History Navigation -->
+			<ButtonGroup>
+				<Button @click="navigateBack" :disabled="!canNavigateBack" size="sm" class="hover:bg-gray-600 disabled:opacity-50" title="Go back in jump history">
+					Back
+				</Button>
+				<Button @click="navigateForward" :disabled="!canNavigateForward" size="sm" class="hover:bg-gray-600 disabled:opacity-50" title="Go forward in jump history">
+					Fwd
+				</Button>
+			</ButtonGroup>
 
 			<div class="flex items-center space-x-2 mx-4">
 				<div class="relative group">
@@ -91,7 +97,11 @@
 						<td class="py-0.5 tabular-nums text-gray-400">
 							{{ line.rawBytes }}
 						</td>
-						<td class="py-0.5 text-left flex items-center">
+						<td
+							class="py-0.5 text-left flex items-center"
+							:class="{ 'cursor-pointer': isOpcodeClickable(line) }"
+							:title="getOpcodeTitle(line)"
+							@click.ctrl.prevent="handleOpcodeClick(line)">
 							<span>{{ getLabeledInstruction(line.opcode).labeledOpcode }}</span>
 							<span v-if="line.address === address && getBranchPrediction(line.opcode)"
 								:class="['ml-2', getBranchPrediction(line.opcode)?.color]"
@@ -137,12 +147,66 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 
 	const { pcBreakpoints, toggleBreakpoint } = useBreakpoints();
 	const { jumpEvent } = useDisassembly();
-	const { setMemoryViewAddress, setActiveTab } = useDebuggerNav();
+	const { setMemoryViewAddress, setActiveTab, addJumpHistory, historyNavigationEvent,navigateHistory, jumpHistory, historyIndex } = useDebuggerNav();
 
 	const handleAddressClick = (address: number) => {
 		setMemoryViewAddress(address);
 		setActiveTab('memory');
 	};
+
+	const getEffectiveAddress = (line: DisassemblyLine): number | null => {
+		const operand = line.opcode.split(' ').slice(1).join(' ');
+		if (!operand) return null;
+
+		// Regex for different addressing modes
+		const indirectX = operand.match(/\(\$([0-9A-F]{2}),X\)/i);
+		if (indirectX && vm?.value) {
+			const zpAddr = parseInt(indirectX[1], 16);
+			const pointerAddr = (zpAddr + registers.X) & 0xFF;
+			const lo = vm.value.readDebug(pointerAddr);
+			const hi = vm.value.readDebug((pointerAddr + 1) & 0xFF);
+			return (hi << 8) | lo;
+		}
+
+		const indirectY = operand.match(/\(\$([0-9A-F]{2})\),Y/i);
+		if (indirectY && vm?.value) {
+			const zpAddr = parseInt(indirectY[1], 16);
+			const lo = vm.value.readDebug(zpAddr);
+			const hi = vm.value.readDebug((zpAddr + 1) & 0xFF);
+			const baseAddr = (hi << 8) | lo;
+			return (baseAddr + registers.Y) & 0xFFFF;
+		}
+
+		const absoluteIndexed = operand.match(/\$([0-9A-F]{4}),([XY])/i);
+		if (absoluteIndexed) {
+			const base = parseInt(absoluteIndexed[1], 16);
+			const indexReg = absoluteIndexed[2].toUpperCase() as 'X' | 'Y';
+			const offset = registers[indexReg];
+			return (base + offset) & 0xFFFF;
+		}
+
+		const zpIndexed = operand.match(/\$([0-9A-F]{2}),([XY])/i);
+		if (zpIndexed) {
+			const base = parseInt(zpIndexed[1], 16);
+			const indexReg = zpIndexed[2].toUpperCase() as 'X' | 'Y';
+			const offset = registers[indexReg];
+			return (base + offset) & 0xFF;
+		}
+
+		const absolute = operand.match(/\$([0-9A-F]{2,4})/);
+		if (absolute) {
+			return parseInt(absolute[1], 16);
+		}
+
+		return null;
+	}
+
+	watch(historyNavigationEvent, (event) => {
+		if (event) {
+			isFollowingPc.value = false;
+			disassemblyStartAddress.value = event.address;
+		}
+	});
 
 	const onToggleBreakpoint = (address: number) => {
 		toggleBreakpoint({ type: 'pc', address }, vm?.value);
@@ -339,6 +403,57 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 		}
 	});
 
+	const isOpcodeClickable = (line: DisassemblyLine) => {
+		const mnemonic = line.opcode.substring(0, 3);
+		const isPcAffecting = ['JMP', 'JSR', 'BCC', 'BCS', 'BEQ', 'BMI', 'BNE', 'BPL', 'BVC', 'BVS'].includes(mnemonic);
+		if (isPcAffecting) return true;
+
+		const operand = line.opcode.split(' ')[1] || '';
+		return operand.includes('$'); // Simple check for an address operand
+	};
+
+	const getOpcodeTitle = (line: DisassemblyLine) => {
+		if (!isOpcodeClickable(line)) return '';
+		const mnemonic = line.opcode.substring(0, 3);
+		const isPcAffecting = ['JMP', 'JSR', 'BCC', 'BCS', 'BEQ', 'BMI', 'BNE', 'BPL', 'BVC', 'BVS'].includes(mnemonic);
+		if (isPcAffecting) return 'CTRL+Click to follow jump/branch';
+		return 'CTRL+Click to view effective address in Memory Viewer';
+	};
+
+	const handleOpcodeClick = (line: DisassemblyLine) => {
+		const mnemonic = line.opcode.substring(0, 3);
+		const operandStr = line.opcode.substring(4);
+
+		const isPcAffecting = ['JMP', 'JSR', 'BCC', 'BCS', 'BEQ', 'BMI', 'BNE', 'BPL', 'BVC', 'BVS'].includes(mnemonic);
+
+		if (isPcAffecting) {
+			const targetMatch = operandStr.match(/\$([0-9A-F]+)/);
+			if (targetMatch) {
+				const targetAddr = parseInt(targetMatch[1], 16);
+				if (!Number.isNaN(targetAddr)) {
+					addJumpHistory(disassemblyStartAddress.value);
+					isFollowingPc.value = false;
+					const currentBank = line.address & 0xFF0000;
+					disassemblyStartAddress.value = currentBank | targetAddr;
+				}
+			}
+		} else {
+			const effectiveAddress = getEffectiveAddress(line);
+			if (effectiveAddress !== null) {
+				// Note: Data banking logic is complex. This is a simplified guess.
+				// For now, we'll navigate to the address in the currently selected memory bank.
+				// A more robust solution would require the VM to expose data banking state.
+				const state = busState.value;
+				let bank = 0;
+				if (state?.altZp && effectiveAddress < 0x0200) bank = 0x01;
+				else if (state?.ramRdAux && effectiveAddress >= 0x0200 && effectiveAddress < 0xC000) bank = 0x01;
+
+				setMemoryViewAddress((bank << 16) | effectiveAddress);
+				setActiveTab('memory');
+			}
+		}
+	};
+
 	const getBranchPrediction = (opcode: string) => {
 		// Defensive check for props.registers (already added in last iteration, keeping it)
 		if (!registers) return null;
@@ -385,4 +500,10 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 
 		await handleExplainCode(codeBlock, explanation, isLoading);
 	};
+
+	const canNavigateBack = computed(() => historyIndex.value > 0);
+	const canNavigateForward = computed(() => historyIndex.value < jumpHistory.value.length - 1);
+	const navigateBack = () => navigateHistory('back');
+	const navigateForward = () => navigateHistory('forward');
+
 </script>
