@@ -81,7 +81,11 @@
 									:class="getBreakpointClass(line.address)"></span>
 							</button>
 						</td>
-						<td class="py-0.5 px-2 tabular-nums text-indigo-300 font-mono">
+						<td
+							class="py-0.5 px-2 tabular-nums text-indigo-300 font-mono cursor-pointer"
+							title="CTRL+Click to view in Memory Viewer"
+							@click.ctrl.prevent="handleAddressClick(line.address)"
+						>
 							{{ formatAddress(line.address) }}
 						</td>
 						<td class="py-0.5 tabular-nums text-gray-400">
@@ -113,6 +117,7 @@
 
 import { computed, inject, onMounted, onUnmounted, type Ref, ref, watch } from "vue";
 import { useBreakpoints } from "@/composables/useBreakpoints";
+import { useDebuggerNav } from "@/composables/useDebuggerNav";
 import { useDisassembly } from "@/composables/useDisassembly";
 import { useLabeling } from "@/composables/useLabeling";
 import { disassemble } from "@/lib/disassembler";
@@ -132,6 +137,12 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 
 	const { pcBreakpoints, toggleBreakpoint } = useBreakpoints();
 	const { jumpEvent } = useDisassembly();
+	const { setMemoryViewAddress, setActiveTab } = useDebuggerNav();
+
+	const handleAddressClick = (address: number) => {
+		setMemoryViewAddress(address);
+		setActiveTab('memory');
+	};
 
 	const onToggleBreakpoint = (address: number) => {
 		toggleBreakpoint({ type: 'pc', address }, vm?.value);

@@ -70,7 +70,7 @@
 		    <ResizableHandle />
 
 			<ResizablePanel>
-					<TogglableDisplay id="disasm-mem-view">
+					<TogglableDisplay id="disasm-mem-view" v-model:activeTab="activeDebuggerTab">
 						<template #tab1-title>
 								Disassembly
 						</template>
@@ -103,17 +103,18 @@ import ResizableHandle from '../components/ui/resizable/ResizableHandle.vue';
 import ResizablePanel from '../components/ui/resizable/ResizablePanel.vue';
 import ResizablePanelGroup from '../components/ui/resizable/ResizablePanelGroup.vue';
 import { useBreakpoints } from "../composables/useBreakpoints";
+import { useDebuggerNav } from "../composables/useDebuggerNav";
 import { availableMachines } from "../machines";
 import type { EmulatorState } from "../types/emulatorstate.interface";
 import type { MachineConfig } from "../types/machine.interface";
 import {
-	FLAG_B_MASK,
-	FLAG_C_MASK,
-	FLAG_D_MASK,
-	FLAG_I_MASK,
-	FLAG_N_MASK,
-	FLAG_V_MASK,
-	FLAG_Z_MASK, REG_A_OFFSET, REG_PC_OFFSET, REG_SP_OFFSET, REG_STATUS_OFFSET, REG_X_OFFSET, REG_Y_OFFSET
+    FLAG_B_MASK,
+    FLAG_C_MASK,
+    FLAG_D_MASK,
+    FLAG_I_MASK,
+    FLAG_N_MASK,
+    FLAG_V_MASK,
+    FLAG_Z_MASK, REG_A_OFFSET, REG_PC_OFFSET, REG_SP_OFFSET, REG_STATUS_OFFSET, REG_X_OFFSET, REG_Y_OFFSET
 } from '../virtualmachine/cpu/shared-memory';
 import { VirtualMachine } from "../virtualmachine/virtualmachine.class";
 import BreakpointsList from './debugger/BreakpointsList.vue';
@@ -138,6 +139,8 @@ import VideoControl from "./machine/VideoControl.vue";
 	const vm = ref<VirtualMachine | null>(null);
 	const videoCanvas = ref<HTMLCanvasElement | null>(null);
 	const selectedMachine = ref<MachineConfig>(availableMachines[1] as MachineConfig);
+
+	const { activeTab: activeDebuggerTab } = useDebuggerNav();
 
 	provide('vm', vm);
 	const { loadBreakpoints } = useBreakpoints();

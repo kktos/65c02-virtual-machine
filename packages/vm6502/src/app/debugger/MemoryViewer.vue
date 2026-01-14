@@ -147,6 +147,7 @@ import { computed, inject, nextTick, onMounted, onUnmounted, type Ref, ref, watc
 	import { Button } from "@/components/ui/button";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { useDebuggerNav } from "@/composables/useDebuggerNav";
 import type { DebugOption } from "@/virtualmachine/cpu/bus.interface";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 
@@ -160,6 +161,13 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 	const containerHeight = ref(0);
 	const ROW_HEIGHT_ESTIMATE = 22; // Estimated height of a row in pixels
 	let resizeObserver: ResizeObserver | null = null;
+
+	const { memoryViewAddress } = useDebuggerNav();
+	watch(memoryViewAddress, (newAddress) => {
+		if (newAddress !== null) {
+			startAddress.value = newAddress;
+		}
+	});
 
 	const visibleRowCount = computed(() => {
 		if (containerHeight.value === 0) return 10; // Default before mounted
