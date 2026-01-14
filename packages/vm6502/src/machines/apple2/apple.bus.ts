@@ -104,7 +104,9 @@ export class AppleBus implements IBus {
 
 		// Install SmartPort Card in Slot 5
 		const slot5Rom = this.slotRoms.subarray(0x400, 0x500);
-		this.installCard(5, new SmartPortCard(5, slot5Rom));
+		this.installCard(new SmartPortCard(5, slot5Rom));
+
+		// this.installCard(new MockingboardCard(4));
 
 		const handlers = installSoftSwitches(this);
 		this.readHandlers = handlers.readHandlers;
@@ -115,19 +117,35 @@ export class AppleBus implements IBus {
 
 	public tick(deltaCycles: number): void {
 		if (deltaCycles > 0) {
-			const audioChunk = this.speaker.tick(deltaCycles);
-			if (audioChunk) {
-				self.postMessage({ type: "audio", buffer: audioChunk }, [audioChunk.buffer]);
+			const audioChunks = this.speaker.tick(deltaCycles);
+
+			for (const chunk of audioChunks) {
+				// self.postMessage({ type: "audio", buffer: chunk }, [chunk.buffer]);
+				self.postMessage({ type: "audio", buffer: chunk });
+			}
+
+			// Tick slots (Mockingboard, etc)
+			for (let i = 0; i < 8; i++) {
+				const slot = this.slots[i];
+				if (slot?.tick) {
+					const chunks = slot.tick(deltaCycles);
+					for (const chunk of chunks) {
+						// self.postMessage({ type: "audio", buffer: chunk }, [chunk.buffer]);
+						self.postMessage({ type: "audio", buffer: chunk });
+					}
+				}
 			}
 		}
 	}
 
-	public installCard(slot: number, card: ISlotCard) {
-		if (slot >= 1 && slot <= 7) {
-			this.slots[slot] = card;
-			if (this.registers && card.setRegisters) card.setRegisters(this.registers);
-			if (card.setBus) card.setBus(this);
+	public installCard(card: ISlotCard) {
+		if (this.slots[card.slot]) {
+			console.error(`Slot ${card.slot} already installed !`);
+			return;
 		}
+		this.slots[card.slot] = card;
+		if (this.registers && card.setRegisters) card.setRegisters(this.registers);
+		if (card.setBus) card.setBus(this);
 	}
 
 	public initAudio(port: MessagePort | null, sampleRate: number): void {
@@ -338,8 +356,34 @@ export class AppleBus implements IBus {
 			return;
 		}
 
-		// Protect ROM area ($C100-$CFFF) from writes
-		if (address >= 0xc100 && address <= 0xcfff) return;
+		// Slot ROMs / Internal ROM ($C100-$CFFF)
+		if (address >= 0xc100 && address <= 0xcfff) {
+			if (address === 0xcfff) {
+				this.intC8Rom = false;
+				this.activeExpansionSlot = 0;
+			}
+
+			if (this.intCxRom) return;
+
+			// Handle Expansion ROM ($C800-$CFFF)
+			if (address >= 0xc800) {
+				if (this.intC8Rom) return;
+				if (this.activeExpansionSlot > 0 && this.slots[this.activeExpansionSlot]) {
+					this.slots[this.activeExpansionSlot]?.writeExpansion?.(address - 0xc800, value);
+				}
+				return;
+			}
+
+			// Handle Slot ROMs ($C100-$C7FF)
+			const slot = (address >> 8) & 0x0f;
+			if (slot === 3 && !this.slotC3Rom) return;
+
+			if (this.slots[slot]) {
+				this.activeExpansionSlot = slot;
+				this.slots[slot]?.writeRom?.(address & 0xff, value);
+			}
+			return;
+		}
 
 		if (address >= 0xd000) {
 			if (this.lcWriteRam) {
@@ -411,8 +455,6 @@ export class AppleBus implements IBus {
 			this.pb1 = false;
 		}
 	}
-
-
 
 	readDebug(address: number, overrides?: Record<string, unknown>): number {
 		if (address > 0xffff) return this.memory[RAM_OFFSET + address] ?? 0;
