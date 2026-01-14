@@ -162,7 +162,7 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 		if (!operand) return null;
 
 		// Regex for different addressing modes
-		const indirectX = operand.match(/\(\$([0-9A-F]{2}),X\)/i);
+		const indirectX = operand.match(/\(\$([0-9A-F]{2}),X\)/i) as [string, string] | null;
 		if (indirectX && vm?.value) {
 			const zpAddr = parseInt(indirectX[1], 16);
 			const pointerAddr = (zpAddr + registers.X) & 0xFF;
@@ -171,7 +171,7 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 			return (hi << 8) | lo;
 		}
 
-		const indirectY = operand.match(/\(\$([0-9A-F]{2})\),Y/i);
+		const indirectY = operand.match(/\(\$([0-9A-F]{2})\),Y/i) as [string, string] | null;
 		if (indirectY && vm?.value) {
 			const zpAddr = parseInt(indirectY[1], 16);
 			const lo = vm.value.readDebug(zpAddr);
@@ -180,7 +180,7 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 			return (baseAddr + registers.Y) & 0xFFFF;
 		}
 
-		const absoluteIndexed = operand.match(/\$([0-9A-F]{4}),([XY])/i);
+		const absoluteIndexed = operand.match(/\$([0-9A-F]{4}),([XY])/i) as [string, string, string] | null;
 		if (absoluteIndexed) {
 			const base = parseInt(absoluteIndexed[1], 16);
 			const indexReg = absoluteIndexed[2].toUpperCase() as 'X' | 'Y';
@@ -188,7 +188,7 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 			return (base + offset) & 0xFFFF;
 		}
 
-		const zpIndexed = operand.match(/\$([0-9A-F]{2}),([XY])/i);
+		const zpIndexed = operand.match(/\$([0-9A-F]{2}),([XY])/i) as [string, string, string] | null;
 		if (zpIndexed) {
 			const base = parseInt(zpIndexed[1], 16);
 			const indexReg = zpIndexed[2].toUpperCase() as 'X' | 'Y';
@@ -196,7 +196,7 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 			return (base + offset) & 0xFF;
 		}
 
-		const absolute = operand.match(/\$([0-9A-F]{2,4})/);
+		const absolute = operand.match(/\$([0-9A-F]{2,4})/) as [string, string] | null;
 		if (absolute) {
 			return parseInt(absolute[1], 16);
 		}
@@ -435,7 +435,7 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 		const isPcAffecting = ['JMP', 'JSR', 'BCC', 'BCS', 'BEQ', 'BMI', 'BNE', 'BPL', 'BVC', 'BVS'].includes(mnemonic);
 
 		if (isPcAffecting) {
-			const targetMatch = operandStr.match(/\$([0-9A-F]+)/);
+			const targetMatch = operandStr.match(/\$([0-9A-F]+)/) as [string, string] | null;
 			if (targetMatch) {
 				const targetAddr = parseInt(targetMatch[1], 16);
 				if (!Number.isNaN(targetAddr)) {
