@@ -4,11 +4,11 @@
 		<div class="flex justify-between items-center mb-3 border-b border-gray-700/50 pb-2 shrink-0">
 			<!-- History Navigation -->
 			<ButtonGroup>
-				<Button @click="navigateBack" :disabled="!canNavigateBack" size="sm" class="hover:bg-gray-600 disabled:opacity-50" title="Go back in jump history">
-					Back
+				<Button @click="navigateBack" :disabled="!canNavigateBack" size="sm" class="px-2 hover:bg-gray-600 disabled:opacity-50" title="Go back in jump history">
+					<ArrowLeft class="w-4 h-4" />
 				</Button>
-				<Button @click="navigateForward" :disabled="!canNavigateForward" size="sm" class="hover:bg-gray-600 disabled:opacity-50" title="Go forward in jump history">
-					Fwd
+				<Button @click="navigateForward" :disabled="!canNavigateForward" size="sm" class="px-2 hover:bg-gray-600 disabled:opacity-50" title="Go forward in jump history">
+					<ArrowRight class="w-4 h-4" />
 				</Button>
 			</ButtonGroup>
 
@@ -62,9 +62,9 @@
 			<table v-else class="w-full">
 				<thead>
 					<tr class="text-gray-400 sticky top-0 bg-gray-900 border-b border-gray-700 shadow-md z-10">
-						<th class="py-1 text-center w-8">BP</th>
+						<th class="py-1 text-center w-8"></th>
 						<th class="py-1 text-left px-2 w-24">Addr</th>
-						<th class="py-1 text-left w-20">Raw Bytes</th>
+						<th class="py-1 text-left w-20"></th>
 						<th class="py-1 text-left w-36">Opcode</th>
 						<th class="py-1 text-left flex-grow">Comment</th>
 						<th class="py-1 text-right w-12">Cycles</th>
@@ -125,7 +125,10 @@
 <script lang="ts" setup>
 	/** biome-ignore-all lint/correctness/noUnusedVariables: vue */
 
+import { ArrowLeft, ArrowRight } from "lucide-vue-next";
 import { computed, inject, onMounted, onUnmounted, type Ref, ref, watch } from "vue";
+import { Button } from '@/components/ui/button';
+import { ButtonGroup } from '@/components/ui/button-group';
 import { useBreakpoints } from "@/composables/useBreakpoints";
 import { useDebuggerNav } from "@/composables/useDebuggerNav";
 import { useDisassembly } from "@/composables/useDisassembly";
@@ -343,6 +346,11 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 				return Reflect.get(target, prop);
 			}
 		});
+
+		// Initialize history with the starting address if it's empty
+		if (historyIndex.value === -1) {
+			addJumpHistory(fullPcAddress.value);
+		}
 	});
 
 	onUnmounted(() => resizeObserver?.disconnect());
@@ -431,10 +439,11 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 			if (targetMatch) {
 				const targetAddr = parseInt(targetMatch[1], 16);
 				if (!Number.isNaN(targetAddr)) {
-					addJumpHistory(disassemblyStartAddress.value);
-					isFollowingPc.value = false;
 					const currentBank = line.address & 0xFF0000;
-					disassemblyStartAddress.value = currentBank | targetAddr;
+					const newAddress = currentBank | targetAddr;
+					addJumpHistory(newAddress);
+					isFollowingPc.value = false;
+					disassemblyStartAddress.value = newAddress;
 				}
 			}
 		} else {
