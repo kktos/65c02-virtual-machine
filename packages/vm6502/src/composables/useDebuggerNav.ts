@@ -26,7 +26,7 @@ export function useDebuggerNav() {
 	};
 
 	const navigateHistory = (direction: "back" | "forward") => {
-		let newAddress: number | null = null;
+		let newAddress: number | undefined;
 		if (direction === "back" && historyIndex.value > 0) {
 			historyIndex.value--;
 			newAddress = jumpHistory.value[historyIndex.value];
@@ -35,7 +35,7 @@ export function useDebuggerNav() {
 			historyIndex.value++;
 			newAddress = jumpHistory.value[historyIndex.value];
 		}
-		if (newAddress !== null) {
+		if (newAddress !== undefined) {
 			historyNavigationEvent.value = { address: newAddress, timestamp: Date.now() };
 		}
 	};
