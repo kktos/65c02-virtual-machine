@@ -10,15 +10,15 @@ import {
 import type { ISlotCard } from "./slotcard.interface";
 
 export class SmartPortCard implements ISlotCard {
-	public slot: number;
-
-	private rom: Uint8Array;
 	private expansionRom = new Uint8Array(2048);
-	private bus?: IBus;
 	private registers?: DataView;
 	private diskData: Uint8Array | null = null;
 
-	constructor(slot: number, rom: Uint8Array) {
+	constructor(
+		private bus: IBus,
+		public slot: number,
+		private rom: Uint8Array,
+	) {
 		this.slot = slot;
 		this.rom = rom;
 		this.initRom();
@@ -150,10 +150,6 @@ export class SmartPortCard implements ISlotCard {
 
 	setRegisters(view: DataView) {
 		this.registers = view;
-	}
-
-	setBus(bus: IBus) {
-		this.bus = bus;
 	}
 
 	readRom(offset: number): number {

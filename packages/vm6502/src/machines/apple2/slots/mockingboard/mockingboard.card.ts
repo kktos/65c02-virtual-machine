@@ -1,10 +1,9 @@
+import type { IBus } from "@/virtualmachine/cpu/bus.interface";
 import type { ISlotCard } from "../slotcard.interface";
 import { AY38910 } from "./ay38910";
 import { VIA6522 } from "./via6522";
 
 export class MockingboardCard implements ISlotCard {
-	public slot: number;
-
 	private via1: VIA6522;
 	private via2: VIA6522;
 	private ay1: AY38910;
@@ -14,7 +13,10 @@ export class MockingboardCard implements ISlotCard {
 	private ay1Addr = 0;
 	private ay2Addr = 0;
 
-	constructor(slot: number) {
+	constructor(
+		_bus: IBus,
+		public slot: number,
+	) {
 		this.slot = slot;
 		this.ay1 = new AY38910();
 		this.ay2 = new AY38910();

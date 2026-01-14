@@ -1,5 +1,3 @@
-import type { IBus } from "@/virtualmachine/cpu/bus.interface";
-
 export interface ISlotCard {
 	slot: number;
 
@@ -10,7 +8,6 @@ export interface ISlotCard {
 	readExpansion(offset: number): number;
 	writeExpansion?(offset: number, value: number): void;
 	setRegisters?(view: DataView): void;
-	setBus?(bus: IBus): void;
 	insertMedia?(data: Uint8Array): void;
 	tick?(cycles: number): Float32Array[];
 }

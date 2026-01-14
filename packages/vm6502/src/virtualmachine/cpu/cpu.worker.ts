@@ -141,8 +141,7 @@ self.onmessage = async (event: MessageEvent) => {
 			break;
 		case "initAudio":
 			if (bus && "initAudio" in bus) {
-				// For main thread audio, don't set port
-				(bus as any).initAudio(null, event.data.sampleRate);
+				(bus as any).initAudio(event.data.sampleRate);
 			}
 			break;
 	}

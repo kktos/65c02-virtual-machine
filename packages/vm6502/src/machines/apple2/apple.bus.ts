@@ -86,6 +86,8 @@ export class AppleBus implements IBus {
 	// Speaker State
 	private speaker: Speaker;
 
+	private tickHandlers: ((cycles: number) => void)[] = [];
+
 	// Soft Switch Dispatch Tables (0xC000 - 0xC0FF)
 	private readHandlers: Array<() => number>;
 	private writeHandlers: Array<(val: number) => void>;
@@ -104,7 +106,7 @@ export class AppleBus implements IBus {
 
 		// Install SmartPort Card in Slot 5
 		const slot5Rom = this.slotRoms.subarray(0x400, 0x500);
-		this.installCard(new SmartPortCard(5, slot5Rom));
+		this.installCard(new SmartPortCard(this, 5, slot5Rom));
 
 		// this.installCard(new MockingboardCard(4));
 
@@ -112,29 +114,18 @@ export class AppleBus implements IBus {
 		this.readHandlers = handlers.readHandlers;
 		this.writeHandlers = handlers.writeHandlers;
 
-		this.speaker = new Speaker();
+		this.speaker = new Speaker(this);
+	}
+
+	public registerTickHandler(handler: (cycles: number) => void) {
+		this.tickHandlers.push(handler);
 	}
 
 	public tick(deltaCycles: number): void {
-		if (deltaCycles > 0) {
-			const audioChunks = this.speaker.tick(deltaCycles);
-
-			for (const chunk of audioChunks) {
-				// self.postMessage({ type: "audio", buffer: chunk }, [chunk.buffer]);
-				self.postMessage({ type: "audio", buffer: chunk });
-			}
-
-			// Tick slots (Mockingboard, etc)
-			for (let i = 0; i < 8; i++) {
-				const slot = this.slots[i];
-				if (slot?.tick) {
-					const chunks = slot.tick(deltaCycles);
-					for (const chunk of chunks) {
-						// self.postMessage({ type: "audio", buffer: chunk }, [chunk.buffer]);
-						self.postMessage({ type: "audio", buffer: chunk });
-					}
-				}
-			}
+		if (deltaCycles <= 0) return;
+		for (let index = 0; index < this.tickHandlers.length; index++) {
+			// biome-ignore lint/style/noNonNullAssertion: <if present then always defined>
+			this.tickHandlers[index]!(deltaCycles);
 		}
 	}
 
@@ -145,10 +136,12 @@ export class AppleBus implements IBus {
 		}
 		this.slots[card.slot] = card;
 		if (this.registers && card.setRegisters) card.setRegisters(this.registers);
-		if (card.setBus) card.setBus(this);
+		if (card.tick) {
+			this.registerTickHandler(card.tick.bind(card));
+		}
 	}
 
-	public initAudio(port: MessagePort | null, sampleRate: number): void {
+	public initAudio(sampleRate: number): void {
 		this.speaker.init(sampleRate);
 		console.log("AppleBus audio initialized");
 	}

@@ -1,9 +1,11 @@
+import type { IBus } from "@/virtualmachine/cpu/bus.interface";
+
 const HIGH_LEVEL = 0.25; // Lower volume to avoid clipping
 const LOW_LEVEL = -0.25;
 const CHUNK_SIZE = 512;
 
 export class Speaker {
-	private sampleRate = 44100;
+	// private sampleRate = 44100;
 	private cyclesPerSample = 23; // ~1.023MHz / 44100
 	private speakerOn = false;
 	private accumulatedCycles = 0;
@@ -11,8 +13,12 @@ export class Speaker {
 	private sampleBuffer = new Float32Array(CHUNK_SIZE);
 	private bufferIndex = 0;
 
+	constructor(bus: IBus) {
+		bus.registerTickHandler(this.tick.bind(this));
+	}
+
 	public init(sampleRate: number) {
-		this.sampleRate = sampleRate;
+		// this.sampleRate = sampleRate;
 		this.cyclesPerSample = 1023000 / sampleRate;
 		console.log(`Speaker: Initialized with SR ${sampleRate}Hz, ${this.cyclesPerSample.toFixed(2)} cycles/sample.`);
 	}
@@ -21,13 +27,11 @@ export class Speaker {
 		this.speakerOn = !this.speakerOn;
 	}
 
-	public tick(cycles: number): Float32Array[] {
+	public tick(cycles: number) {
 		this.accumulatedCycles += cycles;
 
 		let samplesToGenerate = Math.floor(this.accumulatedCycles / this.cyclesPerSample);
-		if (samplesToGenerate === 0) {
-			return [];
-		}
+		if (samplesToGenerate === 0) return;
 
 		this.accumulatedCycles -= samplesToGenerate * this.cyclesPerSample;
 
@@ -38,7 +42,7 @@ export class Speaker {
 		if (this.bufferIndex + samplesToGenerate < CHUNK_SIZE) {
 			this.sampleBuffer.fill(value, this.bufferIndex, this.bufferIndex + samplesToGenerate);
 			this.bufferIndex += samplesToGenerate;
-			return [];
+			return;
 		}
 
 		// --- Buffer will overflow, so we must send at least one chunk ---
@@ -60,10 +64,8 @@ export class Speaker {
 
 		// 3. Place the final remaining samples at the start of the buffer for next time
 		this.bufferIndex = samplesToGenerate;
-		if (this.bufferIndex > 0) {
-			this.sampleBuffer.fill(value, 0, this.bufferIndex);
-		}
+		if (this.bufferIndex > 0) this.sampleBuffer.fill(value, 0, this.bufferIndex);
 
-		return chunks;
+		for (let index = 0; index < chunks.length; index++) self.postMessage({ type: "audio", buffer: chunks[index] });
 	}
 }

@@ -17,6 +17,8 @@ export interface MachineStateSpec {
  * Defines the interface for the system bus, which connects the CPU to memory and other devices.
  */
 export interface IBus {
+	reset(): void;
+
 	/** Reads an 8-bit value from the specified address. */
 	read(address: number, isOpcodeFetch?: boolean): number;
 
@@ -28,6 +30,8 @@ export interface IBus {
 
 	/** Loads data into memory, allowing for bank switching or specific hardware handling. */
 	load(address: number, data: Uint8Array, bank?: number, tag?: string): void;
+
+	registerTickHandler(handler: (cycles: number) => void): void;
 
 	/** Optional method to handle keyboard input. */
 	pressKey?(key: string, code?: string, ctrl?: boolean, shift?: boolean, alt?: boolean, meta?: boolean): void;
@@ -57,7 +61,6 @@ export interface IBus {
 	setRegistersView?(view: DataView): void;
 	syncState?(): void;
 	prepareWorkerPayloads?(): Promise<{ video?: unknown; bus?: unknown }>;
-	reset?(): void;
 
 	/** Inserts media (disk, tape, etc.) into the machine. Metadata can specify drive/slot. */
 	insertMedia?(data: Uint8Array, metadata?: Record<string, unknown>): void;
