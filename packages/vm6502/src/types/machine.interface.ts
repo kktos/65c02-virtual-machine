@@ -42,5 +42,5 @@ export interface MachineConfig {
 	disk?: DiskConfig;
 	css?: string[];
 	debugOptions?: DebugOption[];
-	labels?: Record<number, string>;
+	symbols?: Record<number, string>;
 }
