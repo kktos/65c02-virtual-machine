@@ -42,6 +42,15 @@
 			</div>
 			<!-- Debug Options -->
 			<DebugOptionsPopover ref="debugOptionsPopover" category="memory" align="end" class="ml-auto" />
+
+			<div class="flex items-center space-x-1 ml-2 border-l border-gray-700 pl-2">
+				<Button variant="ghost" size="icon" class="h-6 w-6 text-gray-400 hover:text-cyan-300" @click="$emit('split', startAddress)" title="Split View">
+					<Split class="h-4 w-4" />
+				</Button>
+				<Button v-if="canClose" variant="ghost" size="icon" class="h-6 w-6 text-gray-400 hover:text-red-400" @click="$emit('close')" title="Close View">
+					<X class="h-4 w-4" />
+				</Button>
+			</div>
 		</div>
 
 		<div
@@ -114,7 +123,7 @@
 <script lang="ts" setup>
 	/** biome-ignore-all lint/correctness/noUnusedVariables: vue */
 
-	import { Check, ChevronsUpDown } from "lucide-vue-next";
+	import { Check, ChevronsUpDown, Split, X } from "lucide-vue-next";
 import { computed, inject, nextTick, onMounted, onUnmounted, type Ref, ref, watch } from "vue";
 import DebugOptionsPopover from "@/components/DebugOptionsPopover.vue";
 import { Button } from "@/components/ui/button";
@@ -126,7 +135,17 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 	const vm= inject<Ref<VirtualMachine>>("vm");
 	const subscribeToUiUpdates= inject<(callback: () => void) => void>("subscribeToUiUpdates");
 
-	const startAddress = ref(0x0000);
+	const props = defineProps<{
+		canClose?: boolean;
+		initialAddress?: number;
+	}>();
+
+	const emit = defineEmits<{
+		(e: 'split', address: number): void;
+		(e: 'close'): void;
+	}>();
+
+	const startAddress = ref(props.initialAddress ?? 0x0000);
 	const BYTES_PER_LINE = 16;
 
 	const scrollContainer = ref<HTMLElement | null>(null);

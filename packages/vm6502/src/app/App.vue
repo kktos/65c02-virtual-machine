@@ -85,7 +85,7 @@
 							/>
 						</template>
 						<template #tab2-content>
-							<MemoryViewer />
+							<MultiMemoryViewer />
 						</template>
 					</TogglableDisplay>
 				</ResizablePanel>
@@ -108,20 +108,20 @@ import { availableMachines } from "../machines";
 import type { EmulatorState } from "../types/emulatorstate.interface";
 import type { MachineConfig } from "../types/machine.interface";
 import {
-    FLAG_B_MASK,
-    FLAG_C_MASK,
-    FLAG_D_MASK,
-    FLAG_I_MASK,
-    FLAG_N_MASK,
-    FLAG_V_MASK,
-    FLAG_Z_MASK, REG_A_OFFSET, REG_PC_OFFSET, REG_SP_OFFSET, REG_STATUS_OFFSET, REG_X_OFFSET, REG_Y_OFFSET
+	FLAG_B_MASK,
+	FLAG_C_MASK,
+	FLAG_D_MASK,
+	FLAG_I_MASK,
+	FLAG_N_MASK,
+	FLAG_V_MASK,
+	FLAG_Z_MASK, REG_A_OFFSET, REG_PC_OFFSET, REG_SP_OFFSET, REG_STATUS_OFFSET, REG_X_OFFSET, REG_Y_OFFSET
 } from '../virtualmachine/cpu/shared-memory';
 import { VirtualMachine } from "../virtualmachine/virtualmachine.class";
 import BreakpointsList from './debugger/BreakpointsList.vue';
 import DebuggerControls from './debugger/DebuggerControls.vue';
 import DisassemblyView from './debugger/DisassemblyView.vue';
 import MachineStateView from "./debugger/MachineStateView.vue";
-import MemoryViewer from './debugger/MemoryViewer.vue';
+import MultiMemoryViewer from './debugger/MultiMemoryViewer.vue';
 import RegistersView from './debugger/RegistersView.vue';
 import StackView from './debugger/StackView.vue';
 import StatusFlagsView from './debugger/StatusFlagsView.vue';
