@@ -94,6 +94,7 @@ interface AppleVideoOverrides {
 	textRenderer?: "BITMAP" | "FONT";
 	backgroundColor?: string;
 	wannaScale?: boolean;
+	mouseChars?: "AUTO" | "ON" | "OFF";
 }
 
 function appleCharCodeToUnicode(charCode: number, isAltCharset = false): string {
@@ -104,6 +105,7 @@ function appleCharCodeToUnicode(charCode: number, isAltCharset = false): string 
 		charCode += isAltCharset ? 0xe040 : 0xe100;
 	} else if (charCode <= 0x7f)
 		charCode += 0xe0c0; // $60-$7F -> $E120-$E13F
+	else if (charCode < 0xa0) charCode -= 0x40;
 	else if (charCode >= 0xa0) charCode -= 0x80;
 
 	return String.fromCharCode(charCode);
@@ -137,6 +139,9 @@ export class AppleVideo implements Video {
 	private metrics40: CharMetrics | null = null;
 	private charmap80: ImageBitmap | null = null;
 	private metrics80: CharMetrics | null = null;
+
+	private flashCounter = 0;
+	private flashState = false;
 
 	private overrides: AppleVideoOverrides = {};
 
@@ -224,6 +229,12 @@ export class AppleVideo implements Video {
 	public tick() {
 		this.ctx.fillStyle = "black";
 		this.ctx.fillRect(0, 0, this.offscreenCanvas.width, this.offscreenCanvas.height);
+
+		this.flashCounter++;
+		if (this.flashCounter >= 16) {
+			this.flashState = !this.flashState;
+			this.flashCounter = 0;
+		}
 
 		let isText = (this.bus.read(SoftSwitches.TEXT) & 0x80) !== 0;
 		let isHgr = (this.bus.read(SoftSwitches.HIRES) & 0x80) !== 0;
@@ -600,7 +611,7 @@ export class AppleVideo implements Video {
 
 	private renderText40WithFont(startRow = 0, endRow = TEXT_ROWS, isPage2 = false) {
 		const charHeight = 16;
-		const charWidth = 12;
+		const charWidth = 14;
 
 		this.ctx.font = `${charHeight}px PrintChar21`;
 		this.ctx.textBaseline = "top";
@@ -631,11 +642,17 @@ export class AppleVideo implements Video {
 		const bgColor = this.overrides.backgroundColor;
 		const drawBg = bgColor && bgColor !== "#000000";
 
+		const isAltCharset =
+			this.overrides.mouseChars === "ON" ||
+			(this.overrides.mouseChars === "OFF" ? false : (this.bus.read(SoftSwitches.ALTCHARSET) & 0x80) !== 0);
+
+		const wantNormal = !isAltCharset && !this.flashState;
+
 		for (let y = startRow; y < endRow; y++) {
 			const lineBase = (textScreenLineOffsets[y] ?? 0) + pageOffset;
 			const drawY = y * charHeight;
 			for (let x = 0; x < TEXT_COLS; x++) {
-				const charCode = this.bus.readRaw?.(lineBase + x) ?? 0;
+				let charCode = this.bus.readRaw?.(lineBase + x) ?? 0;
 				const drawX = x * charWidth;
 
 				if (drawBg) {
@@ -643,10 +660,12 @@ export class AppleVideo implements Video {
 					this.ctx.fillRect(drawX, drawY, charWidth, charHeight);
 				}
 
+				if (wantNormal && charCode >= 0x40 && charCode <= 0x7f) charCode += 0x80;
+
 				if (charCode === 0xa0) continue;
 
 				this.ctx.fillStyle = "white";
-				this.ctx.fillText(appleCharCodeToUnicode(charCode), drawX, drawY);
+				this.ctx.fillText(appleCharCodeToUnicode(charCode, isAltCharset), drawX, drawY);
 			}
 		}
 		this.ctx.restore();
@@ -677,7 +696,11 @@ export class AppleVideo implements Video {
 		const bgColor = this.overrides.backgroundColor;
 		const drawBg = bgColor && bgColor !== "#000000";
 
-		const isAltCharset = (this.bus.read(SoftSwitches.ALTCHARSET) & 0x80) !== 0;
+		const isAltCharset =
+			this.overrides.mouseChars === "ON" ||
+			(this.overrides.mouseChars === "OFF" ? false : (this.bus.read(SoftSwitches.ALTCHARSET) & 0x80) !== 0);
+
+		const wantNormal = !isAltCharset && !this.flashState;
 
 		for (let y = startRow; y < endRow; y++) {
 			const lineBase = textScreenLineOffsets[y] ?? 0;
@@ -694,11 +717,13 @@ export class AppleVideo implements Video {
 				this.ctx.fillStyle = "white";
 
 				// Aux char (Even column)
-				const auxVal = this.bus.readRaw?.(AUX_BANK_OFFSET + lineBase + x) ?? 0;
+				let auxVal = this.bus.readRaw?.(AUX_BANK_OFFSET + lineBase + x) ?? 0;
+				if (wantNormal && auxVal >= 0x40 && auxVal <= 0x7f) auxVal += 0x80;
 				if (auxVal !== 0xa0) this.ctx.fillText(appleCharCodeToUnicode(auxVal, isAltCharset), evenCharX, drawY);
 
 				// Main char (Odd column)
-				const mainVal = this.bus.readRaw?.(lineBase + x) ?? 0;
+				let mainVal = this.bus.readRaw?.(lineBase + x) ?? 0;
+				if (wantNormal && mainVal >= 0x40 && mainVal <= 0x7f) mainVal += 0x80;
 				if (mainVal !== 0xa0) this.ctx.fillText(appleCharCodeToUnicode(mainVal, isAltCharset), oddCharX, drawY);
 			}
 		}

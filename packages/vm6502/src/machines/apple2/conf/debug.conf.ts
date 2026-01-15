@@ -83,4 +83,15 @@ export const debugConfig: MachineConfig["debugOptions"] = [
 		type: "boolean",
 		category: "video",
 	},
+	{
+		id: "mouseChars",
+		label: "Mouse Chars",
+		type: "select",
+		category: "video",
+		options: [
+			{ label: "Auto", value: "AUTO" },
+			{ label: "Mouse Chars", value: "ON" },
+			{ label: "Normal Chars", value: "OFF" },
+		],
+	},
 ];
