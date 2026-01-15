@@ -1,51 +1,62 @@
 <template>
-	<Popover v-if="hasOptions">
-		<PopoverTrigger as-child>
-			<slot>
-				<!-- Default trigger -->
-				<Button variant="outline" size="sm" class="h-[30px] px-2 text-xs bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600 hover:text-white">
-					<Settings2 class="mr-2 h-3 w-3" />
-					Options
-				</Button>
-			</slot>
-		</PopoverTrigger>
-		<PopoverContent :class="contentClass" :align="align">
-			<div class="space-y-3">
-				<div v-for="opt in debugOptions" :key="opt.id" class="flex items-center justify-between">
-					<label :for="opt.id" class="text-xs text-gray-300 select-none cursor-pointer flex-grow">{{ opt.label }}</label>
-					<input
-						v-if="opt.type === 'boolean'"
-						type="checkbox"
-						:id="opt.id"
-						v-model="debugOverrides[opt.id]"
-						class="rounded bg-gray-700 border-gray-600 text-cyan-500 focus:ring-cyan-500 h-4 w-4 ml-2"
-					/>
-					<select
-						v-if="opt.type === 'select'"
-						:id="opt.id"
-						v-model="debugOverrides[opt.id]"
-						class="bg-gray-700 text-yellow-300 font-mono text-xs rounded-md px-2 py-0.5 border border-gray-600 focus:ring-2 focus:ring-cyan-500 outline-none ml-2 max-w-[120px]"
-					>
-						<option v-for="option in opt.options" :key="option.value" :value="option.value">{{ option.label }}</option>
-					</select>
-					<input
-						v-if="opt.type === 'number'"
-						type="number"
-						:id="opt.id"
-						:min="opt.min"
-						:max="opt.max"
-						v-model.number="debugOverrides[opt.id]"
-						class="bg-gray-700 text-yellow-300 font-mono text-xs rounded-md px-2 py-0.5 border border-gray-600 focus:ring-2 focus:ring-cyan-500 outline-none ml-2 w-20"
-					/>
+	<div>
+		<Popover v-if="hasOptions && !isTornOff" v-model:open="isPopoverOpen">
+			<PopoverTrigger as-child>
+				<slot>
+					<!-- Default trigger -->
+					<Button variant="outline" size="sm" class="h-[30px] px-2 text-xs bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600 hover:text-white">
+						<Settings2 class="mr-2 h-3 w-3" />
+						Options
+					</Button>
+				</slot>
+			</PopoverTrigger>
+			<PopoverContent :class="contentClass" :align="align">
+				<div class="flex items-center justify-between mb-2 -mt-1">
+					<span class="text-sm font-bold text-gray-200 capitalize">{{ category }} Settings</span>
+					<Button @click="tearOff" variant="ghost" size="icon" class="w-6 h-6 text-gray-400 hover:bg-gray-700 hover:text-cyan-300" title="Tear-off into floating window">
+						<PanelTopClose class="h-4 w-4" />
+					</Button>
+				</div>
+				<DebugOptionList v-model="debugOverrides" :debug-options="debugOptions" />
+			</PopoverContent>
+		</Popover>
+
+		<!-- Disabled trigger when torn off -->
+		<div v-if="hasOptions && isTornOff" class="relative" title="Options are in a separate window">
+			<div class="opacity-50 cursor-not-allowed">
+				<slot>
+					<!-- Default trigger -->
+					<Button variant="outline" size="sm" class="h-[30px] px-2 text-xs bg-gray-700 border-gray-600 text-gray-300" disabled>
+						<Settings2 class="mr-2 h-3 w-3" />
+						Options
+					</Button>
+				</slot>
+			</div>
+			<div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+				<PanelTopClose class="h-4 w-4 text-cyan-400" />
+			</div>
+		</div>
+
+		<Teleport to="body">
+			<div v-if="isTornOff" ref="floatingWindow" :style="floatingWindowStyle" class="fixed flex flex-col bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-lg shadow-2xl z-50">
+				<div ref="dragHandle" @mousedown="startDrag" class="flex items-center justify-between px-3 py-1 bg-gray-900/70 rounded-t-lg cursor-move border-b border-gray-700">
+					<span class="text-xs font-bold text-gray-200 capitalize">{{ category }} Settings</span>
+					<Button @click="dock" variant="ghost" size="icon" class="w-6 h-6 text-gray-400 hover:bg-gray-700 hover:text-cyan-300" title="Dock back to popover">
+						<X class="h-4 w-4" />
+					</Button>
+				</div>
+				<div class="p-4 w-64">
+					<DebugOptionList v-model="debugOverrides" :debug-options="debugOptions" id-suffix="-torn-off" />
 				</div>
 			</div>
-		</PopoverContent>
-	</Popover>
+		</Teleport>
+	</div>
 </template>
 
 <script lang="ts" setup>
-import { Settings2 } from "lucide-vue-next";
-import { computed, inject, type Ref, ref, watch } from "vue";
+import { PanelTopClose, Settings2, X } from "lucide-vue-next";
+import { computed, inject, nextTick, type Ref, ref, watch } from "vue";
+import DebugOptionList from "@/components/DebugOptionList.vue";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import type { DebugOption } from "@/types/machine.interface";
@@ -65,6 +76,52 @@ const props = withDefaults(defineProps<{
 const vm = inject<Ref<VirtualMachine>>("vm");
 const debugOptions = ref<DebugOption[]>([]);
 const debugOverrides = ref<Record<string, unknown>>({});
+
+const isTornOff = ref(false);
+const isPopoverOpen = ref(false);
+
+const floatingWindow = ref<HTMLElement | null>(null);
+
+const windowPos = ref({ x: 100, y: 100 });
+
+const floatingWindowStyle = computed(() => ({
+	left: `${windowPos.value.x}px`,
+	top: `${windowPos.value.y}px`,
+}));
+
+const startDrag = (event: MouseEvent) => {
+	if (!floatingWindow.value) return;
+	event.preventDefault();
+
+	const startX = event.clientX;
+	const startY = event.clientY;
+	const startLeft = windowPos.value.x;
+	const startTop = windowPos.value.y;
+
+	const doDrag = (e: MouseEvent) => {
+		windowPos.value.x = startLeft + e.clientX - startX;
+		windowPos.value.y = startTop + e.clientY - startY;
+	};
+
+	const stopDrag = () => {
+		document.removeEventListener("mousemove", doDrag);
+		document.removeEventListener("mouseup", stopDrag);
+	};
+
+	document.addEventListener("mousemove", doDrag);
+	document.addEventListener("mouseup", stopDrag);
+};
+
+const tearOff = async () => {
+	isPopoverOpen.value = false;
+	isTornOff.value = true;
+	await nextTick();
+	if (floatingWindow.value) windowPos.value = { x: (window.innerWidth - floatingWindow.value.offsetWidth) / 2, y: (window.innerHeight - floatingWindow.value.offsetHeight) / 2 };
+};
+
+const dock = () => {
+	isTornOff.value = false;
+};
 
 const hasOptions = computed(() => debugOptions.value.length > 0);
 
