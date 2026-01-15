@@ -112,11 +112,22 @@ const startDrag = (event: MouseEvent) => {
 	document.addEventListener("mouseup", stopDrag);
 };
 
-const tearOff = async () => {
+const tearOff = async (event?: MouseEvent) => {
+	let rect: DOMRect | undefined;
+	if (event?.target) {
+		const target = event.target as Element;
+		const contentEl = target.closest('[role="dialog"]');
+		if (contentEl) rect = contentEl.getBoundingClientRect();
+	}
+
 	isPopoverOpen.value = false;
 	isTornOff.value = true;
-	await nextTick();
-	if (floatingWindow.value) windowPos.value = { x: (window.innerWidth - floatingWindow.value.offsetWidth) / 2, y: (window.innerHeight - floatingWindow.value.offsetHeight) / 2 };
+
+	if (rect) windowPos.value = { x: rect.left, y: rect.top };
+	else {
+		await nextTick();
+		if (floatingWindow.value) windowPos.value = { x: (window.innerWidth - floatingWindow.value.offsetWidth) / 2, y: (window.innerHeight - floatingWindow.value.offsetHeight) / 2 };
+	}
 };
 
 const dock = () => {
