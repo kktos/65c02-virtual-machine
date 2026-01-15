@@ -9,6 +9,7 @@
 				<Pause v-if="isRunning" class="mr-2 h-4 w-4" />
 				<Play v-else class="mr-2 h-4 w-4" />
 				{{ isRunning ? 'Pause' : 'Run' }}
+				<Kbd class="ml-2 h-5 px-1.5 text-[10px] bg-black/20 border-white/20 text-white/90">F5</Kbd>
 			</Button>
 			<Button @click="vm?.step"
 				size="sm"
@@ -18,6 +19,7 @@
 			>
 				<ArrowDownToDot class="mr-2 h-4 w-4" />
 				Step Into
+				<Kbd class="ml-2 h-5 px-1.5 text-[10px] bg-gray-700 border-gray-600 text-gray-400">F11</Kbd>
 			</Button>
 
 			<Button @click="vm?.stepOver"
@@ -28,6 +30,7 @@
 			>
 				<CornerDownRight class="mr-2 h-4 w-4" />
 				Step Over
+				<Kbd class="ml-2 h-5 px-1.5 text-[10px] bg-gray-700 border-gray-600 text-gray-400">F10</Kbd>
 			</Button>
 
 			<Button @click="vm?.stepOut"
@@ -37,7 +40,9 @@
 				title="Run program until the next RTS or RTI (Return from Subroutine/Interrupt)"
 			>
 				<ArrowUpFromDot class="mr-2 h-4 w-4" />
-				Step Out</Button>
+				Step Out
+				<Kbd class="ml-2 h-5 px-1.5 text-[10px] bg-gray-700 border-gray-600 text-gray-400">⇧F11</Kbd>
+			</Button>
 		</ButtonGroup>
 
 		<ButtonGroup>
@@ -100,6 +105,7 @@ import { ArrowDownToDot, ArrowUpFromDot, CornerDownRight, Octagon, Pause, Play, 
 import { inject, type Ref, ref } from "vue";
 import { Button } from '@/components/ui/button';
 import { ButtonGroup } from '@/components/ui/button-group';
+import { Kbd } from '@/components/ui/kbd';
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 
 	const vm= inject<Ref<VirtualMachine>>("vm");
