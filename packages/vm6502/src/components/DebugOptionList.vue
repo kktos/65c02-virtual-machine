@@ -1,7 +1,10 @@
 <template>
 	<div class="space-y-3">
 		<div v-for="opt in debugOptions" :key="opt.id" class="flex items-center justify-between">
-			<label :for="`${opt.id}${idSuffix}`" class="text-xs text-gray-300 select-none cursor-pointer flex-grow">{{ opt.label }}</label>
+			<label :for="`${opt.id}${idSuffix}`" class="text-xs text-gray-300 select-none cursor-pointer flex-grow flex items-center">
+				<span>{{ opt.label }}</span>
+				<Save v-if="opt.savable" class="inline-block h-3 w-3 ml-1.5 text-gray-500" title="This setting is saved locally" />
+			</label>
 			<input
 				v-if="opt.type === 'boolean'"
 				type="checkbox"
@@ -34,6 +37,7 @@
 </template>
 
 <script lang="ts" setup>
+import { Save } from "lucide-vue-next";
 import type { PropType } from "vue";
 import type { DebugOption } from "@/types/machine.interface";
 

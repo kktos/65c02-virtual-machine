@@ -10,12 +10,14 @@
 					</Button>
 				</slot>
 			</PopoverTrigger>
-			<PopoverContent :class="contentClass" :align="align">
+			<PopoverContent :class="contentClass" :align="align" :side-offset="8">
 				<div class="flex items-center justify-between mb-2 -mt-1">
 					<span class="text-sm font-bold text-gray-200 capitalize">{{ category }} Settings</span>
-					<Button @click="tearOff" variant="ghost" size="icon" class="w-6 h-6 text-gray-400 hover:bg-gray-700 hover:text-cyan-300" title="Tear-off into floating window">
-						<PanelTopClose class="h-4 w-4" />
-					</Button>
+					<div class="flex items-center -mr-2">
+						<Button @click="tearOff" variant="ghost" size="icon" class="w-6 h-6 text-gray-400 hover:bg-gray-700 hover:text-cyan-300" title="Tear-off into floating window">
+							<PanelTopClose class="h-4 w-4" />
+						</Button>
+					</div>
 				</div>
 				<DebugOptionList v-model="debugOverrides" :debug-options="debugOptions" />
 			</PopoverContent>
@@ -40,10 +42,12 @@
 		<Teleport to="body">
 			<div v-if="isTornOff" ref="floatingWindow" :style="floatingWindowStyle" class="fixed flex flex-col bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-lg shadow-2xl z-50">
 				<div ref="dragHandle" @mousedown="startDrag" class="flex items-center justify-between px-3 py-1 bg-gray-900/70 rounded-t-lg cursor-move border-b border-gray-700">
-					<span class="text-xs font-bold text-gray-200 capitalize">{{ category }} Settings</span>
-					<Button @click="dock" variant="ghost" size="icon" class="w-6 h-6 text-gray-400 hover:bg-gray-700 hover:text-cyan-300" title="Dock back to popover">
-						<X class="h-4 w-4" />
-					</Button>
+					<span class="text-xs font-bold text-gray-200 capitalize -ml-1">{{ category }} Settings</span>
+					<div class="flex items-center -mr-2">
+						<Button @click="dock" variant="ghost" size="icon" class="w-6 h-6 text-gray-400 hover:bg-gray-700 hover:text-cyan-300" title="Dock back to popover">
+							<X class="h-4 w-4" />
+						</Button>
+					</div>
 				</div>
 				<div class="p-4 w-64">
 					<DebugOptionList v-model="debugOverrides" :debug-options="debugOptions" id-suffix="-torn-off" />
@@ -79,6 +83,31 @@ const debugOverrides = ref<Record<string, unknown>>({});
 
 const isTornOff = ref(false);
 const isPopoverOpen = ref(false);
+
+const STORAGE_KEY = computed(() => `debug-options-${props.category}`);
+
+const saveOptions = () => {
+	const savableOptions = debugOptions.value.filter(opt => opt.savable).map(opt => opt.id);
+	const valuesToSave: Record<string, unknown> = {};
+	for (const id of savableOptions) {
+		if (debugOverrides.value[id] !== undefined) {
+			valuesToSave[id] = debugOverrides.value[id];
+		}
+	}
+	localStorage.setItem(STORAGE_KEY.value, JSON.stringify(valuesToSave));
+};
+
+const loadOptions = () => {
+	const saved = localStorage.getItem(STORAGE_KEY.value);
+	if (saved) {
+		try {
+			const savedValues = JSON.parse(saved);
+			debugOverrides.value = { ...debugOverrides.value, ...savedValues };
+		} catch (e) {
+			console.error(`Failed to load ${props.category} options`, e);
+		}
+	}
+};
 
 const floatingWindow = ref<HTMLElement | null>(null);
 
@@ -154,12 +183,16 @@ watch(() => vm?.value, async (newVm) => {
 			}
 		});
 		debugOverrides.value = defaults;
+
+		// Load saved options on top of defaults
+		loadOptions();
 	}
 }, { immediate: true });
 
 watch(debugOverrides, (newVal) => {
 	if (props.updateVmGlobally) {
 		vm?.value?.setDebugOverrides(newVal);
+		saveOptions();
 	}
 }, { deep: true });
 
