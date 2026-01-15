@@ -41,6 +41,7 @@ export class VirtualMachine {
 	private pendingPalette: Uint8Array | null = null;
 	public busState: Record<string, unknown> = {};
 	private isRendering = false;
+	private _isRunning = false;
 
 	public worker: Worker;
 	public machineConfig: MachineConfig;
@@ -77,6 +78,9 @@ export class VirtualMachine {
 				this.resolveWorkerReady();
 			} else if (type === "trace") {
 				this.onTraceReceived?.(history);
+			} else if (type === "isRunning") {
+				this._isRunning = event.data.isRunning;
+				if (this.onmessage) this.onmessage(event);
 			} else if (this.onmessage) {
 				this.onmessage(event);
 			}
@@ -219,6 +223,25 @@ export class VirtualMachine {
 	private handleKeyDown(event: KeyboardEvent) {
 		const target = event.target as HTMLElement;
 		if (target && (kbdElements.has(target.tagName) || target.isContentEditable)) return;
+
+		// Debugger Shortcuts
+		if (event.code === "F10") {
+			event.preventDefault();
+			this.stepOver();
+			return;
+		}
+		if (event.code === "F11") {
+			event.preventDefault();
+			if (event.shiftKey) this.stepOut();
+			else this.step();
+			return;
+		}
+		if (event.code === "F5") {
+			event.preventDefault();
+			if (this._isRunning) this.pause();
+			else this.play();
+			return;
+		}
 
 		this.worker.postMessage({
 			command: "keydown",
