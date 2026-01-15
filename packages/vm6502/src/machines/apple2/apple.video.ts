@@ -307,15 +307,15 @@ export class AppleVideo implements Video {
 			// to either the intended foreground, text background, or global background color.
 
 			// biome-ignore lint/style/noNonNullAssertion: <np>
-			const textBgRgb = IIgsPaletteRGB[bgIdx]!;
-			// biome-ignore lint/style/noNonNullAssertion: <np>
 			const fgRgb = IIgsPaletteRGB[fgIdx]!;
 			// biome-ignore lint/style/noNonNullAssertion: <np>
-			const globalBgRgb = IIgsPaletteRGB[bgIdx]!;
+			const textBgRgb = IIgsPaletteRGB[bgIdx]!;
+			// biome-ignore lint/style/noNonNullAssertion: <np>
+			const globalBgRgb = IIgsPaletteRGB[borderIdx]!;
 
-			const textBgIndex = this.findNearestColor(textBgRgb[0], textBgRgb[1], textBgRgb[2]);
-			const fgIndex = this.findNearestColor(fgRgb[0], fgRgb[1], fgRgb[2]);
-			const globalBgIndex = this.findNearestColor(globalBgRgb[0], globalBgRgb[1], globalBgRgb[2]);
+			const textBgIndex = bgIdx;
+			const fgIndex = fgIdx;
+			const globalBgIndex = borderIdx;
 
 			let startY = 0;
 			if (isMixed && !isText) {
@@ -687,10 +687,8 @@ export class AppleVideo implements Video {
 				let charCode = this.bus.readRaw?.(lineBase + x) ?? 0;
 				const drawX = x * charWidth;
 
-				// if (drawBg) {
-				// 	this.ctx.fillStyle = bgColor as string;
-				// 	this.ctx.fillRect(drawX, drawY, charWidth, charHeight);
-				// }
+				this.ctx.fillStyle = bgColorStr;
+				this.ctx.fillRect(drawX, drawY, charWidth, charHeight);
 
 				if (wantNormal && charCode >= 0x40 && charCode <= 0x7f) charCode += 0x80;
 
@@ -729,7 +727,7 @@ export class AppleVideo implements Video {
 		const tbColor = this.bus.tbColor;
 		const bgIdx = tbColor & 0x0f;
 		const fgIdx = (tbColor >> 4) & 0x0f;
-		// const bgColorStr = `rgb(${IIgsPaletteRGB[bgIdx]!.join(",")})`;
+		const bgColorStr = `rgb(${IIgsPaletteRGB[bgIdx]!.join(",")})`;
 		const fgColorStr = `rgb(${IIgsPaletteRGB[fgIdx]!.join(",")})`;
 
 		const isAltCharset =
@@ -746,10 +744,8 @@ export class AppleVideo implements Video {
 				const evenCharX = x * 2 * charWidth;
 				const oddCharX = evenCharX + charWidth;
 
-				// if (drawBg) {
-				// 	this.ctx.fillStyle = bgColor as string;
-				// 	this.ctx.fillRect(evenCharX, drawY, charWidth * 2, charHeight);
-				// }
+				this.ctx.fillStyle = bgColorStr;
+				this.ctx.fillRect(evenCharX, drawY, charWidth * 2, charHeight);
 				this.ctx.fillStyle = fgColorStr;
 
 				// Aux char (Even column)
