@@ -58,7 +58,7 @@ const COLORS = [
 	[255, 255, 255, 255], // White
 ];
 
-const IIgsPaletteRGB = [
+const IIgsPaletteRGB: ReadonlyArray<[number, number, number]> = [
 	[0x00, 0x00, 0x00], // 0 Black
 	[0xdd, 0x00, 0x30], // 1 Deep Red
 	[0x00, 0x00, 0x99], // 2 Dark Blue
@@ -92,13 +92,24 @@ interface AppleVideoOverrides {
 	videoMode?: "AUTO" | "TEXT" | "HGR";
 	videoPage?: "AUTO" | "PAGE1" | "PAGE2";
 	textRenderer?: "BITMAP" | "FONT";
-	textWidth?: number;
 	backgroundColor?: string;
-	textHeight?: number;
+	wannaScale?: boolean;
+}
+
+function appleCharCodeToUnicode(charCode: number, isAltCharset = false): string {
+	// let charCode = asciiCode;
+	if (charCode <= 0x1f) charCode += 0xe140;
+	else if (charCode <= 0x3f) charCode += 0xe100;
+	else if (charCode <= 0x5f) {
+		charCode += isAltCharset ? 0xe040 : 0xe100;
+	} else if (charCode <= 0x7f)
+		charCode += 0xe0c0; // $60-$7F -> $E120-$E13F
+	else if (charCode >= 0xa0) charCode -= 0x80;
+
+	return String.fromCharCode(charCode);
 }
 
 const baseurl = import.meta.url.match(/http:\/\/[^/]+/)?.[0];
-
 function loadFont(name: string) {
 	const fontUrl = new URL(`${baseurl}/fonts/${name}.ttf`).href;
 	const font = new FontFace(name, `url(${fontUrl})`);
@@ -186,13 +197,10 @@ export class AppleVideo implements Video {
 		let bestIndex = 0;
 
 		for (let i = 0; i < 16; i++) {
-			const p = IIgsPaletteRGB[i];
-			// biome-ignore lint/style/noNonNullAssertion: palette is fixed size
-			const dr = r - p[0]!;
-			// biome-ignore lint/style/noNonNullAssertion: palette is fixed size
-			const dg = g - p[1]!;
-			// biome-ignore lint/style/noNonNullAssertion: palette is fixed size
-			const db = b - p[2]!;
+			const p = IIgsPaletteRGB[i] as [number, number, number];
+			const dr = r - p[0];
+			const dg = g - p[1];
+			const db = b - p[2];
 			const dist = dr * dr + dg * dg + db * db;
 
 			if (dist < minDist) {
@@ -205,7 +213,7 @@ export class AppleVideo implements Video {
 	}
 
 	private hexToRgb(hex: string): [number, number, number] {
-		const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+		const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex) as [unknown, string, string, string] | null;
 		return result ? [parseInt(result[1], 16), parseInt(result[2], 16), parseInt(result[3], 16)] : [0, 0, 0]; // Default to black if parse fails
 	}
 
@@ -292,17 +300,6 @@ export class AppleVideo implements Video {
 					// Simple nearest neighbor for X (assuming width matches for now, but safe to scale)
 					// If targetWidth == srcWidth (560), this maps 1:1
 					const pixel = src32[srcRowOffset + x] ?? 0;
-					// const key = pixel & 0x00ffffff;
-
-					// let colorIndex = colorCache.get(key);
-					// if (colorIndex === undefined) {
-					// 	const r = pixel & 0xff;
-					// 	const g = (pixel >> 8) & 0xff;
-					// 	const b = (pixel >> 16) & 0xff;
-					// 	colorIndex = this.findNearestColor(r, g, b);
-					// 	colorCache.set(key, colorIndex);
-					// }
-
 					let colorIndex: number;
 
 					if (useThresholding) {
@@ -603,18 +600,6 @@ export class AppleVideo implements Video {
 		}
 	}
 
-	private appleCharCodeToUnicode(charCode: number): string {
-		// let charCode = asciiCode;
-		if (charCode <= 0x1f) charCode += 0xe140;
-		else if (charCode <= 0x3f) charCode += 0xe100;
-		else if (charCode <= 0x5f) charCode += 0xe100;
-		else if (charCode <= 0x7f)
-			charCode += 0xe0c0; // $60-$7F -> $E120-$E13F
-		else if (charCode >= 0xa0) charCode -= 0x80;
-
-		return String.fromCharCode(charCode);
-	}
-
 	private renderText40WithFont(startRow = 0, endRow = TEXT_ROWS, isPage2 = false) {
 		const charHeight = 16;
 		const charWidth = 12;
@@ -630,8 +615,10 @@ export class AppleVideo implements Video {
 		// We limit vertical scale to match 80-column mode (based on 560px width)
 		// while stretching horizontal to fill the screen.
 		const referenceWidth = 560;
-		const scaleY = Math.min(NATIVE_WIDTH / referenceWidth, NATIVE_HEIGHT / textBlockHeight);
-		const scaleX = NATIVE_WIDTH / textBlockWidth;
+		const scaleY = this.overrides.wannaScale
+			? Math.min(NATIVE_WIDTH / referenceWidth, NATIVE_HEIGHT / textBlockHeight)
+			: 1;
+		const scaleX = this.overrides.wannaScale ? NATIVE_WIDTH / textBlockWidth : 1;
 
 		const scaledWidth = textBlockWidth * scaleX;
 		const scaledHeight = textBlockHeight * scaleY;
@@ -640,7 +627,7 @@ export class AppleVideo implements Video {
 
 		this.ctx.save();
 		this.ctx.translate(offsetX, offsetY);
-		this.ctx.scale(scaleX, scaleY);
+		if (this.overrides.wannaScale) this.ctx.scale(scaleX, scaleY);
 
 		const pageOffset = isPage2 ? 0x400 : 0;
 		const bgColor = this.overrides.backgroundColor;
@@ -660,17 +647,16 @@ export class AppleVideo implements Video {
 
 				if (charCode === 0xa0) continue;
 
-				const char = this.appleCharCodeToUnicode(charCode);
 				this.ctx.fillStyle = "white";
-				this.ctx.fillText(char, drawX, drawY);
+				this.ctx.fillText(appleCharCodeToUnicode(charCode), drawX, drawY);
 			}
 		}
 		this.ctx.restore();
 	}
 
 	private renderText80WithFont(startRow = 0, endRow = TEXT_ROWS) {
-		const charHeight = this.overrides.textHeight ?? 16;
-		const charWidth = this.overrides.textWidth ?? 7;
+		const charHeight = 16;
+		const charWidth = 7;
 
 		this.ctx.font = `${charHeight}px PRNumber3`;
 		this.ctx.textBaseline = "top";
@@ -678,7 +664,9 @@ export class AppleVideo implements Video {
 
 		const textBlockWidth = TEXT_COLS * 2 * charWidth;
 		const textBlockHeight = TEXT_ROWS * charHeight;
-		const scale = Math.min(NATIVE_WIDTH / textBlockWidth, NATIVE_HEIGHT / textBlockHeight);
+		const scale = this.overrides.wannaScale
+			? Math.min(NATIVE_WIDTH / textBlockWidth, NATIVE_HEIGHT / textBlockHeight)
+			: 1;
 		const scaledWidth = textBlockWidth * scale;
 		const scaledHeight = textBlockHeight * scale;
 		const offsetX = SCREEN_MARGIN_X + (NATIVE_WIDTH - scaledWidth) / 2;
@@ -686,10 +674,12 @@ export class AppleVideo implements Video {
 
 		this.ctx.save();
 		this.ctx.translate(offsetX, offsetY);
-		this.ctx.scale(scale, scale);
+		if (this.overrides.wannaScale) this.ctx.scale(scale, scale);
 
 		const bgColor = this.overrides.backgroundColor;
 		const drawBg = bgColor && bgColor !== "#000000";
+
+		const isAltCharset = (this.bus.read(SoftSwitches.ALTCHARSET) & 0x80) !== 0;
 
 		for (let y = startRow; y < endRow; y++) {
 			const lineBase = textScreenLineOffsets[y] ?? 0;
@@ -707,17 +697,11 @@ export class AppleVideo implements Video {
 
 				// Aux char (Even column)
 				const auxVal = this.bus.readRaw?.(AUX_BANK_OFFSET + lineBase + x) ?? 0;
-				if (auxVal !== 0xa0) {
-					const auxChar = this.appleCharCodeToUnicode(auxVal);
-					this.ctx.fillText(auxChar, evenCharX, drawY);
-				}
+				if (auxVal !== 0xa0) this.ctx.fillText(appleCharCodeToUnicode(auxVal, isAltCharset), evenCharX, drawY);
 
 				// Main char (Odd column)
 				const mainVal = this.bus.readRaw?.(lineBase + x) ?? 0;
-				if (mainVal !== 0xa0) {
-					const mainChar = this.appleCharCodeToUnicode(mainVal);
-					this.ctx.fillText(mainChar, oddCharX, drawY);
-				}
+				if (mainVal !== 0xa0) this.ctx.fillText(appleCharCodeToUnicode(mainVal, isAltCharset), oddCharX, drawY);
 			}
 		}
 		this.ctx.restore();

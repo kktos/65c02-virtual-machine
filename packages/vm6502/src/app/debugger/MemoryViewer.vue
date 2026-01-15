@@ -41,36 +41,7 @@
 				</div>
 			</div>
 			<!-- Debug Options -->
-			<Popover v-if="debugOptions.length > 0">
-				<PopoverTrigger as-child>
-					<Button variant="outline" size="sm" class="h-[30px] px-2 text-xs bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600 hover:text-white ml-auto">
-						<Settings2 class="mr-2 h-3 w-3" />
-						Options
-					</Button>
-				</PopoverTrigger>
-				<PopoverContent class="w-64 p-4 bg-gray-800 border-gray-700 text-gray-100" align="end">
-					<div class="space-y-3">
-						<div v-for="opt in debugOptions" :key="opt.id" class="flex items-center justify-between">
-							<label :for="opt.id" class="text-xs text-gray-300 select-none cursor-pointer flex-grow">{{ opt.label }}</label>
-							<input
-								v-if="opt.type === 'boolean'"
-								type="checkbox"
-								:id="opt.id"
-								v-model="debugOverrides[opt.id]"
-								class="rounded bg-gray-700 border-gray-600 text-cyan-500 focus:ring-cyan-500 h-4 w-4 ml-2"
-							/>
-							<select
-								v-if="opt.type === 'select'"
-								:id="opt.id"
-								v-model="debugOverrides[opt.id]"
-								class="bg-gray-700 text-yellow-300 font-mono text-xs rounded-md px-2 py-0.5 border border-gray-600 focus:ring-2 focus:ring-cyan-500 outline-none ml-2 max-w-[120px]"
-							>
-								<option v-for="option in opt.options" :key="option.value" :value="option.value">{{ option.label }}</option>
-							</select>
-						</div>
-					</div>
-				</PopoverContent>
-			</Popover>
+			<DebugOptionsPopover ref="debugOptionsPopover" category="memory" align="end" class="ml-auto" />
 		</div>
 
 		<div
@@ -143,13 +114,13 @@
 <script lang="ts" setup>
 	/** biome-ignore-all lint/correctness/noUnusedVariables: vue */
 
-	import { Check, ChevronsUpDown, Settings2 } from "lucide-vue-next";
+	import { Check, ChevronsUpDown } from "lucide-vue-next";
 import { computed, inject, nextTick, onMounted, onUnmounted, type Ref, ref, watch } from "vue";
+import DebugOptionsPopover from "@/components/DebugOptionsPopover.vue";
 import { Button } from "@/components/ui/button";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useDebuggerNav } from "@/composables/useDebuggerNav";
-import type { DebugOption } from "@/types/machine.interface";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 
 	const vm= inject<Ref<VirtualMachine>>("vm");
@@ -198,8 +169,8 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 	// This will be our reactive trigger to update the view
 	const tick = ref(0);
 
-	const debugOptions = ref<DebugOption[]>([]);
-	const debugOverrides = ref<Record<string, unknown>>({});
+	const debugOptionsPopover = ref<InstanceType<typeof DebugOptionsPopover> | null>(null);
+	const debugOverrides = computed(() => debugOptionsPopover.value?.debugOverrides || {});
 
 	onMounted(() => {
 		if (scrollContainer.value) {
@@ -218,26 +189,6 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 	});
 
 	onUnmounted(() => resizeObserver?.disconnect());
-
-	watch(() => vm?.value, async (newVm) => {
-		if (newVm) {
-			await newVm.ready;
-			debugOptions.value = newVm.getDebugOptions().filter((opt) => opt.category === "memory");
-			// Initialize overrides
-			debugOverrides.value = {};
-			debugOptions.value.forEach((opt) => {
-				if (opt.type === "select" && opt.options?.length) {
-					debugOverrides.value[opt.id] = opt.options[0]?.value;
-				} else {
-					debugOverrides.value[opt.id] = false;
-				}
-			});
-		}
-	}, { immediate: true });
-
-	// watch(debugOverrides, (newVal) => {
-	// 	vm?.value.setDebugOverrides(newVal);
-	// }, { deep: true });
 
 	const handleOffsetChange = (event: Event) => {
 		const target = event.target as HTMLInputElement;
@@ -338,7 +289,7 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 		const target = event.target as HTMLInputElement;
 		if (editingIndex.value === index && editingMode.value === 'hex') editingValue.value = target.value;
 		const value = parseInt(target.value, 16);
-		if (!Number.isNaN(value) && value >= 0 && value <= 0xFF) {
+		if (!Number.isNaN(value) && value >= 0 && value <= 0xFF && debugOverrides.value) {
 			vm?.value.writeDebug(startAddress.value + index, value, debugOverrides.value);
 		}
 	};
@@ -349,7 +300,7 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 		if (val.length > 0) {
 			let code = val.charCodeAt(0);
 			if (highBitEnabled.value) code |= 0x80;
-			vm?.value.writeDebug(startAddress.value + index, code, debugOverrides.value);
+			if(debugOverrides.value) vm?.value.writeDebug(startAddress.value + index, code, debugOverrides.value);
 			const nextIndex = index + 1;
 			if (nextIndex < visibleRowCount.value * BYTES_PER_LINE) {
 				nextTick(() => {
@@ -400,7 +351,7 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 		const length = visibleRowCount.value * BYTES_PER_LINE;
 		const slice = new Uint8Array(length);
 
-		if (vm?.value) {
+		if (vm?.value && debugOverrides.value) {
 			for (let i = 0; i < length; i++) {
 				slice[i] = vm.value.readDebug(start + i, debugOverrides.value);
 			}
