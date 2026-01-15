@@ -6,27 +6,27 @@
 				size="sm"
 				:class="[ isRunning ? 'bg-red-600 hover:bg-red-500' : 'bg-green-600 hover:bg-green-500']"
 			>
-				{{ isRunning ? '⏸️ Pause' : '▶️ Run' }}
+				<Pause v-if="isRunning" class="mr-2 h-4 w-4" />
+				<Play v-else class="mr-2 h-4 w-4" />
+				{{ isRunning ? 'Pause' : 'Run' }}
 			</Button>
-		</ButtonGroup>
-
-		<ButtonGroup>
 			<Button @click="vm?.step"
 				size="sm"
 				:disabled="isRunning"
 				class="hover:bg-gray-600 disabled:opacity-50"
 				title="Execute the current instruction, stepping into subroutines (JSR)"
 			>
+				<ArrowDownToDot class="mr-2 h-4 w-4" />
 				Step Into
 			</Button>
 
-			<!-- _Step_Overr -->
 			<Button @click="vm?.stepOver"
 				size="sm"
 				:disabled="isRunning"
 				class="hover:bg-gray-600 disabled:opacity-50"
 				title="Execute the current instruction. If JSR, run until return address."
 			>
+				<CornerDownRight class="mr-2 h-4 w-4" />
 				Step Over
 			</Button>
 
@@ -35,15 +35,18 @@
 				size="sm"
 				class="hover:bg-gray-600 disabled:opacity-50"
 				title="Run program until the next RTS or RTI (Return from Subroutine/Interrupt)"
-			>Step Out</Button>
+			>
+				<ArrowUpFromDot class="mr-2 h-4 w-4" />
+				Step Out</Button>
 		</ButtonGroup>
 
 		<ButtonGroup>
 			<Button @click="toggleBreakOnBrk"
 				size="sm"
-				:class="[ breakOnBrk ? 'bg-yellow-600 hover:bg-yellow-500' : 'hover:bg-gray-600']"
+				:class="[ breakOnBrk ? 'bg-yellow-600 hover:bg-yellow-500 text-white' : 'hover:bg-gray-600 text-gray-300']"
 				title="Pause execution when a BRK instruction (opcode $00) is encountered"
 			>
+				<Octagon class="mr-2 h-4 w-4" />
 				BRK
 			</Button>
 		</ButtonGroup>
@@ -51,9 +54,10 @@
 		<ButtonGroup>
 			<Button @click="toggleTrace"
 				size="sm"
-				:class="[ traceEnabled ? 'bg-purple-600 hover:bg-purple-500' : 'hover:bg-gray-600']"
+				:class="[ traceEnabled ? 'bg-purple-600 hover:bg-purple-500 text-white' : 'hover:bg-gray-600 text-gray-300']"
 				title="Enable execution tracing (JSR/JMP)"
 			>
+				<ScrollText class="mr-2 h-4 w-4" />
 				Trace
 			</Button>
 		</ButtonGroup>
@@ -92,6 +96,7 @@
 </template>
 
 <script lang="ts" setup>
+import { ArrowDownToDot, ArrowUpFromDot, CornerDownRight, Octagon, Pause, Play, ScrollText } from "lucide-vue-next";
 import { inject, type Ref, ref } from "vue";
 import { Button } from '@/components/ui/button';
 import { ButtonGroup } from '@/components/ui/button-group';
