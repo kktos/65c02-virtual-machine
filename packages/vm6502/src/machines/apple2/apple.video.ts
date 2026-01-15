@@ -1,5 +1,6 @@
 import type { Video } from "@/types/video.interface";
 import type { IBus } from "@/virtualmachine/cpu/bus.interface";
+import type { AppleBus } from "./apple.bus";
 import * as SoftSwitches from "./bus/softswitches";
 
 type CharMetrics = {
@@ -92,7 +93,9 @@ interface AppleVideoOverrides {
 	videoMode?: "AUTO" | "TEXT" | "HGR";
 	videoPage?: "AUTO" | "PAGE1" | "PAGE2";
 	textRenderer?: "BITMAP" | "FONT";
-	backgroundColor?: string;
+	borderColor: number;
+	textFgColor: number;
+	textBgColor: number;
 	wannaScale?: boolean;
 	mouseChars?: "AUTO" | "ON" | "OFF";
 }
@@ -126,7 +129,7 @@ function loadFont(name: string) {
 export class AppleVideo implements Video {
 	private parent: Worker;
 	private buffer: Uint8Array;
-	private bus: IBus;
+	private bus: AppleBus;
 	private offscreenCanvas: OffscreenCanvas;
 	private ctx: OffscreenCanvasRenderingContext2D;
 	private targetWidth: number;
@@ -143,12 +146,12 @@ export class AppleVideo implements Video {
 	private flashCounter = 0;
 	private flashState = false;
 
-	private overrides: AppleVideoOverrides = {};
+	private overrides: AppleVideoOverrides = { borderColor: -1, textFgColor: -1, textBgColor: -1 };
 
 	constructor(parent: Worker, mem: Uint8Array, width: number, height: number, bus: IBus, payload?: unknown) {
 		this.parent = parent;
 		this.buffer = mem;
-		this.bus = bus;
+		this.bus = bus as AppleBus;
 		this.targetWidth = width;
 		this.targetHeight = height;
 		this.offscreenCanvas = new OffscreenCanvas(NATIVE_WIDTH + SCREEN_MARGIN_X * 2, NATIVE_HEIGHT + SCREEN_MARGIN_Y * 2);
@@ -217,17 +220,39 @@ export class AppleVideo implements Video {
 		return bestIndex;
 	}
 
-	private hexToRgb(hex: string): [number, number, number] {
-		const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex) as [unknown, string, string, string] | null;
-		return result ? [parseInt(result[1], 16), parseInt(result[2], 16), parseInt(result[3], 16)] : [0, 0, 0]; // Default to black if parse fails
-	}
-
 	public setDebugOverrides(overrides: Record<string, unknown>) {
-		this.overrides = overrides as AppleVideoOverrides;
+		this.overrides = overrides as unknown as AppleVideoOverrides;
 	}
 
 	public tick() {
-		this.ctx.fillStyle = "black";
+		// --- TBCOLOR Handling ---
+		// 1. Apply overrides to bus.tbColor if present
+		let tbColor = this.bus.tbColor;
+		if (this.overrides.textBgColor >= 0) {
+			const bgIdx = this.overrides.textBgColor;
+			tbColor = (tbColor & 0xf0) | (bgIdx & 0x0f);
+		}
+		if (this.overrides.textFgColor >= 0) {
+			const fgIdx = this.overrides.textFgColor;
+			tbColor = (tbColor & 0x0f) | ((fgIdx & 0x0f) << 4);
+		}
+		// Write back to bus if changed (so software sees the override)
+		this.bus.tbColor = tbColor;
+
+		// 2. Derive rendering colors from tbColor
+		const bgIdx = tbColor & 0x0f;
+		const fgIdx = (tbColor >> 4) & 0x0f;
+		// biome-ignore lint/style/noNonNullAssertion: <np>
+		const bgColorStr = `rgb(${IIgsPaletteRGB[bgIdx]!.join(",")})`;
+		// biome-ignore lint/style/noNonNullAssertion: <np>
+		const fgColorStr = `rgb(${IIgsPaletteRGB[fgIdx]!.join(",")})`;
+
+		let borderIdx = this.bus.brdrColor & 0x0f;
+		if (this.overrides.borderColor >= 0) borderIdx = this.overrides.borderColor;
+		this.bus.brdrColor = borderIdx;
+
+		// biome-ignore lint/style/noNonNullAssertion: <np>
+		this.ctx.fillStyle = `rgb(${IIgsPaletteRGB[borderIdx]!.join(",")})`;
 		this.ctx.fillRect(0, 0, this.offscreenCanvas.width, this.offscreenCanvas.height);
 
 		this.flashCounter++;
@@ -257,12 +282,12 @@ export class AppleVideo implements Video {
 
 		if (isText) {
 			if (is80Col) this.renderText80(0, TEXT_ROWS);
-			else this.renderText40(0, TEXT_ROWS, isPage2);
+			else this.renderText40(0, TEXT_ROWS, isPage2, bgColorStr, fgColorStr);
 		} else if (isHgr) {
 			this.renderHgr(0, isMixed ? HGR_MIXED_LINES : HGR_LINES, isPage2);
 			if (isMixed) {
 				if (is80Col) this.renderText80(20, 24);
-				else this.renderText40(20, 24, isPage2);
+				else this.renderText40(20, 24, isPage2, bgColorStr, fgColorStr);
 			}
 		}
 
@@ -280,13 +305,13 @@ export class AppleVideo implements Video {
 
 			// When using font rendering, we combat anti-aliasing by snapping each pixel
 			// to either the intended foreground, text background, or global background color.
-			const textBgColor = this.overrides.backgroundColor ?? "#000000";
-			const fgColor = "#FFFFFF";
-			const globalBgColor = "#000000";
 
-			const textBgRgb = this.hexToRgb(textBgColor);
-			const fgRgb = this.hexToRgb(fgColor);
-			const globalBgRgb = this.hexToRgb(globalBgColor);
+			// biome-ignore lint/style/noNonNullAssertion: <np>
+			const textBgRgb = IIgsPaletteRGB[bgIdx]!;
+			// biome-ignore lint/style/noNonNullAssertion: <np>
+			const fgRgb = IIgsPaletteRGB[fgIdx]!;
+			// biome-ignore lint/style/noNonNullAssertion: <np>
+			const globalBgRgb = IIgsPaletteRGB[bgIdx]!;
 
 			const textBgIndex = this.findNearestColor(textBgRgb[0], textBgRgb[1], textBgRgb[2]);
 			const fgIndex = this.findNearestColor(fgRgb[0], fgRgb[1], fgRgb[2]);
@@ -570,8 +595,9 @@ export class AppleVideo implements Video {
 		);
 	}
 
-	private renderText40(startRow = 0, endRow = TEXT_ROWS, isPage2 = false) {
-		if (this.overrides.textRenderer === "FONT") return this.renderText40WithFont(startRow, endRow, isPage2);
+	private renderText40(startRow = 0, endRow = TEXT_ROWS, isPage2 = false, bgColorStr = "black", fgColorStr = "white") {
+		if (this.overrides.textRenderer === "FONT")
+			return this.renderText40WithFont(startRow, endRow, isPage2, bgColorStr, fgColorStr);
 
 		const pageOffset = isPage2 ? 0x400 : 0;
 		for (let y = startRow; y < endRow; y++) {
@@ -609,7 +635,13 @@ export class AppleVideo implements Video {
 		}
 	}
 
-	private renderText40WithFont(startRow = 0, endRow = TEXT_ROWS, isPage2 = false) {
+	private renderText40WithFont(
+		startRow = 0,
+		endRow = TEXT_ROWS,
+		isPage2 = false,
+		bgColorStr: string,
+		fgColorStr: string,
+	) {
 		const charHeight = 16;
 		const charWidth = 14;
 
@@ -639,8 +671,8 @@ export class AppleVideo implements Video {
 		if (this.overrides.wannaScale) this.ctx.scale(scaleX, scaleY);
 
 		const pageOffset = isPage2 ? 0x400 : 0;
-		const bgColor = this.overrides.backgroundColor;
-		const drawBg = bgColor && bgColor !== "#000000";
+		// const bgColor = this.overrides.backgroundColor;
+		// const drawBg = bgColor && bgColor !== "#000000";
 
 		const isAltCharset =
 			this.overrides.mouseChars === "ON" ||
@@ -655,16 +687,16 @@ export class AppleVideo implements Video {
 				let charCode = this.bus.readRaw?.(lineBase + x) ?? 0;
 				const drawX = x * charWidth;
 
-				if (drawBg) {
-					this.ctx.fillStyle = bgColor as string;
-					this.ctx.fillRect(drawX, drawY, charWidth, charHeight);
-				}
+				// if (drawBg) {
+				// 	this.ctx.fillStyle = bgColor as string;
+				// 	this.ctx.fillRect(drawX, drawY, charWidth, charHeight);
+				// }
 
 				if (wantNormal && charCode >= 0x40 && charCode <= 0x7f) charCode += 0x80;
 
 				if (charCode === 0xa0) continue;
 
-				this.ctx.fillStyle = "white";
+				this.ctx.fillStyle = fgColorStr;
 				this.ctx.fillText(appleCharCodeToUnicode(charCode, isAltCharset), drawX, drawY);
 			}
 		}
@@ -693,8 +725,12 @@ export class AppleVideo implements Video {
 		this.ctx.translate(offsetX, offsetY);
 		if (this.overrides.wannaScale) this.ctx.scale(scale, scale);
 
-		const bgColor = this.overrides.backgroundColor;
-		const drawBg = bgColor && bgColor !== "#000000";
+		// Derive colors from tbColor
+		const tbColor = this.bus.tbColor;
+		const bgIdx = tbColor & 0x0f;
+		const fgIdx = (tbColor >> 4) & 0x0f;
+		// const bgColorStr = `rgb(${IIgsPaletteRGB[bgIdx]!.join(",")})`;
+		const fgColorStr = `rgb(${IIgsPaletteRGB[fgIdx]!.join(",")})`;
 
 		const isAltCharset =
 			this.overrides.mouseChars === "ON" ||
@@ -710,11 +746,11 @@ export class AppleVideo implements Video {
 				const evenCharX = x * 2 * charWidth;
 				const oddCharX = evenCharX + charWidth;
 
-				if (drawBg) {
-					this.ctx.fillStyle = bgColor as string;
-					this.ctx.fillRect(evenCharX, drawY, charWidth * 2, charHeight);
-				}
-				this.ctx.fillStyle = "white";
+				// if (drawBg) {
+				// 	this.ctx.fillStyle = bgColor as string;
+				// 	this.ctx.fillRect(evenCharX, drawY, charWidth * 2, charHeight);
+				// }
+				this.ctx.fillStyle = fgColorStr;
 
 				// Aux char (Even column)
 				let auxVal = this.bus.readRaw?.(AUX_BANK_OFFSET + lineBase + x) ?? 0;

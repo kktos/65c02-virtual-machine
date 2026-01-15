@@ -45,6 +45,7 @@ export function installSoftSwitches(bus: AppleBus) {
 	onRead(SoftSwitches.PAGE2, () => (bus.page2 ? 0x80 : 0x00));
 	onRead(SoftSwitches.HIRES, () => (bus.hires ? 0x80 : 0x00));
 	onRead(SoftSwitches.TBCOLOR, () => bus.tbColor);
+	onRead(SoftSwitches.CLOCKCTL, () => bus.brdrColor);
 
 	onRead(SoftSwitches.RDVBLBAR, () => (bus.fakingVBL ? 0x80 : 0x00));
 
@@ -69,6 +70,9 @@ export function installSoftSwitches(bus: AppleBus) {
 	});
 	onWrite(SoftSwitches.TBCOLOR, (v) => {
 		bus.tbColor = v;
+	});
+	onWrite(SoftSwitches.CLOCKCTL, (v) => {
+		bus.brdrColor = v;
 	});
 
 	// R/W switches that trigger state changes

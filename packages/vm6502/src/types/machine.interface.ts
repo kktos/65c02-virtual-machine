@@ -3,10 +3,11 @@ export interface DebugOption {
 	label: string;
 	type: "boolean" | "select" | "number";
 	category?: string;
-	options?: { label: string; value: string }[];
+	options?: { label: string; value: string | number }[];
 	min?: number;
 	max?: number;
-	defaultValue?: unknown;
+	defaultValue?: string | number;
+	savable?: boolean;
 }
 
 export interface MemoryChunk {

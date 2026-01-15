@@ -72,8 +72,10 @@ export class AppleBus implements IBus {
 	public mixed = false; // Mixed Mode
 	public page2 = false; // Page 2
 	public hires = false; // Hi-Res Mode
-	public tbColor = DEFAULT_TEXT_COLORS; // IIgs text/bg color (black bg, white text)
 	public fakingVBL = false;
+
+	public tbColor = DEFAULT_TEXT_COLORS; // IIgs text/bg color (black bg, white text)
+	public brdrColor = DEFAULT_TEXT_COLORS & 0x0f; // IIgs border color
 
 	// Keyboard State
 	public lastKey = 0x00;
@@ -84,7 +86,7 @@ export class AppleBus implements IBus {
 	public pb1 = false; // Solid Apple (Right Alt)
 
 	// Speaker State
-	private speaker: Speaker;
+	public speaker: Speaker;
 
 	private tickHandlers: ((cycles: number) => void)[] = [];
 

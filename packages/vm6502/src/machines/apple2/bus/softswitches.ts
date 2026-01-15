@@ -294,5 +294,7 @@ export const SLOT3_0F = 0xc0bf;
 
 // R/W TBCOLOR IIgs Screen Color: (0-3) Low Nibble is BG, (4-7) High Nibble is Text
 export const TBCOLOR = 0xc022;
+// R/W CLOCKCTL IIgs Border Screen Color: b0-3 = borderColor
+export const CLOCKCTL = 0xc034;
 //$C019 R7 VERTBLANK 1=vertical retrace on 0=vertical retrace off RDVBLBAR
 export const RDVBLBAR = 0xc019;
