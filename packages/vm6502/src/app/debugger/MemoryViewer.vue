@@ -143,6 +143,7 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 	const emit = defineEmits<{
 		(e: 'split', address: number): void;
 		(e: 'close'): void;
+		(e: 'update:address', address: number): void;
 	}>();
 
 	const startAddress = ref(props.initialAddress ?? 0x0000);
@@ -158,6 +159,10 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 		if (newAddress !== null) {
 			startAddress.value = newAddress;
 		}
+	});
+
+	watch(startAddress, (newAddr) => {
+		emit('update:address', newAddr);
 	});
 
 	const visibleRowCount = computed(() => {
