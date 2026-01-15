@@ -337,8 +337,6 @@ export class AppleVideo implements Video {
 		}
 
 		if ((globalThis as any).DEBUG_VIDEO) this.handleDebugVideo();
-
-		if (this.bus.syncState) this.bus.syncState();
 	}
 
 	/**

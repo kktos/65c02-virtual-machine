@@ -40,6 +40,10 @@ let cyclesPerTimeslice = 10000; // Number of cycles to run before yielding
 // Performance tracking
 let lastPerfTime = 0;
 let cyclesSinceLastPerf = 0;
+let lastRunTime = 0;
+let cycleAccumulator = 0;
+let lastVideoTickTime = 0;
+const VIDEO_INTERVAL_MS = 1000 / 60;
 
 // --- Trace State ---
 let traceEnabled = false;
@@ -94,6 +98,8 @@ export function setRunning(running: boolean) {
 	if (isRunning) {
 		lastPerfTime = performance.now();
 		cyclesSinceLastPerf = 0;
+		lastRunTime = performance.now();
+		cycleAccumulator = 0;
 		run();
 	}
 }
@@ -183,6 +189,7 @@ export function stepInstruction() {
 	const cycles = executeInstruction();
 	if (bus?.tick) bus.tick(cycles);
 	if (video && memoryView) video.tick();
+	if (bus?.syncState) bus.syncState();
 }
 
 export function resetCPU() {
@@ -215,7 +222,24 @@ export function resetCPU() {
 // --- Main Execution Loop ---
 function run() {
 	if (!isRunning || !registersView || !bus) return;
-	let cyclesThisSlice = cyclesPerTimeslice;
+
+	let cyclesThisSlice = 0;
+	const now = performance.now();
+
+	if (clockSpeedMhz > 0) {
+		// const now = performance.now();
+		// Cap delta time to 50ms to prevent "spiral of death" if tab was backgrounded
+		const dt = Math.min(now - lastRunTime, 50);
+		lastRunTime = now;
+
+		// Calculate cycles needed: MHz * 1000 = cycles/ms
+		cycleAccumulator += clockSpeedMhz * 1000 * dt;
+		cyclesThisSlice = Math.floor(cycleAccumulator);
+		cycleAccumulator -= cyclesThisSlice;
+	} else {
+		cyclesThisSlice = cyclesPerTimeslice;
+	}
+
 	const initialCycles = cyclesThisSlice;
 
 	while (cyclesThisSlice > 0) {
@@ -226,12 +250,17 @@ function run() {
 		if (!isRunning) break;
 	}
 
-	if (video && memoryView) video.tick();
+	if (video && now - lastVideoTickTime >= VIDEO_INTERVAL_MS) {
+		video.tick();
+		lastVideoTickTime = now;
+	}
+
+	if (bus?.syncState) bus.syncState();
 
 	if (clockSpeedMhz === 0) {
 		const executed = initialCycles - cyclesThisSlice;
 		cyclesSinceLastPerf += executed;
-		const now = performance.now();
+		// const now = performance.now();
 		if (now - lastPerfTime >= 1000) {
 			const elapsedSec = (now - lastPerfTime) / 1000;
 			const effectiveMhz = cyclesSinceLastPerf / elapsedSec / 1000000;
