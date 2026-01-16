@@ -2,7 +2,7 @@ import type { VideoConfig } from "@/types/machine.interface";
 import type { Video } from "@/types/video.interface";
 
 // Vite-specific way to handle dynamic imports in workers.
-const videoModules = import.meta.glob("../../../machines/*/*.video.ts");
+const videoModules = import.meta.glob("../../../machines/**/*.video.ts");
 const BASE_PATH = "../../../machines";
 
 export async function loadVideo(videoConfig: VideoConfig, registers: DataView, mainMemory: Uint8Array) {

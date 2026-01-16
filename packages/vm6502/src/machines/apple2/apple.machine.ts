@@ -13,7 +13,7 @@ export const apple2e: MachineConfig = {
 		width: 640 + 10 + 10,
 		height: 25 * 21 + 10 + 10,
 		class: "AppleVideo",
-		path: "apple2/apple.video",
+		path: "apple2/video/apple.video",
 	},
 	disk: { enabled: true, name: "SPDisk" },
 	debugOptions: debugConfig,

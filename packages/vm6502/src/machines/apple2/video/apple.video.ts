@@ -1,0 +1,501 @@
+import type { Video } from "@/types/video.interface";
+import { MACHINE_STATE_OFFSET, REG_BORDERCOLOR_OFFSET, REG_TBCOLOR_OFFSET } from "@/virtualmachine/cpu/shared-memory";
+import { HGR_COLORS, HGR_LINES, HGR_MIXED_LINES, renderHgr } from "./hgr";
+import {
+	NATIVE_HEIGHT,
+	NATIVE_WIDTH,
+	SCREEN_MARGIN_X,
+	SCREEN_MARGIN_Y,
+	TEXT_COLS,
+	TEXT_ROWS,
+	TextRenderer,
+} from "./text";
+
+const IIgsPaletteRGB: ReadonlyArray<[number, number, number]> = [
+	[0x00, 0x00, 0x00], // 0 Black
+	[0xdd, 0x00, 0x30], // 1 Deep Red
+	[0x00, 0x00, 0x99], // 2 Dark Blue
+	[0xdd, 0x22, 0xdd], // 3 Purple
+	[0x00, 0x77, 0x22], // 4 Dark Green
+	[0x55, 0x55, 0x55], // 5 Dark Gray
+	[0x22, 0x22, 0xff], // 6 Medium Blue
+	[0x66, 0xaa, 0xff], // 7 Light Blue
+	[0x88, 0x55, 0x00], // 8 Brown
+	[0xff, 0x66, 0x00], // 9 Orange
+	[0xaa, 0xaa, 0xaa], // 10 Light Gray
+	[0xff, 0x99, 0x88], // 11 Pink
+	[0x11, 0xdd, 0x00], // 12 Light Green
+	[0xff, 0xff, 0x00], // 13 Yellow
+	[0x41, 0xff, 0x99], // 14 Aquamarine
+	[0xff, 0xff, 0xff], // 15 White
+];
+
+// Memory layout offset (matches AppleBus)
+const RAM_OFFSET = 0x4000;
+
+// Machine State Flags (Byte 2 at MACHINE_STATE_OFFSET + 1)
+const APPLE_80COL_MASK = 0b0000_0010;
+const APPLE_ALTCHAR_MASK = 0b0000_0100;
+const APPLE_TEXT_MASK = 0b0000_1000;
+const APPLE_MIXED_MASK = 0b0001_0000;
+const APPLE_PAGE2_MASK = 0b0010_0000;
+const APPLE_HIRES_MASK = 0b0100_0000;
+
+interface AppleVideoOverrides {
+	videoMode?: "AUTO" | "TEXT" | "HGR";
+	videoPage?: "AUTO" | "PAGE1" | "PAGE2";
+	textRenderer?: "BITMAP" | "FONT";
+	borderColor: number;
+	textFgColor: number;
+	textBgColor: number;
+	wannaScale?: boolean;
+	mouseChars?: "AUTO" | "ON" | "OFF";
+}
+
+const baseurl = import.meta.url.match(/http:\/\/[^/]+/)?.[0];
+function loadFont(name: string) {
+	const fontUrl = new URL(`${baseurl}/fonts/${name}.ttf`).href;
+	const font = new FontFace(name, `url(${fontUrl})`);
+	font
+		.load()
+		.then((loaded) => {
+			self.fonts.add(loaded);
+			console.log("AppleVideo: Loaded font", loaded.family);
+		})
+		.catch((e) => console.warn("Failed to load font in worker:", e));
+}
+export class AppleVideo implements Video {
+	private parent: Worker;
+	private buffer: Uint8Array;
+	private registers: DataView;
+	private ram: Uint8Array;
+	private offscreenCanvas: OffscreenCanvas;
+	private ctx: OffscreenCanvasRenderingContext2D;
+	private targetWidth: number;
+	private targetHeight: number;
+
+	private readonly charWidth: number;
+	private readonly charHeight: number;
+
+	private flashCounter = 0;
+	private flashState = false;
+
+	private overrides: AppleVideoOverrides = { borderColor: -1, textFgColor: -1, textBgColor: -1 };
+
+	private textRenderer: TextRenderer;
+
+	private renderText40!: (
+		startRow: number,
+		endRow: number,
+		isPage2: boolean,
+		bgColorStr: string,
+		fgColorStr: string,
+		isAltCharset: boolean,
+	) => void;
+	private renderText80!: (
+		startRow: number,
+		endRow: number,
+		bgColorStr: string,
+		fgColorStr: string,
+		isAltCharset: boolean,
+	) => void;
+
+	constructor(
+		parent: Worker,
+		mem: Uint8Array,
+		width: number,
+		height: number,
+		registers: DataView,
+		ram: Uint8Array,
+		payload?: unknown,
+	) {
+		this.parent = parent;
+		this.buffer = mem;
+		this.registers = registers;
+		this.ram = ram.subarray(RAM_OFFSET);
+		this.targetWidth = width;
+		this.targetWidth = width;
+		this.targetHeight = height;
+		this.offscreenCanvas = new OffscreenCanvas(NATIVE_WIDTH + SCREEN_MARGIN_X * 2, NATIVE_HEIGHT + SCREEN_MARGIN_Y * 2);
+		const context = this.offscreenCanvas.getContext("2d", { willReadFrequently: true });
+		if (!context) throw new Error("Could not get 2D context from OffscreenCanvas");
+
+		loadFont("PrintChar21");
+		loadFont("PRNumber3");
+
+		this.ctx = context;
+		this.ctx.imageSmoothingEnabled = false;
+
+		this.charWidth = NATIVE_WIDTH / TEXT_COLS;
+		this.charHeight = NATIVE_HEIGHT / TEXT_ROWS;
+
+		console.log("AppleVideo", `view w${width}h${height}`, `char w${this.charWidth}h${this.charHeight}`);
+
+		this.initPalette();
+
+		this.textRenderer = new TextRenderer(this.ctx, this.ram, payload, this.charWidth, this.charHeight);
+
+		this.updateRenderers();
+	}
+
+	private initPalette() {
+		const palette = new Uint8Array(256 * 4);
+		// IIgs 16-color palette
+		for (let i = 0; i < 16; i++) {
+			palette[i * 4 + 0] = IIgsPaletteRGB[i]![0];
+			palette[i * 4 + 1] = IIgsPaletteRGB[i]![1];
+			palette[i * 4 + 2] = IIgsPaletteRGB[i]![2];
+			palette[i * 4 + 3] = 0xff;
+		}
+
+		// HGR color palette
+		for (let i = 17; i < 17 + 8; i++) {
+			palette[i * 4 + 0] = HGR_COLORS[i - 17]![0];
+			palette[i * 4 + 1] = HGR_COLORS[i - 17]![1];
+			palette[i * 4 + 2] = HGR_COLORS[i - 17]![2];
+			palette[i * 4 + 3] = 0xff;
+		}
+
+		this.parent.postMessage({ command: "setPalette", colors: palette });
+	}
+
+	private findNearestColor(r: number, g: number, b: number): number {
+		let minDist = Infinity;
+		let bestIndex = 0;
+
+		for (let i = 0; i < 16; i++) {
+			const p = IIgsPaletteRGB[i] as [number, number, number];
+			const dr = r - p[0];
+			const dg = g - p[1];
+			const db = b - p[2];
+			const dist = dr * dr + dg * dg + db * db;
+
+			if (dist < minDist) {
+				minDist = dist;
+				bestIndex = i;
+				if (dist === 0) break;
+			}
+		}
+		return bestIndex;
+	}
+
+	public setDebugOverrides(overrides: Record<string, unknown>) {
+		this.overrides = overrides as unknown as AppleVideoOverrides;
+		this.updateRenderers();
+	}
+
+	private updateRenderers() {
+		if (this.overrides.textRenderer === "FONT") {
+			this.renderText40 = (startRow, endRow, isPage2, bgColorStr, fgColorStr, isAltCharset) => {
+				this.textRenderer.render40WithFont(
+					startRow,
+					endRow,
+					isPage2,
+					bgColorStr,
+					fgColorStr,
+					!!this.overrides.wannaScale,
+					isAltCharset,
+					this.flashState,
+				);
+			};
+			this.renderText80 = (startRow, endRow, bgColorStr, fgColorStr, isAltCharset) => {
+				this.textRenderer.render80WithFont(
+					startRow,
+					endRow,
+					bgColorStr,
+					fgColorStr,
+					!!this.overrides.wannaScale,
+					isAltCharset,
+					this.flashState,
+				);
+			};
+		} else {
+			this.renderText40 = (startRow, endRow, isPage2) => {
+				this.textRenderer.render40Bitmap(startRow, endRow, isPage2);
+			};
+			this.renderText80 = (startRow, endRow) => {
+				this.textRenderer.render80Bitmap(startRow, endRow);
+			};
+		}
+	}
+
+	public tick() {
+		// --- TBCOLOR Handling ---
+		// 1. Apply overrides to bus.tbColor if present
+		let tbColor = this.registers.getUint8(REG_TBCOLOR_OFFSET);
+		if (this.overrides.textBgColor >= 0) {
+			const bgIdx = this.overrides.textBgColor;
+			tbColor = (tbColor & 0xf0) | (bgIdx & 0x0f);
+		}
+		if (this.overrides.textFgColor >= 0) {
+			const fgIdx = this.overrides.textFgColor;
+			tbColor = (tbColor & 0x0f) | ((fgIdx & 0x0f) << 4);
+		}
+		// Note: We don't write back to registers here to avoid race conditions with the bus.
+
+		// 2. Derive rendering colors from tbColor
+		const bgIdx = tbColor & 0x0f;
+		const fgIdx = (tbColor >> 4) & 0x0f;
+		// biome-ignore lint/style/noNonNullAssertion: <np>
+		const bgColorStr = `rgb(${IIgsPaletteRGB[bgIdx]!.join(",")})`;
+		// biome-ignore lint/style/noNonNullAssertion: <np>
+		const fgColorStr = `rgb(${IIgsPaletteRGB[fgIdx]!.join(",")})`;
+
+		let borderIdx = this.registers.getUint8(REG_BORDERCOLOR_OFFSET) & 0x0f;
+		if (this.overrides.borderColor >= 0) borderIdx = this.overrides.borderColor;
+
+		// biome-ignore lint/style/noNonNullAssertion: <np>
+		this.ctx.fillStyle = `rgb(${IIgsPaletteRGB[borderIdx]!.join(",")})`;
+		this.ctx.fillRect(0, 0, this.offscreenCanvas.width, this.offscreenCanvas.height);
+
+		this.flashCounter++;
+		if (this.flashCounter >= 16) {
+			this.flashState = !this.flashState;
+			this.flashCounter = 0;
+		}
+
+		const stateByte2 = this.registers.getUint8(MACHINE_STATE_OFFSET + 1);
+
+		let isText = (stateByte2 & APPLE_TEXT_MASK) !== 0;
+		let isHgr = (stateByte2 & APPLE_HIRES_MASK) !== 0;
+		const isMixed = (stateByte2 & APPLE_MIXED_MASK) !== 0;
+		const is80Col = (stateByte2 & APPLE_80COL_MASK) !== 0;
+		let isPage2 = (stateByte2 & APPLE_PAGE2_MASK) !== 0;
+
+		if (this.overrides.videoMode === "TEXT") {
+			isText = true;
+		} else if (this.overrides.videoMode === "HGR") {
+			isText = false;
+			isHgr = true;
+		}
+
+		if (this.overrides.videoPage === "PAGE1") {
+			isPage2 = false;
+		} else if (this.overrides.videoPage === "PAGE2") {
+			isPage2 = true;
+		}
+
+		const isAltCharset =
+			this.overrides.mouseChars === "ON" ||
+			(this.overrides.mouseChars === "OFF" ? false : (stateByte2 & APPLE_ALTCHAR_MASK) !== 0);
+
+		if (isText) {
+			if (is80Col) {
+				this.renderText80(0, TEXT_ROWS, bgColorStr, fgColorStr, isAltCharset);
+			} else {
+				this.renderText40(0, TEXT_ROWS, isPage2, bgColorStr, fgColorStr, isAltCharset);
+			}
+		} else if (isHgr) {
+			renderHgr(
+				this.buffer,
+				this.ram,
+				this.targetWidth,
+				this.targetHeight,
+				0,
+				isMixed ? HGR_MIXED_LINES : HGR_LINES,
+				isPage2,
+			);
+			if (isMixed) {
+				if (is80Col) {
+					this.renderText80(20, 24, bgColorStr, fgColorStr, isAltCharset);
+				} else {
+					this.renderText40(20, 24, isPage2, bgColorStr, fgColorStr, isAltCharset);
+				}
+			}
+		}
+
+		const dest = this.buffer;
+		const scaleY = this.targetHeight / this.offscreenCanvas.height;
+
+		// Only read back from canvas if we rendered text
+		if (isText || isMixed) {
+			const imageData = this.ctx.getImageData(0, 0, this.offscreenCanvas.width, this.offscreenCanvas.height);
+			const src32 = new Uint32Array(imageData.data.buffer);
+			const srcWidth = this.offscreenCanvas.width;
+
+			const useThresholding = this.overrides.textRenderer === "FONT";
+			const colorCache = useThresholding ? null : new Map<number, number>();
+
+			// When using font rendering, we combat anti-aliasing by snapping each pixel
+			// to either the intended foreground, text background, or global background color.
+
+			// biome-ignore lint/style/noNonNullAssertion: <np>
+			const fgRgb = IIgsPaletteRGB[fgIdx]!;
+			// biome-ignore lint/style/noNonNullAssertion: <np>
+			const textBgRgb = IIgsPaletteRGB[bgIdx]!;
+			// biome-ignore lint/style/noNonNullAssertion: <np>
+			const globalBgRgb = IIgsPaletteRGB[borderIdx]!;
+
+			const textBgIndex = bgIdx;
+			const fgIndex = fgIdx;
+			const globalBgIndex = borderIdx;
+
+			let startY = 0;
+			if (isMixed && !isText) {
+				// Mixed Mode: Copy only the bottom 4 lines of text (lines 20-23)
+				// Start at line 160 (Mixed mode split point)
+				// We need to calculate the Y position in the TARGET buffer
+				startY = Math.floor((SCREEN_MARGIN_Y + 160) * scaleY);
+			}
+
+			// Convert RGBA pixels to 8-bit indices
+			// We loop over the DESTINATION buffer dimensions
+			for (let y = startY; y < this.targetHeight; y++) {
+				const srcY = Math.floor(y / scaleY);
+				const srcRowOffset = srcY * srcWidth;
+				const destRowOffset = y * this.targetWidth;
+
+				for (let x = 0; x < this.targetWidth; x++) {
+					// Simple nearest neighbor for X (assuming width matches for now, but safe to scale)
+					// If targetWidth == srcWidth (560), this maps 1:1
+					const pixel = src32[srcRowOffset + x] ?? 0;
+					let colorIndex: number;
+
+					if (useThresholding) {
+						const r = pixel & 0xff;
+						const g = (pixel >> 8) & 0xff;
+						const b = (pixel >> 16) & 0xff;
+
+						// Calculate squared distance to global background, text background, and foreground
+						const distToGlobalBg = (r - globalBgRgb[0]) ** 2 + (g - globalBgRgb[1]) ** 2 + (b - globalBgRgb[2]) ** 2;
+						const distToTextBg = (r - textBgRgb[0]) ** 2 + (g - textBgRgb[1]) ** 2 + (b - textBgRgb[2]) ** 2;
+						const distToFg = (r - fgRgb[0]) ** 2 + (g - fgRgb[1]) ** 2 + (b - fgRgb[2]) ** 2;
+
+						if (distToFg <= distToTextBg && distToFg <= distToGlobalBg) {
+							colorIndex = fgIndex;
+						} else if (distToTextBg <= distToGlobalBg) {
+							colorIndex = textBgIndex;
+						} else {
+							colorIndex = globalBgIndex;
+						}
+					} else {
+						const key = pixel & 0x00ffffff;
+						colorIndex = colorCache!.get(key);
+						if (colorIndex === undefined) {
+							const r = pixel & 0xff;
+							const g = (pixel >> 8) & 0xff;
+							const b = (pixel >> 16) & 0xff;
+							colorIndex = this.findNearestColor(r, g, b);
+							colorCache!.set(key, colorIndex);
+						}
+					}
+
+					dest[destRowOffset + x] = colorIndex;
+				}
+			}
+		}
+
+		// if ((globalThis as any).DEBUG_VIDEO) this.handleDebugVideo();
+	}
+	/*
+	private handleDebugVideo() {
+		(globalThis as any).DEBUG_VIDEO = false;
+		this.offscreenCanvas.convertToBlob().then((blob) => {
+			const reader = new FileReader();
+			reader.onload = () => {
+				const url = reader.result as string;
+				console.log("AppleVideo Canvas Snapshot:", this.offscreenCanvas.width, this.offscreenCanvas.height);
+				console.log(
+					"%c  ",
+					`font-size: 1px; padding: ${this.offscreenCanvas.height / 2}px ${this.offscreenCanvas.width / 2}px; background: url(${url}) no-repeat; background-size: contain;`,
+				);
+			};
+			reader.readAsDataURL(blob);
+		});
+
+		// Reconstruct image from the buffer to verify the copy process
+		const width = this.targetWidth;
+		const height = this.targetHeight;
+		const debugCanvas = new OffscreenCanvas(width, height);
+		const debugCtx = debugCanvas.getContext("2d");
+		if (debugCtx) {
+			const imgData = debugCtx.createImageData(width, height);
+			for (let i = 0; i < width * height; i++) {
+				const colorIdx = this.buffer[i];
+				const rgb = IIgsPaletteRGB[colorIdx & 0x0f] || [0, 0, 0];
+				imgData.data[i * 4 + 0] = rgb[0];
+				imgData.data[i * 4 + 1] = rgb[1];
+				imgData.data[i * 4 + 2] = rgb[2];
+				imgData.data[i * 4 + 3] = 255;
+			}
+			debugCtx.putImageData(imgData, 0, 0);
+			debugCanvas.convertToBlob().then((blob) => {
+				const reader = new FileReader();
+				reader.onload = () => {
+					const url = reader.result as string;
+					console.log("AppleVideo Buffer Snapshot:", width, height);
+					console.log(
+						"%c  ",
+						`font-size: 1px; padding: ${height / 2}px ${width / 2}px; background: url(${url}) no-repeat; background-size: contain;`,
+					);
+				};
+				reader.readAsDataURL(blob);
+			});
+		}
+
+		// Lorem Ipsum Debug
+		const padding = 2;
+		const cellWidth = this.charWidth + padding * 2;
+		const cellHeight = this.charHeight + padding * 2;
+		const loremWidth = 40 * cellWidth;
+		const loremHeight = 24 * cellHeight;
+
+		const loremCanvas = new OffscreenCanvas(loremWidth, loremHeight);
+		const loremCtx = loremCanvas.getContext("2d");
+
+		if (loremCtx && this.charmap40 && this.metrics40) {
+			// loremCtx.imageSmoothingEnabled = false;
+			loremCtx.fillStyle = "black";
+			loremCtx.fillRect(0, 0, loremWidth, loremHeight);
+
+			// const text =
+			// 	"Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.";
+
+			let charIndex = 0;
+			for (let y = 0; y < 24; y++) {
+				for (let x = 0; x < 40; x++) {
+					const charCode = (charIndex % 255) | 0x80; //text.charCodeAt(charIndex % text.length) | 0x80;
+					charIndex++;
+
+					const destX = x * cellWidth + padding;
+					const destY = y * cellHeight + padding;
+
+					const m = this.metrics40;
+					const srcX = (charCode % m.cols) * m.charWidth;
+					const srcY = Math.floor(charCode / m.rows) * m.charHeight;
+
+					if (charIndex === 56)
+						loremCtx.drawImage(
+							this.charmap40,
+							srcX,
+							srcY,
+							m.charWidth,
+							m.charHeight,
+							destX,
+							destY,
+							this.charWidth,
+							this.charHeight,
+						);
+				}
+			}
+
+			loremCanvas.convertToBlob().then((blob) => {
+				const reader = new FileReader();
+				reader.onload = () => {
+					const url = reader.result as string;
+					console.log("AppleVideo Lorem Ipsum Snapshot:", loremWidth, loremHeight);
+					console.log(
+						"%c  ",
+						`font-size: 1px; padding: ${loremHeight / 2}px ${loremWidth / 2}px; background: url(${url}) no-repeat; background-size: contain;`,
+					);
+				};
+				reader.readAsDataURL(blob);
+			});
+		}
+	}
+*/
+	public reset() {
+		this.buffer.fill(0);
+		if (this.ctx) this.ctx.clearRect(0, 0, this.offscreenCanvas.width, this.offscreenCanvas.height);
+	}
+}
