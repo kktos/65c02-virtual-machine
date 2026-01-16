@@ -56,7 +56,7 @@ async function init(machine: MachineConfig) {
 	}
 
 	if (machine.video) {
-		video = await loadVideo(machine.video, bus);
+		video = await loadVideo(machine.video, registersView, memoryView);
 		if (!video) return;
 	}
 

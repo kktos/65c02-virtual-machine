@@ -1,7 +1,5 @@
 import type { Video } from "@/types/video.interface";
-import type { IBus } from "@/virtualmachine/cpu/bus.interface";
-import type { AppleBus } from "./apple.bus";
-import * as SoftSwitches from "./bus/softswitches";
+import { MACHINE_STATE_OFFSET, REG_BORDERCOLOR_OFFSET, REG_TBCOLOR_OFFSET } from "@/virtualmachine/cpu/shared-memory";
 
 type CharMetrics = {
 	charWidth: number;
@@ -89,6 +87,17 @@ const NATIVE_HEIGHT = 25 * 21;
 
 const AUX_BANK_OFFSET = 0x10000;
 
+// Memory layout offset (matches AppleBus)
+const RAM_OFFSET = 0x4000;
+
+// Machine State Flags (Byte 2 at MACHINE_STATE_OFFSET + 1)
+const APPLE_80COL_MASK = 0b0000_0010;
+const APPLE_ALTCHAR_MASK = 0b0000_0100;
+const APPLE_TEXT_MASK = 0b0000_1000;
+const APPLE_MIXED_MASK = 0b0001_0000;
+const APPLE_PAGE2_MASK = 0b0010_0000;
+const APPLE_HIRES_MASK = 0b0100_0000;
+
 interface AppleVideoOverrides {
 	videoMode?: "AUTO" | "TEXT" | "HGR";
 	videoPage?: "AUTO" | "PAGE1" | "PAGE2";
@@ -129,7 +138,8 @@ function loadFont(name: string) {
 export class AppleVideo implements Video {
 	private parent: Worker;
 	private buffer: Uint8Array;
-	private bus: AppleBus;
+	private registers: DataView;
+	private ram: Uint8Array;
 	private offscreenCanvas: OffscreenCanvas;
 	private ctx: OffscreenCanvasRenderingContext2D;
 	private targetWidth: number;
@@ -148,10 +158,19 @@ export class AppleVideo implements Video {
 
 	private overrides: AppleVideoOverrides = { borderColor: -1, textFgColor: -1, textBgColor: -1 };
 
-	constructor(parent: Worker, mem: Uint8Array, width: number, height: number, bus: IBus, payload?: unknown) {
+	constructor(
+		parent: Worker,
+		mem: Uint8Array,
+		width: number,
+		height: number,
+		registers: DataView,
+		ram: Uint8Array,
+		payload?: unknown,
+	) {
 		this.parent = parent;
 		this.buffer = mem;
-		this.bus = bus as AppleBus;
+		this.registers = registers;
+		this.ram = ram;
 		this.targetWidth = width;
 		this.targetHeight = height;
 		this.offscreenCanvas = new OffscreenCanvas(NATIVE_WIDTH + SCREEN_MARGIN_X * 2, NATIVE_HEIGHT + SCREEN_MARGIN_Y * 2);
@@ -227,7 +246,7 @@ export class AppleVideo implements Video {
 	public tick() {
 		// --- TBCOLOR Handling ---
 		// 1. Apply overrides to bus.tbColor if present
-		let tbColor = this.bus.tbColor;
+		let tbColor = this.registers.getUint8(REG_TBCOLOR_OFFSET);
 		if (this.overrides.textBgColor >= 0) {
 			const bgIdx = this.overrides.textBgColor;
 			tbColor = (tbColor & 0xf0) | (bgIdx & 0x0f);
@@ -236,8 +255,7 @@ export class AppleVideo implements Video {
 			const fgIdx = this.overrides.textFgColor;
 			tbColor = (tbColor & 0x0f) | ((fgIdx & 0x0f) << 4);
 		}
-		// Write back to bus if changed (so software sees the override)
-		this.bus.tbColor = tbColor;
+		// Note: We don't write back to registers here to avoid race conditions with the bus.
 
 		// 2. Derive rendering colors from tbColor
 		const bgIdx = tbColor & 0x0f;
@@ -247,9 +265,8 @@ export class AppleVideo implements Video {
 		// biome-ignore lint/style/noNonNullAssertion: <np>
 		const fgColorStr = `rgb(${IIgsPaletteRGB[fgIdx]!.join(",")})`;
 
-		let borderIdx = this.bus.brdrColor & 0x0f;
+		let borderIdx = this.registers.getUint8(REG_BORDERCOLOR_OFFSET) & 0x0f;
 		if (this.overrides.borderColor >= 0) borderIdx = this.overrides.borderColor;
-		this.bus.brdrColor = borderIdx;
 
 		// biome-ignore lint/style/noNonNullAssertion: <np>
 		this.ctx.fillStyle = `rgb(${IIgsPaletteRGB[borderIdx]!.join(",")})`;
@@ -261,11 +278,13 @@ export class AppleVideo implements Video {
 			this.flashCounter = 0;
 		}
 
-		let isText = (this.bus.read(SoftSwitches.TEXT) & 0x80) !== 0;
-		let isHgr = (this.bus.read(SoftSwitches.HIRES) & 0x80) !== 0;
-		const isMixed = (this.bus.read(SoftSwitches.MIXED) & 0x80) !== 0;
-		const is80Col = (this.bus.read(SoftSwitches.COL80) & 0x80) !== 0;
-		let isPage2 = (this.bus.read(SoftSwitches.PAGE2) & 0x80) !== 0;
+		const stateByte2 = this.registers.getUint8(MACHINE_STATE_OFFSET + 1);
+
+		let isText = (stateByte2 & APPLE_TEXT_MASK) !== 0;
+		let isHgr = (stateByte2 & APPLE_HIRES_MASK) !== 0;
+		const isMixed = (stateByte2 & APPLE_MIXED_MASK) !== 0;
+		const is80Col = (stateByte2 & APPLE_80COL_MASK) !== 0;
+		let isPage2 = (stateByte2 & APPLE_PAGE2_MASK) !== 0;
 
 		if (this.overrides.videoMode === "TEXT") {
 			isText = true;
@@ -390,9 +409,9 @@ export class AppleVideo implements Video {
 
 			for (let byteX = 0; byteX < 40; byteX++) {
 				const address = lineBase + byteX;
-				const value = this.bus.readRaw?.(address) ?? 0;
-				const prevValue = byteX > 0 ? (this.bus.readRaw?.(address - 1) ?? 0) : 0;
-				const nextValue = byteX < 39 ? (this.bus.readRaw?.(address + 1) ?? 0) : 0;
+				const value = this.ram[RAM_OFFSET + address] ?? 0;
+				const prevValue = byteX > 0 ? (this.ram[RAM_OFFSET + address - 1] ?? 0) : 0;
+				const nextValue = byteX < 39 ? (this.ram[RAM_OFFSET + address + 1] ?? 0) : 0;
 
 				const isShifted = (value & 0x80) !== 0;
 
@@ -603,7 +622,7 @@ export class AppleVideo implements Video {
 		for (let y = startRow; y < endRow; y++) {
 			const lineBase = (textScreenLineOffsets[y] ?? 0) + pageOffset;
 			for (let x = 0; x < TEXT_COLS; x++) {
-				const charCode = this.bus.readRaw?.(lineBase + x) ?? 0;
+				const charCode = this.ram[RAM_OFFSET + lineBase + x] ?? 0;
 
 				const drawX = SCREEN_MARGIN_X + x * this.charWidth;
 				const drawY = SCREEN_MARGIN_Y + y * this.charHeight;
@@ -623,12 +642,12 @@ export class AppleVideo implements Video {
 				const drawY = SCREEN_MARGIN_Y + y * this.charHeight;
 
 				// Aux char (Even column)
-				const auxVal = this.bus.readRaw?.(AUX_BANK_OFFSET + lineBase + x) ?? 0;
+				const auxVal = this.ram[RAM_OFFSET + AUX_BANK_OFFSET + lineBase + x] ?? 0;
 				const drawXAux = SCREEN_MARGIN_X + x * 2 * charWidth80;
 				this.drawChar(auxVal, drawXAux, drawY, charWidth80, true);
 
 				// Main char (Odd column)
-				const mainVal = this.bus.readRaw?.(lineBase + x) ?? 0;
+				const mainVal = this.ram[RAM_OFFSET + lineBase + x] ?? 0;
 				const drawXMain = SCREEN_MARGIN_X + (x * 2 + 1) * charWidth80;
 				this.drawChar(mainVal, drawXMain, drawY, charWidth80, true);
 			}
@@ -674,9 +693,10 @@ export class AppleVideo implements Video {
 		// const bgColor = this.overrides.backgroundColor;
 		// const drawBg = bgColor && bgColor !== "#000000";
 
+		const stateByte2 = this.registers.getUint8(MACHINE_STATE_OFFSET + 1);
 		const isAltCharset =
 			this.overrides.mouseChars === "ON" ||
-			(this.overrides.mouseChars === "OFF" ? false : (this.bus.read(SoftSwitches.ALTCHARSET) & 0x80) !== 0);
+			(this.overrides.mouseChars === "OFF" ? false : (stateByte2 & APPLE_ALTCHAR_MASK) !== 0);
 
 		const wantNormal = !isAltCharset && !this.flashState;
 
@@ -684,7 +704,7 @@ export class AppleVideo implements Video {
 			const lineBase = (textScreenLineOffsets[y] ?? 0) + pageOffset;
 			const drawY = y * charHeight;
 			for (let x = 0; x < TEXT_COLS; x++) {
-				let charCode = this.bus.readRaw?.(lineBase + x) ?? 0;
+				let charCode = this.ram[RAM_OFFSET + lineBase + x] ?? 0;
 				const drawX = x * charWidth;
 
 				this.ctx.fillStyle = bgColorStr;
@@ -724,15 +744,16 @@ export class AppleVideo implements Video {
 		if (this.overrides.wannaScale) this.ctx.scale(scale, scale);
 
 		// Derive colors from tbColor
-		const tbColor = this.bus.tbColor;
+		const tbColor = this.registers.getUint8(REG_TBCOLOR_OFFSET);
 		const bgIdx = tbColor & 0x0f;
 		const fgIdx = (tbColor >> 4) & 0x0f;
 		const bgColorStr = `rgb(${IIgsPaletteRGB[bgIdx]!.join(",")})`;
 		const fgColorStr = `rgb(${IIgsPaletteRGB[fgIdx]!.join(",")})`;
 
+		const stateByte2 = this.registers.getUint8(MACHINE_STATE_OFFSET + 1);
 		const isAltCharset =
 			this.overrides.mouseChars === "ON" ||
-			(this.overrides.mouseChars === "OFF" ? false : (this.bus.read(SoftSwitches.ALTCHARSET) & 0x80) !== 0);
+			(this.overrides.mouseChars === "OFF" ? false : (stateByte2 & APPLE_ALTCHAR_MASK) !== 0);
 
 		const wantNormal = !isAltCharset && !this.flashState;
 
@@ -749,12 +770,12 @@ export class AppleVideo implements Video {
 				this.ctx.fillStyle = fgColorStr;
 
 				// Aux char (Even column)
-				let auxVal = this.bus.readRaw?.(AUX_BANK_OFFSET + lineBase + x) ?? 0;
+				let auxVal = this.ram[RAM_OFFSET + AUX_BANK_OFFSET + lineBase + x] ?? 0;
 				if (wantNormal && auxVal >= 0x40 && auxVal <= 0x7f) auxVal += 0x80;
 				if (auxVal !== 0xa0) this.ctx.fillText(appleCharCodeToUnicode(auxVal, isAltCharset), evenCharX, drawY);
 
 				// Main char (Odd column)
-				let mainVal = this.bus.readRaw?.(lineBase + x) ?? 0;
+				let mainVal = this.ram[RAM_OFFSET + lineBase + x] ?? 0;
 				if (wantNormal && mainVal >= 0x40 && mainVal <= 0x7f) mainVal += 0x80;
 				if (mainVal !== 0xa0) this.ctx.fillText(appleCharCodeToUnicode(mainVal, isAltCharset), oddCharX, drawY);
 			}

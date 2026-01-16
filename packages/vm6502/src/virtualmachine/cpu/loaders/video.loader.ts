@@ -1,12 +1,11 @@
 import type { VideoConfig } from "@/types/machine.interface";
 import type { Video } from "@/types/video.interface";
-import type { IBus } from "../bus.interface";
 
 // Vite-specific way to handle dynamic imports in workers.
 const videoModules = import.meta.glob("../../../machines/*/*.video.ts");
 const BASE_PATH = "../../../machines";
 
-export async function loadVideo(videoConfig: VideoConfig, bus: IBus) {
+export async function loadVideo(videoConfig: VideoConfig, registers: DataView, mainMemory: Uint8Array) {
 	if (!(videoConfig.buffer instanceof SharedArrayBuffer)) {
 		console.error("Worker: Did not receive a video SharedArrayBuffer.");
 		return null;
@@ -26,9 +25,25 @@ export async function loadVideo(videoConfig: VideoConfig, bus: IBus) {
 	}
 	const [, VideoClass]: [
 		string,
-		new (parent: typeof self, mem: Uint8Array, width: number, height: number, bus: IBus, payload?: unknown) => Video,
+		new (
+			parent: typeof self,
+			mem: Uint8Array,
+			width: number,
+			height: number,
+			registers: DataView,
+			mainMemory: Uint8Array,
+			payload?: unknown,
+		) => Video,
 	] = exportedVideoEntry;
 
 	const videoMemory = new Uint8Array(videoConfig.buffer, 0, videoConfig.width * videoConfig.height);
-	return new VideoClass(self, videoMemory, videoConfig.width, videoConfig.height, bus, videoConfig.payload);
+	return new VideoClass(
+		self,
+		videoMemory,
+		videoConfig.width,
+		videoConfig.height,
+		registers,
+		mainMemory,
+		videoConfig.payload,
+	);
 }

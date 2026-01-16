@@ -15,6 +15,9 @@
 					<option :value="2">2 MHz</option>
 					<option :value="4">4 MHz</option>
 					<option :value="8">8 MHz</option>
+					<option :value="10">10 MHz</option>
+					<option :value="40">40 MHz</option>
+					<option :value="50">50 MHz</option>
 					<option :value="0">Max</option>
 				</select>
 			</div>

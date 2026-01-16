@@ -135,7 +135,7 @@ function logTrace(type: string, source: number, target: number) {
 function updateCyclesPerTimeslice() {
 	if (clockSpeedMhz === 0) {
 		// Unlimited speed: run a large batch of cycles per timeslice to minimize overhead
-		cyclesPerTimeslice = 500000;
+		cyclesPerTimeslice = 1000000;
 	} else {
 		// Run for approx 10ms per timeslice
 		cyclesPerTimeslice = clockSpeedMhz * 1000000 * 0.01;
@@ -242,9 +242,12 @@ function run() {
 
 	const initialCycles = cyclesThisSlice;
 
+	// Hoist bus.tick check out of the loop for performance
+	const tickFn = bus.tick ? bus.tick.bind(bus) : null;
+
 	while (cyclesThisSlice > 0) {
 		const cycles = executeInstruction();
-		if (bus?.tick) bus.tick(cycles);
+		if (tickFn) tickFn(cycles);
 		cyclesThisSlice -= cycles;
 
 		if (!isRunning) break;
@@ -257,17 +260,15 @@ function run() {
 
 	if (bus?.syncState) bus.syncState();
 
-	if (clockSpeedMhz === 0) {
-		const executed = initialCycles - cyclesThisSlice;
-		cyclesSinceLastPerf += executed;
-		// const now = performance.now();
-		if (now - lastPerfTime >= 1000) {
-			const elapsedSec = (now - lastPerfTime) / 1000;
-			const effectiveMhz = cyclesSinceLastPerf / elapsedSec / 1000000;
-			registersView.setFloat64(REG_SPEED_OFFSET, effectiveMhz, true);
-			lastPerfTime = now;
-			cyclesSinceLastPerf = 0;
-		}
+	const executed = initialCycles - cyclesThisSlice;
+	cyclesSinceLastPerf += executed;
+	// const now = performance.now();
+	if (now - lastPerfTime >= 1000) {
+		const elapsedSec = (now - lastPerfTime) / 1000;
+		const effectiveMhz = cyclesSinceLastPerf / elapsedSec / 1000000;
+		registersView.setFloat64(REG_SPEED_OFFSET, effectiveMhz, true);
+		lastPerfTime = now;
+		cyclesSinceLastPerf = 0;
 	}
 
 	// Yield to the event loop and schedule the next run

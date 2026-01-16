@@ -1,5 +1,5 @@
 import type { IBus, MachineStateSpec } from "@/virtualmachine/cpu/bus.interface";
-import { MACHINE_STATE_OFFSET } from "@/virtualmachine/cpu/shared-memory";
+import { MACHINE_STATE_OFFSET, REG_BORDERCOLOR_OFFSET, REG_TBCOLOR_OFFSET } from "@/virtualmachine/cpu/shared-memory";
 import { generateApple2Assets } from "./bus/apple.assets";
 import { loadMemoryChunks } from "./bus/apple.loader";
 import { installSoftSwitches } from "./bus/apple.switches";
@@ -181,6 +181,9 @@ export class AppleBus implements IBus {
 		if (this.hires) byte2 |= APPLE_HIRES_MASK;
 		if (this.intC8Rom) byte2 |= APPLE_INTC8ROM_MASK;
 		this.registers.setUint8(MACHINE_STATE_OFFSET + 1, byte2);
+
+		this.registers.setUint8(REG_TBCOLOR_OFFSET, this.tbColor);
+		this.registers.setUint8(REG_BORDERCOLOR_OFFSET, this.brdrColor);
 	}
 
 	public reset() {

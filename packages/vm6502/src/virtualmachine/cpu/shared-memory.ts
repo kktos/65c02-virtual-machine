@@ -29,6 +29,8 @@ export const REG_SPEED_OFFSET = 24; // Offset in shared memory to store the comp
 // --- Machine State ---
 // This section is for machine-specific state flags that need to be synced with the UI.
 export const MACHINE_STATE_OFFSET = 32; // Start of machine state flags. Using 2 bytes for Apple II.
+export const REG_TBCOLOR_OFFSET = 34; // Text/Background color (IIgs)
+export const REG_BORDERCOLOR_OFFSET = 35; // Border color (IIgs)
 
 // --- Memory Section ---
 // We'll leave some space for future expansion of the register/status section.
