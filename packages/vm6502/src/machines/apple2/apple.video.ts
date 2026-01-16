@@ -10,9 +10,6 @@ type CharMetrics = {
 	offsetLeft: number;
 };
 
-const TEXT_ROWS = 24;
-const TEXT_COLS = 40;
-
 // Offsets for each of the 24 lines in the text screen memory
 // Includes the Text Page 1 Base ($400)
 const textScreenLineOffsets = [
@@ -84,6 +81,19 @@ const SCREEN_MARGIN_X = 10;
 const SCREEN_MARGIN_Y = 10;
 const NATIVE_WIDTH = 640; //480;
 const NATIVE_HEIGHT = 25 * 21;
+
+const TEXT_ROWS = 24;
+const TEXT_COLS = 40;
+const font40Height = 16;
+const font40Width = 14;
+const text40ViewWidth = TEXT_COLS * font40Width;
+const text40ViewHeight = TEXT_ROWS * font40Height;
+// Use separate scaling for X and Y to correct aspect ratio.
+// We limit vertical scale to match 80-column mode (based on 560px width)
+// while stretching horizontal to fill the screen.
+const text40ReferenceWidth = 560;
+const text40ScaleY = Math.min(NATIVE_WIDTH / text40ReferenceWidth, NATIVE_HEIGHT / text40ViewHeight);
+const text40ScaleX = NATIVE_WIDTH / text40ViewWidth;
 
 const AUX_BANK_OFFSET = 0x10000;
 
@@ -661,27 +671,14 @@ export class AppleVideo implements Video {
 		bgColorStr: string,
 		fgColorStr: string,
 	) {
-		const charHeight = 16;
-		const charWidth = 14;
-
-		this.ctx.font = `${charHeight}px PrintChar21`;
+		this.ctx.font = `${font40Height}px PrintChar21`;
 		this.ctx.textBaseline = "top";
 		this.ctx.textAlign = "left";
 
-		const textBlockWidth = TEXT_COLS * charWidth;
-		const textBlockHeight = TEXT_ROWS * charHeight;
-
-		// Use separate scaling for X and Y to correct aspect ratio.
-		// We limit vertical scale to match 80-column mode (based on 560px width)
-		// while stretching horizontal to fill the screen.
-		const referenceWidth = 560;
-		const scaleY = this.overrides.wannaScale
-			? Math.min(NATIVE_WIDTH / referenceWidth, NATIVE_HEIGHT / textBlockHeight)
-			: 1;
-		const scaleX = this.overrides.wannaScale ? NATIVE_WIDTH / textBlockWidth : 1;
-
-		const scaledWidth = textBlockWidth * scaleX;
-		const scaledHeight = textBlockHeight * scaleY;
+		const scaleY = this.overrides.wannaScale ? text40ScaleY : 1;
+		const scaleX = this.overrides.wannaScale ? text40ScaleX : 1;
+		const scaledWidth = text40ViewWidth * scaleX;
+		const scaledHeight = text40ViewHeight * scaleY;
 		const offsetX = SCREEN_MARGIN_X + (NATIVE_WIDTH - scaledWidth) / 2;
 		const offsetY = SCREEN_MARGIN_Y + (NATIVE_HEIGHT - scaledHeight) / 2;
 
@@ -702,13 +699,13 @@ export class AppleVideo implements Video {
 
 		for (let y = startRow; y < endRow; y++) {
 			const lineBase = (textScreenLineOffsets[y] ?? 0) + pageOffset;
-			const drawY = y * charHeight;
+			const drawY = y * font40Height;
 			for (let x = 0; x < TEXT_COLS; x++) {
 				let charCode = this.ram[RAM_OFFSET + lineBase + x] ?? 0;
-				const drawX = x * charWidth;
+				const drawX = x * font40Width;
 
 				this.ctx.fillStyle = bgColorStr;
-				this.ctx.fillRect(drawX, drawY, charWidth, charHeight);
+				this.ctx.fillRect(drawX, drawY, font40Width, font40Height);
 
 				if (wantNormal && charCode >= 0x40 && charCode <= 0x7f) charCode += 0x80;
 
