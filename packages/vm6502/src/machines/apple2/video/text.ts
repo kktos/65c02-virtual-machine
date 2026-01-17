@@ -1,12 +1,17 @@
+import { NATIVE_HEIGHT, NATIVE_WIDTH, SCREEN_MARGIN_X, SCREEN_MARGIN_Y } from "./constants";
+
 export const TEXT_ROWS = 24;
 export const TEXT_COLS = 40;
 
-export const SCREEN_MARGIN_X = 10;
-export const SCREEN_MARGIN_Y = 10;
-export const NATIVE_WIDTH = 640;
-export const NATIVE_HEIGHT = 25 * 21;
-
 const AUX_BANK_OFFSET = 0x10000;
+
+const font40Height = 16;
+const font40Width = 14;
+const text40ViewWidth = TEXT_COLS * font40Width;
+const text40ViewHeight = TEXT_ROWS * font40Height;
+const text40ReferenceWidth = 560;
+const text40ScaleY = Math.min(NATIVE_WIDTH / text40ReferenceWidth, NATIVE_HEIGHT / text40ViewHeight);
+const text40ScaleX = NATIVE_WIDTH / text40ViewWidth;
 
 export type CharMetrics = {
 	charWidth: number;
@@ -43,6 +48,9 @@ export class TextRenderer {
 	private metrics40: CharMetrics | null = null;
 	private charmap80: ImageBitmap | null = null;
 	private metrics80: CharMetrics | null = null;
+	private flashCounter = 0;
+	private flashState = false;
+	public wannaScale: boolean = false;
 
 	constructor(
 		private ctx: OffscreenCanvasRenderingContext2D,
@@ -62,6 +70,14 @@ export class TextRenderer {
 			this.metrics40 = assets.metrics40 ?? null;
 			this.charmap80 = assets.charmap80 ?? null;
 			this.metrics80 = assets.metrics80 ?? null;
+		}
+	}
+
+	public tick() {
+		this.flashCounter++;
+		if (this.flashCounter >= 16) {
+			this.flashState = !this.flashState;
+			this.flashCounter = 0;
 		}
 	}
 
@@ -97,9 +113,9 @@ export class TextRenderer {
 		);
 	}
 
-	public render40Bitmap(startRow: number, endRow: number, isPage2: boolean) {
+	public render40Bitmap(startRow: number, isPage2: boolean) {
 		const pageOffset = isPage2 ? 0x400 : 0;
-		for (let y = startRow; y < endRow; y++) {
+		for (let y = startRow; y < TEXT_ROWS; y++) {
 			const lineBase = (textScreenLineOffsets[y] ?? 0) + pageOffset;
 			for (let x = 0; x < TEXT_COLS; x++) {
 				const charCode = this.ram[lineBase + x] ?? 0;
@@ -112,9 +128,9 @@ export class TextRenderer {
 		}
 	}
 
-	public render80Bitmap(startRow: number, endRow: number) {
+	public render80Bitmap(startRow: number) {
 		const charWidth80 = this.charWidth / 2;
-		for (let y = startRow; y < endRow; y++) {
+		for (let y = startRow; y < TEXT_ROWS; y++) {
 			const lineBase = textScreenLineOffsets[y] ?? 0;
 			for (let x = 0; x < TEXT_COLS; x++) {
 				const drawY = SCREEN_MARGIN_Y + y * this.charHeight;
@@ -134,28 +150,17 @@ export class TextRenderer {
 
 	public render40WithFont(
 		startRow: number,
-		endRow: number,
 		isPage2: boolean,
 		bgColorStr: string,
 		fgColorStr: string,
-		wannaScale: boolean,
 		isAltCharset: boolean,
-		flashState: boolean,
 	) {
-		const font40Height = 16;
-		const font40Width = 14;
-		const text40ViewWidth = TEXT_COLS * font40Width;
-		const text40ViewHeight = TEXT_ROWS * font40Height;
-		const text40ReferenceWidth = 560;
-		const text40ScaleY = Math.min(NATIVE_WIDTH / text40ReferenceWidth, NATIVE_HEIGHT / text40ViewHeight);
-		const text40ScaleX = NATIVE_WIDTH / text40ViewWidth;
-
 		this.ctx.font = `${font40Height}px PrintChar21`;
 		this.ctx.textBaseline = "top";
 		this.ctx.textAlign = "left";
 
-		const scaleY = wannaScale ? text40ScaleY : 1;
-		const scaleX = wannaScale ? text40ScaleX : 1;
+		const scaleY = this.wannaScale ? text40ScaleY : 1;
+		const scaleX = this.wannaScale ? text40ScaleX : 1;
 		const scaledWidth = text40ViewWidth * scaleX;
 		const scaledHeight = text40ViewHeight * scaleY;
 		const offsetX = SCREEN_MARGIN_X + (NATIVE_WIDTH - scaledWidth) / 2;
@@ -163,12 +168,12 @@ export class TextRenderer {
 
 		this.ctx.save();
 		this.ctx.translate(offsetX, offsetY);
-		if (wannaScale) this.ctx.scale(scaleX, scaleY);
+		if (this.wannaScale) this.ctx.scale(scaleX, scaleY);
 
 		const pageOffset = isPage2 ? 0x400 : 0;
-		const wantNormal = !isAltCharset && !flashState;
+		const wantNormal = !isAltCharset && !this.flashState;
 
-		for (let y = startRow; y < endRow; y++) {
+		for (let y = startRow; y < TEXT_ROWS; y++) {
 			const lineBase = (textScreenLineOffsets[y] ?? 0) + pageOffset;
 			const drawY = y * font40Height;
 			for (let x = 0; x < TEXT_COLS; x++) {
@@ -189,15 +194,7 @@ export class TextRenderer {
 		this.ctx.restore();
 	}
 
-	public render80WithFont(
-		startRow: number,
-		endRow: number,
-		bgColorStr: string,
-		fgColorStr: string,
-		wannaScale: boolean,
-		isAltCharset: boolean,
-		flashState: boolean,
-	) {
+	public render80WithFont(startRow: number, bgColorStr: string, fgColorStr: string, isAltCharset: boolean) {
 		const charHeight = 16;
 		const charWidth = 7;
 
@@ -207,7 +204,7 @@ export class TextRenderer {
 
 		const textBlockWidth = TEXT_COLS * 2 * charWidth;
 		const textBlockHeight = TEXT_ROWS * charHeight;
-		const scale = wannaScale ? Math.min(NATIVE_WIDTH / textBlockWidth, NATIVE_HEIGHT / textBlockHeight) : 1;
+		const scale = this.wannaScale ? Math.min(NATIVE_WIDTH / textBlockWidth, NATIVE_HEIGHT / textBlockHeight) : 1;
 		const scaledWidth = textBlockWidth * scale;
 		const scaledHeight = textBlockHeight * scale;
 		const offsetX = SCREEN_MARGIN_X + (NATIVE_WIDTH - scaledWidth) / 2;
@@ -215,11 +212,11 @@ export class TextRenderer {
 
 		this.ctx.save();
 		this.ctx.translate(offsetX, offsetY);
-		if (wannaScale) this.ctx.scale(scale, scale);
+		if (this.wannaScale) this.ctx.scale(scale, scale);
 
-		const wantNormal = !isAltCharset && !flashState;
+		const wantNormal = !isAltCharset && !this.flashState;
 
-		for (let y = startRow; y < endRow; y++) {
+		for (let y = startRow; y < TEXT_ROWS; y++) {
 			const lineBase = textScreenLineOffsets[y] ?? 0;
 			const drawY = y * charHeight;
 

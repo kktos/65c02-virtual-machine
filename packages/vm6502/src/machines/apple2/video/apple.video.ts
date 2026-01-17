@@ -1,15 +1,9 @@
 import type { Video } from "@/types/video.interface";
 import { MACHINE_STATE_OFFSET, REG_BORDERCOLOR_OFFSET, REG_TBCOLOR_OFFSET } from "@/virtualmachine/cpu/shared-memory";
+import { NATIVE_HEIGHT, NATIVE_WIDTH, SCREEN_MARGIN_X, SCREEN_MARGIN_Y } from "./constants";
+import { GR_LINES, GR_MIXED_LINES, renderGr } from "./gr";
 import { HGR_COLORS, HGR_LINES, HGR_MIXED_LINES, renderHgr } from "./hgr";
-import {
-	NATIVE_HEIGHT,
-	NATIVE_WIDTH,
-	SCREEN_MARGIN_X,
-	SCREEN_MARGIN_Y,
-	TEXT_COLS,
-	TEXT_ROWS,
-	TextRenderer,
-} from "./text";
+import { TEXT_COLS, TEXT_ROWS, TextRenderer } from "./text";
 
 const IIgsPaletteRGB: ReadonlyArray<[number, number, number]> = [
 	[0x00, 0x00, 0x00], // 0 Black
@@ -77,28 +71,18 @@ export class AppleVideo implements Video {
 	private readonly charWidth: number;
 	private readonly charHeight: number;
 
-	private flashCounter = 0;
-	private flashState = false;
-
 	private overrides: AppleVideoOverrides = { borderColor: -1, textFgColor: -1, textBgColor: -1 };
 
 	private textRenderer: TextRenderer;
 
 	private renderText40!: (
 		startRow: number,
-		endRow: number,
 		isPage2: boolean,
 		bgColorStr: string,
 		fgColorStr: string,
 		isAltCharset: boolean,
 	) => void;
-	private renderText80!: (
-		startRow: number,
-		endRow: number,
-		bgColorStr: string,
-		fgColorStr: string,
-		isAltCharset: boolean,
-	) => void;
+	private renderText80!: (startRow: number, bgColorStr: string, fgColorStr: string, isAltCharset: boolean) => void;
 
 	constructor(
 		parent: Worker,
@@ -185,57 +169,28 @@ export class AppleVideo implements Video {
 	}
 
 	private updateRenderers() {
+		this.textRenderer.wannaScale = !!this.overrides.wannaScale;
 		if (this.overrides.textRenderer === "FONT") {
-			this.renderText40 = (startRow, endRow, isPage2, bgColorStr, fgColorStr, isAltCharset) => {
-				this.textRenderer.render40WithFont(
-					startRow,
-					endRow,
-					isPage2,
-					bgColorStr,
-					fgColorStr,
-					!!this.overrides.wannaScale,
-					isAltCharset,
-					this.flashState,
-				);
-			};
-			this.renderText80 = (startRow, endRow, bgColorStr, fgColorStr, isAltCharset) => {
-				this.textRenderer.render80WithFont(
-					startRow,
-					endRow,
-					bgColorStr,
-					fgColorStr,
-					!!this.overrides.wannaScale,
-					isAltCharset,
-					this.flashState,
-				);
-			};
+			this.renderText40 = this.textRenderer.render40WithFont.bind(this.textRenderer);
+			this.renderText80 = this.textRenderer.render80WithFont.bind(this.textRenderer);
 		} else {
-			this.renderText40 = (startRow, endRow, isPage2) => {
-				this.textRenderer.render40Bitmap(startRow, endRow, isPage2);
-			};
-			this.renderText80 = (startRow, endRow) => {
-				this.textRenderer.render80Bitmap(startRow, endRow);
-			};
+			this.renderText40 = this.textRenderer.render40Bitmap.bind(this.textRenderer);
+			this.renderText80 = this.textRenderer.render80Bitmap.bind(this.textRenderer);
 		}
 	}
 
 	public tick() {
+		this.textRenderer.tick();
+
 		// --- TBCOLOR Handling ---
 		// 1. Apply overrides to bus.tbColor if present
-		let tbColor = this.registers.getUint8(REG_TBCOLOR_OFFSET);
-		if (this.overrides.textBgColor >= 0) {
-			const bgIdx = this.overrides.textBgColor;
-			tbColor = (tbColor & 0xf0) | (bgIdx & 0x0f);
-		}
-		if (this.overrides.textFgColor >= 0) {
-			const fgIdx = this.overrides.textFgColor;
-			tbColor = (tbColor & 0x0f) | ((fgIdx & 0x0f) << 4);
-		}
-		// Note: We don't write back to registers here to avoid race conditions with the bus.
-
+		const tbColor = this.registers.getUint8(REG_TBCOLOR_OFFSET);
 		// 2. Derive rendering colors from tbColor
-		const bgIdx = tbColor & 0x0f;
-		const fgIdx = (tbColor >> 4) & 0x0f;
+		let bgIdx = tbColor & 0x0f;
+		let fgIdx = (tbColor >> 4) & 0x0f;
+		if (this.overrides.textBgColor >= 0) bgIdx = this.overrides.textBgColor;
+		if (this.overrides.textFgColor >= 0) fgIdx = this.overrides.textFgColor;
+
 		// biome-ignore lint/style/noNonNullAssertion: <np>
 		const bgColorStr = `rgb(${IIgsPaletteRGB[bgIdx]!.join(",")})`;
 		// biome-ignore lint/style/noNonNullAssertion: <np>
@@ -247,12 +202,6 @@ export class AppleVideo implements Video {
 		// biome-ignore lint/style/noNonNullAssertion: <np>
 		this.ctx.fillStyle = `rgb(${IIgsPaletteRGB[borderIdx]!.join(",")})`;
 		this.ctx.fillRect(0, 0, this.offscreenCanvas.width, this.offscreenCanvas.height);
-
-		this.flashCounter++;
-		if (this.flashCounter >= 16) {
-			this.flashState = !this.flashState;
-			this.flashCounter = 0;
-		}
 
 		const stateByte2 = this.registers.getUint8(MACHINE_STATE_OFFSET + 1);
 
@@ -269,22 +218,16 @@ export class AppleVideo implements Video {
 			isHgr = true;
 		}
 
-		if (this.overrides.videoPage === "PAGE1") {
-			isPage2 = false;
-		} else if (this.overrides.videoPage === "PAGE2") {
-			isPage2 = true;
-		}
+		if (this.overrides.videoPage === "PAGE1") isPage2 = false;
+		else if (this.overrides.videoPage === "PAGE2") isPage2 = true;
 
 		const isAltCharset =
 			this.overrides.mouseChars === "ON" ||
 			(this.overrides.mouseChars === "OFF" ? false : (stateByte2 & APPLE_ALTCHAR_MASK) !== 0);
 
 		if (isText) {
-			if (is80Col) {
-				this.renderText80(0, TEXT_ROWS, bgColorStr, fgColorStr, isAltCharset);
-			} else {
-				this.renderText40(0, TEXT_ROWS, isPage2, bgColorStr, fgColorStr, isAltCharset);
-			}
+			if (is80Col) this.renderText80(0, bgColorStr, fgColorStr, isAltCharset);
+			else this.renderText40(0, isPage2, bgColorStr, fgColorStr, isAltCharset);
 		} else if (isHgr) {
 			renderHgr(
 				this.buffer,
@@ -296,19 +239,23 @@ export class AppleVideo implements Video {
 				isPage2,
 			);
 			if (isMixed) {
-				if (is80Col) {
-					this.renderText80(20, 24, bgColorStr, fgColorStr, isAltCharset);
-				} else {
-					this.renderText40(20, 24, isPage2, bgColorStr, fgColorStr, isAltCharset);
-				}
+				if (is80Col) this.renderText80(20, bgColorStr, fgColorStr, isAltCharset);
+				else this.renderText40(20, isPage2, bgColorStr, fgColorStr, isAltCharset);
+			}
+		} else {
+			const paletteStrings = IIgsPaletteRGB.map((c) => `rgb(${c[0]},${c[1]},${c[2]})`);
+			renderGr(this.ctx, this.ram, 0, isMixed ? GR_MIXED_LINES : GR_LINES, isPage2, paletteStrings);
+			if (isMixed) {
+				if (is80Col) this.renderText80(20, bgColorStr, fgColorStr, isAltCharset);
+				else this.renderText40(20, isPage2, bgColorStr, fgColorStr, isAltCharset);
 			}
 		}
 
 		const dest = this.buffer;
 		const scaleY = this.targetHeight / this.offscreenCanvas.height;
 
-		// Only read back from canvas if we rendered text
-		if (isText || isMixed) {
+		// Only read back from canvas if we rendered text or GR (anything not HGR-only)
+		if (!isHgr || isMixed) {
 			const imageData = this.ctx.getImageData(0, 0, this.offscreenCanvas.width, this.offscreenCanvas.height);
 			const src32 = new Uint32Array(imageData.data.buffer);
 			const srcWidth = this.offscreenCanvas.width;
@@ -331,7 +278,7 @@ export class AppleVideo implements Video {
 			const globalBgIndex = borderIdx;
 
 			let startY = 0;
-			if (isMixed && !isText) {
+			if (isMixed && isHgr) {
 				// Mixed Mode: Copy only the bottom 4 lines of text (lines 20-23)
 				// Start at line 160 (Mixed mode split point)
 				// We need to calculate the Y position in the TARGET buffer

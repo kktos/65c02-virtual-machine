@@ -66,6 +66,7 @@ export const debugConfig: MachineConfig["debugOptions"] = [
 		defaultValue: -1,
 		savable: true,
 		options: [
+			{ label: "Auto", value: -1 },
 			{ label: "Black", value: 0 },
 			{ label: "D. Red", value: 1 },
 			{ label: "D. Blue", value: 2 },
@@ -91,6 +92,7 @@ export const debugConfig: MachineConfig["debugOptions"] = [
 		defaultValue: -1,
 		savable: true,
 		options: [
+			{ label: "Auto", value: -1 },
 			{ label: "Black", value: 0 },
 			{ label: "D. Red", value: 1 },
 			{ label: "D. Blue", value: 2 },
@@ -116,6 +118,7 @@ export const debugConfig: MachineConfig["debugOptions"] = [
 		defaultValue: -1,
 		savable: true,
 		options: [
+			{ label: "Auto", value: -1 },
 			{ label: "Black", value: 0 },
 			{ label: "D. Red", value: 1 },
 			{ label: "D. Blue", value: 2 },
