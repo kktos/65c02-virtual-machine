@@ -39,6 +39,9 @@
 						class="bg-gray-700 text-yellow-300 font-mono text-sm rounded-r-md px-2 py-1 w-16 border-y border-r border-gray-600 focus:ring-2 focus:ring-cyan-500 tabular-nums outline-none"
 					/>
 				</div>
+
+				<BinaryLoader :address="startAddress" :debug-overrides="debugOverrides" />
+
 			</div>
 			<!-- Debug Options -->
 			<DebugOptionsPopover ref="debugOptionsPopover" category="memory" align="end" class="ml-auto" />
@@ -131,6 +134,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useDebuggerNav } from "@/composables/useDebuggerNav";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
+import BinaryLoader from "./BinaryLoader.vue";
 
 	const vm= inject<Ref<VirtualMachine>>("vm");
 	const subscribeToUiUpdates= inject<(callback: () => void) => void>("subscribeToUiUpdates");
@@ -382,6 +386,5 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 		}
 		currentMemorySlice.value = slice;
 	}, { immediate: true, deep: true });
-
 
 </script>
