@@ -1,3 +1,12 @@
+import {
+	NATIVE_HEIGHT,
+	NATIVE_WIDTH,
+	SCREEN_MARGIN_X,
+	SCREEN_MARGIN_Y,
+	VIEW_AREA_HEIGHT,
+	VIEW_AREA_WIDTH,
+} from "./constants";
+
 const HGR_WIDTH = 280;
 const HGR_LINES = 192;
 const HGR_MIXED_LINES = 160;
@@ -39,6 +48,13 @@ export const HGR_COLORS = [
 	[255, 255, 255, 255], // White
 ];
 
+const baseScaleX = VIEW_AREA_WIDTH / HGR_WIDTH;
+const baseScaleY = VIEW_AREA_HEIGHT / HGR_LINES;
+const baseOffsetX = SCREEN_MARGIN_X + (NATIVE_WIDTH - VIEW_AREA_WIDTH) / 2;
+const baseOffsetY = SCREEN_MARGIN_Y + (NATIVE_HEIGHT - VIEW_AREA_HEIGHT) / 2;
+const canvasW = NATIVE_WIDTH + SCREEN_MARGIN_X * 2;
+const canvasH = NATIVE_HEIGHT + SCREEN_MARGIN_Y * 2;
+
 export class HGRRenderer {
 	constructor(
 		private ram: Uint8Array,
@@ -49,13 +65,19 @@ export class HGRRenderer {
 
 	public render(isMixed: boolean, isPage2: boolean): void {
 		const baseAddr = isPage2 ? 0x2000 : 0;
-		const scaleX = this.targetWidth / HGR_WIDTH;
-		const scaleY = this.targetHeight / HGR_LINES;
+		const ratioX = this.targetWidth / canvasW;
+		const ratioY = this.targetHeight / canvasH;
+
+		const destOffsetX = baseOffsetX * ratioX;
+		const destOffsetY = baseOffsetY * ratioY;
+		const unitX = baseScaleX * ratioX;
+		const unitY = baseScaleY * ratioY;
+
 		const endLine = isMixed ? HGR_MIXED_LINES : HGR_LINES;
 		for (let y = 0; y < endLine; y++) {
 			const lineBase = baseAddr + (HGR_LINE_ADDRS[y] ?? 0);
-			const startY = Math.floor(y * scaleY);
-			const endY = Math.floor((y + 1) * scaleY);
+			const startY = Math.floor(destOffsetY + y * unitY);
+			const endY = Math.floor(destOffsetY + (y + 1) * unitY);
 
 			for (let byteX = 0; byteX < 40; byteX++) {
 				const address = lineBase + byteX;
@@ -116,8 +138,8 @@ export class HGRRenderer {
 					}
 
 					// Draw Scaled Pixel
-					const startX = Math.floor(dotX * scaleX);
-					const endX = Math.floor((dotX + 1) * scaleX);
+					const startX = Math.floor(destOffsetX + dotX * unitX);
+					const endX = Math.floor(destOffsetX + (dotX + 1) * unitX);
 					const paletteIdx = 17 + colorIndex;
 
 					for (let dy = startY; dy < endY; dy++) {
