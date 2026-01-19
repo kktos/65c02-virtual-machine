@@ -1,11 +1,8 @@
-import { SCREEN_MARGIN_Y, VIEW_AREA_HEIGHT, VIEW_AREA_WIDTH } from "./constants";
+import { NATIVE_VIEW_WIDTH, SCREEN_MARGIN_X, SCREEN_MARGIN_Y } from "./constants";
 
 const GR_WIDTH = 40;
 const GR_LINES = 48;
 const GR_MIXED_LINES = 40;
-
-const scaleX = VIEW_AREA_WIDTH / GR_WIDTH;
-const scaleY = VIEW_AREA_HEIGHT / GR_LINES;
 
 // Text Screen Line Offsets (same as Text mode)
 const GR_LINE_OFFSETS = [
@@ -16,15 +13,29 @@ const GR_LINE_OFFSETS = [
 export class LowGrRenderer {
 	public offsetX = 0;
 	public offsetY = 0;
+	private scaleX = 1;
+	private scaleY = 1;
+	private bufferWidth: number;
 
 	constructor(
 		private ram: Uint8Array,
 		private buffer: Uint8Array,
-		private targetWidth: number,
+		targetWidth: number,
 		targetHeight: number,
 	) {
-		this.offsetX = (targetWidth - VIEW_AREA_WIDTH) / 2;
-		this.offsetY = SCREEN_MARGIN_Y + (targetHeight - VIEW_AREA_HEIGHT) / 2;
+		this.bufferWidth = targetWidth;
+		this.resize(targetWidth, targetHeight);
+	}
+
+	public resize(width: number, height: number) {
+		// const screenAreaWidth = width - SCREEN_MARGIN_X * 2;
+		// const screenAreaHeight = height - SCREEN_MARGIN_Y * 2;
+		// this.scaleX = screenAreaWidth / GR_WIDTH;
+		// this.scaleY = screenAreaHeight / GR_LINES;
+		this.scaleX = (width + SCREEN_MARGIN_X * 2) / GR_WIDTH;
+		this.scaleY = (height + SCREEN_MARGIN_Y * 2) / GR_LINES;
+		this.offsetX = (width - NATIVE_VIEW_WIDTH) / 2; //SCREEN_MARGIN_X;
+		this.offsetY = SCREEN_MARGIN_Y;
 	}
 
 	public render(isMixed: boolean, isPage2: boolean): void {
@@ -35,18 +46,18 @@ export class LowGrRenderer {
 			const isBottom = (y & 1) !== 0;
 			const lineBase = (GR_LINE_OFFSETS[textRow] ?? 0) + pageOffset;
 
-			const startY = Math.floor(this.offsetY + y * scaleY);
-			const endY = Math.floor(this.offsetY + (y + 1) * scaleY);
+			const startY = Math.floor(this.offsetY + y * this.scaleY);
+			const endY = Math.floor(this.offsetY + (y + 1) * this.scaleY);
 
 			for (let x = 0; x < GR_WIDTH; x++) {
 				const val = this.ram[lineBase + x] ?? 0;
 				const colorIdx = isBottom ? val >> 4 : val & 0x0f;
 
-				const startX = Math.floor(this.offsetX + x * scaleX);
-				const endX = Math.floor(this.offsetX + (x + 1) * scaleX);
+				const startX = Math.floor(this.offsetX + x * this.scaleX);
+				const endX = Math.floor(this.offsetX + (x + 1) * this.scaleX);
 
 				for (let dy = startY; dy < endY; dy++) {
-					const rowOffset = dy * this.targetWidth;
+					const rowOffset = dy * this.bufferWidth;
 					for (let dx = startX; dx < endX; dx++) {
 						this.buffer[rowOffset + dx] = colorIdx;
 					}

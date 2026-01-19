@@ -1,4 +1,4 @@
-import { VIEW_AREA_HEIGHT, VIEW_AREA_WIDTH } from "./constants";
+import { NATIVE_VIEW_HEIGHT, NATIVE_VIEW_WIDTH } from "./constants";
 
 const HGR_WIDTH = 280;
 const HGR_LINES = 192;
@@ -41,8 +41,8 @@ export const HGR_COLORS = [
 	[255, 255, 255, 255], // White
 ];
 
-const baseScaleX = VIEW_AREA_WIDTH / HGR_WIDTH;
-const baseScaleY = VIEW_AREA_HEIGHT / HGR_LINES;
+const baseScaleX = NATIVE_VIEW_WIDTH / HGR_WIDTH;
+const baseScaleY = NATIVE_VIEW_HEIGHT / HGR_LINES;
 
 export class HGRRenderer {
 	private destOffsetX: number;
@@ -54,8 +54,8 @@ export class HGRRenderer {
 		private targetWidth: number,
 		targetHeight: number,
 	) {
-		this.destOffsetX = (targetWidth - VIEW_AREA_WIDTH) / 2;
-		this.destOffsetY = (targetHeight - VIEW_AREA_HEIGHT) / 2;
+		this.destOffsetX = (targetWidth - NATIVE_VIEW_WIDTH) / 2;
+		this.destOffsetY = (targetHeight - NATIVE_VIEW_HEIGHT) / 2;
 	}
 
 	public render(isMixed: boolean, isPage2: boolean): void {

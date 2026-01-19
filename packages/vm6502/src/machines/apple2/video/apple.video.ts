@@ -43,6 +43,9 @@ interface AppleVideoOverrides {
 	textBgColor: number;
 	wannaScale?: boolean;
 	mouseChars?: "AUTO" | "ON" | "OFF";
+	canvasSize?: "AUTO" | "CUSTOM";
+	customWidth?: number;
+	customHeight?: number;
 }
 
 const baseurl = import.meta.url.match(/http:\/\/[^/]+/)?.[0];
@@ -67,6 +70,9 @@ export class AppleVideo implements Video {
 
 	private targetWidth: number;
 	private targetHeight: number;
+
+	private defaultWidth: number;
+	private defaultHeight: number;
 
 	private overrides: AppleVideoOverrides = { borderColor: -1, textFgColor: -1, textBgColor: -1 };
 
@@ -99,6 +105,8 @@ export class AppleVideo implements Video {
 
 		this.targetWidth = width;
 		this.targetHeight = height;
+		this.defaultWidth = width;
+		this.defaultHeight = height;
 
 		this.offscreenCanvas = new OffscreenCanvas(width, height);
 		const context = this.offscreenCanvas.getContext("2d", { willReadFrequently: true });
@@ -164,6 +172,27 @@ export class AppleVideo implements Video {
 
 	public setDebugOverrides(overrides: Record<string, unknown>) {
 		this.overrides = overrides as unknown as AppleVideoOverrides;
+
+		let newWidth = this.defaultWidth;
+		let newHeight = this.defaultHeight;
+
+		if (this.overrides.canvasSize === "CUSTOM" && this.overrides.customWidth && this.overrides.customHeight) {
+			newWidth = this.overrides.customWidth;
+			newHeight = this.overrides.customHeight;
+		}
+
+		if (this.offscreenCanvas.width !== newWidth || this.offscreenCanvas.height !== newHeight) {
+			this.offscreenCanvas.width = newWidth;
+			this.offscreenCanvas.height = newHeight;
+			this.textRenderer.resize(newWidth, newHeight);
+			this.lowGrRenderer.resize(newWidth, newHeight);
+			// this.hgrRenderer.resize(newWidth, newHeight);
+
+			let borderIdx = this.registers.getUint8(REG_BORDERCOLOR_OFFSET) & 0x0f;
+			if (this.overrides.borderColor >= 0) borderIdx = this.overrides.borderColor;
+			this.buffer.fill(borderIdx);
+		}
+
 		this.updateRenderers();
 	}
 

@@ -1,4 +1,4 @@
-import { SCREEN_MARGIN_X, SCREEN_MARGIN_Y, VIEW_AREA_HEIGHT, VIEW_AREA_WIDTH } from "./constants";
+import { NATIVE_VIEW_HEIGHT, NATIVE_VIEW_WIDTH, SCREEN_MARGIN_X, SCREEN_MARGIN_Y } from "./constants";
 
 const TEXT_ROWS = 24;
 const TEXT_COLS = 40;
@@ -47,8 +47,8 @@ export class TextRenderer {
 	private metrics80: CharMetrics | null = null;
 	private flashCounter = 0;
 	private flashState = false;
-	private text40ScaleY: number;
-	private text40ScaleX: number;
+	private textScaleY: number;
+	private textScaleX: number;
 
 	public wannaScale: boolean = false;
 	public offsetX = 0;
@@ -80,8 +80,8 @@ export class TextRenderer {
 			this.charmap80 = assets.charmap80 ?? null;
 			this.metrics80 = assets.metrics80 ?? null;
 		}
-		this.text40ScaleY = Math.min(targetWidth / VIEW_AREA_WIDTH, targetHeight / VIEW_AREA_HEIGHT);
-		this.text40ScaleX = targetHeight / VIEW_AREA_WIDTH;
+		this.textScaleY = Math.min(targetWidth / NATIVE_VIEW_WIDTH, targetHeight / NATIVE_VIEW_HEIGHT);
+		this.textScaleX = targetWidth / NATIVE_VIEW_WIDTH;
 	}
 
 	public tick() {
@@ -90,6 +90,17 @@ export class TextRenderer {
 			this.flashState = !this.flashState;
 			this.flashCounter = 0;
 		}
+	}
+
+	public resize(width: number, height: number) {
+		this.targetWidth = width;
+		this.targetHeight = height;
+		const screenAreaWidth = width - SCREEN_MARGIN_X * 2;
+		const screenAreaHeight = height - SCREEN_MARGIN_Y * 2;
+		this.charWidth = screenAreaWidth / TEXT_COLS;
+		this.charHeight = screenAreaHeight / TEXT_ROWS;
+		this.textScaleY = Math.min(width / NATIVE_VIEW_WIDTH, height / NATIVE_VIEW_HEIGHT);
+		this.textScaleX = width / NATIVE_VIEW_WIDTH;
 	}
 
 	private drawChar(
@@ -180,10 +191,10 @@ export class TextRenderer {
 		this.ctx.textBaseline = "top";
 		this.ctx.textAlign = "left";
 
-		this.scaleY = this.wannaScale ? this.text40ScaleY : 1;
-		this.scaleX = this.wannaScale ? this.text40ScaleX : 1;
-		const scaledWidth = VIEW_AREA_WIDTH * this.scaleX;
-		const scaledHeight = VIEW_AREA_HEIGHT * this.scaleY;
+		this.scaleY = this.wannaScale ? this.textScaleY : 1;
+		this.scaleX = this.wannaScale ? this.textScaleX : 1;
+		const scaledWidth = NATIVE_VIEW_WIDTH * this.scaleX;
+		const scaledHeight = NATIVE_VIEW_HEIGHT * this.scaleY;
 		this.offsetX = (this.targetWidth - scaledWidth) / 2;
 		this.offsetY = (this.targetHeight - scaledHeight) / 2;
 
