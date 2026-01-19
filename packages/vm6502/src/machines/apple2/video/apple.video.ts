@@ -296,13 +296,11 @@ export class AppleVideo implements Video {
 			let startY = 0;
 			if (isMixed && directRender) {
 				// Mixed Mode: Copy only the bottom 4 lines of text (lines 20-23)
-				// Start at line 160 (Mixed mode split point)
-				// We need to calculate the Y position in the TARGET buffer
-				// startY = Math.floor((SCREEN_MARGIN_Y + 160) * scaleY);
-
-				// The split is at 160 pixels for HGR.
-				const gfxPixelHeight = isHgr ? HGR_MIXED_LINES : 160; // TODO: This is not right for GR
-				startY = Math.floor((SCREEN_MARGIN_Y + gfxPixelHeight) * scaleY);
+				// We calculate the starting Y in the destination buffer based on where
+				// the text renderer placed the text on the source canvas.
+				const textRowHeight = 16;
+				const canvasTextStartY = this.textRenderer.offsetY + 20 * textRowHeight * this.textRenderer.scaleY;
+				startY = Math.floor(canvasTextStartY * scaleY);
 			}
 
 			// Convert RGBA pixels to 8-bit indices

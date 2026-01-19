@@ -48,6 +48,7 @@ export class LowGrRenderer {
 				const val = this.ram[lineBase + x] ?? 0;
 				const colorIdx = isBottom ? val >> 4 : val & 0x0f;
 
+				// biome-ignore lint/style/noNonNullAssertion: <known palette>
 				this.ctx.fillStyle = colors[colorIdx]!;
 				this.ctx.fillRect(x * scaleX, y * scaleY, scaleX, scaleY);
 			}

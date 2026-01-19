@@ -158,6 +158,7 @@ export const debugConfig: MachineConfig["debugOptions"] = [
 		label: "GR Renderer",
 		type: "select",
 		category: "video",
+		savable: true,
 		options: [
 			{ label: "Canvas", value: "CANVAS" },
 			{ label: "Buffer", value: "BUFFER" },
