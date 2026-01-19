@@ -1,17 +1,12 @@
-import { NATIVE_HEIGHT, NATIVE_WIDTH, SCREEN_MARGIN_X, SCREEN_MARGIN_Y } from "./constants";
+import { SCREEN_MARGIN_X, SCREEN_MARGIN_Y, VIEW_AREA_HEIGHT, VIEW_AREA_WIDTH } from "./constants";
 
-export const TEXT_ROWS = 24;
-export const TEXT_COLS = 40;
+const TEXT_ROWS = 24;
+const TEXT_COLS = 40;
 
 const AUX_BANK_OFFSET = 0x10000;
 
 const font40Height = 16;
 const font40Width = 14;
-const text40ViewWidth = TEXT_COLS * font40Width;
-const text40ViewHeight = TEXT_ROWS * font40Height;
-const text40ReferenceWidth = 560;
-const text40ScaleY = Math.min(NATIVE_WIDTH / text40ReferenceWidth, NATIVE_HEIGHT / text40ViewHeight);
-const text40ScaleX = NATIVE_WIDTH / text40ViewWidth;
 
 export type CharMetrics = {
 	charWidth: number;
@@ -44,12 +39,17 @@ function appleCharCodeToUnicode(charCode: number, isAltCharset = false): string 
 }
 
 export class TextRenderer {
+	private charWidth: number;
+	private charHeight: number;
 	private charmap40: ImageBitmap | null = null;
 	private metrics40: CharMetrics | null = null;
 	private charmap80: ImageBitmap | null = null;
 	private metrics80: CharMetrics | null = null;
 	private flashCounter = 0;
 	private flashState = false;
+	private text40ScaleY: number;
+	private text40ScaleX: number;
+
 	public wannaScale: boolean = false;
 	public offsetX = 0;
 	public offsetY = 0;
@@ -60,9 +60,14 @@ export class TextRenderer {
 		private ctx: OffscreenCanvasRenderingContext2D,
 		private ram: Uint8Array,
 		payload: unknown,
-		private charWidth: number,
-		private charHeight: number,
+		private targetWidth: number,
+		private targetHeight: number,
 	) {
+		const screenAreaWidth = targetWidth - SCREEN_MARGIN_X * 2;
+		const screenAreaHeight = targetHeight - SCREEN_MARGIN_Y * 2;
+		this.charWidth = screenAreaWidth / TEXT_COLS;
+		this.charHeight = screenAreaHeight / TEXT_ROWS;
+
 		const assets = payload as {
 			charmap40?: ImageBitmap;
 			metrics40?: CharMetrics;
@@ -75,6 +80,8 @@ export class TextRenderer {
 			this.charmap80 = assets.charmap80 ?? null;
 			this.metrics80 = assets.metrics80 ?? null;
 		}
+		this.text40ScaleY = Math.min(targetWidth / VIEW_AREA_WIDTH, targetHeight / VIEW_AREA_HEIGHT);
+		this.text40ScaleX = targetHeight / VIEW_AREA_WIDTH;
 	}
 
 	public tick() {
@@ -173,12 +180,12 @@ export class TextRenderer {
 		this.ctx.textBaseline = "top";
 		this.ctx.textAlign = "left";
 
-		this.scaleY = this.wannaScale ? text40ScaleY : 1;
-		this.scaleX = this.wannaScale ? text40ScaleX : 1;
-		const scaledWidth = text40ViewWidth * this.scaleX;
-		const scaledHeight = text40ViewHeight * this.scaleY;
-		this.offsetX = SCREEN_MARGIN_X + (NATIVE_WIDTH - scaledWidth) / 2;
-		this.offsetY = SCREEN_MARGIN_Y + (NATIVE_HEIGHT - scaledHeight) / 2;
+		this.scaleY = this.wannaScale ? this.text40ScaleY : 1;
+		this.scaleX = this.wannaScale ? this.text40ScaleX : 1;
+		const scaledWidth = VIEW_AREA_WIDTH * this.scaleX;
+		const scaledHeight = VIEW_AREA_HEIGHT * this.scaleY;
+		this.offsetX = (this.targetWidth - scaledWidth) / 2;
+		this.offsetY = (this.targetHeight - scaledHeight) / 2;
 
 		this.ctx.save();
 		this.ctx.translate(this.offsetX, this.offsetY);
@@ -218,13 +225,15 @@ export class TextRenderer {
 
 		const textBlockWidth = TEXT_COLS * 2 * charWidth;
 		const textBlockHeight = TEXT_ROWS * charHeight;
-		const scale = this.wannaScale ? Math.min(NATIVE_WIDTH / textBlockWidth, NATIVE_HEIGHT / textBlockHeight) : 1;
+		const scale = this.wannaScale
+			? Math.min(this.targetWidth / textBlockWidth, this.targetHeight / textBlockHeight)
+			: 1;
 		this.scaleX = scale;
 		this.scaleY = scale;
 		const scaledWidth = textBlockWidth * this.scaleX;
 		const scaledHeight = textBlockHeight * this.scaleY;
-		this.offsetX = SCREEN_MARGIN_X + (NATIVE_WIDTH - scaledWidth) / 2;
-		this.offsetY = SCREEN_MARGIN_Y + (NATIVE_HEIGHT - scaledHeight) / 2;
+		this.offsetX = (this.targetWidth - scaledWidth) / 2;
+		this.offsetY = (this.targetHeight - scaledHeight) / 2;
 
 		this.ctx.save();
 		this.ctx.translate(this.offsetX, this.offsetY);

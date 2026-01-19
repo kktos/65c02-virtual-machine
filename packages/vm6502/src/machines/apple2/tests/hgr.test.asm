@@ -13,11 +13,12 @@
     ; Zero Page Pointers
     PTR_L    = $FE
     PTR_H    = $FF
+    CV       = $25      ; Cursor Vertical Position
 
 START:
     ; 1. Setup: Clear HGR screen and draw something
     JSR CLEAR_HGR
-    JSR DRAW_PATTERN
+    JSR DRAW_RECTS
 
     ; 2. Activate HGR Mixed Mode
     BIT TXTCLR      ; Graphics
@@ -42,7 +43,11 @@ START:
     ; 6. Wait for user input
     JSR WAIT_KEY
 
-    ; 7. Restore Text Mode and Exit
+    ; 7. Set Cursor to visible line (21)
+    LDA #21
+    STA CV
+
+    ; 8. Restore Text Mode and Exit
     BIT TXTSET
     RTS
 
@@ -71,20 +76,59 @@ LOOP1:
     BNE LOOP1
     RTS
 
-DRAW_PATTERN:
+DRAW_RECTS:
     LDA #$00
     STA PTR_L
     LDA #$20
     STA PTR_H
     LDY #$00
-LOOP2:
-    LDA #$FF        ; Solid white bar (7 pixels)
+LOOP_PAGE:
+    ; We iterate through all bytes.
+    ; Map offset to column to determine color.
+    ; 0-39: Col 0-39
+    ; 40-79: Col 0-39
+    ; 80-119: Col 0-39
+    ; 120-127: Holes
+    TYA
+    AND #$7F        ; Mod 128
+    CMP #120
+    BCS NEXT       ; Skip screen holes
+
+    ; Normalize to 0-39
+    CMP #80
+    BCC TRY40
+    SBC #80
+    JMP COLOR
+TRY40:
+    CMP #40
+    BCC COLOR
+    SBC #40
+COLOR:
+    ; A is 0-39
+    CMP #10
+    BCC GREEN
+    CMP #20
+    BCC VIOLET
+    CMP #30
+    BCC ORANGE
+    ; BLUE
+    LDA #$D5
+    BNE DRAW
+GREEN:
+    LDA #$2A
+    BNE DRAW
+VIOLET:
+    LDA #$55
+    BNE DRAW
+ORANGE:
+    LDA #$AA
+DRAW:
     STA (PTR_L),Y
-    INY             ; Skip every other byte to make a pattern
+NEXT:
     INY
-    BNE LOOP2
+    BNE LOOP_PAGE
     INC PTR_H
     LDA PTR_H
     CMP #$40
-    BNE LOOP2
+    BNE LOOP_PAGE
     RTS

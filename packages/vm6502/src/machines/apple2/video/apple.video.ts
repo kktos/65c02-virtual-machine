@@ -1,9 +1,8 @@
 import type { Video } from "@/types/video.interface";
 import { MACHINE_STATE_OFFSET, REG_BORDERCOLOR_OFFSET, REG_TBCOLOR_OFFSET } from "@/virtualmachine/cpu/shared-memory";
-import { NATIVE_HEIGHT, NATIVE_WIDTH, SCREEN_MARGIN_X, SCREEN_MARGIN_Y } from "./constants";
-import { GR_LINES, GR_MIXED_LINES, LowGrRenderer } from "./gr";
+import { LowGrRenderer } from "./gr";
 import { HGR_COLORS, HGRRenderer } from "./hgr";
-import { TEXT_COLS, TEXT_ROWS, TextRenderer } from "./text";
+import { TextRenderer } from "./text";
 
 const IIgsPaletteRGB: ReadonlyArray<[number, number, number]> = [
 	[0x00, 0x00, 0x00], // 0 Black
@@ -44,7 +43,6 @@ interface AppleVideoOverrides {
 	textBgColor: number;
 	wannaScale?: boolean;
 	mouseChars?: "AUTO" | "ON" | "OFF";
-	grRenderer?: "CANVAS" | "BUFFER";
 }
 
 const baseurl = import.meta.url.match(/http:\/\/[^/]+/)?.[0];
@@ -66,11 +64,9 @@ export class AppleVideo implements Video {
 	private ram: Uint8Array;
 	private offscreenCanvas: OffscreenCanvas;
 	private ctx: OffscreenCanvasRenderingContext2D;
+
 	private targetWidth: number;
 	private targetHeight: number;
-
-	private readonly charWidth: number;
-	private readonly charHeight: number;
 
 	private overrides: AppleVideoOverrides = { borderColor: -1, textFgColor: -1, textBgColor: -1 };
 
@@ -100,9 +96,11 @@ export class AppleVideo implements Video {
 		this.buffer = mem;
 		this.registers = registers;
 		this.ram = ram.subarray(RAM_OFFSET);
+
 		this.targetWidth = width;
 		this.targetHeight = height;
-		this.offscreenCanvas = new OffscreenCanvas(NATIVE_WIDTH + SCREEN_MARGIN_X * 2, NATIVE_HEIGHT + SCREEN_MARGIN_Y * 2);
+
+		this.offscreenCanvas = new OffscreenCanvas(width, height);
 		const context = this.offscreenCanvas.getContext("2d", { willReadFrequently: true });
 		if (!context) throw new Error("Could not get 2D context from OffscreenCanvas");
 
@@ -112,15 +110,12 @@ export class AppleVideo implements Video {
 		this.ctx = context;
 		this.ctx.imageSmoothingEnabled = false;
 
-		this.charWidth = NATIVE_WIDTH / TEXT_COLS;
-		this.charHeight = NATIVE_HEIGHT / TEXT_ROWS;
-
-		console.log("AppleVideo", `view w${width}h${height}`, `char w${this.charWidth}h${this.charHeight}`);
+		console.log("AppleVideo", `view w${width}h${height}`);
 
 		this.initPalette();
 
-		this.textRenderer = new TextRenderer(this.ctx, this.ram, payload, this.charWidth, this.charHeight);
-		this.lowGrRenderer = new LowGrRenderer(this.ctx, this.ram, this.buffer);
+		this.textRenderer = new TextRenderer(this.ctx, this.ram, payload, this.targetWidth, this.targetHeight);
+		this.lowGrRenderer = new LowGrRenderer(this.ram, this.buffer, this.targetWidth, this.targetHeight);
 		this.hgrRenderer = new HGRRenderer(this.ram, this.buffer, this.targetWidth, this.targetHeight);
 
 		this.updateRenderers();
@@ -239,18 +234,7 @@ export class AppleVideo implements Video {
 				else this.renderText40(20, isPage2, bgColorStr, fgColorStr, isAltCharset);
 			}
 		} else {
-			if (this.overrides.grRenderer === "BUFFER") {
-				this.lowGrRenderer.renderBuffer(
-					this.targetWidth,
-					this.targetHeight,
-					0,
-					isMixed ? GR_MIXED_LINES : GR_LINES,
-					isPage2,
-				);
-			} else {
-				const paletteStrings = IIgsPaletteRGB.map((c) => `rgb(${c[0]},${c[1]},${c[2]})`);
-				this.lowGrRenderer.render(0, isMixed ? GR_MIXED_LINES : GR_LINES, isPage2, paletteStrings);
-			}
+			this.lowGrRenderer.render(isMixed, isPage2);
 			if (isMixed) {
 				if (is80Col) this.renderText80(20, bgColorStr, fgColorStr, isAltCharset);
 				else this.renderText40(20, isPage2, bgColorStr, fgColorStr, isAltCharset);
@@ -260,7 +244,7 @@ export class AppleVideo implements Video {
 		const dest = this.buffer;
 		const scaleY = this.targetHeight / this.offscreenCanvas.height;
 
-		const useBufferForGr = !isText && !isHgr && this.overrides.grRenderer === "BUFFER";
+		const useBufferForGr = !isText && !isHgr;
 		const directRender = isHgr || useBufferForGr;
 
 		// Only read back from canvas if we rendered text or GR (anything not HGR-only)

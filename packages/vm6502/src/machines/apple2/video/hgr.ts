@@ -1,11 +1,4 @@
-import {
-	NATIVE_HEIGHT,
-	NATIVE_WIDTH,
-	SCREEN_MARGIN_X,
-	SCREEN_MARGIN_Y,
-	VIEW_AREA_HEIGHT,
-	VIEW_AREA_WIDTH,
-} from "./constants";
+import { VIEW_AREA_HEIGHT, VIEW_AREA_WIDTH } from "./constants";
 
 const HGR_WIDTH = 280;
 const HGR_LINES = 192;
@@ -50,34 +43,29 @@ export const HGR_COLORS = [
 
 const baseScaleX = VIEW_AREA_WIDTH / HGR_WIDTH;
 const baseScaleY = VIEW_AREA_HEIGHT / HGR_LINES;
-const baseOffsetX = SCREEN_MARGIN_X + (NATIVE_WIDTH - VIEW_AREA_WIDTH) / 2;
-const baseOffsetY = SCREEN_MARGIN_Y + (NATIVE_HEIGHT - VIEW_AREA_HEIGHT) / 2;
-const canvasW = NATIVE_WIDTH + SCREEN_MARGIN_X * 2;
-const canvasH = NATIVE_HEIGHT + SCREEN_MARGIN_Y * 2;
 
 export class HGRRenderer {
+	private destOffsetX: number;
+	private destOffsetY: number;
+
 	constructor(
 		private ram: Uint8Array,
 		private buffer: Uint8Array,
 		private targetWidth: number,
-		private targetHeight: number,
-	) {}
+		targetHeight: number,
+	) {
+		this.destOffsetX = (targetWidth - VIEW_AREA_WIDTH) / 2;
+		this.destOffsetY = (targetHeight - VIEW_AREA_HEIGHT) / 2;
+	}
 
 	public render(isMixed: boolean, isPage2: boolean): void {
 		const baseAddr = isPage2 ? 0x2000 : 0;
-		const ratioX = this.targetWidth / canvasW;
-		const ratioY = this.targetHeight / canvasH;
-
-		const destOffsetX = baseOffsetX * ratioX;
-		const destOffsetY = baseOffsetY * ratioY;
-		const unitX = baseScaleX * ratioX;
-		const unitY = baseScaleY * ratioY;
 
 		const endLine = isMixed ? HGR_MIXED_LINES : HGR_LINES;
 		for (let y = 0; y < endLine; y++) {
 			const lineBase = baseAddr + (HGR_LINE_ADDRS[y] ?? 0);
-			const startY = Math.floor(destOffsetY + y * unitY);
-			const endY = Math.floor(destOffsetY + (y + 1) * unitY);
+			const startY = Math.floor(this.destOffsetY + y * baseScaleY);
+			const endY = Math.floor(this.destOffsetY + (y + 1) * baseScaleY);
 
 			for (let byteX = 0; byteX < 40; byteX++) {
 				const address = lineBase + byteX;
@@ -138,8 +126,8 @@ export class HGRRenderer {
 					}
 
 					// Draw Scaled Pixel
-					const startX = Math.floor(destOffsetX + dotX * unitX);
-					const endX = Math.floor(destOffsetX + (dotX + 1) * unitX);
+					const startX = Math.floor(this.destOffsetX + dotX * baseScaleX);
+					const endX = Math.floor(this.destOffsetX + (dotX + 1) * baseScaleX);
 					const paletteIdx = 17 + colorIndex;
 
 					for (let dy = startY; dy < endY; dy++) {

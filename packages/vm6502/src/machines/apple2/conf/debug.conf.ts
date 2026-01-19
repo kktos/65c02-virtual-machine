@@ -153,15 +153,4 @@ export const debugConfig: MachineConfig["debugOptions"] = [
 			{ label: "Normal Chars", value: "OFF" },
 		],
 	},
-	{
-		id: "grRenderer",
-		label: "GR Renderer",
-		type: "select",
-		category: "video",
-		savable: true,
-		options: [
-			{ label: "Canvas", value: "CANVAS" },
-			{ label: "Buffer", value: "BUFFER" },
-		],
-	},
 ];
