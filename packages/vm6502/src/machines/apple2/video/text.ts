@@ -51,6 +51,10 @@ export class TextRenderer {
 	private flashCounter = 0;
 	private flashState = false;
 	public wannaScale: boolean = false;
+	public offsetX = 0;
+	public offsetY = 0;
+	public scaleX = 1;
+	public scaleY = 1;
 
 	constructor(
 		private ctx: OffscreenCanvasRenderingContext2D,
@@ -114,6 +118,11 @@ export class TextRenderer {
 	}
 
 	public render40Bitmap(startRow: number, isPage2: boolean) {
+		this.offsetX = SCREEN_MARGIN_X;
+		this.offsetY = SCREEN_MARGIN_Y;
+		this.scaleX = 1;
+		this.scaleY = 1;
+
 		const pageOffset = isPage2 ? 0x400 : 0;
 		for (let y = startRow; y < TEXT_ROWS; y++) {
 			const lineBase = (textScreenLineOffsets[y] ?? 0) + pageOffset;
@@ -129,6 +138,11 @@ export class TextRenderer {
 	}
 
 	public render80Bitmap(startRow: number) {
+		this.offsetX = SCREEN_MARGIN_X;
+		this.offsetY = SCREEN_MARGIN_Y;
+		this.scaleX = 1;
+		this.scaleY = 1;
+
 		const charWidth80 = this.charWidth / 2;
 		for (let y = startRow; y < TEXT_ROWS; y++) {
 			const lineBase = textScreenLineOffsets[y] ?? 0;
@@ -159,16 +173,16 @@ export class TextRenderer {
 		this.ctx.textBaseline = "top";
 		this.ctx.textAlign = "left";
 
-		const scaleY = this.wannaScale ? text40ScaleY : 1;
-		const scaleX = this.wannaScale ? text40ScaleX : 1;
-		const scaledWidth = text40ViewWidth * scaleX;
-		const scaledHeight = text40ViewHeight * scaleY;
-		const offsetX = SCREEN_MARGIN_X + (NATIVE_WIDTH - scaledWidth) / 2;
-		const offsetY = SCREEN_MARGIN_Y + (NATIVE_HEIGHT - scaledHeight) / 2;
+		this.scaleY = this.wannaScale ? text40ScaleY : 1;
+		this.scaleX = this.wannaScale ? text40ScaleX : 1;
+		const scaledWidth = text40ViewWidth * this.scaleX;
+		const scaledHeight = text40ViewHeight * this.scaleY;
+		this.offsetX = SCREEN_MARGIN_X + (NATIVE_WIDTH - scaledWidth) / 2;
+		this.offsetY = SCREEN_MARGIN_Y + (NATIVE_HEIGHT - scaledHeight) / 2;
 
 		this.ctx.save();
-		this.ctx.translate(offsetX, offsetY);
-		if (this.wannaScale) this.ctx.scale(scaleX, scaleY);
+		this.ctx.translate(this.offsetX, this.offsetY);
+		if (this.wannaScale) this.ctx.scale(this.scaleX, this.scaleY);
 
 		const pageOffset = isPage2 ? 0x400 : 0;
 		const wantNormal = !isAltCharset && !this.flashState;
@@ -205,14 +219,16 @@ export class TextRenderer {
 		const textBlockWidth = TEXT_COLS * 2 * charWidth;
 		const textBlockHeight = TEXT_ROWS * charHeight;
 		const scale = this.wannaScale ? Math.min(NATIVE_WIDTH / textBlockWidth, NATIVE_HEIGHT / textBlockHeight) : 1;
-		const scaledWidth = textBlockWidth * scale;
-		const scaledHeight = textBlockHeight * scale;
-		const offsetX = SCREEN_MARGIN_X + (NATIVE_WIDTH - scaledWidth) / 2;
-		const offsetY = SCREEN_MARGIN_Y + (NATIVE_HEIGHT - scaledHeight) / 2;
+		this.scaleX = scale;
+		this.scaleY = scale;
+		const scaledWidth = textBlockWidth * this.scaleX;
+		const scaledHeight = textBlockHeight * this.scaleY;
+		this.offsetX = SCREEN_MARGIN_X + (NATIVE_WIDTH - scaledWidth) / 2;
+		this.offsetY = SCREEN_MARGIN_Y + (NATIVE_HEIGHT - scaledHeight) / 2;
 
 		this.ctx.save();
-		this.ctx.translate(offsetX, offsetY);
-		if (this.wannaScale) this.ctx.scale(scale, scale);
+		this.ctx.translate(this.offsetX, this.offsetY);
+		if (this.wannaScale) this.ctx.scale(this.scaleX, this.scaleY);
 
 		const wantNormal = !isAltCharset && !this.flashState;
 

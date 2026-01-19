@@ -1,7 +1,7 @@
 import type { Video } from "@/types/video.interface";
 import { MACHINE_STATE_OFFSET, REG_BORDERCOLOR_OFFSET, REG_TBCOLOR_OFFSET } from "@/virtualmachine/cpu/shared-memory";
 import { NATIVE_HEIGHT, NATIVE_WIDTH, SCREEN_MARGIN_X, SCREEN_MARGIN_Y } from "./constants";
-import { GR_LINES, GR_MIXED_LINES, renderGr } from "./gr";
+import { GR_LINES, GR_MIXED_LINES, LowGrRenderer } from "./gr";
 import { HGR_COLORS, HGR_LINES, HGR_MIXED_LINES, renderHgr } from "./hgr";
 import { TEXT_COLS, TEXT_ROWS, TextRenderer } from "./text";
 
@@ -44,6 +44,7 @@ interface AppleVideoOverrides {
 	textBgColor: number;
 	wannaScale?: boolean;
 	mouseChars?: "AUTO" | "ON" | "OFF";
+	grRenderer?: "CANVAS" | "BUFFER";
 }
 
 const baseurl = import.meta.url.match(/http:\/\/[^/]+/)?.[0];
@@ -74,6 +75,7 @@ export class AppleVideo implements Video {
 	private overrides: AppleVideoOverrides = { borderColor: -1, textFgColor: -1, textBgColor: -1 };
 
 	private textRenderer: TextRenderer;
+	private lowGrRenderer: LowGrRenderer;
 
 	private renderText40!: (
 		startRow: number,
@@ -118,6 +120,7 @@ export class AppleVideo implements Video {
 		this.initPalette();
 
 		this.textRenderer = new TextRenderer(this.ctx, this.ram, payload, this.charWidth, this.charHeight);
+		this.lowGrRenderer = new LowGrRenderer(this.ctx, this.ram, this.buffer);
 
 		this.updateRenderers();
 	}
@@ -243,8 +246,18 @@ export class AppleVideo implements Video {
 				else this.renderText40(20, isPage2, bgColorStr, fgColorStr, isAltCharset);
 			}
 		} else {
-			const paletteStrings = IIgsPaletteRGB.map((c) => `rgb(${c[0]},${c[1]},${c[2]})`);
-			renderGr(this.ctx, this.ram, 0, isMixed ? GR_MIXED_LINES : GR_LINES, isPage2, paletteStrings);
+			if (this.overrides.grRenderer === "BUFFER") {
+				this.lowGrRenderer.renderBuffer(
+					this.targetWidth,
+					this.targetHeight,
+					0,
+					isMixed ? GR_MIXED_LINES : GR_LINES,
+					isPage2,
+				);
+			} else {
+				const paletteStrings = IIgsPaletteRGB.map((c) => `rgb(${c[0]},${c[1]},${c[2]})`);
+				this.lowGrRenderer.render(0, isMixed ? GR_MIXED_LINES : GR_LINES, isPage2, paletteStrings);
+			}
 			if (isMixed) {
 				if (is80Col) this.renderText80(20, bgColorStr, fgColorStr, isAltCharset);
 				else this.renderText40(20, isPage2, bgColorStr, fgColorStr, isAltCharset);
@@ -254,8 +267,11 @@ export class AppleVideo implements Video {
 		const dest = this.buffer;
 		const scaleY = this.targetHeight / this.offscreenCanvas.height;
 
+		const useBufferForGr = !isText && !isHgr && this.overrides.grRenderer === "BUFFER";
+		const directRender = isHgr || useBufferForGr;
+
 		// Only read back from canvas if we rendered text or GR (anything not HGR-only)
-		if (!isHgr || isMixed) {
+		if (!directRender || isMixed) {
 			const imageData = this.ctx.getImageData(0, 0, this.offscreenCanvas.width, this.offscreenCanvas.height);
 			const src32 = new Uint32Array(imageData.data.buffer);
 			const srcWidth = this.offscreenCanvas.width;
@@ -278,24 +294,43 @@ export class AppleVideo implements Video {
 			const globalBgIndex = borderIdx;
 
 			let startY = 0;
-			if (isMixed && isHgr) {
+			if (isMixed && directRender) {
 				// Mixed Mode: Copy only the bottom 4 lines of text (lines 20-23)
 				// Start at line 160 (Mixed mode split point)
 				// We need to calculate the Y position in the TARGET buffer
-				startY = Math.floor((SCREEN_MARGIN_Y + 160) * scaleY);
+				// startY = Math.floor((SCREEN_MARGIN_Y + 160) * scaleY);
+
+				// The split is at 160 pixels for HGR.
+				const gfxPixelHeight = isHgr ? HGR_MIXED_LINES : 160; // TODO: This is not right for GR
+				startY = Math.floor((SCREEN_MARGIN_Y + gfxPixelHeight) * scaleY);
 			}
 
 			// Convert RGBA pixels to 8-bit indices
 			// We loop over the DESTINATION buffer dimensions
 			for (let y = startY; y < this.targetHeight; y++) {
-				const srcY = Math.floor(y / scaleY);
+				// const srcY = Math.floor(y / scaleY);
+				let srcY: number;
+				if (isMixed && directRender) {
+					// The text renderer may have centered the text block. We must calculate
+					// the actual Y position of the mixed-mode text on the source canvas.
+					const textRowHeight = 16; // Corresponds to font40Height in text.ts
+					const canvasTextStartY = this.textRenderer.offsetY + 20 * textRowHeight * this.textRenderer.scaleY;
+
+					// Map the destination Y to the source canvas Y for the text area
+					const yOffsetInCanvas = (y - startY) / scaleY;
+					srcY = Math.floor(canvasTextStartY + yOffsetInCanvas);
+				} else {
+					srcY = Math.floor(y / scaleY);
+				}
 				const srcRowOffset = srcY * srcWidth;
 				const destRowOffset = y * this.targetWidth;
 
 				for (let x = 0; x < this.targetWidth; x++) {
 					// Simple nearest neighbor for X (assuming width matches for now, but safe to scale)
 					// If targetWidth == srcWidth (560), this maps 1:1
-					const pixel = src32[srcRowOffset + x] ?? 0;
+					// const pixel = src32[srcRowOffset + x] ?? 0;
+					const srcX = Math.floor(x / (this.targetWidth / srcWidth));
+					const pixel = src32[srcRowOffset + srcX] ?? 0;
 					let colorIndex: number;
 
 					if (useThresholding) {
