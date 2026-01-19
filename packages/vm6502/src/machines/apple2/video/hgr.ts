@@ -1,6 +1,6 @@
-export const HGR_WIDTH = 280;
-export const HGR_LINES = 192;
-export const HGR_MIXED_LINES = 160;
+const HGR_WIDTH = 280;
+const HGR_LINES = 192;
+const HGR_MIXED_LINES = 160;
 
 // Pre-calculated line base addresses for HGR screen memory
 const HGR_LINE_ADDRS: ReadonlyArray<number> = Object.freeze([
@@ -39,94 +39,92 @@ export const HGR_COLORS = [
 	[255, 255, 255, 255], // White
 ];
 
-/**
- * Renders the Apple IIe HGR screen into the video buffer.
- */
-export function renderHgr(
-	buffer: Uint8Array,
-	ram: Uint8Array,
-	targetWidth: number,
-	targetHeight: number,
-	startLine: number,
-	endLine: number,
-	isPage2: boolean,
-): void {
-	const baseAddr = isPage2 ? 0x2000 : 0;
-	const scaleX = targetWidth / HGR_WIDTH;
-	const scaleY = targetHeight / HGR_LINES;
+export class HGRRenderer {
+	constructor(
+		private ram: Uint8Array,
+		private buffer: Uint8Array,
+		private targetWidth: number,
+		private targetHeight: number,
+	) {}
 
-	for (let y = startLine; y < endLine; y++) {
-		const lineBase = baseAddr + (HGR_LINE_ADDRS[y] ?? 0);
-		const startY = Math.floor(y * scaleY);
-		const endY = Math.floor((y + 1) * scaleY);
+	public render(isMixed: boolean, isPage2: boolean): void {
+		const baseAddr = isPage2 ? 0x2000 : 0;
+		const scaleX = this.targetWidth / HGR_WIDTH;
+		const scaleY = this.targetHeight / HGR_LINES;
+		const endLine = isMixed ? HGR_MIXED_LINES : HGR_LINES;
+		for (let y = 0; y < endLine; y++) {
+			const lineBase = baseAddr + (HGR_LINE_ADDRS[y] ?? 0);
+			const startY = Math.floor(y * scaleY);
+			const endY = Math.floor((y + 1) * scaleY);
 
-		for (let byteX = 0; byteX < 40; byteX++) {
-			const address = lineBase + byteX;
-			const value = ram[address] ?? 0;
-			const prevValue = byteX > 0 ? (ram[address - 1] ?? 0) : 0;
-			const nextValue = byteX < 39 ? (ram[address + 1] ?? 0) : 0;
+			for (let byteX = 0; byteX < 40; byteX++) {
+				const address = lineBase + byteX;
+				const value = this.ram[address] ?? 0;
+				const prevValue = byteX > 0 ? (this.ram[address - 1] ?? 0) : 0;
+				const nextValue = byteX < 39 ? (this.ram[address + 1] ?? 0) : 0;
 
-			const isShifted = (value & 0x80) !== 0;
+				const isShifted = (value & 0x80) !== 0;
 
-			for (let bit = 0; bit < 7; bit++) {
-				const dotX = byteX * 7 + bit;
-				const isSet = (value & (1 << bit)) !== 0;
+				for (let bit = 0; bit < 7; bit++) {
+					const dotX = byteX * 7 + bit;
+					const isSet = (value & (1 << bit)) !== 0;
 
-				let prevSet = false;
-				if (bit > 0) prevSet = (value & (1 << (bit - 1))) !== 0;
-				else prevSet = (prevValue & (1 << 6)) !== 0;
+					let prevSet = false;
+					if (bit > 0) prevSet = (value & (1 << (bit - 1))) !== 0;
+					else prevSet = (prevValue & (1 << 6)) !== 0;
 
-				let nextSet = false;
-				if (bit < 6) nextSet = (value & (1 << (bit + 1))) !== 0;
-				else nextSet = (nextValue & 1) !== 0;
+					let nextSet = false;
+					if (bit < 6) nextSet = (value & (1 << (bit + 1))) !== 0;
+					else nextSet = (nextValue & 1) !== 0;
 
-				let colorIndex = 0; // Default Black
+					let colorIndex = 0; // Default Black
 
-				// Determine the "Natural" color for this pixel position
-				// Even: Violet (2) or Blue (6)
-				// Odd:  Green (1) or Orange (5)
-				const isEven = dotX % 2 === 0;
-				let naturalColor = 0;
-				let oppositeColor = 0;
+					// Determine the "Natural" color for this pixel position
+					// Even: Violet (2) or Blue (6)
+					// Odd:  Green (1) or Orange (5)
+					const isEven = dotX % 2 === 0;
+					let naturalColor = 0;
+					let oppositeColor = 0;
 
-				if (!isShifted) {
-					naturalColor = isEven ? 2 : 1; // Violet : Green
-					oppositeColor = isEven ? 1 : 2; // Green : Violet
-				} else {
-					naturalColor = isEven ? 6 : 5; // Blue : Orange
-					oppositeColor = isEven ? 5 : 6; // Orange : Blue
-				}
-
-				if (isSet) {
-					if (prevSet || nextSet) {
-						colorIndex = 3; // White (adjacent bits are on)
+					if (!isShifted) {
+						naturalColor = isEven ? 2 : 1; // Violet : Green
+						oppositeColor = isEven ? 1 : 2; // Green : Violet
 					} else {
-						colorIndex = naturalColor;
+						naturalColor = isEven ? 6 : 5; // Blue : Orange
+						oppositeColor = isEven ? 5 : 6; // Orange : Blue
 					}
-				} else {
-					// Gap filling: If we have a 101 pattern, fill the 0 with the color
-					// implied by the surrounding 1s.
-					if (prevSet && nextSet) {
-						// The neighbors are ON. Since x-1 and x+1 have the same parity,
-						// they imply the same color (e.g. Green).
-						// We want to fill this pixel with that same color.
-						// Since 'naturalColor' is for the current parity (which is opposite),
-						// we use 'oppositeColor'.
-						colorIndex = oppositeColor;
+
+					if (isSet) {
+						if (prevSet || nextSet) {
+							colorIndex = 3; // White (adjacent bits are on)
+						} else {
+							colorIndex = naturalColor;
+						}
 					} else {
-						colorIndex = 0; // Black
+						// Gap filling: If we have a 101 pattern, fill the 0 with the color
+						// implied by the surrounding 1s.
+						if (prevSet && nextSet) {
+							// The neighbors are ON. Since x-1 and x+1 have the same parity,
+							// they imply the same color (e.g. Green).
+							// We want to fill this pixel with that same color.
+							// Since 'naturalColor' is for the current parity (which is opposite),
+							// we use 'oppositeColor'.
+							colorIndex = oppositeColor;
+						} else {
+							colorIndex = 0; // Black
+						}
 					}
-				}
 
-				// Draw Scaled Pixel
-				const startX = Math.floor(dotX * scaleX);
-				const endX = Math.floor((dotX + 1) * scaleX);
-				const paletteIdx = 17 + colorIndex;
+					// Draw Scaled Pixel
+					const startX = Math.floor(dotX * scaleX);
+					const endX = Math.floor((dotX + 1) * scaleX);
+					const paletteIdx = 17 + colorIndex;
 
-				for (let dy = startY; dy < endY; dy++) {
-					const rowOffset = dy * targetWidth;
-					for (let dx = startX; dx < endX; dx++) {
-						buffer[rowOffset + dx] = paletteIdx;
+					for (let dy = startY; dy < endY; dy++) {
+						const rowOffset = dy * this.targetWidth;
+						for (let dx = startX; dx < endX; dx++) {
+							this.buffer[rowOffset + dx] = paletteIdx;
+						}
 					}
 				}
 			}

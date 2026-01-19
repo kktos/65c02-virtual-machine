@@ -2,7 +2,7 @@ import type { Video } from "@/types/video.interface";
 import { MACHINE_STATE_OFFSET, REG_BORDERCOLOR_OFFSET, REG_TBCOLOR_OFFSET } from "@/virtualmachine/cpu/shared-memory";
 import { NATIVE_HEIGHT, NATIVE_WIDTH, SCREEN_MARGIN_X, SCREEN_MARGIN_Y } from "./constants";
 import { GR_LINES, GR_MIXED_LINES, LowGrRenderer } from "./gr";
-import { HGR_COLORS, HGR_LINES, HGR_MIXED_LINES, renderHgr } from "./hgr";
+import { HGR_COLORS, HGRRenderer } from "./hgr";
 import { TEXT_COLS, TEXT_ROWS, TextRenderer } from "./text";
 
 const IIgsPaletteRGB: ReadonlyArray<[number, number, number]> = [
@@ -76,6 +76,7 @@ export class AppleVideo implements Video {
 
 	private textRenderer: TextRenderer;
 	private lowGrRenderer: LowGrRenderer;
+	private hgrRenderer: HGRRenderer;
 
 	private renderText40!: (
 		startRow: number,
@@ -100,7 +101,6 @@ export class AppleVideo implements Video {
 		this.registers = registers;
 		this.ram = ram.subarray(RAM_OFFSET);
 		this.targetWidth = width;
-		this.targetWidth = width;
 		this.targetHeight = height;
 		this.offscreenCanvas = new OffscreenCanvas(NATIVE_WIDTH + SCREEN_MARGIN_X * 2, NATIVE_HEIGHT + SCREEN_MARGIN_Y * 2);
 		const context = this.offscreenCanvas.getContext("2d", { willReadFrequently: true });
@@ -121,6 +121,7 @@ export class AppleVideo implements Video {
 
 		this.textRenderer = new TextRenderer(this.ctx, this.ram, payload, this.charWidth, this.charHeight);
 		this.lowGrRenderer = new LowGrRenderer(this.ctx, this.ram, this.buffer);
+		this.hgrRenderer = new HGRRenderer(this.ram, this.buffer, this.targetWidth, this.targetHeight);
 
 		this.updateRenderers();
 	}
@@ -232,15 +233,7 @@ export class AppleVideo implements Video {
 			if (is80Col) this.renderText80(0, bgColorStr, fgColorStr, isAltCharset);
 			else this.renderText40(0, isPage2, bgColorStr, fgColorStr, isAltCharset);
 		} else if (isHgr) {
-			renderHgr(
-				this.buffer,
-				this.ram,
-				this.targetWidth,
-				this.targetHeight,
-				0,
-				isMixed ? HGR_MIXED_LINES : HGR_LINES,
-				isPage2,
-			);
+			this.hgrRenderer.render(isMixed, isPage2);
 			if (isMixed) {
 				if (is80Col) this.renderText80(20, bgColorStr, fgColorStr, isAltCharset);
 				else this.renderText40(20, isPage2, bgColorStr, fgColorStr, isAltCharset);
