@@ -19,7 +19,7 @@
 						</Button>
 					</div>
 				</div>
-				<DebugOptionList v-model="debugOverrides" :debug-options="debugOptions" />
+				<DebugOptionList v-model="debugOverrides" :debug-options="debugOptions" :storage-key="`debug-accordion-${category}`" />
 			</PopoverContent>
 		</Popover>
 
@@ -49,8 +49,8 @@
 						</Button>
 					</div>
 				</div>
-				<div class="p-4 w-64">
-					<DebugOptionList v-model="debugOverrides" :debug-options="debugOptions" id-suffix="-torn-off" />
+				<div class="p-4 w-80">
+					<DebugOptionList v-model="debugOverrides" :debug-options="debugOptions" id-suffix="-torn-off" :storage-key="`debug-accordion-${category}`" />
 				</div>
 			</div>
 		</Teleport>
@@ -59,7 +59,7 @@
 
 <script lang="ts" setup>
 import { PanelTopClose, Settings2, X } from "lucide-vue-next";
-import { computed, inject, nextTick, type Ref, ref, watch } from "vue";
+import { computed, inject, nextTick, onUnmounted, type Ref, ref, watch } from "vue";
 import DebugOptionList from "@/components/DebugOptionList.vue";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -74,7 +74,7 @@ const props = withDefaults(defineProps<{
 }>(), {
 	updateVmGlobally: false,
 	align: "end",
-	contentClass: "w-64 p-4 bg-gray-800 border-gray-700 text-gray-100",
+	contentClass: "w-80 p-4 bg-gray-800 border-gray-700 text-gray-100",
 });
 
 const vm = inject<Ref<VirtualMachine>>("vm");
@@ -84,7 +84,46 @@ const debugOverrides = ref<Record<string, unknown>>({});
 const isTornOff = ref(false);
 const isPopoverOpen = ref(false);
 
+const floatingWindow = ref<HTMLElement | null>(null);
+const windowPos = ref({ x: 100, y: 100 });
+
 const STORAGE_KEY = computed(() => `debug-options-${props.category}`);
+const UI_STORAGE_KEY = computed(() => `debug-ui-${props.category}`);
+
+const clampToViewport = () => {
+	if (!floatingWindow.value) return;
+	const width = floatingWindow.value.offsetWidth;
+	const height = floatingWindow.value.offsetHeight;
+
+	const maxX = Math.max(0, window.innerWidth - width);
+	const maxY = Math.max(0, window.innerHeight - height);
+
+	const newX = Math.min(Math.max(0, windowPos.value.x), maxX);
+	const newY = Math.min(Math.max(0, windowPos.value.y), maxY);
+
+	if (newX !== windowPos.value.x || newY !== windowPos.value.y) {
+		windowPos.value = { x: newX, y: newY };
+	}
+};
+
+const saveUIState = () => {
+	localStorage.setItem(UI_STORAGE_KEY.value, JSON.stringify({ isTornOff: isTornOff.value, windowPos: windowPos.value }));
+};
+
+const loadUIState = async () => {
+	const saved = localStorage.getItem(UI_STORAGE_KEY.value);
+	if (saved) {
+		try {
+			const state = JSON.parse(saved);
+			if (state.windowPos) windowPos.value = state.windowPos;
+			if (state.isTornOff !== undefined) isTornOff.value = state.isTornOff;
+			if (isTornOff.value) {
+				await nextTick();
+				clampToViewport();
+			}
+		} catch (e) { /* ignore */ }
+	}
+};
 
 const saveOptions = () => {
 	const savableOptions = debugOptions.value.filter(opt => opt.savable).map(opt => opt.id);
@@ -109,10 +148,6 @@ const loadOptions = () => {
 	}
 };
 
-const floatingWindow = ref<HTMLElement | null>(null);
-
-const windowPos = ref({ x: 100, y: 100 });
-
 const floatingWindowStyle = computed(() => ({
 	left: `${windowPos.value.x}px`,
 	top: `${windowPos.value.y}px`,
@@ -135,6 +170,7 @@ const startDrag = (event: MouseEvent) => {
 	const stopDrag = () => {
 		document.removeEventListener("mousemove", doDrag);
 		document.removeEventListener("mouseup", stopDrag);
+		saveUIState();
 	};
 
 	document.addEventListener("mousemove", doDrag);
@@ -157,10 +193,13 @@ const tearOff = async (event?: MouseEvent) => {
 		await nextTick();
 		if (floatingWindow.value) windowPos.value = { x: (window.innerWidth - floatingWindow.value.offsetWidth) / 2, y: (window.innerHeight - floatingWindow.value.offsetHeight) / 2 };
 	}
+	clampToViewport();
+	saveUIState();
 };
 
 const dock = () => {
 	isTornOff.value = false;
+	saveUIState();
 };
 
 const hasOptions = computed(() => debugOptions.value.length > 0);
@@ -195,6 +234,22 @@ watch(debugOverrides, (newVal) => {
 		saveOptions();
 	}
 }, { deep: true });
+
+watch(() => props.category, () => {
+	loadUIState();
+}, { immediate: true });
+
+watch(isTornOff, (val) => {
+	if (val) {
+		window.addEventListener("resize", clampToViewport);
+	} else {
+		window.removeEventListener("resize", clampToViewport);
+	}
+});
+
+onUnmounted(() => {
+	window.removeEventListener("resize", clampToViewport);
+});
 
 defineExpose({
 	debugOverrides,
