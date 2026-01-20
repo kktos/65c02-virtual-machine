@@ -1,12 +1,12 @@
 <template>
 	<Accordion type="multiple" v-model="openItems" class="w-full space-y-1">
-		<AccordionItem v-for="(group, gIdx) in groupedOptions" :key="gIdx" :value="`item-${gIdx}`" class="border-b border-gray-700/50 last:border-0">
+		<AccordionItem v-for="(group, gIdx) in debugOptions" :key="gIdx" :value="`item-${gIdx}`" class="border-b border-gray-700/50 last:border-0">
 			<AccordionTrigger class="py-2 text-[10px] font-bold text-gray-500 uppercase tracking-wider hover:no-underline hover:text-gray-300">
-				{{ group.name || 'General' }}
+				{{ group.label }}
 			</AccordionTrigger>
 			<AccordionContent class="pb-3 pt-1">
 				<div class="space-y-3">
-					<div v-for="(row, rIdx) in group.rows" :key="rIdx" class="flex items-center gap-4">
+					<div v-for="(row, rIdx) in group.rows" :key="rIdx" class="flex items-center gap-4 min-h-[24px]">
 						<div v-for="opt in row" :key="opt.id" class="flex-1 flex items-center justify-between min-w-0" :class="{ 'opacity-50': isDisabled(opt) }">
 							<label :for="`${opt.id}${idSuffix}`" class="text-xs text-gray-300 select-none flex-grow flex items-center whitespace-nowrap" :class="isDisabled(opt) ? 'cursor-not-allowed' : 'cursor-pointer'">
 								<span>{{ opt.label }}</span>
@@ -43,6 +43,14 @@
 								class="bg-gray-700 text-yellow-300 font-mono text-xs rounded-md px-2 py-0.5 border border-gray-600 focus:ring-2 focus:ring-cyan-500 outline-none ml-2 flex-shrink-0 disabled:cursor-not-allowed"
 								:class="row.length > 1 ? 'w-14' : 'w-20'"
 							/>
+							<DebugColorPicker
+								v-if="opt.type === 'color' && opt.options"
+								:id="`${opt.id}${idSuffix}`"
+								:model-value="modelValue[opt.id]"
+								:options="opt.options"
+								:disabled="isDisabled(opt)"
+								@update:model-value="updateValue(opt.id, $event)"
+							/>
 						</div>
 					</div>
 				</div>
@@ -53,12 +61,13 @@
 
 <script lang="ts" setup>
 import { Save } from "lucide-vue-next";
-import { computed, type PropType, ref, watch } from "vue";
+import { type PropType, ref, watch } from "vue";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import type { DebugOption } from "@/types/machine.interface";
+import type { DebugGroup, DebugOption } from "@/types/machine.interface";
+import DebugColorPicker from "./DebugColorPicker.vue";
 
 const props = defineProps({
-	debugOptions: { type: Array as PropType<DebugOption[]>, required: true },
+	debugOptions: { type: Array as PropType<DebugGroup[]>, required: true },
 	modelValue: { type: Object as PropType<Record<string, unknown>>, required: true },
 	idSuffix: { type: String, default: "" },
 	storageKey: { type: String, default: undefined },
@@ -75,48 +84,6 @@ const isDisabled = (opt: DebugOption) => {
 	if (!opt.disableIf) return false;
 	return props.modelValue[opt.disableIf.optionId] === opt.disableIf.value;
 };
-
-const groupedOptions = computed(() => {
-	const groups: { name: string | undefined; rows: DebugOption[][] }[] = [];
-	let currentGroup: string | undefined;
-	let currentOptions: DebugOption[] = [];
-
-	const processOptionsToRows = (opts: DebugOption[]) => {
-		const rows: DebugOption[][] = [];
-		let currentRow: DebugOption[] = [];
-		let currentRowId: string | undefined;
-
-		for (const opt of opts) {
-			if (opt.row) {
-				if (currentRowId === opt.row) {
-					currentRow.push(opt);
-				} else {
-					if (currentRow.length > 0) rows.push(currentRow);
-					currentRow = [opt];
-					currentRowId = opt.row;
-				}
-			} else {
-				if (currentRow.length > 0) rows.push(currentRow);
-				rows.push([opt]);
-				currentRow = [];
-				currentRowId = undefined;
-			}
-		}
-		if (currentRow.length > 0) rows.push(currentRow);
-		return rows;
-	};
-
-	for (const opt of props.debugOptions) {
-		if (opt.group !== currentGroup) {
-			if (currentOptions.length > 0) groups.push({ name: currentGroup, rows: processOptionsToRows(currentOptions) });
-			currentGroup = opt.group;
-			currentOptions = [];
-		}
-		currentOptions.push(opt);
-	}
-	if (currentOptions.length > 0) groups.push({ name: currentGroup, rows: processOptionsToRows(currentOptions) });
-	return groups;
-});
 
 const openItems = ref<string[]>([]);
 

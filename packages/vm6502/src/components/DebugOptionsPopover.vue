@@ -63,7 +63,7 @@ import { computed, inject, nextTick, onUnmounted, type Ref, ref, watch } from "v
 import DebugOptionList from "@/components/DebugOptionList.vue";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import type { DebugOption } from "@/types/machine.interface";
+import type { DebugGroup } from "@/types/machine.interface";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 
 const props = withDefaults(defineProps<{
@@ -78,7 +78,7 @@ const props = withDefaults(defineProps<{
 });
 
 const vm = inject<Ref<VirtualMachine>>("vm");
-const debugOptions = ref<DebugOption[]>([]);
+const debugOptions = ref<DebugGroup[]>([]);
 const debugOverrides = ref<Record<string, unknown>>({});
 
 const isTornOff = ref(false);
@@ -126,12 +126,17 @@ const loadUIState = async () => {
 };
 
 const saveOptions = () => {
-	const savableOptions = debugOptions.value.filter(opt => opt.savable).map(opt => opt.id);
+	const savableOptions: string[] = [];
+	for (const group of debugOptions.value) {
+		for (const row of group.rows) {
+			for (const opt of row) {
+				if (opt.savable) savableOptions.push(opt.id);
+			}
+		}
+	}
 	const valuesToSave: Record<string, unknown> = {};
 	for (const id of savableOptions) {
-		if (debugOverrides.value[id] !== undefined) {
-			valuesToSave[id] = debugOverrides.value[id];
-		}
+		if (debugOverrides.value[id] !== undefined) valuesToSave[id] = debugOverrides.value[id];
 	}
 	localStorage.setItem(STORAGE_KEY.value, JSON.stringify(valuesToSave));
 };
@@ -207,19 +212,23 @@ const hasOptions = computed(() => debugOptions.value.length > 0);
 watch(() => vm?.value, async (newVm) => {
 	if (newVm) {
 		await newVm.ready;
-		debugOptions.value = newVm.getDebugOptions().filter((opt) => opt.category === props.category);
+		debugOptions.value = newVm.getDebugOptions().filter((grp) => grp.category === props.category);
 
 		const defaults: Record<string, unknown> = {};
-		debugOptions.value.forEach((opt) => {
-			if (opt.defaultValue !== undefined) {
-				defaults[opt.id] = opt.defaultValue;
-			} else if (opt.type === "select" && opt.options?.length) {
-				defaults[opt.id] = opt.options[0]?.value;
-			} else if (opt.type === "boolean") {
-				defaults[opt.id] = false;
-			} else if (opt.type === "number") {
-				defaults[opt.id] = undefined;
-			}
+		debugOptions.value.forEach((grp) => {
+			grp.rows.forEach((row) => {
+				row.forEach((opt) => {
+					if (opt.defaultValue !== undefined) {
+						defaults[opt.id] = opt.defaultValue;
+					} else if (opt.type === "select" && opt.options?.length) {
+						defaults[opt.id] = opt.options[0]?.value;
+					} else if (opt.type === "boolean") {
+						defaults[opt.id] = false;
+					} else if (opt.type === "number") {
+						defaults[opt.id] = undefined;
+					}
+				});
+			});
 		});
 		debugOverrides.value = defaults;
 

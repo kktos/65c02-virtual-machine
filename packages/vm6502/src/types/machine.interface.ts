@@ -1,16 +1,19 @@
 export interface DebugOption {
 	id: string;
 	label: string;
-	type: "boolean" | "select" | "number";
-	category?: string;
-	group?: string;
-	row?: string;
-	options?: { label: string; value: string | number }[];
+	type: "boolean" | "select" | "number" | "color";
+	options?: { label: string; value: string | number; color?: string }[];
 	min?: number;
 	max?: number;
 	defaultValue?: string | number;
 	savable?: boolean;
 	disableIf?: { optionId: string; value: string | number | boolean };
+}
+
+export interface DebugGroup {
+	label: string;
+	category: string;
+	rows: DebugOption[][];
 }
 
 export interface MemoryChunk {
@@ -54,6 +57,6 @@ export interface MachineConfig {
 	video?: VideoConfig;
 	disk?: DiskConfig;
 	css?: string[];
-	debugOptions?: DebugOption[];
+	debugOptions?: DebugGroup[];
 	symbols?: Record<number, string>;
 }
