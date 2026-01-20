@@ -6,6 +6,7 @@
 			<MachineSelector :machines="availableMachines" :selected-machine="selectedMachine" @machine-selected="handleMachineSelected" @power-cycle="handlePowerCycle"/>
 			<div class="flex items-center space-x-2">
 				<VideoControl />
+				<SoundControl />
 				<DiskDriveControl />
 				<StatusPanel />
 			</div>
@@ -128,6 +129,7 @@ import StatusFlagsView from './debugger/StatusFlagsView.vue';
 import TraceView from './debugger/TraceView.vue';
 import DiskDriveControl from "./machine/DiskDriveControl.vue";
 import MachineSelector from './machine/MachineSelector.vue';
+import SoundControl from "./machine/SoundControl.vue";
 import StatusPanel from './machine/StatusPanel.vue';
 import VideoControl from "./machine/VideoControl.vue";
 

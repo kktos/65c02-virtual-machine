@@ -10,11 +10,22 @@ export class Speaker {
 	private speakerOn = false;
 	private accumulatedCycles = 0;
 
+	private boundTick = this.tick.bind(this);
+	private isEnabled = false;
+
 	private sampleBuffer = new Float32Array(CHUNK_SIZE);
 	private bufferIndex = 0;
 
-	constructor(bus: IBus) {
-		bus.registerTickHandler(this.tick.bind(this));
+	constructor(private bus: IBus) {
+		this.setEnabled(true);
+	}
+
+	public setEnabled(enabled: boolean) {
+		if (this.isEnabled === enabled) return;
+		this.isEnabled = enabled;
+
+		if (enabled) this.bus.registerTickHandler(this.boundTick);
+		else this.bus.removeTickHandler(this.boundTick);
 	}
 
 	public init(sampleRate: number) {

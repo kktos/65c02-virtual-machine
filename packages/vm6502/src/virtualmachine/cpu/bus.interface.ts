@@ -27,6 +27,7 @@ export interface IBus {
 	load(address: number, data: Uint8Array, bank?: number, tag?: string): void;
 
 	registerTickHandler(handler: (cycles: number) => void): void;
+	removeTickHandler(handler: (cycles: number) => void): void;
 
 	/** Optional method to handle keyboard input. */
 	pressKey?(key: string, code?: string, ctrl?: boolean, shift?: boolean, alt?: boolean, meta?: boolean): void;
@@ -59,4 +60,7 @@ export interface IBus {
 
 	/** Inserts media (disk, tape, etc.) into the machine. Metadata can specify drive/slot. */
 	insertMedia?(data: Uint8Array, metadata?: Record<string, unknown>): void;
+
+	initAudio?(sampleRate: number): void;
+	enableAudio?(isEnabled: boolean): void;
 }

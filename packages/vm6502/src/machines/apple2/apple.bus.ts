@@ -123,6 +123,11 @@ export class AppleBus implements IBus {
 		this.tickHandlers.push(handler);
 	}
 
+	public removeTickHandler(handler: (cycles: number) => void) {
+		const index = this.tickHandlers.indexOf(handler);
+		if (index > -1) this.tickHandlers.splice(index, 1);
+	}
+
 	public tick(deltaCycles: number): void {
 		if (deltaCycles <= 0) return;
 		for (let index = 0; index < this.tickHandlers.length; index++) {
@@ -138,14 +143,16 @@ export class AppleBus implements IBus {
 		}
 		this.slots[card.slot] = card;
 		if (this.registers && card.setRegisters) card.setRegisters(this.registers);
-		if (card.tick) {
-			this.registerTickHandler(card.tick.bind(card));
-		}
+		if (card.tick) this.registerTickHandler(card.tick.bind(card));
 	}
 
 	public initAudio(sampleRate: number): void {
 		this.speaker.init(sampleRate);
 		console.log("AppleBus audio initialized");
+	}
+
+	public enableAudio?(isEnabled: boolean) {
+		this.speaker.setEnabled(isEnabled);
 	}
 
 	public setRegistersView(view: DataView) {

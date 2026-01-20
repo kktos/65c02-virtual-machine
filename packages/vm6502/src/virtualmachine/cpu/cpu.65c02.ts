@@ -108,9 +108,7 @@ export function setClockSpeed(speed: number) {
 	if (speed >= 0) {
 		clockSpeedMhz = speed;
 		updateCyclesPerTimeslice();
-		if (clockSpeedMhz > 0 && registersView) {
-			registersView.setFloat64(REG_SPEED_OFFSET, clockSpeedMhz, true);
-		}
+		if (clockSpeedMhz > 0) registersView?.setFloat64(REG_SPEED_OFFSET, clockSpeedMhz, true);
 	}
 }
 
@@ -214,9 +212,7 @@ export function resetCPU() {
 	// Stop execution
 	setRunning(false);
 
-	if (stepBPAddress !== null) {
-		cleanStepBP();
-	}
+	if (stepBPAddress !== null) cleanStepBP();
 }
 
 // --- Main Execution Loop ---
@@ -258,7 +254,7 @@ function run() {
 		lastVideoTickTime = now;
 	}
 
-	if (bus?.syncState) bus.syncState();
+	bus?.syncState?.();
 
 	const executed = initialCycles - cyclesThisSlice;
 	cyclesSinceLastPerf += executed;

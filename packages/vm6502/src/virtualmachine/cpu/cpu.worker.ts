@@ -102,8 +102,8 @@ self.onmessage = async (event: MessageEvent) => {
 			setBreakOnBrk(event.data.enabled);
 			break;
 		case "reset":
-			if (video) video.reset();
-			if (bus?.reset) bus.reset();
+			video?.reset();
+			bus?.reset();
 			resetCPU();
 			break;
 		case "addBP":
@@ -116,13 +116,13 @@ self.onmessage = async (event: MessageEvent) => {
 			clearBreakpoints();
 			break;
 		case "insertMedia":
-			if (bus?.insertMedia) bus.insertMedia(event.data.data, event.data.metadata);
+			bus?.insertMedia?.(event.data.data, event.data.metadata);
 			break;
 		case "keydown":
-			if (bus?.pressKey) bus.pressKey(key, code, event.data.ctrl, event.data.shift, event.data.alt, event.data.meta);
+			bus?.pressKey?.(key, code, event.data.ctrl, event.data.shift, event.data.alt, event.data.meta);
 			break;
 		case "keyup":
-			if (bus?.releaseKey) bus.releaseKey(key, code);
+			bus?.releaseKey?.(key, code);
 			break;
 		case "setTrace":
 			setTrace(event.data.enabled);
@@ -137,12 +137,13 @@ self.onmessage = async (event: MessageEvent) => {
 			if (video) video.tick();
 			break;
 		case "setDebugOverrides":
-			if (video?.setDebugOverrides) video.setDebugOverrides(event.data.overrides);
+			video?.setDebugOverrides?.(event.data.overrides);
+			break;
+		case "mute":
+			bus?.enableAudio?.(event.data.enabled);
 			break;
 		case "initAudio":
-			if (bus && "initAudio" in bus) {
-				(bus as any).initAudio(event.data.sampleRate);
-			}
+			bus?.initAudio?.(event.data.sampleRate);
 			break;
 	}
 };
