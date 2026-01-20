@@ -1,5 +1,7 @@
 import type { MachineConfig } from "@/types/machine.interface";
 import type { Video } from "@/types/video.interface";
+import { AppleBus } from "../../machines/apple2/apple.bus";
+import { VideoTester } from "../../machines/apple2/video/video.tester";
 import type { IBus } from "./bus.interface";
 import {
 	addBreakpoint,
@@ -141,6 +143,11 @@ self.onmessage = async (event: MessageEvent) => {
 			break;
 		case "mute":
 			bus?.enableAudio?.(event.data.enabled);
+			break;
+		case "testVideo":
+			if (bus instanceof AppleBus) {
+				new VideoTester(bus, video).run(event.data.mode);
+			}
 			break;
 		case "initAudio":
 			bus?.initAudio?.(event.data.sampleRate);

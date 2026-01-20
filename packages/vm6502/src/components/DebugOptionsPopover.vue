@@ -20,6 +20,9 @@
 					</div>
 				</div>
 				<DebugOptionList v-model="debugOverrides" :debug-options="debugOptions" :storage-key="`debug-accordion-${category}`" />
+				<div v-if="$slots['extra-content']" class="mt-3 pt-3 border-t border-gray-700/50">
+					<slot name="extra-content" />
+				</div>
 			</PopoverContent>
 		</Popover>
 
@@ -51,6 +54,9 @@
 				</div>
 				<div class="p-4 w-80">
 					<DebugOptionList v-model="debugOverrides" :debug-options="debugOptions" id-suffix="-torn-off" :storage-key="`debug-accordion-${category}`" />
+					<div v-if="$slots['extra-content']" class="mt-3 pt-3 border-t border-gray-700/50">
+						<slot name="extra-content" />
+					</div>
 				</div>
 			</div>
 		</Teleport>
@@ -59,7 +65,7 @@
 
 <script lang="ts" setup>
 import { PanelTopClose, Settings2, X } from "lucide-vue-next";
-import { computed, inject, nextTick, onUnmounted, type Ref, ref, watch } from "vue";
+import { computed, inject, nextTick, onUnmounted, type Ref, ref, useSlots, watch } from "vue";
 import DebugOptionList from "@/components/DebugOptionList.vue";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -77,6 +83,7 @@ const props = withDefaults(defineProps<{
 	contentClass: "w-80 p-4 bg-gray-800 border-gray-700 text-gray-100",
 });
 
+const slots = useSlots();
 const vm = inject<Ref<VirtualMachine>>("vm");
 const debugOptions = ref<DebugGroup[]>([]);
 const debugOverrides = ref<Record<string, unknown>>({});
@@ -207,7 +214,7 @@ const dock = () => {
 	saveUIState();
 };
 
-const hasOptions = computed(() => debugOptions.value.length > 0);
+const hasOptions = computed(() => debugOptions.value.length > 0 || !!slots['extra-content']);
 
 watch(() => vm?.value, async (newVm) => {
 	if (newVm) {

@@ -45,6 +45,7 @@ export const debugConfig: MachineConfig["debugOptions"] = [
 					options: [
 						{ label: "Auto", value: "AUTO" },
 						{ label: "Text", value: "TEXT" },
+						{ label: "GR", value: "GR" },
 						{ label: "HGR", value: "HGR" },
 					],
 				},

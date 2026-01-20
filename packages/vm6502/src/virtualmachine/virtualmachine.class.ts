@@ -374,6 +374,7 @@ export class VirtualMachine {
 	public clearTrace = () => this.worker.postMessage({ command: "clearTrace" });
 	public refreshVideo = () => this.worker.postMessage({ command: "refreshVideo" });
 	public mute = (enabled: boolean) => this.worker.postMessage({ command: "mute", enabled });
+	public testVideo = (mode: string) => this.worker.postMessage({ command: "testVideo", mode });
 
 	public read(address: number): number {
 		return this.bus ? this.bus.read(address) : (this.sharedMemory[address] ?? 0);

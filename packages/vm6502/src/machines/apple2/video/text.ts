@@ -65,6 +65,11 @@ export class TextRenderer {
 	) {
 		const screenAreaWidth = targetWidth - SCREEN_MARGIN_X * 2;
 		const screenAreaHeight = targetHeight - SCREEN_MARGIN_Y * 2;
+
+		// test... not sure it's changing anything :/
+		this.ctx.imageSmoothingEnabled = false;
+		this.ctx.textRendering = "optimizeSpeed";
+
 		this.charWidth = screenAreaWidth / TEXT_COLS;
 		this.charHeight = screenAreaHeight / TEXT_ROWS;
 

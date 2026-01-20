@@ -6,11 +6,26 @@
 					<Monitor class="h-5 w-5 text-cyan-400 group-hover:text-cyan-300" />
 				</button>
 			</template>
+			<template #extra-content>
+				<div class="flex flex-col space-y-1">
+					<span class="text-[10px] uppercase text-gray-500 font-bold tracking-wider">Diagnostics</span>
+					<select
+						@change="runTest"
+						class="w-full bg-gray-900 text-xs text-gray-300 border border-gray-600 rounded px-2 py-1 outline-none focus:border-blue-500 cursor-pointer"
+					>
+						<option value="" selected disabled>Run Video Test...</option>
+						<option value="TEXT40">Text 40 col</option>
+						<option value="TEXT80">Text 80 col</option>
+						<option value="GR">Low-Res (GR)</option>
+						<option value="HGR">Hi-Res (HGR)</option>
+					</select>
+				</div>
+			</template>
 		</DebugOptionsPopover>
 		<div class="flex flex-col overflow-hidden min-w-[4rem]">
-			<span class="text-[10px] uppercase text-gray-400 font-bold tracking-wider">Video</span>
-			<div class="text-xs font-mono truncate text-gray-300">
-				{{ activeMode }}
+			<div class="flex justify-between items-baseline">
+				<span class="text-[10px] uppercase text-gray-400 font-bold tracking-wider">Video</span>
+				<span class="text-xs font-mono truncate text-gray-300">{{ activeMode }}</span>
 			</div>
 		</div>
 	</div>
@@ -18,8 +33,11 @@
 
 <script lang="ts" setup>
 import { Monitor } from "lucide-vue-next";
-import { computed, ref } from "vue";
+import { computed, inject, type Ref, ref } from "vue";
 import DebugOptionsPopover from "@/components/DebugOptionsPopover.vue";
+import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
+
+const vm = inject<Ref<VirtualMachine>>("vm");
 
 const debugOptionsPopover = ref<InstanceType<typeof DebugOptionsPopover> | null>(null);
 
@@ -30,4 +48,14 @@ const activeMode = computed(() => {
 	if (mode === "AUTO" || !mode) return "Auto";
 	return String(mode);
 });
+
+const runTest = (event: Event) => {
+	const select = event.target as HTMLSelectElement;
+	const mode = select.value;
+	if (mode && vm?.value) {
+		vm.value.testVideo(mode);
+		// Reset to default so we can select the same one again if needed
+		select.value = "";
+	}
+};
 </script>
