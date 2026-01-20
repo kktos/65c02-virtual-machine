@@ -2,6 +2,7 @@ import type { Video } from "@/types/video.interface";
 import { MACHINE_STATE_OFFSET, REG_BORDERCOLOR_OFFSET, REG_TBCOLOR_OFFSET } from "@/virtualmachine/cpu/shared-memory";
 import { LowGrRenderer } from "./gr";
 import { HGR_COLORS, HGRRenderer } from "./hgr";
+import { getFontColumn } from "./simple.font";
 import { TextRenderer } from "./text";
 
 const IIgsPaletteRGB: ReadonlyArray<[number, number, number]> = [
@@ -230,6 +231,7 @@ export class AppleVideo implements Video {
 		// biome-ignore lint/style/noNonNullAssertion: <np>
 		this.ctx.fillStyle = `rgb(${IIgsPaletteRGB[borderIdx]!.join(",")})`;
 		this.ctx.fillRect(0, 0, this.offscreenCanvas.width, this.offscreenCanvas.height);
+		this.buffer.fill(borderIdx);
 
 		const stateByte2 = this.registers.getUint8(MACHINE_STATE_OFFSET + 1);
 
@@ -268,6 +270,8 @@ export class AppleVideo implements Video {
 				if (is80Col) this.renderText80(20, bgColorStr, fgColorStr, isAltCharset);
 				else this.renderText40(20, isPage2, bgColorStr, fgColorStr, isAltCharset);
 			}
+
+			this.drawDebugString(100, 350, "test", 15);
 		}
 
 		const dest = this.buffer;
@@ -372,6 +376,30 @@ export class AppleVideo implements Video {
 		}
 
 		// if ((globalThis as any).DEBUG_VIDEO) this.handleDebugVideo();
+	}
+
+	public drawDebugPixel(x: number, y: number, color: number) {
+		if (x < 0 || x >= this.targetWidth || y < 0 || y >= this.targetHeight) return;
+		this.buffer[y * this.targetWidth + x] = color;
+	}
+
+	public drawDebugChar(x: number, y: number, charCode: number, color: number) {
+		for (let col = 0; col < 5; col++) {
+			const pixels = getFontColumn(charCode, col);
+			for (let row = 0; row < 7; row++) {
+				if ((pixels >> row) & 1) {
+					this.drawDebugPixel(x + col, y + row, color);
+				}
+			}
+		}
+	}
+
+	public drawDebugString(x: number, y: number, text: string, color: number) {
+		let curX = x;
+		for (let i = 0; i < text.length; i++) {
+			this.drawDebugChar(curX, y, text.charCodeAt(i), color);
+			curX += 6; // 5 pixels width + 1 pixel spacing
+		}
 	}
 	/*
 	private handleDebugVideo() {

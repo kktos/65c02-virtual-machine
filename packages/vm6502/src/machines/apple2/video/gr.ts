@@ -1,14 +1,8 @@
-import { NATIVE_VIEW_WIDTH, SCREEN_MARGIN_X, SCREEN_MARGIN_Y } from "./constants";
+import { NATIVE_VIEW_WIDTH, SCREEN_MARGIN_X, SCREEN_MARGIN_Y, textScreenLineOffsets } from "./constants";
 
 const GR_WIDTH = 40;
 const GR_LINES = 48;
 const GR_MIXED_LINES = 40;
-
-// Text Screen Line Offsets (same as Text mode)
-const GR_LINE_OFFSETS = [
-	0x400, 0x480, 0x500, 0x580, 0x600, 0x680, 0x700, 0x780, 0x428, 0x4a8, 0x528, 0x5a8, 0x628, 0x6a8, 0x728, 0x7a8, 0x450,
-	0x4d0, 0x550, 0x5d0, 0x650, 0x6d0, 0x750, 0x7d0,
-];
 
 export class LowGrRenderer {
 	public offsetX = 0;
@@ -28,13 +22,9 @@ export class LowGrRenderer {
 	}
 
 	public resize(width: number, height: number) {
-		// const screenAreaWidth = width - SCREEN_MARGIN_X * 2;
-		// const screenAreaHeight = height - SCREEN_MARGIN_Y * 2;
-		// this.scaleX = screenAreaWidth / GR_WIDTH;
-		// this.scaleY = screenAreaHeight / GR_LINES;
 		this.scaleX = (width + SCREEN_MARGIN_X * 2) / GR_WIDTH;
 		this.scaleY = (height + SCREEN_MARGIN_Y * 2) / GR_LINES;
-		this.offsetX = (width - NATIVE_VIEW_WIDTH) / 2; //SCREEN_MARGIN_X;
+		this.offsetX = (width - NATIVE_VIEW_WIDTH) / 2;
 		this.offsetY = SCREEN_MARGIN_Y;
 	}
 
@@ -44,7 +34,7 @@ export class LowGrRenderer {
 		for (let y = 0; y < endLine; y++) {
 			const textRow = y >> 1;
 			const isBottom = (y & 1) !== 0;
-			const lineBase = (GR_LINE_OFFSETS[textRow] ?? 0) + pageOffset;
+			const lineBase = (textScreenLineOffsets[textRow] ?? 0) + pageOffset;
 
 			const startY = Math.floor(this.offsetY + y * this.scaleY);
 			const endY = Math.floor(this.offsetY + (y + 1) * this.scaleY);

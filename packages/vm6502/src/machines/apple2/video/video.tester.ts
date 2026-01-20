@@ -1,5 +1,6 @@
 import type { Video } from "@/types/video.interface";
 import type { AppleBus } from "../apple.bus";
+import { textScreenLineOffsets } from "./constants";
 
 export class VideoTester {
 	constructor(
@@ -43,11 +44,20 @@ export class VideoTester {
 		for (let i = start; i < end; i++) this.bus.write(i, valueFn(i - start));
 	}
 
+	private getHgrLineOffset(y: number): number {
+		return 0x2000 + (y % 8) * 0x400 + ((y >> 3) & 7) * 0x80 + Math.floor(y / 64) * 0x28;
+	}
+
 	private testText40() {
 		this.bus.text = true;
 		this.bus.col80 = false;
-		// Fill screen with all characters 0x00 - 0xFF
-		this.fillPage1(0x400, 0x800, (i) => i % 256);
+
+		for (let y = 0; y < 24; y++) {
+			const lineBase = textScreenLineOffsets[y];
+			for (let x = 0; x < 40; x++) {
+				this.bus.write(lineBase + x, 0xc1 + (y % 26)); // A, B, C... per row
+			}
+		}
 	}
 
 	private testText80() {
@@ -55,15 +65,18 @@ export class VideoTester {
 		this.bus.col80 = true;
 		this.bus.store80 = true; // Allow access to Aux memory via Page2 switch logic if needed, but we use ramWrAux directly here
 
-		// Write to Main Memory (Odd columns)
+		for (let y = 0; y < 24; y++) {
+			const lineBase = textScreenLineOffsets[y];
+			for (let x = 0; x < 40; x++) {
+				// Write to Main Memory (Odd columns)
+				this.bus.ramWrAux = false;
+				this.bus.write(lineBase + x, 0xc1 + (y % 26));
+				// Write to Aux Memory (Even columns)
+				this.bus.ramWrAux = true;
+				this.bus.write(lineBase + x, 0xb1 + (y % 9));
+			}
+		}
 		this.bus.ramWrAux = false;
-		this.fillPage1(0x400, 0x800, (i) => 0xc1 + (Math.floor(i / 40) % 26)); // 'A', 'B', 'C'...
-
-		// Write to Aux Memory (Even columns)
-		this.bus.ramWrAux = true;
-		this.fillPage1(0x400, 0x800, (i) => 0xb1 + (Math.floor(i / 40) % 9)); // '1', '2', '3'...
-
-		this.bus.ramWrAux = false; // Restore
 	}
 
 	private testGR() {
@@ -71,17 +84,16 @@ export class VideoTester {
 		this.bus.hires = false;
 		this.bus.mixed = true; // Show text at bottom
 
-		// Fill GR area (0x400 - 0x800)
-		// Draw vertical bars of all 16 colors
-		this.fillPage1(0x400, 0x800, (i) => {
-			const col = i % 40;
-			const color = Math.floor(col / 2.5) % 16; // 16 colors across 40 columns
-			return (color << 4) | color; // Top and bottom pixel same color
-		});
+		// Clear screen first (to handle holes cleanly)
+		this.fillPage1(0x400, 0x800, () => 0x00);
 
-		// Fill text area at bottom
-		// Lines 20-23 are offsets 0x750, 0x7D0, 0x478, 0x4F8... roughly > 0x700
-		// Just fill everything, the renderer decides what is text vs graphics based on address
+		for (let y = 0; y < 24; y++) {
+			const lineBase = textScreenLineOffsets[y];
+			for (let x = 0; x < 40; x++) {
+				const color = Math.floor(x / 2.5) % 16; // 16 colors across 40 columns
+				this.bus.write(lineBase + x, (color << 4) | color);
+			}
+		}
 	}
 
 	private testHGR() {
@@ -92,20 +104,17 @@ export class VideoTester {
 		// Clear HGR Page 1 (0x2000 - 0x4000)
 		this.fillPage1(0x2000, 0x4000, () => 0x00);
 
-		// Draw some patterns
-		// 1. Vertical Lines (Violet/Green)
-		// 2. Vertical Lines (Blue/Orange)
-		for (let row = 0; row < 192; row++) {
-			// We need to calculate the HGR address for this row, but for a simple test,
-			// let's just fill memory linearly to see *something*.
-			// A real HGR plot function is complex (interleaved addresses).
-		}
+		// Draw a border and an X
+		for (let y = 0; y < 192; y++) {
+			const lineBase = this.getHgrLineOffset(y);
+			for (let x = 0; x < 40; x++) {
+				let val = 0;
+				if (y === 0 || y === 191 || x === 0 || x === 39)
+					val = 0xff; // Border
+				else if (Math.floor(x * 4.8) === y || Math.floor((39 - x) * 4.8) === y) val = 0x7f; // X pattern (approx)
 
-		// Simple fill to prove it works: Stripes
-		this.fillPage1(0x2000, 0x4000, (i) => {
-			const row = Math.floor(i / 40);
-			if (row % 8 === 0) return 0xff; // White line
-			return i % 2 === 0 ? 0x55 : 0x2a; // Alternating colors
-		});
+				if (val !== 0) this.bus.write(lineBase + x, val);
+			}
+		}
 	}
 }

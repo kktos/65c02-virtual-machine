@@ -1,4 +1,10 @@
-import { NATIVE_VIEW_HEIGHT, NATIVE_VIEW_WIDTH, SCREEN_MARGIN_X, SCREEN_MARGIN_Y } from "./constants";
+import {
+	NATIVE_VIEW_HEIGHT,
+	NATIVE_VIEW_WIDTH,
+	SCREEN_MARGIN_X,
+	SCREEN_MARGIN_Y,
+	textScreenLineOffsets,
+} from "./constants";
 
 const TEXT_ROWS = 24;
 const TEXT_COLS = 40;
@@ -16,13 +22,6 @@ export type CharMetrics = {
 	offsetTop: number;
 	offsetLeft: number;
 };
-
-// Offsets for each of the 24 lines in the text screen memory
-// Includes the Text Page 1 Base ($400)
-const textScreenLineOffsets = [
-	0x400, 0x480, 0x500, 0x580, 0x600, 0x680, 0x700, 0x780, 0x428, 0x4a8, 0x528, 0x5a8, 0x628, 0x6a8, 0x728, 0x7a8, 0x450,
-	0x4d0, 0x550, 0x5d0, 0x650, 0x6d0, 0x750, 0x7d0,
-];
 
 function appleCharCodeToUnicode(charCode: number, isAltCharset = false): string {
 	// let charCode = asciiCode;
