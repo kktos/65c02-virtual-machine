@@ -1,3 +1,4 @@
+import type { Dict } from "@/types/dict.type";
 import type { DebugOption, MachineConfig } from "@/types/machine.interface";
 import type { IBus, MachineStateSpec } from "@/virtualmachine/cpu/bus.interface";
 import {
@@ -39,7 +40,7 @@ export class VirtualMachine {
 	public videoMemory?: Uint8Array;
 	private videoOutput?: VideoOutput;
 	private pendingPalette: Uint8Array | null = null;
-	public busState: Record<string, unknown> = {};
+	public busState: Dict = {};
 	private isRendering = false;
 	private _isRunning = false;
 
@@ -52,8 +53,9 @@ export class VirtualMachine {
 	private resolveWorkerReady!: () => void;
 
 	public onmessage?: (event: MessageEvent) => void;
-	public onStateChange?: (state: Record<string, unknown>) => void;
+	public onStateChange?: (state: Dict) => void;
 	public onTraceReceived?: (history: { type: string; source: number; target: number }[]) => void;
+	public onSmartPortLog?: (log: { type: string; block: number; address: number }) => void;
 
 	private keyHandler = this.handleKeyDown.bind(this);
 	private keyUpHandler = this.handleKeyUp.bind(this);
@@ -68,7 +70,7 @@ export class VirtualMachine {
 		});
 
 		this.worker.onmessage = (event) => {
-			const { command, colors, type, history, buffer } = event.data;
+			const { command, colors, type, history, buffer, payload } = event.data;
 			if (type === "audio") {
 				this.queueAudioChunk(buffer);
 			} else if (command === "setPalette") {
@@ -78,6 +80,8 @@ export class VirtualMachine {
 				this.resolveWorkerReady();
 			} else if (type === "trace") {
 				this.onTraceReceived?.(history);
+			} else if (type === "log") {
+				this.onSmartPortLog?.(payload);
 			} else if (type === "isRunning") {
 				this._isRunning = event.data.isRunning;
 				if (this.onmessage) this.onmessage(event);
@@ -287,9 +291,7 @@ export class VirtualMachine {
 		for (const char of normalized) {
 			if (!this.isRendering) break;
 			let key = char;
-			if (char === "\n") {
-				key = "Enter";
-			}
+			if (char === "\n") key = "Enter";
 
 			this.worker.postMessage({ command: "keydown", key });
 			await new Promise((resolve) => setTimeout(resolve, 5));
@@ -318,12 +320,10 @@ export class VirtualMachine {
 		if (!audioCtx) return;
 
 		// Ensure context is running (browsers suspend it until user interaction)
-		if (audioCtx.state === "suspended") {
-			audioCtx.resume();
-		}
+		if (audioCtx.state === "suspended") audioCtx.resume();
 
 		const audioBuffer = audioCtx.createBuffer(1, samples.length, audioCtx.sampleRate);
-		audioBuffer.copyToChannel(samples, 0);
+		audioBuffer.copyToChannel(samples as Float32Array<ArrayBuffer>, 0);
 
 		const source = audioCtx.createBufferSource();
 		source.buffer = audioBuffer;
@@ -334,9 +334,7 @@ export class VirtualMachine {
 
 		// If nextStartTime is in the past, reset it to now. This can happen
 		// if there was a gap in audio data, preventing runaway playback.
-		if (nextStartTime < currentTime) {
-			nextStartTime = currentTime;
-		}
+		if (nextStartTime < currentTime) nextStartTime = currentTime;
 
 		source.start(nextStartTime);
 
@@ -355,19 +353,14 @@ export class VirtualMachine {
 	public stepOut = () => this.worker.postMessage({ command: "stepOut" });
 	public stepOver = () => this.worker.postMessage({ command: "stepOver" });
 
-	public addBP(type: Breakpoint["type"], address: number, endAddress?: number) {
+	public addBP = (type: Breakpoint["type"], address: number, endAddress?: number) =>
 		this.worker.postMessage({ command: "addBP", type, address, endAddress });
-	}
-	public removeBP(type: Breakpoint["type"], address: number, endAddress?: number) {
+	public removeBP = (type: Breakpoint["type"], address: number, endAddress?: number) =>
 		this.worker.postMessage({ command: "removeBP", type, address, endAddress });
-	}
-	public clearBPs() {
-		this.worker.postMessage({ command: "clearBPs" });
-	}
+	public clearBPs = () => this.worker.postMessage({ command: "clearBPs" });
 
-	public insertDisk(data: Uint8Array, metadata: Record<string, unknown> = {}) {
+	public insertDisk = (data: Uint8Array, metadata: Dict = {}) =>
 		this.worker.postMessage({ command: "insertMedia", data, metadata });
-	}
 
 	public setTrace = (enabled: boolean) => this.worker.postMessage({ command: "setTrace", enabled });
 	public getTrace = () => this.worker.postMessage({ command: "getTrace" });
@@ -380,20 +373,17 @@ export class VirtualMachine {
 		return this.bus ? this.bus.read(address) : (this.sharedMemory[address] ?? 0);
 	}
 
-	public readDebug(address: number, overrides?: Record<string, unknown>): number {
+	public readDebug(address: number, overrides?: Dict): number {
 		return this.bus?.readDebug ? this.bus.readDebug(address, overrides) : this.read(address);
 	}
 
-	public writeDebug(address: number, value: number, overrides?: Record<string, unknown>) {
-		if (this.bus?.writeDebug) {
-			this.bus.writeDebug(address, value, overrides);
-		} else {
-			this.updateMemory(address, value);
-		}
+	public writeDebug(address: number, value: number, overrides?: Dict) {
+		if (this.bus?.writeDebug) this.bus.writeDebug(address, value, overrides);
+		else this.updateMemory(address, value);
 	}
 
-	public setDebugOverrides(overrides: Record<string, unknown>) {
-		this.worker.postMessage({ command: "setDebugOverrides", overrides: { ...overrides } });
+	public setDebugOverrides(category: string, overrides: Dict) {
+		this.worker.postMessage({ command: "setDebugOverrides", category, overrides: { ...overrides } });
 	}
 
 	public updateMemory(addr: number, value: number) {

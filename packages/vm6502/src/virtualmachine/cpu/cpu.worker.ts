@@ -139,7 +139,16 @@ self.onmessage = async (event: MessageEvent) => {
 			if (video) video.tick();
 			break;
 		case "setDebugOverrides":
-			video?.setDebugOverrides?.(event.data.overrides);
+			console.log("Worker setDebugOverrides", event.data);
+
+			switch (event.data.category) {
+				case "bus":
+					bus?.setDebugOverrides?.(event.data.overrides);
+					break;
+				case "video":
+					video?.setDebugOverrides?.(event.data.overrides);
+					break;
+			}
 			break;
 		case "mute":
 			bus?.enableAudio?.(event.data.enabled);

@@ -1,3 +1,4 @@
+import type { Dict } from "@/types/dict.type";
 import type { Video } from "@/types/video.interface";
 import {
 	MACHINE_STATE_OFFSET2,
@@ -139,7 +140,7 @@ export class AppleVideo implements Video {
 		this.parent.postMessage({ command: "setPalette", colors: palette });
 	}
 
-	public setDebugOverrides(overrides: Record<string, unknown>) {
+	public setDebugOverrides(overrides: Dict) {
 		this.overrides = overrides as unknown as AppleVideoOverrides;
 
 		let newWidth = this.defaultWidth;

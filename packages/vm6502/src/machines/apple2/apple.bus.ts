@@ -1,3 +1,4 @@
+import type { Dict } from "@/types/dict.type";
 import type { IBus, MachineStateSpec } from "@/virtualmachine/cpu/bus.interface";
 import {
 	MACHINE_STATE_OFFSET1,
@@ -169,6 +170,13 @@ export class AppleBus implements IBus {
 		this.slots.forEach((card) => {
 			card?.setRegisters?.(view);
 		});
+	}
+
+	public setDebugOverrides(overrides: { slot?: number } & Dict) {
+		if (overrides.slot) {
+			const card = this.slots[overrides.slot];
+			if (card) card.setDebugOverrides?.(overrides);
+		}
 	}
 
 	public syncState() {

@@ -1,3 +1,4 @@
+import type { Dict } from "@/types/dict.type";
 import type { DebugOption } from "@/types/machine.interface";
 
 export interface MachineStateSpec {
@@ -36,22 +37,23 @@ export interface IBus {
 	releaseKey?(key: string, code?: string): void;
 
 	/** Reads memory with optional overrides for debugging/inspection. */
-	readDebug?(address: number, overrides?: Record<string, unknown>): number;
+	readDebug?(address: number, overrides?: Dict): number;
 
 	/** Writes memory with optional overrides, bypassing side effects if possible. */
-	writeDebug?(address: number, value: number, overrides?: Record<string, unknown>): void;
+	writeDebug?(address: number, value: number, overrides?: Dict): void;
 
 	/** Returns a list of available debug options for the UI. */
 	getDebugOptions?(): DebugOption[];
+	setDebugOverrides?(overrides: Dict): void;
 
 	/** Returns a list of machine state specifications for the UI. */
 	getMachineStateSpecs?(): MachineStateSpec[];
 
 	/** Saves the internal state of the bus (e.g., softswitch flags). */
-	saveState?(): Record<string, unknown>;
+	saveState?(): Dict;
 
 	/** Loads the internal state of the bus. */
-	loadState?(state: Record<string, unknown>): void;
+	loadState?(state: Dict): void;
 
 	readStateFromBuffer?(view: DataView): Record<string, boolean>;
 	setRegistersView?(view: DataView): void;
@@ -59,7 +61,7 @@ export interface IBus {
 	prepareWorkerPayloads?(): Promise<{ video?: unknown; bus?: unknown }>;
 
 	/** Inserts media (disk, tape, etc.) into the machine. Metadata can specify drive/slot. */
-	insertMedia?(data: Uint8Array, metadata?: Record<string, unknown>): void;
+	insertMedia?(data: Uint8Array, metadata?: Dict): void;
 
 	initAudio?(sampleRate: number): void;
 	enableAudio?(isEnabled: boolean): void;

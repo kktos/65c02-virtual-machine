@@ -13,6 +13,7 @@ export class SmartPortCard implements ISlotCard {
 	private expansionRom = new Uint8Array(2048);
 	private registers?: DataView;
 	private diskData: Uint8Array | null = null;
+	public loggingEnabled = false;
 
 	constructor(
 		private bus: IBus,
@@ -150,6 +151,14 @@ export class SmartPortCard implements ISlotCard {
 
 	setRegisters(view: DataView) {
 		this.registers = view;
+	}
+
+	public setDebugOverrides(overrides: { smartPortLogging?: boolean }) {
+		console.log("SmartPortCard", { overrides });
+
+		if (typeof overrides.smartPortLogging === "boolean") {
+			this.loggingEnabled = overrides.smartPortLogging;
+		}
 	}
 
 	readRom(offset: number): number {
@@ -328,7 +337,24 @@ export class SmartPortCard implements ISlotCard {
 		const blkHi = this.bus.read(paramAddr + 5);
 		const block = (blkHi << 8) | blkLo;
 
-		// console.log(`SmartPort Read - block: ${block} addr: $${bufferAddr.toString(16)}`);
+		if (this.loggingEnabled) {
+			postMessage({
+				type: "log",
+				payload: {
+					type: "READ",
+					block,
+					address: bufferAddr,
+				},
+			});
+			console.log({
+				type: "log",
+				payload: {
+					type: "READ",
+					block,
+					address: bufferAddr,
+				},
+			});
+		}
 
 		const offset = block * 512;
 		if (offset + 512 > this.diskData.length) return 0x27; // I/O Error

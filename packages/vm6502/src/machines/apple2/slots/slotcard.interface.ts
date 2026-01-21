@@ -1,3 +1,5 @@
+import type { Dict } from "@/types/dict.type";
+
 export interface ISlotCard {
 	slot: number;
 
@@ -10,4 +12,6 @@ export interface ISlotCard {
 	setRegisters?(view: DataView): void;
 	insertMedia?(data: Uint8Array): void;
 	tick?(cycles: number): Float32Array[];
+
+	setDebugOverrides?(overrides: Dict): void;
 }

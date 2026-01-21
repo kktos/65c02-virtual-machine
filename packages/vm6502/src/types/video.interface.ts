@@ -1,7 +1,9 @@
+import type { Dict } from "./dict.type";
+
 export interface Video {
 	tick(): void;
 	reset(): void;
-	setDebugOverrides?(overrides: Record<string, unknown>): void;
+	setDebugOverrides?(overrides: Dict): void;
 
 	drawDebugPixel?(x: number, y: number, color: number): void;
 	drawDebugChar?(x: number, y: number, charCode: number, color: number): void;
