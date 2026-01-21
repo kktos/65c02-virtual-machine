@@ -99,7 +99,7 @@ export class VideoTester {
 	private testHGR() {
 		this.bus.text = false;
 		this.bus.hires = true;
-		this.bus.mixed = false;
+		this.bus.mixed = true; // Show text at bottom
 
 		// Clear HGR Page 1 (0x2000 - 0x4000)
 		this.fillPage1(0x2000, 0x4000, () => 0x00);

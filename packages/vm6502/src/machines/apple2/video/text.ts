@@ -1,17 +1,11 @@
-import {
-	NATIVE_VIEW_HEIGHT,
-	NATIVE_VIEW_WIDTH,
-	SCREEN_MARGIN_X,
-	SCREEN_MARGIN_Y,
-	textScreenLineOffsets,
-} from "./constants";
+import { IIgsPaletteRGB, NATIVE_VIEW_HEIGHT, NATIVE_VIEW_WIDTH, textScreenLineOffsets } from "./constants";
 
 const TEXT_ROWS = 24;
 const TEXT_COLS = 40;
 
 const AUX_BANK_OFFSET = 0x10000;
 
-const font40Height = 16;
+const fontHeight = 16;
 const font40Width = 14;
 
 export type CharMetrics = {
@@ -46,31 +40,33 @@ export class TextRenderer {
 	private metrics80: CharMetrics | null = null;
 	private flashCounter = 0;
 	private flashState = false;
-	private textScaleY: number;
-	private textScaleX: number;
 
-	public wannaScale: boolean = false;
-	public offsetX = 0;
-	public offsetY = 0;
-	public scaleX = 1;
-	public scaleY = 1;
+	private offscreenCanvas: OffscreenCanvas;
+	private ctx: OffscreenCanvasRenderingContext2D;
+	private bufferWidth: number;
+	private bufferHeight: number;
 
 	constructor(
-		private ctx: OffscreenCanvasRenderingContext2D,
 		private ram: Uint8Array,
-		payload: unknown,
+		private dest: Uint8Array,
 		private targetWidth: number,
 		private targetHeight: number,
+		payload: unknown,
 	) {
-		const screenAreaWidth = targetWidth - SCREEN_MARGIN_X * 2;
-		const screenAreaHeight = targetHeight - SCREEN_MARGIN_Y * 2;
+		this.offscreenCanvas = new OffscreenCanvas(NATIVE_VIEW_WIDTH, NATIVE_VIEW_HEIGHT);
+		const context = this.offscreenCanvas.getContext("2d", { willReadFrequently: true });
+		if (!context) throw new Error("Could not get 2D context from OffscreenCanvas");
+		this.ctx = context as OffscreenCanvasRenderingContext2D;
 
 		// test... not sure it's changing anything :/
 		this.ctx.imageSmoothingEnabled = false;
 		this.ctx.textRendering = "optimizeSpeed";
 
-		this.charWidth = screenAreaWidth / TEXT_COLS;
-		this.charHeight = screenAreaHeight / TEXT_ROWS;
+		this.bufferWidth = targetWidth;
+		this.bufferHeight = targetHeight;
+
+		this.charWidth = 14;
+		this.charHeight = 16;
 
 		const assets = payload as {
 			charmap40?: ImageBitmap;
@@ -84,8 +80,6 @@ export class TextRenderer {
 			this.charmap80 = assets.charmap80 ?? null;
 			this.metrics80 = assets.metrics80 ?? null;
 		}
-		this.textScaleY = Math.min(targetWidth / NATIVE_VIEW_WIDTH, targetHeight / NATIVE_VIEW_HEIGHT);
-		this.textScaleX = targetWidth / NATIVE_VIEW_WIDTH;
 	}
 
 	public tick() {
@@ -99,12 +93,113 @@ export class TextRenderer {
 	public resize(width: number, height: number) {
 		this.targetWidth = width;
 		this.targetHeight = height;
-		const screenAreaWidth = width - SCREEN_MARGIN_X * 2;
-		const screenAreaHeight = height - SCREEN_MARGIN_Y * 2;
-		this.charWidth = screenAreaWidth / TEXT_COLS;
-		this.charHeight = screenAreaHeight / TEXT_ROWS;
-		this.textScaleY = Math.min(width / NATIVE_VIEW_WIDTH, height / NATIVE_VIEW_HEIGHT);
-		this.textScaleX = width / NATIVE_VIEW_WIDTH;
+	}
+
+	public clear(fillStyle: string) {
+		this.ctx.fillStyle = fillStyle;
+		this.ctx.fillRect(0, 0, NATIVE_VIEW_WIDTH, NATIVE_VIEW_HEIGHT);
+	}
+
+	public getImageData() {
+		return this.ctx.getImageData(0, 0, NATIVE_VIEW_WIDTH, NATIVE_VIEW_HEIGHT);
+	}
+
+	private findNearestColor(r: number, g: number, b: number): number {
+		let minDist = Infinity;
+		let bestIndex = 0;
+
+		for (let i = 0; i < 16; i++) {
+			const p = IIgsPaletteRGB[i] as [number, number, number];
+			const dr = r - p[0];
+			const dg = g - p[1];
+			const db = b - p[2];
+			const dist = dr * dr + dg * dg + db * db;
+
+			if (dist < minDist) {
+				minDist = dist;
+				bestIndex = i;
+				if (dist === 0) break;
+			}
+		}
+		return bestIndex;
+	}
+
+	public copyToBuffer(options: { startRow: number; useThresholding: boolean; fgIdx: number; bgIdx: number }) {
+		const { startRow, useThresholding, fgIdx, bgIdx } = options;
+
+		const imageData = this.getImageData();
+		const src32 = new Uint32Array(imageData.data.buffer);
+		const srcWidth = imageData.width;
+		const srcHeight = imageData.height;
+
+		// Calculate centering offsets
+		const destOffsetX = Math.floor((this.bufferWidth - srcWidth) / 2);
+		const destOffsetY = Math.floor((this.bufferHeight - srcHeight) / 2);
+
+		const colorCache = useThresholding ? null : new Map<number, number>();
+
+		// When using font rendering, we combat anti-aliasing by snapping each pixel
+		// to either the intended foreground, text background, or global background color.
+
+		const globalBgIndex = 0;
+
+		// biome-ignore lint/style/noNonNullAssertion: <p>
+		const fgRgb = IIgsPaletteRGB[fgIdx]!;
+		// biome-ignore lint/style/noNonNullAssertion: <p>
+		const textBgRgb = IIgsPaletteRGB[bgIdx]!;
+		// biome-ignore lint/style/noNonNullAssertion: <p>
+		const globalBgRgb = IIgsPaletteRGB[globalBgIndex]!;
+
+		const srcYStart = startRow * fontHeight;
+		const srcYEnd = srcHeight;
+
+		// Convert RGBA pixels to 8-bit indices
+		// We loop over the SOURCE buffer dimensions (no scaling)
+		for (let srcY = srcYStart; srcY < srcYEnd; srcY++) {
+			const destY = srcY + destOffsetY;
+			if (destY < 0 || destY >= this.targetHeight) continue;
+
+			const srcRowOffset = srcY * srcWidth;
+			const destRowOffset = destY * this.bufferWidth;
+
+			for (let srcX = 0; srcX < srcWidth; srcX++) {
+				const destX = srcX + destOffsetX;
+				if (destX < 0 || destX >= this.targetWidth) continue;
+
+				const pixel = src32[srcRowOffset + srcX] ?? 0;
+				let colorIndex: number;
+
+				if (useThresholding) {
+					const r = pixel & 0xff;
+					const g = (pixel >> 8) & 0xff;
+					const b = (pixel >> 16) & 0xff;
+
+					const distToGlobalBg = (r - globalBgRgb[0]) ** 2 + (g - globalBgRgb[1]) ** 2 + (b - globalBgRgb[2]) ** 2;
+					const distToTextBg = (r - textBgRgb[0]) ** 2 + (g - textBgRgb[1]) ** 2 + (b - textBgRgb[2]) ** 2;
+					const distToFg = (r - fgRgb[0]) ** 2 + (g - fgRgb[1]) ** 2 + (b - fgRgb[2]) ** 2;
+
+					if (distToFg <= distToTextBg && distToFg <= distToGlobalBg) {
+						colorIndex = fgIdx;
+					} else if (distToTextBg <= distToGlobalBg) {
+						colorIndex = bgIdx;
+					} else {
+						colorIndex = globalBgIndex;
+					}
+				} else {
+					const key = pixel & 0x00ffffff;
+					colorIndex = colorCache!.get(key);
+					if (colorIndex === undefined) {
+						const r = key & 0xff;
+						const g = (key >> 8) & 0xff;
+						const b = (key >> 16) & 0xff;
+						colorIndex = this.findNearestColor(r, g, b);
+						colorCache!.set(key, colorIndex);
+					}
+				}
+
+				this.dest[destRowOffset + destX] = colorIndex;
+			}
+		}
 	}
 
 	private drawChar(
@@ -139,85 +234,61 @@ export class TextRenderer {
 		);
 	}
 
-	public render40Bitmap(startRow: number, isPage2: boolean) {
-		this.offsetX = SCREEN_MARGIN_X;
-		this.offsetY = SCREEN_MARGIN_Y;
-		this.scaleX = 1;
-		this.scaleY = 1;
-
+	public render40Bitmap(startRow: number, isPage2: boolean, bgIdx: number, fgIdx: number, isAltCharset: boolean) {
 		const pageOffset = isPage2 ? 0x400 : 0;
 		for (let y = startRow; y < TEXT_ROWS; y++) {
 			const lineBase = (textScreenLineOffsets[y] ?? 0) + pageOffset;
 			for (let x = 0; x < TEXT_COLS; x++) {
 				const charCode = this.ram[lineBase + x] ?? 0;
 
-				const drawX = SCREEN_MARGIN_X + x * this.charWidth;
-				const drawY = SCREEN_MARGIN_Y + y * this.charHeight;
+				const drawX = x * this.charWidth;
+				const drawY = y * this.charHeight;
 
 				this.drawChar(this.charmap40, this.metrics40, charCode, drawX, drawY, this.charWidth, this.charHeight);
 			}
 		}
 	}
 
-	public render80Bitmap(startRow: number) {
-		this.offsetX = SCREEN_MARGIN_X;
-		this.offsetY = SCREEN_MARGIN_Y;
-		this.scaleX = 1;
-		this.scaleY = 1;
-
+	public render80Bitmap(startRow: number, bgIdx: number, fgIdx: number, isAltCharset: boolean) {
 		const charWidth80 = this.charWidth / 2;
 		for (let y = startRow; y < TEXT_ROWS; y++) {
 			const lineBase = textScreenLineOffsets[y] ?? 0;
 			for (let x = 0; x < TEXT_COLS; x++) {
-				const drawY = SCREEN_MARGIN_Y + y * this.charHeight;
+				const drawY = y * this.charHeight;
 
 				// Aux char (Even column)
 				const auxVal = this.ram[AUX_BANK_OFFSET + lineBase + x] ?? 0;
-				const drawXAux = SCREEN_MARGIN_X + x * 2 * charWidth80;
+				const drawXAux = x * 2 * charWidth80;
 				this.drawChar(this.charmap80, this.metrics80, auxVal, drawXAux, drawY, charWidth80, this.charHeight);
 
 				// Main char (Odd column)
 				const mainVal = this.ram[lineBase + x] ?? 0;
-				const drawXMain = SCREEN_MARGIN_X + (x * 2 + 1) * charWidth80;
+				const drawXMain = (x * 2 + 1) * charWidth80;
 				this.drawChar(this.charmap80, this.metrics80, mainVal, drawXMain, drawY, charWidth80, this.charHeight);
 			}
 		}
 	}
 
-	public render40WithFont(
-		startRow: number,
-		isPage2: boolean,
-		bgColorStr: string,
-		fgColorStr: string,
-		isAltCharset: boolean,
-	) {
-		this.ctx.font = `${font40Height}px PrintChar21`;
+	public render40WithFont(startRow: number, isPage2: boolean, bgIdx: number, fgIdx: number, isAltCharset: boolean) {
+		this.ctx.font = `${fontHeight}px PrintChar21`;
 		this.ctx.textBaseline = "top";
 		this.ctx.textAlign = "left";
 
-		this.scaleY = this.wannaScale ? this.textScaleY : 1;
-		this.scaleX = this.wannaScale ? this.textScaleX : 1;
-		const scaledWidth = NATIVE_VIEW_WIDTH * this.scaleX;
-		const scaledHeight = NATIVE_VIEW_HEIGHT * this.scaleY;
-		this.offsetX = (this.targetWidth - scaledWidth) / 2;
-		this.offsetY = (this.targetHeight - scaledHeight) / 2;
-
-		this.ctx.save();
-		this.ctx.translate(this.offsetX, this.offsetY);
-		if (this.wannaScale) this.ctx.scale(this.scaleX, this.scaleY);
+		const bgColorStr = `rgb(${IIgsPaletteRGB[bgIdx]!.join(",")})`;
+		const fgColorStr = `rgb(${IIgsPaletteRGB[fgIdx]!.join(",")})`;
 
 		const pageOffset = isPage2 ? 0x400 : 0;
 		const wantNormal = !isAltCharset && !this.flashState;
 
 		for (let y = startRow; y < TEXT_ROWS; y++) {
 			const lineBase = (textScreenLineOffsets[y] ?? 0) + pageOffset;
-			const drawY = y * font40Height;
+			const drawY = y * fontHeight;
 			for (let x = 0; x < TEXT_COLS; x++) {
 				let charCode = this.ram[lineBase + x] ?? 0;
 				const drawX = x * font40Width;
 
 				this.ctx.fillStyle = bgColorStr;
-				this.ctx.fillRect(drawX, drawY, font40Width, font40Height);
+				this.ctx.fillRect(drawX, drawY, font40Width, fontHeight);
 
 				if (wantNormal && charCode >= 0x40 && charCode <= 0x7f) charCode += 0x80;
 
@@ -227,45 +298,37 @@ export class TextRenderer {
 				this.ctx.fillText(appleCharCodeToUnicode(charCode, isAltCharset), drawX, drawY);
 			}
 		}
-		this.ctx.restore();
+
+		this.copyToBuffer({
+			startRow,
+			useThresholding: true,
+			fgIdx,
+			bgIdx,
+		});
 	}
 
-	public render80WithFont(startRow: number, bgColorStr: string, fgColorStr: string, isAltCharset: boolean) {
-		const charHeight = 16;
+	public render80WithFont(startRow: number, bgIdx: number, fgIdx: number, isAltCharset: boolean) {
 		const charWidth = 7;
 
-		this.ctx.font = `${charHeight}px PRNumber3`;
+		this.ctx.font = `${fontHeight}px PRNumber3`;
 		this.ctx.textBaseline = "top";
 		this.ctx.textAlign = "left";
 
-		const textBlockWidth = TEXT_COLS * 2 * charWidth;
-		const textBlockHeight = TEXT_ROWS * charHeight;
-		const scale = this.wannaScale
-			? Math.min(this.targetWidth / textBlockWidth, this.targetHeight / textBlockHeight)
-			: 1;
-		this.scaleX = scale;
-		this.scaleY = scale;
-		const scaledWidth = textBlockWidth * this.scaleX;
-		const scaledHeight = textBlockHeight * this.scaleY;
-		this.offsetX = (this.targetWidth - scaledWidth) / 2;
-		this.offsetY = (this.targetHeight - scaledHeight) / 2;
-
-		this.ctx.save();
-		this.ctx.translate(this.offsetX, this.offsetY);
-		if (this.wannaScale) this.ctx.scale(this.scaleX, this.scaleY);
+		const bgColorStr = `rgb(${IIgsPaletteRGB[bgIdx]!.join(",")})`;
+		const fgColorStr = `rgb(${IIgsPaletteRGB[fgIdx]!.join(",")})`;
 
 		const wantNormal = !isAltCharset && !this.flashState;
 
 		for (let y = startRow; y < TEXT_ROWS; y++) {
 			const lineBase = textScreenLineOffsets[y] ?? 0;
-			const drawY = y * charHeight;
+			const drawY = y * fontHeight;
 
 			for (let x = 0; x < TEXT_COLS; x++) {
 				const evenCharX = x * 2 * charWidth;
 				const oddCharX = evenCharX + charWidth;
 
 				this.ctx.fillStyle = bgColorStr;
-				this.ctx.fillRect(evenCharX, drawY, charWidth * 2, charHeight);
+				this.ctx.fillRect(evenCharX, drawY, charWidth * 2, fontHeight);
 				this.ctx.fillStyle = fgColorStr;
 
 				// Aux char (Even column)
@@ -279,6 +342,12 @@ export class TextRenderer {
 				if (mainVal !== 0xa0) this.ctx.fillText(appleCharCodeToUnicode(mainVal, isAltCharset), oddCharX, drawY);
 			}
 		}
-		this.ctx.restore();
+
+		this.copyToBuffer({
+			startRow,
+			useThresholding: true,
+			fgIdx,
+			bgIdx,
+		});
 	}
 }

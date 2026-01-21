@@ -1,4 +1,4 @@
-import { NATIVE_VIEW_WIDTH, SCREEN_MARGIN_X, SCREEN_MARGIN_Y, textScreenLineOffsets } from "./constants";
+import { NATIVE_VIEW_HEIGHT, NATIVE_VIEW_WIDTH, textScreenLineOffsets } from "./constants";
 
 const GR_WIDTH = 40;
 const GR_LINES = 48;
@@ -10,6 +10,7 @@ export class LowGrRenderer {
 	private scaleX = 1;
 	private scaleY = 1;
 	private bufferWidth: number;
+	private bufferHeight: number;
 
 	constructor(
 		private ram: Uint8Array,
@@ -18,14 +19,15 @@ export class LowGrRenderer {
 		targetHeight: number,
 	) {
 		this.bufferWidth = targetWidth;
+		this.bufferHeight = targetHeight;
 		this.resize(targetWidth, targetHeight);
 	}
 
 	public resize(width: number, height: number) {
-		this.scaleX = (width + SCREEN_MARGIN_X * 2) / GR_WIDTH;
-		this.scaleY = (height + SCREEN_MARGIN_Y * 2) / GR_LINES;
-		this.offsetX = (width - NATIVE_VIEW_WIDTH) / 2;
-		this.offsetY = SCREEN_MARGIN_Y;
+		this.scaleX = NATIVE_VIEW_WIDTH / GR_WIDTH;
+		this.scaleY = NATIVE_VIEW_HEIGHT / GR_LINES;
+		this.offsetX = Math.floor((this.bufferWidth - NATIVE_VIEW_WIDTH) / 2);
+		this.offsetY = Math.floor((this.bufferHeight - NATIVE_VIEW_HEIGHT) / 2);
 	}
 
 	public render(isMixed: boolean, isPage2: boolean): void {

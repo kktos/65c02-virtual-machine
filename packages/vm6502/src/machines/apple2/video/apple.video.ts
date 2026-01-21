@@ -1,28 +1,10 @@
 import type { Video } from "@/types/video.interface";
 import { MACHINE_STATE_OFFSET, REG_BORDERCOLOR_OFFSET, REG_TBCOLOR_OFFSET } from "@/virtualmachine/cpu/shared-memory";
+import { IIgsPaletteRGB } from "./constants";
 import { LowGrRenderer } from "./gr";
 import { HGR_COLORS, HGRRenderer } from "./hgr";
 import { getFontColumn } from "./simple.font";
 import { TextRenderer } from "./text";
-
-const IIgsPaletteRGB: ReadonlyArray<[number, number, number]> = [
-	[0x00, 0x00, 0x00], // 0 Black
-	[0xdd, 0x00, 0x30], // 1 Deep Red
-	[0x00, 0x00, 0x99], // 2 Dark Blue
-	[0xdd, 0x22, 0xdd], // 3 Purple
-	[0x00, 0x77, 0x22], // 4 Dark Green
-	[0x55, 0x55, 0x55], // 5 Dark Gray
-	[0x22, 0x22, 0xff], // 6 Medium Blue
-	[0x66, 0xaa, 0xff], // 7 Light Blue
-	[0x88, 0x55, 0x00], // 8 Brown
-	[0xff, 0x66, 0x00], // 9 Orange
-	[0xaa, 0xaa, 0xaa], // 10 Light Gray
-	[0xff, 0x99, 0x88], // 11 Pink
-	[0x11, 0xdd, 0x00], // 12 Light Green
-	[0xff, 0xff, 0x00], // 13 Yellow
-	[0x41, 0xff, 0x99], // 14 Aquamarine
-	[0xff, 0xff, 0xff], // 15 White
-];
 
 // Memory layout offset (matches AppleBus)
 const RAM_OFFSET = 0x4000;
@@ -66,8 +48,6 @@ export class AppleVideo implements Video {
 	private buffer: Uint8Array;
 	private registers: DataView;
 	private ram: Uint8Array;
-	private offscreenCanvas: OffscreenCanvas;
-	private ctx: OffscreenCanvasRenderingContext2D;
 
 	private targetWidth: number;
 	private targetHeight: number;
@@ -84,11 +64,11 @@ export class AppleVideo implements Video {
 	private renderText40!: (
 		startRow: number,
 		isPage2: boolean,
-		bgColorStr: string,
-		fgColorStr: string,
+		bgIdx: number,
+		fgIdx: number,
 		isAltCharset: boolean,
 	) => void;
-	private renderText80!: (startRow: number, bgColorStr: string, fgColorStr: string, isAltCharset: boolean) => void;
+	private renderText80!: (startRow: number, bgIdx: number, fgIdx: number, isAltCharset: boolean) => void;
 
 	constructor(
 		parent: Worker,
@@ -109,21 +89,14 @@ export class AppleVideo implements Video {
 		this.defaultWidth = width;
 		this.defaultHeight = height;
 
-		this.offscreenCanvas = new OffscreenCanvas(width, height);
-		const context = this.offscreenCanvas.getContext("2d", { willReadFrequently: true });
-		if (!context) throw new Error("Could not get 2D context from OffscreenCanvas");
-
 		loadFont("PrintChar21");
 		loadFont("PRNumber3");
-
-		this.ctx = context;
-		this.ctx.imageSmoothingEnabled = false;
 
 		console.log("AppleVideo", `view w${width}h${height}`);
 
 		this.initPalette();
 
-		this.textRenderer = new TextRenderer(this.ctx, this.ram, payload, this.targetWidth, this.targetHeight);
+		this.textRenderer = new TextRenderer(this.ram, this.buffer, this.targetWidth, this.targetHeight, payload);
 		this.lowGrRenderer = new LowGrRenderer(this.ram, this.buffer, this.targetWidth, this.targetHeight);
 		this.hgrRenderer = new HGRRenderer(this.ram, this.buffer, this.targetWidth, this.targetHeight);
 
@@ -151,26 +124,6 @@ export class AppleVideo implements Video {
 		this.parent.postMessage({ command: "setPalette", colors: palette });
 	}
 
-	private findNearestColor(r: number, g: number, b: number): number {
-		let minDist = Infinity;
-		let bestIndex = 0;
-
-		for (let i = 0; i < 16; i++) {
-			const p = IIgsPaletteRGB[i] as [number, number, number];
-			const dr = r - p[0];
-			const dg = g - p[1];
-			const db = b - p[2];
-			const dist = dr * dr + dg * dg + db * db;
-
-			if (dist < minDist) {
-				minDist = dist;
-				bestIndex = i;
-				if (dist === 0) break;
-			}
-		}
-		return bestIndex;
-	}
-
 	public setDebugOverrides(overrides: Record<string, unknown>) {
 		this.overrides = overrides as unknown as AppleVideoOverrides;
 
@@ -182,23 +135,19 @@ export class AppleVideo implements Video {
 			newHeight = this.overrides.customHeight;
 		}
 
-		if (this.offscreenCanvas.width !== newWidth || this.offscreenCanvas.height !== newHeight) {
-			this.offscreenCanvas.width = newWidth;
-			this.offscreenCanvas.height = newHeight;
-			this.textRenderer.resize(newWidth, newHeight);
-			this.lowGrRenderer.resize(newWidth, newHeight);
-			// this.hgrRenderer.resize(newWidth, newHeight);
+		this.textRenderer.resize(newWidth, newHeight);
+		this.lowGrRenderer.resize(newWidth, newHeight);
+		// this.hgrRenderer.resize(newWidth, newHeight);
 
-			let borderIdx = this.registers.getUint8(REG_BORDERCOLOR_OFFSET) & 0x0f;
-			if (this.overrides.borderColor >= 0) borderIdx = this.overrides.borderColor;
-			this.buffer.fill(borderIdx);
-		}
+		let borderIdx = this.registers.getUint8(REG_BORDERCOLOR_OFFSET) & 0x0f;
+		if (this.overrides.borderColor >= 0) borderIdx = this.overrides.borderColor;
+		this.buffer.fill(borderIdx);
 
 		this.updateRenderers();
 	}
 
 	private updateRenderers() {
-		this.textRenderer.wannaScale = !!this.overrides.wannaScale;
+		// this.textRenderer.wannaScale = !!this.overrides.wannaScale;
 		if (this.overrides.textRenderer === "FONT") {
 			this.renderText40 = this.textRenderer.render40WithFont.bind(this.textRenderer);
 			this.renderText80 = this.textRenderer.render80WithFont.bind(this.textRenderer);
@@ -211,26 +160,16 @@ export class AppleVideo implements Video {
 	public tick() {
 		this.textRenderer.tick();
 
-		// --- TBCOLOR Handling ---
-		// 1. Apply overrides to bus.tbColor if present
 		const tbColor = this.registers.getUint8(REG_TBCOLOR_OFFSET);
-		// 2. Derive rendering colors from tbColor
+		let borderIdx = this.registers.getUint8(REG_BORDERCOLOR_OFFSET) & 0x0f;
+
 		let bgIdx = tbColor & 0x0f;
 		let fgIdx = (tbColor >> 4) & 0x0f;
+
 		if (this.overrides.textBgColor >= 0) bgIdx = this.overrides.textBgColor;
 		if (this.overrides.textFgColor >= 0) fgIdx = this.overrides.textFgColor;
-
-		// biome-ignore lint/style/noNonNullAssertion: <np>
-		const bgColorStr = `rgb(${IIgsPaletteRGB[bgIdx]!.join(",")})`;
-		// biome-ignore lint/style/noNonNullAssertion: <np>
-		const fgColorStr = `rgb(${IIgsPaletteRGB[fgIdx]!.join(",")})`;
-
-		let borderIdx = this.registers.getUint8(REG_BORDERCOLOR_OFFSET) & 0x0f;
 		if (this.overrides.borderColor >= 0) borderIdx = this.overrides.borderColor;
 
-		// biome-ignore lint/style/noNonNullAssertion: <np>
-		this.ctx.fillStyle = `rgb(${IIgsPaletteRGB[borderIdx]!.join(",")})`;
-		this.ctx.fillRect(0, 0, this.offscreenCanvas.width, this.offscreenCanvas.height);
 		this.buffer.fill(borderIdx);
 
 		const stateByte2 = this.registers.getUint8(MACHINE_STATE_OFFSET + 1);
@@ -256,123 +195,22 @@ export class AppleVideo implements Video {
 			(this.overrides.mouseChars === "OFF" ? false : (stateByte2 & APPLE_ALTCHAR_MASK) !== 0);
 
 		if (isText) {
-			if (is80Col) this.renderText80(0, bgColorStr, fgColorStr, isAltCharset);
-			else this.renderText40(0, isPage2, bgColorStr, fgColorStr, isAltCharset);
+			if (is80Col) this.renderText80(0, bgIdx, fgIdx, isAltCharset);
+			else this.renderText40(0, isPage2, bgIdx, fgIdx, isAltCharset);
 		} else if (isHgr) {
 			this.hgrRenderer.render(isMixed, isPage2);
 			if (isMixed) {
-				if (is80Col) this.renderText80(20, bgColorStr, fgColorStr, isAltCharset);
-				else this.renderText40(20, isPage2, bgColorStr, fgColorStr, isAltCharset);
+				if (is80Col) this.renderText80(20, bgIdx, fgIdx, isAltCharset);
+				else this.renderText40(20, isPage2, bgIdx, fgIdx, isAltCharset);
 			}
 		} else {
 			this.lowGrRenderer.render(isMixed, isPage2);
 			if (isMixed) {
-				if (is80Col) this.renderText80(20, bgColorStr, fgColorStr, isAltCharset);
-				else this.renderText40(20, isPage2, bgColorStr, fgColorStr, isAltCharset);
+				if (is80Col) this.renderText80(20, bgIdx, fgIdx, isAltCharset);
+				else this.renderText40(20, isPage2, bgIdx, fgIdx, isAltCharset);
 			}
 
-			this.drawDebugString(100, 350, "test", 15);
-		}
-
-		const dest = this.buffer;
-		const scaleY = this.targetHeight / this.offscreenCanvas.height;
-
-		const useBufferForGr = !isText && !isHgr;
-		const directRender = isHgr || useBufferForGr;
-
-		// Only read back from canvas if we rendered text or GR (anything not HGR-only)
-		if (!directRender || isMixed) {
-			const imageData = this.ctx.getImageData(0, 0, this.offscreenCanvas.width, this.offscreenCanvas.height);
-			const src32 = new Uint32Array(imageData.data.buffer);
-			const srcWidth = this.offscreenCanvas.width;
-
-			const useThresholding = this.overrides.textRenderer === "FONT";
-			const colorCache = useThresholding ? null : new Map<number, number>();
-
-			// When using font rendering, we combat anti-aliasing by snapping each pixel
-			// to either the intended foreground, text background, or global background color.
-
-			// biome-ignore lint/style/noNonNullAssertion: <np>
-			const fgRgb = IIgsPaletteRGB[fgIdx]!;
-			// biome-ignore lint/style/noNonNullAssertion: <np>
-			const textBgRgb = IIgsPaletteRGB[bgIdx]!;
-			// biome-ignore lint/style/noNonNullAssertion: <np>
-			const globalBgRgb = IIgsPaletteRGB[borderIdx]!;
-
-			const textBgIndex = bgIdx;
-			const fgIndex = fgIdx;
-			const globalBgIndex = borderIdx;
-
-			let startY = 0;
-			if (isMixed && directRender) {
-				// Mixed Mode: Copy only the bottom 4 lines of text (lines 20-23)
-				// We calculate the starting Y in the destination buffer based on where
-				// the text renderer placed the text on the source canvas.
-				const textRowHeight = 16;
-				const canvasTextStartY = this.textRenderer.offsetY + 20 * textRowHeight * this.textRenderer.scaleY;
-				startY = Math.floor(canvasTextStartY * scaleY);
-			}
-
-			// Convert RGBA pixels to 8-bit indices
-			// We loop over the DESTINATION buffer dimensions
-			for (let y = startY; y < this.targetHeight; y++) {
-				// const srcY = Math.floor(y / scaleY);
-				let srcY: number;
-				if (isMixed && directRender) {
-					// The text renderer may have centered the text block. We must calculate
-					// the actual Y position of the mixed-mode text on the source canvas.
-					const textRowHeight = 16; // Corresponds to font40Height in text.ts
-					const canvasTextStartY = this.textRenderer.offsetY + 20 * textRowHeight * this.textRenderer.scaleY;
-
-					// Map the destination Y to the source canvas Y for the text area
-					const yOffsetInCanvas = (y - startY) / scaleY;
-					srcY = Math.floor(canvasTextStartY + yOffsetInCanvas);
-				} else {
-					srcY = Math.floor(y / scaleY);
-				}
-				const srcRowOffset = srcY * srcWidth;
-				const destRowOffset = y * this.targetWidth;
-
-				for (let x = 0; x < this.targetWidth; x++) {
-					// Simple nearest neighbor for X (assuming width matches for now, but safe to scale)
-					// If targetWidth == srcWidth (560), this maps 1:1
-					// const pixel = src32[srcRowOffset + x] ?? 0;
-					const srcX = Math.floor(x / (this.targetWidth / srcWidth));
-					const pixel = src32[srcRowOffset + srcX] ?? 0;
-					let colorIndex: number;
-
-					if (useThresholding) {
-						const r = pixel & 0xff;
-						const g = (pixel >> 8) & 0xff;
-						const b = (pixel >> 16) & 0xff;
-
-						// Calculate squared distance to global background, text background, and foreground
-						const distToGlobalBg = (r - globalBgRgb[0]) ** 2 + (g - globalBgRgb[1]) ** 2 + (b - globalBgRgb[2]) ** 2;
-						const distToTextBg = (r - textBgRgb[0]) ** 2 + (g - textBgRgb[1]) ** 2 + (b - textBgRgb[2]) ** 2;
-						const distToFg = (r - fgRgb[0]) ** 2 + (g - fgRgb[1]) ** 2 + (b - fgRgb[2]) ** 2;
-
-						if (distToFg <= distToTextBg && distToFg <= distToGlobalBg) {
-							colorIndex = fgIndex;
-						} else if (distToTextBg <= distToGlobalBg) {
-							colorIndex = textBgIndex;
-						} else {
-							colorIndex = globalBgIndex;
-						}
-					} else {
-						const key = pixel & 0x00ffffff;
-						colorIndex = colorCache!.get(key);
-						if (colorIndex === undefined) {
-							const r = pixel & 0xff;
-							const g = (pixel >> 8) & 0xff;
-							const b = (pixel >> 16) & 0xff;
-							colorIndex = this.findNearestColor(r, g, b);
-							colorCache!.set(key, colorIndex);
-						}
-					}
-
-					dest[destRowOffset + x] = colorIndex;
-				}
-			}
+			this.drawDebugString(100, 5, "test", 15);
 		}
 
 		// if ((globalThis as any).DEBUG_VIDEO) this.handleDebugVideo();
@@ -510,6 +348,6 @@ export class AppleVideo implements Video {
 */
 	public reset() {
 		this.buffer.fill(0);
-		if (this.ctx) this.ctx.clearRect(0, 0, this.offscreenCanvas.width, this.offscreenCanvas.height);
+		// if (this.ctx) this.ctx.clearRect(0, 0, this.offscreenCanvas.width, this.offscreenCanvas.height);
 	}
 }

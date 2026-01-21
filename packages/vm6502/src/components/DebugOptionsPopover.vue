@@ -43,7 +43,7 @@
 		</div>
 
 		<Teleport to="body">
-			<div v-if="isTornOff" ref="floatingWindow" :style="floatingWindowStyle" class="fixed flex flex-col bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-lg shadow-2xl z-50">
+			<div v-if="isTornOff" ref="floatingWindow" :style="floatingWindowStyle" class="fixed flex flex-col bg-black/80 backdrop-blur-sm border border-gray-700 rounded-lg shadow-2xl z-50">
 				<div ref="dragHandle" @mousedown="startDrag" class="flex items-center justify-between px-3 py-1 bg-gray-900/70 rounded-t-lg cursor-move border-b border-gray-700">
 					<span class="text-xs font-bold text-gray-200 capitalize -ml-1">{{ category }} Settings</span>
 					<div class="flex items-center -mr-2">
