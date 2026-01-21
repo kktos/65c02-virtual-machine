@@ -6,9 +6,9 @@ import {
 	REG_TBCOLOR_OFFSET,
 } from "@/virtualmachine/cpu/shared-memory";
 import { IIgsPaletteRGB } from "./constants";
+import { DebugText } from "./debug/debug.text";
 import { LowGrRenderer } from "./gr";
 import { HGR_COLORS, HGRRenderer } from "./hgr";
-import { getFontColumn } from "./simple.font";
 import { TextRenderer } from "./text";
 
 // Memory layout offset (matches AppleBus)
@@ -67,6 +67,10 @@ export class AppleVideo implements Video {
 	private textRenderer: TextRenderer;
 	private lowGrRenderer: LowGrRenderer;
 	private hgrRenderer: HGRRenderer;
+	private debugText: DebugText;
+
+	private borderColorIdx: number;
+	private borderColorDbgIdx: number;
 
 	private renderText40!: (
 		startRow: number,
@@ -106,8 +110,12 @@ export class AppleVideo implements Video {
 		this.textRenderer = new TextRenderer(this.ram, this.buffer, this.targetWidth, this.targetHeight, payload);
 		this.lowGrRenderer = new LowGrRenderer(this.ram, this.buffer, this.targetWidth, this.targetHeight);
 		this.hgrRenderer = new HGRRenderer(this.ram, this.buffer, this.targetWidth, this.targetHeight);
+		this.debugText = new DebugText(this.buffer, this.targetWidth, this.targetHeight);
 
 		this.updateRenderers();
+
+		this.borderColorIdx = -3;
+		this.borderColorDbgIdx = -1;
 	}
 
 	private initPalette() {
@@ -144,11 +152,8 @@ export class AppleVideo implements Video {
 
 		this.textRenderer.resize(newWidth, newHeight);
 		this.lowGrRenderer.resize(newWidth, newHeight);
+		this.debugText.resize(newWidth, newHeight);
 		// this.hgrRenderer.resize(newWidth, newHeight);
-
-		let borderIdx = this.registers.getUint8(REG_BORDERCOLOR_OFFSET) & 0x0f;
-		if (this.overrides.borderColor >= 0) borderIdx = this.overrides.borderColor;
-		this.buffer.fill(borderIdx);
 
 		this.updateRenderers();
 	}
@@ -168,16 +173,43 @@ export class AppleVideo implements Video {
 		this.textRenderer.tick();
 
 		const tbColor = this.registers.getUint8(REG_TBCOLOR_OFFSET);
-		let borderIdx = this.registers.getUint8(REG_BORDERCOLOR_OFFSET) & 0x0f;
 
 		let bgIdx = tbColor & 0x0f;
 		let fgIdx = (tbColor >> 4) & 0x0f;
 
 		if (this.overrides.textBgColor >= 0) bgIdx = this.overrides.textBgColor;
 		if (this.overrides.textFgColor >= 0) fgIdx = this.overrides.textFgColor;
-		if (this.overrides.borderColor >= 0) borderIdx = this.overrides.borderColor;
 
-		this.buffer.fill(borderIdx);
+		const borderIdx = this.registers.getUint8(REG_BORDERCOLOR_OFFSET) & 0x0f;
+		const dbgColor = this.overrides.borderColor;
+		let newBorderColor = -1;
+
+		// 1. Check for Debug Override Change
+		if (dbgColor !== this.borderColorDbgIdx) {
+			this.borderColorDbgIdx = dbgColor;
+			if (dbgColor >= 0) newBorderColor = dbgColor;
+			else {
+				// Override removed. Revert to register if initialized.
+				if (this.borderColorIdx >= 0) newBorderColor = this.borderColorIdx;
+			}
+		}
+
+		// 2. Handle Register Logic (with delay)
+		if (this.borderColorIdx < 0) {
+			this.borderColorIdx++;
+			if (this.borderColorIdx === 0) {
+				// Initialization complete
+				this.borderColorIdx = borderIdx;
+				// Apply register color only if no debug override is active
+				if (this.borderColorDbgIdx < 0) newBorderColor = borderIdx;
+			}
+		} else if (borderIdx !== this.borderColorIdx) {
+			// Register changed by software -> Always wins
+			this.borderColorIdx = borderIdx;
+			newBorderColor = borderIdx;
+		}
+
+		if (newBorderColor >= 0) this.buffer.fill(newBorderColor);
 
 		const stateByte2 = this.registers.getUint8(MACHINE_STATE_OFFSET2);
 		let isText = (stateByte2 & APPLE_TEXT_MASK) !== 0;
@@ -220,37 +252,9 @@ export class AppleVideo implements Video {
 			}
 		}
 
-		this.drawDebugString(
-			100,
-			5,
-			`${isText ? "TEXT" : isHgr ? "HGR" : "GR"} ${is80Col ? "80" : "40"} ${isMixed ? " MIXED" : ""} ${isDblRes ? " DBL" : ""}`,
-			15,
-		);
+		const debugStr = `${isText ? "TEXT" : isHgr ? "HGR" : "GR"} ${is80Col ? "80" : "40"} ${isMixed ? " MIXED" : ""} ${isDblRes ? " DBL" : ""}`;
+		this.debugText.drawCenteredString(5, debugStr, 15, 0);
 		// if ((globalThis as any).DEBUG_VIDEO) this.handleDebugVideo();
-	}
-
-	public drawDebugPixel(x: number, y: number, color: number) {
-		if (x < 0 || x >= this.targetWidth || y < 0 || y >= this.targetHeight) return;
-		this.buffer[y * this.targetWidth + x] = color;
-	}
-
-	public drawDebugChar(x: number, y: number, charCode: number, color: number) {
-		for (let col = 0; col < 5; col++) {
-			const pixels = getFontColumn(charCode, col);
-			for (let row = 0; row < 7; row++) {
-				if ((pixels >> row) & 1) {
-					this.drawDebugPixel(x + col, y + row, color);
-				}
-			}
-		}
-	}
-
-	public drawDebugString(x: number, y: number, text: string, color: number) {
-		let curX = x;
-		for (let i = 0; i < text.length; i++) {
-			this.drawDebugChar(curX, y, text.charCodeAt(i), color);
-			curX += 6; // 5 pixels width + 1 pixel spacing
-		}
 	}
 	/*
 	private handleDebugVideo() {
