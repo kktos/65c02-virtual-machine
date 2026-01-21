@@ -1,7 +1,7 @@
 import type { MachineConfig } from "@/types/machine.interface";
 import type { Video } from "@/types/video.interface";
 import { AppleBus } from "../../machines/apple2/apple.bus";
-import { VideoTester } from "../../machines/apple2/video/video.tester";
+import { VideoTester } from "../../machines/apple2/video/tester/video.tester";
 import type { IBus } from "./bus.interface";
 import {
 	addBreakpoint,

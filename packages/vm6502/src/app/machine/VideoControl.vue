@@ -16,8 +16,12 @@
 						<option value="" selected disabled>Run Video Test...</option>
 						<option value="TEXT40">Text 40 col</option>
 						<option value="TEXT80">Text 80 col</option>
-						<option value="GR">Low-Res (GR)</option>
-						<option value="HGR">Hi-Res (HGR)</option>
+						<option value="MIXED40GR">Low-Res Mixed 40cols (GR)</option>
+						<option value="MIXED80GR">Low-Res Mixed 80cols (GR)</option>
+						<option value="MIXED40HGR">Hi-Res Mixed 40cols (HGR)</option>
+						<option value="MIXED80HGR">Hi-Res Mixed 80cols (HGR)</option>
+						<option value="GR">Low-Res Full (GR)</option>
+						<option value="HGR">Hi-Res Full (HGR)</option>
 					</select>
 				</div>
 			</template>
