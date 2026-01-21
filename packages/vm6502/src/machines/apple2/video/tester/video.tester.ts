@@ -53,6 +53,15 @@ export class VideoTester {
 			case "HGR":
 				this.testFullHGR();
 				break;
+			case "DGR":
+				this.testFullDoubleGR();
+				break;
+			case "MIXEDDGR":
+				this.testMixedDoubleGR();
+				break;
+			default:
+				console.error("Unknown test mode:", mode);
+				break;
 		}
 
 		// 3. Sync the bus state to the shared buffer so the Video Renderer sees the changes
@@ -246,6 +255,40 @@ export class VideoTester {
 				this.bus.write(lineBase + x, (color << 4) | color);
 			}
 		}
+		this.bottomText80();
+	}
+
+	private testFullDoubleGR() {
+		this.bus.text = false;
+		this.bus.hires = false;
+		this.bus.mixed = false;
+		this.bus.col80 = true;
+		this.bus.store80 = true;
+		this.bus.dblRes = true;
+
+		this.fillPage1(0x400, 0x800, () => 0x00);
+
+		for (let y = 0; y < 24; y++) {
+			// biome-ignore lint/style/noNonNullAssertion: <!>
+			const lineBase = textScreenLineOffsets[y]!;
+
+			for (let x = 0; x < 80; x++) {
+				const color = x % 16;
+				const offset = Math.floor(x / 2);
+				const isMain = x % 2 !== 0;
+
+				this.bus.page2 = !isMain;
+				this.bus.write(lineBase + offset, (color << 4) | color);
+				this.bus.page2 = false;
+			}
+		}
+	}
+
+	private testMixedDoubleGR() {
+		this.testFullDoubleGR();
+		// Enable mixed mode
+		this.bus.mixed = true;
+		// Redraw bottom text area
 		this.bottomText80();
 	}
 

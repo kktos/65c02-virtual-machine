@@ -1,5 +1,11 @@
 import type { IBus, MachineStateSpec } from "@/virtualmachine/cpu/bus.interface";
-import { MACHINE_STATE_OFFSET, REG_BORDERCOLOR_OFFSET, REG_TBCOLOR_OFFSET } from "@/virtualmachine/cpu/shared-memory";
+import {
+	MACHINE_STATE_OFFSET1,
+	MACHINE_STATE_OFFSET2,
+	MACHINE_STATE_OFFSET3,
+	REG_BORDERCOLOR_OFFSET,
+	REG_TBCOLOR_OFFSET,
+} from "@/virtualmachine/cpu/shared-memory";
 import { generateApple2Assets } from "./bus/apple.assets";
 import { loadMemoryChunks } from "./bus/apple.loader";
 import { installSoftSwitches } from "./bus/apple.switches";
@@ -8,7 +14,7 @@ import { SmartPortCard } from "./slots/smartport.card";
 import { Speaker } from "./speaker";
 
 // Apple II specific flags (packed into the MACHINE_STATE bytes)
-// Byte at MACHINE_STATE_OFFSET
+// Byte at MACHINE_STATE_OFFSET1
 const APPLE_LC_BANK2_MASK = 0b0000_0001;
 const APPLE_LC_READRAM_MASK = 0b0000_0010;
 const APPLE_LC_WRITERAM_MASK = 0b0000_0100;
@@ -17,7 +23,7 @@ const APPLE_RAMRD_AUX_MASK = 0b0001_0000;
 const APPLE_RAMWR_AUX_MASK = 0b0010_0000;
 const APPLE_ALTZP_MASK = 0b0100_0000;
 const APPLE_INTCXROM_MASK = 0b1000_0000;
-// Byte at MACHINE_STATE_OFFSET + 1
+// Byte at MACHINE_STATE_OFFSET2
 const APPLE_SLOTC3ROM_MASK = 0b0000_0001;
 const APPLE_80COL_MASK = 0b0000_0010;
 const APPLE_ALTCHAR_MASK = 0b0000_0100;
@@ -26,6 +32,8 @@ const APPLE_MIXED_MASK = 0b0001_0000;
 const APPLE_PAGE2_MASK = 0b0010_0000;
 const APPLE_HIRES_MASK = 0b0100_0000;
 const APPLE_INTC8ROM_MASK = 0b1000_0000;
+// Byte at MACHINE_STATE_OFFSET3
+const APPLE_DBLRES_MASK = 0b0000_0001;
 
 const RAM_OFFSET = 0x4000; // 16KB reserved for Bank2 (4KB) + ROM (12KB) at the beginning
 
@@ -73,6 +81,7 @@ export class AppleBus implements IBus {
 	public page2 = false; // Page 2
 	public hires = false; // Hi-Res Mode
 	public fakingVBL = false;
+	public dblRes = false;
 
 	public tbColor = DEFAULT_TEXT_COLORS; // IIgs text/bg color (black bg, white text)
 	public brdrColor = DEFAULT_TEXT_COLORS & 0x0f; // IIgs border color
@@ -176,7 +185,7 @@ export class AppleBus implements IBus {
 		if (this.ramWrAux) byte1 |= APPLE_RAMWR_AUX_MASK;
 		if (this.altZp) byte1 |= APPLE_ALTZP_MASK;
 		if (this.intCxRom) byte1 |= APPLE_INTCXROM_MASK;
-		this.registers.setUint8(MACHINE_STATE_OFFSET, byte1);
+		this.registers.setUint8(MACHINE_STATE_OFFSET1, byte1);
 
 		let byte2 = 0;
 		if (this.slotC3Rom) byte2 |= APPLE_SLOTC3ROM_MASK;
@@ -187,7 +196,11 @@ export class AppleBus implements IBus {
 		if (this.page2) byte2 |= APPLE_PAGE2_MASK;
 		if (this.hires) byte2 |= APPLE_HIRES_MASK;
 		if (this.intC8Rom) byte2 |= APPLE_INTC8ROM_MASK;
-		this.registers.setUint8(MACHINE_STATE_OFFSET + 1, byte2);
+		this.registers.setUint8(MACHINE_STATE_OFFSET2, byte2);
+
+		let byte3 = 0;
+		if (this.dblRes) byte3 |= APPLE_DBLRES_MASK;
+		this.registers.setUint8(MACHINE_STATE_OFFSET3, byte3);
 
 		this.registers.setUint8(REG_TBCOLOR_OFFSET, this.tbColor);
 		this.registers.setUint8(REG_BORDERCOLOR_OFFSET, this.brdrColor);
@@ -215,6 +228,7 @@ export class AppleBus implements IBus {
 		this.page2 = false;
 		this.hires = false;
 		this.tbColor = DEFAULT_TEXT_COLORS;
+		this.dblRes = false;
 
 		this.syncState();
 	}
@@ -224,8 +238,9 @@ export class AppleBus implements IBus {
 	}
 
 	public readStateFromBuffer(view: DataView): Record<string, boolean> {
-		const byte1 = view.getUint8(MACHINE_STATE_OFFSET);
-		const byte2 = view.getUint8(MACHINE_STATE_OFFSET + 1);
+		const byte1 = view.getUint8(MACHINE_STATE_OFFSET1);
+		const byte2 = view.getUint8(MACHINE_STATE_OFFSET2);
+		const byte3 = view.getUint8(MACHINE_STATE_OFFSET3);
 
 		return {
 			lcBank2: (byte1 & APPLE_LC_BANK2_MASK) !== 0,
@@ -244,6 +259,7 @@ export class AppleBus implements IBus {
 			page2: (byte2 & APPLE_PAGE2_MASK) !== 0,
 			hires: (byte2 & APPLE_HIRES_MASK) !== 0,
 			intC8Rom: (byte2 & APPLE_INTC8ROM_MASK) !== 0,
+			dblRes: (byte3 & APPLE_DBLRES_MASK) !== 0,
 		};
 	}
 

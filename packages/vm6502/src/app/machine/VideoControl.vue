@@ -18,9 +18,11 @@
 						<option value="TEXT80">Text 80 col</option>
 						<option value="MIXED40GR">Low-Res Mixed 40cols (GR)</option>
 						<option value="MIXED80GR">Low-Res Mixed 80cols (GR)</option>
+						<option value="GR">Low-Res Full (GR)</option>
+						<option value="MIXEDDGR">Double Low-Res Mixed (DGR)</option>
+						<option value="DGR">Double Low-Res Full (DGR)</option>
 						<option value="MIXED40HGR">Hi-Res Mixed 40cols (HGR)</option>
 						<option value="MIXED80HGR">Hi-Res Mixed 80cols (HGR)</option>
-						<option value="GR">Low-Res Full (GR)</option>
 						<option value="HGR">Hi-Res Full (HGR)</option>
 					</select>
 				</div>

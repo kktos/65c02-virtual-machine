@@ -3,6 +3,7 @@ import { NATIVE_VIEW_HEIGHT, NATIVE_VIEW_WIDTH, textScreenLineOffsets } from "./
 const GR_WIDTH = 40;
 const GR_LINES = 48;
 const GR_MIXED_LINES = 40;
+const AUX_BANK_OFFSET = 0x10000;
 
 export class LowGrRenderer {
 	public offsetX = 0;
@@ -30,9 +31,10 @@ export class LowGrRenderer {
 		this.offsetY = Math.floor((this.bufferHeight - NATIVE_VIEW_HEIGHT) / 2);
 	}
 
-	public render(isMixed: boolean, isPage2: boolean): void {
+	public render(isMixed: boolean, isPage2: boolean, isDblRes: boolean): void {
 		const pageOffset = isPage2 ? 0x400 : 0;
 		const endLine = isMixed ? GR_MIXED_LINES : GR_LINES;
+
 		for (let y = 0; y < endLine; y++) {
 			const textRow = y >> 1;
 			const isBottom = (y & 1) !== 0;
@@ -41,20 +43,39 @@ export class LowGrRenderer {
 			const startY = Math.floor(this.offsetY + y * this.scaleY);
 			const endY = Math.floor(this.offsetY + (y + 1) * this.scaleY);
 
-			for (let x = 0; x < GR_WIDTH; x++) {
-				const val = this.ram[lineBase + x] ?? 0;
-				const colorIdx = isBottom ? val >> 4 : val & 0x0f;
+			if (isDblRes) {
+				const blockWidth = this.scaleX / 2;
+				for (let i = 0; i < GR_WIDTH; i++) {
+					// Double GR: Even cols from Aux, Odd cols from Main
+					// Aux (Even column i*2)
+					const valAux = this.ram[AUX_BANK_OFFSET + lineBase + i] ?? 0;
+					const colorAux = isBottom ? valAux >> 4 : valAux & 0x0f;
+					this.drawBlock(i * 2, startY, endY, blockWidth, colorAux);
 
-				const startX = Math.floor(this.offsetX + x * this.scaleX);
-				const endX = Math.floor(this.offsetX + (x + 1) * this.scaleX);
-
-				for (let dy = startY; dy < endY; dy++) {
-					const rowOffset = dy * this.bufferWidth;
-					for (let dx = startX; dx < endX; dx++) {
-						this.buffer[rowOffset + dx] = colorIdx;
-					}
+					// Main (Odd column i*2 + 1)
+					const valMain = this.ram[lineBase + i] ?? 0;
+					const colorMain = isBottom ? valMain >> 4 : valMain & 0x0f;
+					this.drawBlock(i * 2 + 1, startY, endY, blockWidth, colorMain);
+				}
+			} else {
+				const blockWidth = this.scaleX;
+				for (let i = 0; i < GR_WIDTH; i++) {
+					// Standard GR
+					const val = this.ram[lineBase + i] ?? 0;
+					const color = isBottom ? val >> 4 : val & 0x0f;
+					this.drawBlock(i, startY, endY, blockWidth, color);
 				}
 			}
+		}
+	}
+
+	private drawBlock(colIndex: number, startY: number, endY: number, width: number, colorIdx: number) {
+		const startX = Math.floor(this.offsetX + colIndex * width);
+		const endX = Math.floor(this.offsetX + (colIndex + 1) * width);
+
+		for (let dy = startY; dy < endY; dy++) {
+			const rowOffset = dy * this.bufferWidth;
+			for (let dx = startX; dx < endX; dx++) this.buffer[rowOffset + dx] = colorIdx;
 		}
 	}
 }

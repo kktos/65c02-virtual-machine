@@ -1,5 +1,10 @@
 import type { Video } from "@/types/video.interface";
-import { MACHINE_STATE_OFFSET, REG_BORDERCOLOR_OFFSET, REG_TBCOLOR_OFFSET } from "@/virtualmachine/cpu/shared-memory";
+import {
+	MACHINE_STATE_OFFSET2,
+	MACHINE_STATE_OFFSET3,
+	REG_BORDERCOLOR_OFFSET,
+	REG_TBCOLOR_OFFSET,
+} from "@/virtualmachine/cpu/shared-memory";
 import { IIgsPaletteRGB } from "./constants";
 import { LowGrRenderer } from "./gr";
 import { HGR_COLORS, HGRRenderer } from "./hgr";
@@ -16,6 +21,8 @@ const APPLE_TEXT_MASK = 0b0000_1000;
 const APPLE_MIXED_MASK = 0b0001_0000;
 const APPLE_PAGE2_MASK = 0b0010_0000;
 const APPLE_HIRES_MASK = 0b0100_0000;
+// Byte at MACHINE_STATE_OFFSET3
+const APPLE_DBLRES_MASK = 0b0000_0001;
 
 interface AppleVideoOverrides {
 	videoMode?: "AUTO" | "TEXT" | "HGR";
@@ -172,13 +179,15 @@ export class AppleVideo implements Video {
 
 		this.buffer.fill(borderIdx);
 
-		const stateByte2 = this.registers.getUint8(MACHINE_STATE_OFFSET + 1);
-
+		const stateByte2 = this.registers.getUint8(MACHINE_STATE_OFFSET2);
 		let isText = (stateByte2 & APPLE_TEXT_MASK) !== 0;
 		let isHgr = (stateByte2 & APPLE_HIRES_MASK) !== 0;
 		const isMixed = (stateByte2 & APPLE_MIXED_MASK) !== 0;
 		const is80Col = (stateByte2 & APPLE_80COL_MASK) !== 0;
 		let isPage2 = (stateByte2 & APPLE_PAGE2_MASK) !== 0;
+
+		const stateByte3 = this.registers.getUint8(MACHINE_STATE_OFFSET3);
+		const isDblRes = (stateByte3 & APPLE_DBLRES_MASK) !== 0;
 
 		if (this.overrides.videoMode === "TEXT") {
 			isText = true;
@@ -204,15 +213,19 @@ export class AppleVideo implements Video {
 				else this.renderText40(20, isPage2, bgIdx, fgIdx, isAltCharset);
 			}
 		} else {
-			this.lowGrRenderer.render(isMixed, isPage2);
+			this.lowGrRenderer.render(isMixed, isPage2, isDblRes);
 			if (isMixed) {
 				if (is80Col) this.renderText80(20, bgIdx, fgIdx, isAltCharset);
 				else this.renderText40(20, isPage2, bgIdx, fgIdx, isAltCharset);
 			}
-
-			this.drawDebugString(100, 5, "test", 15);
 		}
 
+		this.drawDebugString(
+			100,
+			5,
+			`${isText ? "TEXT" : isHgr ? "HGR" : "GR"} ${is80Col ? "80" : "40"} ${isMixed ? " MIXED" : ""} ${isDblRes ? " DBL" : ""}`,
+			15,
+		);
 		// if ((globalThis as any).DEBUG_VIDEO) this.handleDebugVideo();
 	}
 
