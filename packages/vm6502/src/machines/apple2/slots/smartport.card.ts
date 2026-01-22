@@ -154,8 +154,6 @@ export class SmartPortCard implements ISlotCard {
 	}
 
 	public setDebugOverrides(overrides: { smartPortLogging?: boolean }) {
-		console.log("SmartPortCard", { overrides });
-
 		if (typeof overrides.smartPortLogging === "boolean") {
 			this.loggingEnabled = overrides.smartPortLogging;
 		}
@@ -340,14 +338,8 @@ export class SmartPortCard implements ISlotCard {
 		if (this.loggingEnabled) {
 			postMessage({
 				type: "log",
-				payload: {
-					type: "READ",
-					block,
-					address: bufferAddr,
-				},
-			});
-			console.log({
-				type: "log",
+				kind: "disk",
+				name: "SP51",
 				payload: {
 					type: "READ",
 					block,

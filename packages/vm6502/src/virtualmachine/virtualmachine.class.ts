@@ -55,7 +55,7 @@ export class VirtualMachine {
 	public onmessage?: (event: MessageEvent) => void;
 	public onStateChange?: (state: Dict) => void;
 	public onTraceReceived?: (history: { type: string; source: number; target: number }[]) => void;
-	public onSmartPortLog?: (log: { type: string; block: number; address: number }) => void;
+	public onLog?: (log: Dict) => void;
 
 	private keyHandler = this.handleKeyDown.bind(this);
 	private keyUpHandler = this.handleKeyUp.bind(this);
@@ -81,7 +81,7 @@ export class VirtualMachine {
 			} else if (type === "trace") {
 				this.onTraceReceived?.(history);
 			} else if (type === "log") {
-				this.onSmartPortLog?.(payload);
+				this.onLog?.(payload);
 			} else if (type === "isRunning") {
 				this._isRunning = event.data.isRunning;
 				if (this.onmessage) this.onmessage(event);

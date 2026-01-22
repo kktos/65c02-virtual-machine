@@ -1,5 +1,5 @@
 <template>
-	<div v-if="diskConfig?.enabled" class="flex items-center space-x-3 bg-gray-800 p-2 rounded-lg shadow-md border border-gray-700">
+	<div class="flex items-center space-x-3 bg-gray-800 p-2 rounded-lg shadow-md border border-gray-700">
 		<!-- Library Sheet -->
 		<Sheet v-model:open="isSheetOpen">
 			<SheetTrigger as-child>
@@ -139,6 +139,12 @@ import {
 import { useDiskStorage } from '@/composables/useDiskStorage';
 import type { VirtualMachine } from '@/virtualmachine/virtualmachine.class';
 
+type DiskLog = {
+	type: string;
+	block: number;
+	address: number;
+};
+
 const vm = inject<Ref<VirtualMachine>>('vm');
 const diskConfig = computed(() => vm?.value?.machineConfig?.disk);
 const fileName = ref('');
@@ -148,7 +154,7 @@ const savedDisks = ref<{ key: IDBValidKey; name: string; size: number }[]>([]);
 const isSheetOpen = ref(false);
 const isLogSheetOpen = ref(false);
 
-const logs = ref<{ type: string; block: number; address: number }[]>([]);
+const logs = ref<DiskLog[]>([]);
 const loggingEnabled = ref(false);
 const mapCanvas = ref<HTMLCanvasElement | null>(null);
 
@@ -288,9 +294,8 @@ watch(() => vm?.value, async (newVm) => {
 			}
 		}
 
-		newVm.onSmartPortLog = (log) => {
-			if (loggingEnabled.value) logs.value.push(log);
-			console.log(log);
+		newVm.onLog = (log) => {
+			if (loggingEnabled.value) logs.value.push(log as DiskLog);
 		};
 	}
 }, { immediate: true });

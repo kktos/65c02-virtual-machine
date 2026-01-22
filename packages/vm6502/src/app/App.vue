@@ -7,7 +7,7 @@
 			<div class="flex items-center space-x-2">
 				<VideoControl />
 				<SoundControl />
-				<DiskDriveControl />
+				<DiskDriveControl v-if="vm.machineConfig.disk?.enabled" />
 				<StatusPanel />
 			</div>
 		</div>
