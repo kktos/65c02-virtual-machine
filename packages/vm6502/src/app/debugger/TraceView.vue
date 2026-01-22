@@ -75,7 +75,7 @@
 </template>
 
 <script lang="ts" setup>
-import { inject, onMounted, onUnmounted, type Ref, ref, watch } from "vue";
+import { inject, onUnmounted, type Ref, ref, watch } from "vue";
 import {
 	Popover,
 	PopoverContent,
@@ -116,7 +116,5 @@ watch(traceSize, (newSize) => {
 	vm?.value?.setTraceSize(newSize);
 });
 
-let intervalId: number;
-onMounted(() => {intervalId = window.setInterval(() => vm?.value?.isTraceEnabled && refreshTrace(), 1000)});
-onUnmounted(() => { clearInterval(intervalId); if (vm?.value) vm.value.onTraceReceived = undefined; });
+onUnmounted(() => { if (vm?.value) vm.value.onTraceReceived = undefined; });
 </script>

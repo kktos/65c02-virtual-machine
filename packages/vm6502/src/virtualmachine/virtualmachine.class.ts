@@ -1,3 +1,4 @@
+import { ref } from "vue";
 import type { Dict } from "@/types/dict.type";
 import type { DebugOption, MachineConfig } from "@/types/machine.interface";
 import type { IBus, MachineStateSpec } from "@/virtualmachine/cpu/bus.interface";
@@ -56,7 +57,11 @@ export class VirtualMachine {
 	public onStateChange?: (state: Dict) => void;
 	public onTraceReceived?: (history: { type: string; source: number; target: number }[]) => void;
 	public onLog?: (log: Dict) => void;
+
 	public isTraceEnabled = false;
+	public traceOverflow = ref(false);
+	private lastTraceHead = "";
+	private tracePollInterval: number | undefined;
 
 	private keyHandler = this.handleKeyDown.bind(this);
 	private keyUpHandler = this.handleKeyUp.bind(this);
@@ -72,22 +77,32 @@ export class VirtualMachine {
 
 		this.worker.onmessage = (event) => {
 			const { command, colors, type, history, buffer, payload } = event.data;
-			if (type === "audio") {
-				this.queueAudioChunk(buffer);
-			} else if (command === "setPalette") {
-				if (this.videoOutput) this.videoOutput.setPalette(colors);
-				else this.pendingPalette = colors;
-			} else if (type === "ready") {
-				this.resolveWorkerReady();
-			} else if (type === "trace") {
-				this.onTraceReceived?.(history);
-			} else if (type === "log") {
-				this.onLog?.(payload);
-			} else if (type === "isRunning") {
-				this._isRunning = event.data.isRunning;
-				if (this.onmessage) this.onmessage(event);
-			} else if (this.onmessage) {
-				this.onmessage(event);
+
+			switch (type) {
+				case "audio":
+					this.queueAudioChunk(buffer);
+					break;
+				case "ready":
+					this.resolveWorkerReady();
+					break;
+				case "trace":
+					this.handleTraceReceived(history);
+					break;
+				case "log":
+					this.onLog?.(payload);
+					break;
+				case "isRunning":
+					this._isRunning = event.data.isRunning;
+					this.onmessage?.(event);
+					break;
+				default:
+					if (command === "setPalette") {
+						if (this.videoOutput) this.videoOutput.setPalette(colors);
+						else this.pendingPalette = colors;
+					} else {
+						this.onmessage?.(event);
+					}
+					break;
 			}
 		};
 
@@ -301,6 +316,13 @@ export class VirtualMachine {
 		}
 	}
 
+	private handleTraceReceived(history: { type: string; source: number; target: number }[]) {
+		const newHead = history.length > 0 ? JSON.stringify(history[0]) : "";
+		this.traceOverflow.value = !!this.lastTraceHead && !!newHead && this.lastTraceHead !== newHead;
+		this.lastTraceHead = newHead;
+		this.onTraceReceived?.(history);
+	}
+
 	public syncBusState() {
 		if (this.bus?.readStateFromBuffer) {
 			const state = this.bus.readStateFromBuffer(this.sharedRegisters);
@@ -366,10 +388,34 @@ export class VirtualMachine {
 	public setTrace = (enabled: boolean) => {
 		this.isTraceEnabled = enabled;
 		this.worker.postMessage({ command: "setTrace", enabled });
+		if (enabled) {
+			this.startTracePolling();
+		} else {
+			this.stopTracePolling();
+			this.traceOverflow.value = false;
+			this.lastTraceHead = "";
+		}
 	};
+
+	private startTracePolling() {
+		if (this.tracePollInterval) return;
+		this.tracePollInterval = window.setInterval(() => this.getTrace(), 1000);
+	}
+
+	private stopTracePolling() {
+		if (this.tracePollInterval) {
+			clearInterval(this.tracePollInterval);
+			this.tracePollInterval = undefined;
+		}
+	}
+
 	public setTraceSize = (size: number) => this.worker.postMessage({ command: "setTraceSize", size });
 	public getTrace = () => this.worker.postMessage({ command: "getTrace" });
-	public clearTrace = () => this.worker.postMessage({ command: "clearTrace" });
+	public clearTrace = () => {
+		this.worker.postMessage({ command: "clearTrace" });
+		this.traceOverflow.value = false;
+		this.lastTraceHead = "";
+	};
 	public refreshVideo = () => this.worker.postMessage({ command: "refreshVideo" });
 	public mute = (enabled: boolean) => this.worker.postMessage({ command: "mute", enabled });
 	public testVideo = (mode: string) => this.worker.postMessage({ command: "testVideo", mode });

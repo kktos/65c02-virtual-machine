@@ -57,11 +57,12 @@
 		</ButtonGroup>
 
 		<ButtonGroup>
-			<Button @click="toggleTrace"
+			<Button @click="toggleTrace" class="relative"
 				size="sm"
 				:class="[ traceEnabled ? 'bg-purple-600 hover:bg-purple-500 text-white' : 'hover:bg-gray-600 text-gray-300']"
 				title="Enable execution tracing (JSR/JMP)"
 			>
+				<span v-if="vm?.traceOverflow?.value" class="absolute top-1 right-1 w-2 h-2 bg-orange-400 rounded-full animate-pulse shadow-[0_0_4px_rgba(251,146,60,0.6)]" title="Trace buffer overflow"></span>
 				<ScrollText class="mr-2 h-4 w-4" />
 				Trace
 			</Button>
