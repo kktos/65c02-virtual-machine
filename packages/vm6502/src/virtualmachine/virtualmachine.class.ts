@@ -56,6 +56,7 @@ export class VirtualMachine {
 	public onStateChange?: (state: Dict) => void;
 	public onTraceReceived?: (history: { type: string; source: number; target: number }[]) => void;
 	public onLog?: (log: Dict) => void;
+	public isTraceEnabled = false;
 
 	private keyHandler = this.handleKeyDown.bind(this);
 	private keyUpHandler = this.handleKeyUp.bind(this);
@@ -362,7 +363,11 @@ export class VirtualMachine {
 	public insertDisk = (data: Uint8Array, metadata: Dict = {}) =>
 		this.worker.postMessage({ command: "insertMedia", data, metadata });
 
-	public setTrace = (enabled: boolean) => this.worker.postMessage({ command: "setTrace", enabled });
+	public setTrace = (enabled: boolean) => {
+		this.isTraceEnabled = enabled;
+		this.worker.postMessage({ command: "setTrace", enabled });
+	};
+	public setTraceSize = (size: number) => this.worker.postMessage({ command: "setTraceSize", size });
 	public getTrace = () => this.worker.postMessage({ command: "getTrace" });
 	public clearTrace = () => this.worker.postMessage({ command: "clearTrace" });
 	public refreshVideo = () => this.worker.postMessage({ command: "refreshVideo" });

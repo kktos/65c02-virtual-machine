@@ -1,7 +1,7 @@
 <template>
 	<div class="p-4 bg-gray-800 rounded-lg shadow-xl h-full flex flex-col" ref="scrollContainer">
 		<!-- Header combining title, count, and action button -->
-		<div class="flex justify-between items-center mb-3 border-b border-gray-700/50 pb-2 shrink-0">
+		<div class="flex justify-between items-center mb-2 shrink-0">
 			<!-- History Navigation -->
 			<ButtonGroup>
 				<Button @click="navigateBack" :disabled="!canNavigateBack" size="sm" class="px-2 hover:bg-gray-600 disabled:opacity-50" title="Go back in jump history">

@@ -15,6 +15,7 @@ import {
 	setClockSpeed,
 	setRunning,
 	setTrace,
+	setTraceSize,
 	stepInstruction,
 	stepOutInstruction,
 	stepOverInstruction,
@@ -129,6 +130,9 @@ self.onmessage = async (event: MessageEvent) => {
 		case "setTrace":
 			setTrace(event.data.enabled);
 			break;
+		case "setTraceSize":
+			setTraceSize(event.data.size);
+			break;
 		case "getTrace":
 			self.postMessage({ type: "trace", history: getTrace() });
 			break;
@@ -139,8 +143,6 @@ self.onmessage = async (event: MessageEvent) => {
 			if (video) video.tick();
 			break;
 		case "setDebugOverrides":
-			console.log("Worker setDebugOverrides", event.data);
-
 			switch (event.data.category) {
 				case "bus":
 					bus?.setDebugOverrides?.(event.data.overrides);

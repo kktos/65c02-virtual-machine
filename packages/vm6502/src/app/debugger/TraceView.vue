@@ -5,6 +5,22 @@
 				Execution Trace
 			</h2>
 			<div class="flex space-x-2">
+				<Popover>
+					<PopoverTrigger as-child>
+						<button class="p-1 rounded text-gray-400 hover:text-gray-200 hover:bg-gray-700 transition-colors" title="Trace Settings">
+							<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+								<path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd" />
+							</svg>
+						</button>
+					</PopoverTrigger>
+					<PopoverContent class="w-60 bg-gray-800 border-gray-700 text-gray-100 p-3" align="end">
+						<div class="flex flex-col space-y-2">
+							<label class="text-xs font-medium text-gray-400">Max Trace Depth</label>
+							<input type="number" v-model.number="traceSize" class="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-cyan-500" min="10" max="1000" step="10" />
+						</div>
+					</PopoverContent>
+				</Popover>
+
 				<button
 					@click="refreshTrace"
 					class="p-1 rounded text-gray-400 hover:text-gray-200 hover:bg-gray-700 transition-colors"
@@ -27,8 +43,8 @@
 		</div>
 
 		<div class="flex-grow overflow-y-auto font-mono text-xs bg-gray-900 p-2 rounded-md">
-			<table class="text-left border-collapse">
-				<thead>
+			<table class="text-left border-collapse w-full">
+				<thead class="sticky top-0 bg-gray-900">
 					<tr class="text-gray-500 border-b border-gray-700">
 						<th class="py-1 w-15">Source</th>
 						<th class="py-1 w-15">Type</th>
@@ -60,12 +76,18 @@
 
 <script lang="ts" setup>
 import { inject, onMounted, onUnmounted, type Ref, ref, watch } from "vue";
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from '@/components/ui/popover';
 import { useDisassembly } from "@/composables/useDisassembly";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 
 const vm = inject<Ref<VirtualMachine>>("vm");
 const { requestJump } = useDisassembly();
 const traceHistory = ref<{ type: string; source: number; target: number }[]>([]);
+const traceSize = ref(200);
 
 const formatAddress = (addr: number) => {
 	return `$${addr.toString(16).toUpperCase().padStart(4, '0')}`;
@@ -78,20 +100,23 @@ const clearTrace = () => {
 	traceHistory.value = [];
 };
 
-const handleJumpToSource = (addr: number) => {
-	requestJump(addr);
-};
+const handleJumpToSource = (addr: number) => requestJump(addr);
 
 watch(() => vm?.value, (newVm) => {
 	if (newVm) {
 		newVm.onTraceReceived = (history) => {
 			traceHistory.value = [...history].reverse();
 		};
+		newVm.setTraceSize(traceSize.value);
 		newVm.getTrace();
 	}
 }, { immediate: true });
 
+watch(traceSize, (newSize) => {
+	vm?.value?.setTraceSize(newSize);
+});
+
 let intervalId: number;
-onMounted(() => {intervalId = window.setInterval(() => vm?.value && refreshTrace(), 1000)});
+onMounted(() => {intervalId = window.setInterval(() => vm?.value?.isTraceEnabled && refreshTrace(), 1000)});
 onUnmounted(() => { clearInterval(intervalId); if (vm?.value) vm.value.onTraceReceived = undefined; });
 </script>

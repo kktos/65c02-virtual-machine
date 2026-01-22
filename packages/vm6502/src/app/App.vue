@@ -23,12 +23,12 @@
     <ResizablePanel>
 
 		<ResizablePanelGroup direction="vertical" auto-save-id="debuggerPanelLayout">
-			<ResizablePanel :default-size="41" class="grid gap-1" @resize="dbgTopPanelResize">
-				<div class="flex items-center justify-start pr-2">
+			<ResizablePanel :default-size="41" class="grid grid-rows-[auto_1fr] gap-2 p-2" @resize="dbgTopPanelResize">
+				<div class="flex items-center justify-start">
 					<DebuggerControls :isRunning="isRunning" />
 				</div>
 
-				<div class="grid grid-cols-[300px_1fr] gap-4 h-full ml-4 mr-4">
+				<div class="grid grid-cols-[300px_1fr] gap-4 min-h-0">
 
 					<!-- Registers and Flags stacked vertically in the first column -->
 					<div class="grid grid-col gap-2">
@@ -37,8 +37,8 @@
 					</div>
 
 					<!-- Stack View takes the remaining space -->
-					<Tabs default-value="stack" class="h-full">
-						<TabsList class="bg-gray-900/80 p-1">
+					<Tabs default-value="stack" class="h-full flex flex-col min-h-0">
+						<TabsList class="bg-gray-900/80 p-1 shrink-0">
 							<TabsTrigger value="stack" class="data-[state=active]:bg-gray-700 data-[state=active]:text-cyan-300 text-gray-400">
 								Stack
 							</TabsTrigger>
@@ -52,16 +52,16 @@
 								Machine State
 							</TabsTrigger>
 						</TabsList>
-						<TabsContent value="stack" class="h-full">
+						<TabsContent value="stack" class="flex-1 min-h-0">
 							<StackView :stackData="vm.sharedMemory" :registers="emulatorState.registers" />
 						</TabsContent>
-						<TabsContent value="stack_trace" class="h-full">
+						<TabsContent value="stack_trace" class="flex-1 min-h-0">
 							<TraceView />
 						</TabsContent>
-						<TabsContent value="breakpoints" class="h-full">
+						<TabsContent value="breakpoints" class="flex-1 min-h-0">
 							<BreakpointsList />
 						</TabsContent>
-						<TabsContent value="state" class="h-full">
+						<TabsContent value="state" class="flex-1 min-h-0">
 							<MachineStateView />
 						</TabsContent>
 					</Tabs>

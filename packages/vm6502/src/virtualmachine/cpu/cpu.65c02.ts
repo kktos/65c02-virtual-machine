@@ -48,7 +48,7 @@ const VIDEO_INTERVAL_MS = 1000 / 60;
 // --- Trace State ---
 let traceEnabled = false;
 const traceHistory: { type: string; source: number; target: number }[] = [];
-const MAX_TRACE_SIZE = 200;
+let maxTraceSize = 200;
 
 // Shared memory references, to be initialized from the worker
 let registersView: DataView | null = null;
@@ -116,6 +116,10 @@ export function setTrace(enabled: boolean) {
 	traceEnabled = enabled;
 }
 
+export function setTraceSize(size: number) {
+	maxTraceSize = size;
+}
+
 export function getTrace() {
 	return traceHistory;
 }
@@ -127,7 +131,7 @@ export function clearTrace() {
 function logTrace(type: string, source: number, target: number) {
 	if (!traceEnabled) return;
 	traceHistory.push({ type, source, target });
-	if (traceHistory.length > MAX_TRACE_SIZE) traceHistory.shift();
+	if (traceHistory.length > maxTraceSize) traceHistory.shift();
 }
 
 function updateCyclesPerTimeslice() {
