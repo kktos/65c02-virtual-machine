@@ -158,15 +158,24 @@ import VideoControl from "./machine/VideoControl.vue";
 		// Listen for messages from the worker (e.g., for breakpoints, errors)
 		vm.value.onmessage = (event) => {
 			const { type, error, message } = event.data;
-			if (type === 'error' && error === 'unimplemented_opcode') {
-				isRunning.value = false; // Ensure UI reflects the paused state
-				alert(`Emulator Halted!\n\nError: ${message}`);
-			} else if (type === 'isRunning') {
-				// Update the local isRunning ref based on the worker's state
-				isRunning.value = event.data.isRunning;
-			} else {
-				console.log("Message received from worker:", event.data);
+
+			switch (type) {
+				case 'error':
+					if (error === 'unimplemented_opcode') {
+						isRunning.value = false; // Ensure UI reflects the paused state
+						alert(`Emulator Halted!\n\nError: ${message}`);
+					} else console.error("Error received from worker:", event.data);
+					break;
+				case 'isRunning':
+					// Update the local isRunning ref based on the worker's state
+					isRunning.value = event.data.isRunning;
+					if (!isRunning.value) vm.value?.refreshVideo();
+
+					break;
+				default:
+					console.log("Message received from worker:", event.data);
 			}
+
 		};
 
 		// Start the UI update loop
