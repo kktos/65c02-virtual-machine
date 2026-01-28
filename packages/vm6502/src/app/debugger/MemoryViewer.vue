@@ -43,6 +43,38 @@
 				<BinaryLoader :address="startAddress" :debug-overrides="debugOverrides" />
 
 			</div>
+
+			<!-- Search Popover -->
+			<Popover v-model:open="isSearchOpen">
+				<PopoverTrigger as-child>
+					<Button variant="ghost" size="icon" class="h-6 w-6 text-gray-400 hover:text-cyan-300" title="Search Memory">
+						<Search class="h-4 w-4" />
+					</Button>
+				</PopoverTrigger>
+				<PopoverContent class="w-80 p-3 bg-gray-800 border-gray-700" align="end">
+					<div class="flex flex-col space-y-3">
+						<div class="flex items-center space-x-2">
+							<select v-model="searchMode" class="bg-gray-900 text-xs text-gray-200 border border-gray-600 rounded px-2 py-1 focus:outline-none focus:border-cyan-500">
+								<option value="hex">Hex</option>
+								<option value="text_lo">Text (bit7=0)</option>
+								<option value="text_hi">Text (bit7=1)</option>
+								<option value="text_any">Text (Any)</option>
+							</select>
+							<input v-model="searchQuery" @keydown.enter="performSearch(1)" type="text" class="flex-1 bg-gray-900 text-xs text-gray-200 border border-gray-600 rounded px-2 py-1 focus:outline-none focus:border-cyan-500" :placeholder="searchMode === 'hex' ? 'e.g. A9 00' : 'Text...'" />
+						</div>
+						<div class="flex items-center space-x-2">
+							<input type="checkbox" id="searchAllBanks" v-model="searchAllBanks" class="rounded bg-gray-900 border-gray-600 text-cyan-500 focus:ring-cyan-500 h-3 w-3" />
+							<label for="searchAllBanks" class="text-xs text-gray-300 cursor-pointer select-none">Search All Banks</label>
+						</div>
+						<div v-if="searchError" class="text-[10px] text-red-400">{{ searchError }}</div>
+						<div class="flex justify-end space-x-2">
+							<Button size="sm" variant="secondary" class="h-7 text-xs" @click="performSearch(-1)">Prev</Button>
+							<Button size="sm" class="h-7 text-xs bg-cyan-600 hover:bg-cyan-500 text-white" @click="performSearch(1)">Next</Button>
+						</div>
+					</div>
+				</PopoverContent>
+			</Popover>
+
 			<!-- Debug Options -->
 			<DebugOptionsPopover ref="debugOptionsPopover" category="memory" align="end" class="ml-auto" />
 
@@ -93,11 +125,12 @@
 								:value="editingIndex === ((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1)) && editingMode === 'hex' ? editingValue : currentMemorySlice[(lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1)]?.toString(16).toUpperCase().padStart(2, '0')"
 								:ref="(el) => setHexInputRef(el, (lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1))"
 								@keydown="handleKeyDown((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1), $event, 'hex')"
+								@contextmenu.prevent="handleContextMenu((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1), $event)"
 								@input="handleHexChange((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1), $event)"
 								@focus="handleHexFocus((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1), $event)"
 								@blur="handleBlur"
 								maxlength="2"
-								class="w-full text-center bg-transparent focus:bg-gray-600 focus:outline-none focus:ring-1 focus:ring-cyan-500 rounded-none tabular-nums text-xs"
+								:class="['w-full text-center focus:bg-gray-600 focus:outline-none focus:ring-1 focus:ring-cyan-500 rounded-none tabular-nums text-xs', isHighlighted((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1)) ? 'bg-yellow-600/50 text-white font-bold' : 'bg-transparent', getBreakpointClass((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1))]"
 							/>
 						</td>
 
@@ -113,12 +146,27 @@
 								@focus="handleAsciiFocus((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1), $event)"
 								@blur="handleBlur"
 								maxlength="1"
-								:class="['w-[1.2ch] text-center focus:bg-gray-600 focus:outline-none focus:ring-1 focus:ring-cyan-500 rounded-none tabular-nums text-xs p-0 border-none font-bold', getAsciiClass(currentMemorySlice[(lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1)])]"
+								:class="['w-[1.2ch] text-center focus:bg-gray-600 focus:outline-none focus:ring-1 focus:ring-cyan-500 rounded-none tabular-nums text-xs p-0 border-none font-bold', getAsciiClass(currentMemorySlice[(lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1)], isHighlighted((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1))), getBreakpointClass((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1))]"
 							/>
 						</td>
 					</tr>
 				</tbody>
 			</table>
+		</div>
+
+		<div v-if="contextMenu.isOpen" class="fixed z-50 w-48 rounded-md border border-gray-700 bg-gray-800 p-1 shadow-md text-gray-200 text-xs" :style="{ top: contextMenu.y + 'px', left: contextMenu.x + 'px' }" @click.stop>
+			<div class="px-2 py-1.5 text-xs font-semibold text-gray-400 border-b border-gray-700 mb-1">
+				Address: {{ formatAddress(contextMenu.address) }}
+			</div>
+			<button @click="addBp('read')" class="w-full text-left px-2 py-1.5 hover:bg-gray-700 rounded flex items-center">
+				Break on Read
+			</button>
+			<button @click="addBp('write')" class="w-full text-left px-2 py-1.5 hover:bg-gray-700 rounded flex items-center">
+				Break on Write
+			</button>
+			<button @click="addBp('access')" class="w-full text-left px-2 py-1.5 hover:bg-gray-700 rounded flex items-center">
+				Break on Access
+			</button>
 		</div>
 	</div>
 </template>
@@ -126,12 +174,13 @@
 <script lang="ts" setup>
 	/** biome-ignore-all lint/correctness/noUnusedVariables: vue */
 
-	import { Check, ChevronsUpDown, Split, X } from "lucide-vue-next";
+	import { Check, ChevronsUpDown, Search, Split, X } from "lucide-vue-next";
 import { computed, inject, nextTick, onMounted, onUnmounted, type Ref, ref, watch } from "vue";
 import DebugOptionsPopover from "@/components/DebugOptionsPopover.vue";
 import { Button } from "@/components/ui/button";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { useBreakpoints } from "@/composables/useBreakpoints";
 import { useDebuggerNav } from "@/composables/useDebuggerNav";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import BinaryLoader from "./BinaryLoader.vue";
@@ -160,9 +209,7 @@ import BinaryLoader from "./BinaryLoader.vue";
 
 	const { memoryViewAddress } = useDebuggerNav();
 	watch(memoryViewAddress, (newAddress) => {
-		if (newAddress !== null) {
-			startAddress.value = newAddress;
-		}
+		if (newAddress !== null) startAddress.value = newAddress;
 	});
 
 	watch(startAddress, (newAddr) => {
@@ -179,7 +226,6 @@ import BinaryLoader from "./BinaryLoader.vue";
 	const highBitEnabled = ref(false);
 
 	const availableBanks = computed(() => {
-		console.log("BANKS:",vm?.value?.machineConfig?.memory?.banks);
 		const banks = vm?.value?.machineConfig?.memory?.banks || 1;
 		return Array.from({ length: banks }, (_, i) => ({
 			value: i,
@@ -192,6 +238,151 @@ import BinaryLoader from "./BinaryLoader.vue";
 	const selectBank = (bankValue: number) => {
 		startAddress.value = (startAddress.value & 0xffff) | (bankValue << 16);
 		openBankSelect.value = false;
+	};
+
+	// --- Search Functionality ---
+	const isSearchOpen = ref(false);
+	const searchQuery = ref("");
+	const searchMode = ref<'hex' | 'text_lo' | 'text_hi' | 'text_any'>('hex');
+	const searchAllBanks = ref(false);
+	const searchError = ref("");
+	const highlightedRange = ref<{ start: number, length: number } | null>(null);
+
+	const isHighlighted = (index: number) => {
+		if (!highlightedRange.value) return false;
+		const addr = startAddress.value + index;
+		return addr >= highlightedRange.value.start && addr < highlightedRange.value.start + highlightedRange.value.length;
+	};
+
+	const performSearch = (direction: 1 | -1) => {
+		searchError.value = "";
+		highlightedRange.value = null;
+		if (!searchQuery.value || !vm?.value) return;
+
+		let searchBytes: number[] = [];
+
+		if (searchMode.value === 'hex') {
+			const clean = searchQuery.value.replace(/\s+/g, '');
+			if (!/^[0-9a-fA-F]+$/.test(clean) || clean.length % 2 !== 0) {
+				searchError.value = "Invalid Hex";
+				return;
+			}
+			for (let i = 0; i < clean.length; i += 2) {
+				searchBytes.push(parseInt(clean.substring(i, i + 2), 16));
+			}
+		} else {
+			for (let i = 0; i < searchQuery.value.length; i++) {
+				const charCode = searchQuery.value.charCodeAt(i) & 0x7F;
+				if (searchMode.value === 'text_hi') {
+					searchBytes.push(charCode | 0x80);
+				} else {
+					searchBytes.push(charCode);
+				}
+			}
+		}
+
+		if (searchBytes.length === 0) return;
+
+		const bankBase = startAddress.value & 0xFF0000;
+		const currentOffset = startAddress.value & 0xFFFF;
+		const banks = vm.value.machineConfig.memory.banks || 1;
+		const totalMemory = banks * 0x10000;
+		const maxSearch = searchAllBanks.value ? totalMemory : 0x10000;
+
+		let foundAddr = -1;
+
+		for (let i = 1; i < maxSearch; i++) {
+			let checkAddr = 0;
+
+			if (searchAllBanks.value) {
+				let rawAddr = startAddress.value + (direction * i);
+				while (rawAddr < 0) rawAddr += totalMemory;
+				while (rawAddr >= totalMemory) rawAddr -= totalMemory;
+				checkAddr = rawAddr;
+			} else {
+				const offsetToCheck = direction === 1 ? (currentOffset + i) & 0xFFFF : (currentOffset - i) & 0xFFFF;
+				checkAddr = bankBase | offsetToCheck;
+			}
+
+			let match = true;
+			for (let j = 0; j < searchBytes.length; j++) {
+				let addrToRead = 0;
+				if (searchAllBanks.value) {
+					addrToRead = (checkAddr + j) % totalMemory;
+				} else {
+					addrToRead = bankBase | ((checkAddr + j) & 0xFFFF);
+				}
+
+				let val = vm.value.readDebug(addrToRead, debugOverrides.value);
+
+				if (searchMode.value === 'text_any') {
+					val &= 0x7F;
+				}
+
+				if (val !== searchBytes[j]) {
+					match = false;
+					break;
+				}
+			}
+
+			if (match) {
+				foundAddr = checkAddr;
+				break;
+			}
+		}
+
+		if (foundAddr !== -1) {
+			highlightedRange.value = { start: foundAddr, length: searchBytes.length };
+			// Center the found address in the view and align to row boundary
+			const foundRowStart = foundAddr & 0xFFFFFFF0;
+			const rowsBefore = Math.floor(visibleRowCount.value / 2);
+			let newStart = foundRowStart - (rowsBefore * BYTES_PER_LINE);
+			if (newStart < 0) newStart = 0;
+			startAddress.value = newStart;
+		}
+		else searchError.value = searchAllBanks.value ? "Not found in memory" : "Not found in current bank";
+	};
+
+	// --- Context Menu ---
+	const contextMenu = ref({
+		isOpen: false,
+		x: 0,
+		y: 0,
+		address: 0
+	});
+
+	const handleContextMenu = (index: number, event: MouseEvent) => {
+		contextMenu.value = {
+			isOpen: true,
+			x: event.clientX,
+			y: event.clientY,
+			address: startAddress.value + index
+		};
+	};
+
+	const closeContextMenu = () => {
+		contextMenu.value.isOpen = false;
+	};
+
+	const { addBreakpoint, breakpoints } = useBreakpoints();
+
+	const addBp = (type: 'read' | 'write' | 'access') => {
+		if (!vm?.value) return;
+		const addr = contextMenu.value.address;
+		addBreakpoint({ type, address: addr }, vm.value);
+		closeContextMenu();
+	};
+
+	const getBreakpointClass = (index: number) => {
+		const addr = startAddress.value + index;
+		const bps = breakpoints.value.filter(b => b.enabled && b.address === addr);
+		if (bps.length === 0) return '';
+
+		if (bps.some(b => b.type === 'access')) return 'ring-2 ring-inset ring-green-500/80';
+		if (bps.some(b => b.type === 'write')) return 'ring-2 ring-inset ring-red-500/80';
+		if (bps.some(b => b.type === 'read')) return 'ring-2 ring-inset ring-yellow-500/80';
+		if (bps.some(b => b.type === 'pc')) return 'ring-2 ring-inset ring-indigo-500/80';
+		return '';
 	};
 
 	// This will be our reactive trigger to update the view
@@ -214,9 +405,11 @@ import BinaryLoader from "./BinaryLoader.vue";
 		subscribeToUiUpdates?.(() => {
 			tick.value++;
 		});
+
+		document.addEventListener('click', closeContextMenu);
 	});
 
-	onUnmounted(() => resizeObserver?.disconnect());
+	onUnmounted(() => { resizeObserver?.disconnect(); document.removeEventListener('click', closeContextMenu); });
 
 	const handleOffsetChange = (event: Event) => {
 		const target = event.target as HTMLInputElement;
@@ -280,12 +473,19 @@ import BinaryLoader from "./BinaryLoader.vue";
 		else if (event.key === "ArrowDown") direction = BYTES_PER_LINE;
 		else if (event.key === "ArrowLeft") direction = -1;
 		else if (event.key === "ArrowRight") direction = 1;
-		else return;
+		else if (event.key === " " && mode === 'hex') direction = 1;
+		else if (event.key === "Enter") direction = 1;
+		else if (event.key === "Escape") return (event.target as HTMLElement).blur();
+		else {
+			if (mode === 'hex' && event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) {
+				if (!/^[0-9a-fA-F]$/.test(event.key)) event.preventDefault();
+			}
+			return;
+		}
 
 		event.preventDefault();
 
-		const currentAbs = startAddress.value + index;
-		const targetAbs = currentAbs + direction;
+		const targetAbs = startAddress.value + index + direction;
 
 		if (targetAbs < 0 || targetAbs > 0xFFFFFF) return;
 
@@ -347,7 +547,8 @@ import BinaryLoader from "./BinaryLoader.vue";
 		return '·';
 	};
 
-	const getAsciiClass = (byte: number | undefined) => {
+	const getAsciiClass = (byte: number | undefined, highlighted = false) => {
+		if (highlighted) return 'bg-yellow-600 text-white';
 		if (byte === undefined) return 'text-gray-500';
 		const val = byte & 0x7F;
 		if (val < 0x20) return 'text-gray-500';
