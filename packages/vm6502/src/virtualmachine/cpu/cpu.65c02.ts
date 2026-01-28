@@ -63,6 +63,8 @@ const FLAG_D_MASK = 0x08;
 // const FLAG_B_MASK = 0x10;
 const FLAG_V_MASK = 0x40;
 
+const isHyperCallActive = true;
+
 // Re-export breakpoint functions for external use
 export { addBreakpoint, removeBreakpoint, clearBreakpoints, setBreakOnBrk };
 
@@ -427,10 +429,10 @@ function executeInstruction(): number {
 			// --- BRK ---
 			case 0x00: {
 				// BRK
-				if (breakOnBrk && isRunning) {
+				if (isHyperCallActive || (breakOnBrk && isRunning)) {
 					setRunning(false);
 					pc--; // Point back to the BRK instruction so the user sees it
-					self.postMessage({ type: "breakpointHit", breakpointType: "brk", address: pc });
+					self.postMessage({ type: "break", address: pc });
 					cycles = 0;
 					break;
 				}

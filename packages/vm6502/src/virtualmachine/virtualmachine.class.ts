@@ -20,9 +20,12 @@ import {
 	REG_Y_OFFSET,
 } from "@/virtualmachine/cpu/shared-memory";
 import { VideoOutput } from "@/virtualmachine/video/video.output";
+import { useMemoryMap } from "../composables/useMemoryMap";
 import { parseHexData } from "../lib/array.utils";
 import type { Breakpoint } from "../types/breakpoint.interface";
 import type { EmulatorState } from "../types/emulatorstate.interface";
+
+const HYPERCALL_COMMANDS = new Set([0x01, 0x02, 0x03]);
 
 const MachinesBasePath = "../machines";
 const busModules = import.meta.glob("../machines/*/*.bus.ts");
@@ -76,7 +79,7 @@ export class VirtualMachine {
 		});
 
 		this.worker.onmessage = (event) => {
-			const { command, colors, type, history, buffer, payload } = event.data;
+			const { command, colors, type, history, buffer, payload, address } = event.data;
 
 			switch (type) {
 				case "audio":
@@ -93,6 +96,15 @@ export class VirtualMachine {
 					break;
 				case "isRunning":
 					this._isRunning = event.data.isRunning;
+					this.onmessage?.(event);
+					break;
+				case "break": {
+					// It's a BRK instruction. Check for hypercalls.
+					const hypercallCommand = this.read(address + 1);
+					if (HYPERCALL_COMMANDS.has(hypercallCommand)) this.executeHypercallCmd(hypercallCommand, address);
+					break;
+				}
+				case "breakpointHit":
 					this.onmessage?.(event);
 					break;
 				default:
@@ -500,6 +512,106 @@ export class VirtualMachine {
 
 	public getMachineStateSpecs(): MachineStateSpec[] {
 		return this.bus?.getMachineStateSpecs ? this.bus.getMachineStateSpecs() : [];
+	}
+
+	private readString(address: number): string {
+		let message = "";
+		let charAddr = address;
+		let charCode = this.read(charAddr);
+		// Safety break at 256 chars to prevent infinite loops on unterminated strings
+		while (charCode !== 0 && message.length < 256) {
+			message += String.fromCharCode(charCode & 0x7f);
+			charAddr++;
+			charCode = this.read(charAddr);
+		}
+		return message;
+	}
+
+	private executeHypercallCmd(hypercallCommand: number, pc: number) {
+		let offsetPC = 0;
+		switch (hypercallCommand) {
+			case 0x01: {
+				// LOG_STRING
+				// Read the 16-bit address of the string from PC+2 and PC+3
+				const stringAddr = this.read(pc + 2) | (this.read(pc + 3) << 8);
+				const message = this.readString(stringAddr);
+
+				// Log the message
+				// this.onLog?.({ message: `GUEST: ${message}` });
+				console.log("VM: LOG_STRING:", message);
+
+				// Advance PC past the BRK and its arguments (BRK, CMD, ADDR_LO, ADDR_HI)
+				offsetPC = 4;
+				break;
+			}
+
+			case 0x02: {
+				// LOG_REGS
+				const A = this.sharedRegisters.getUint8(REG_A_OFFSET);
+				const X = this.sharedRegisters.getUint8(REG_X_OFFSET);
+				const Y = this.sharedRegisters.getUint8(REG_Y_OFFSET);
+				const SP = this.sharedRegisters.getUint8(REG_SP_OFFSET);
+				const P = this.sharedRegisters.getUint8(REG_STATUS_OFFSET);
+
+				const message = `A:${A.toString(16).padStart(2, "0")} X:${X.toString(16).padStart(2, "0")} Y:${Y.toString(16).padStart(2, "0")} P:${P.toString(16).padStart(2, "0")} SP:${SP.toString(16).padStart(2, "0")}`;
+				// this.onLog?.({ message: `GUEST_REGS: ${message}` });
+				console.log("VM: LOG_REGS:", message);
+
+				// Advance PC past BRK and command byte
+				offsetPC = 2;
+
+				break;
+			}
+
+			case 0x03: {
+				// ADD_REGION
+				// Format: BRK $03 <Start:word> <Size:word> <NamePtr:word> <ColorPtr:word>
+				const start = this.read(pc + 2) | (this.read(pc + 3) << 8);
+				const size = this.read(pc + 4) | (this.read(pc + 5) << 8);
+				const namePtr = this.read(pc + 6) | (this.read(pc + 7) << 8);
+				const colorPtr = this.read(pc + 8) | (this.read(pc + 9) << 8);
+
+				const name = this.readString(namePtr);
+				let color: string | undefined;
+				if (colorPtr !== 0) color = this.readString(colorPtr);
+
+				if (!color) {
+					const colors = [
+						"#f87171",
+						"#fb923c",
+						"#fbbf24",
+						"#facc15",
+						"#a3e635",
+						"#4ade80",
+						"#34d399",
+						"#2dd4bf",
+						"#22d3ee",
+						"#38bdf8",
+						"#60a5fa",
+						"#818cf8",
+						"#a78bfa",
+						"#c084fc",
+						"#e879f9",
+						"#f472b6",
+						"#fb7185",
+					];
+					color = colors[Math.floor(Math.random() * colors.length)] ?? "#a855f7";
+				}
+
+				const { addRegion } = useMemoryMap();
+				addRegion({ name, start, size, color, removable: true });
+
+				console.log(`VM: ADD_REGION: ${name} @ $${start.toString(16)} size $${size.toString(16)}`);
+
+				offsetPC = 10;
+				break;
+			}
+		}
+
+		console.log(`VM: PC = $${(pc + offsetPC).toString(16)}`);
+
+		this.updateRegister("PC", pc + offsetPC);
+		// this.play();
 	}
 
 	public terminate() {
