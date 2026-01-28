@@ -1,5 +1,5 @@
 <template>
-	<div class="flex justify-start items-center space-x-4 bg-gray-800 rounded-xl shadow-inner border border-gray-700 shrink-0">
+	<div class="flex justify-start items-center space-x-2 bg-gray-800 p-2 rounded-xl shadow-inner border border-gray-700 shrink-0">
 
 		<ButtonGroup>
 			<Button	@click="toggle"
@@ -68,6 +68,8 @@
 			</Button>
 		</ButtonGroup>
 
+		<MemoryMap />
+
 		<ButtonGroup>
 			<Button @click="vm?.refreshVideo"
 				size="sm"
@@ -104,6 +106,7 @@
 <script lang="ts" setup>
 import { ArrowDownToDot, ArrowUpFromDot, CornerDownRight, Octagon, Pause, Play, ScrollText } from "lucide-vue-next";
 import { inject, type Ref, ref } from "vue";
+import MemoryMap from "@/app/debugger/MemoryMap.vue";
 import { Button } from '@/components/ui/button';
 import { ButtonGroup } from '@/components/ui/button-group';
 import { Kbd } from '@/components/ui/kbd';
