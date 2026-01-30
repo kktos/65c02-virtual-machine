@@ -617,7 +617,7 @@ export class VirtualMachine {
 		console.log(`VM: PC = $${(pc + offsetPC).toString(16)}`);
 
 		this.updateRegister("PC", pc + offsetPC);
-		// this.play();
+		this.play();
 	}
 
 	public terminate() {
