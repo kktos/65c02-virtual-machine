@@ -72,6 +72,12 @@ export class VirtualMachine {
 
 	constructor(machineConfig: MachineConfig) {
 		this.machineConfig = machineConfig;
+
+		if (this.machineConfig.regions) {
+			const { addRegion } = useMemoryMap();
+			this.machineConfig.regions.forEach((region) => addRegion(region));
+		}
+
 		this.worker = new Worker(new URL("./cpu/cpu.worker.ts", import.meta.url), { type: "module" });
 
 		this.workerReadyPromise = new Promise<void>((resolve) => {

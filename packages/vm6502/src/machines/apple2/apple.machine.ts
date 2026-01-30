@@ -2,6 +2,7 @@
 import type { MachineConfig } from "@/types/machine.interface";
 import { debugConfig } from "./conf/debug.conf";
 import { memoryConfig } from "./conf/memory.conf";
+import { regionsConfig } from "./conf/regions.conf";
 import { symbolsConfig } from "./conf/symbols.conf";
 
 export const apple2e: MachineConfig = {
@@ -18,4 +19,5 @@ export const apple2e: MachineConfig = {
 	disk: { enabled: true, name: "SPDisk" },
 	debugOptions: debugConfig,
 	symbols: symbolsConfig,
+	regions: regionsConfig,
 };

@@ -23,6 +23,15 @@ export interface MemoryChunk {
 	tag?: string;
 }
 
+export interface MemoryRegion {
+	name: string;
+	start: number;
+	size: number;
+	color: string;
+	removable?: boolean;
+	bank?: number;
+}
+
 export interface MemoryConfig {
 	size: number;
 	banks?: number;
@@ -49,6 +58,7 @@ export interface MachineConfig {
 	name: string;
 	speed?: number;
 	memory: MemoryConfig;
+	regions?: MemoryRegion[];
 	bus: {
 		class: string; // exported class name
 		path: string; // Path relative to the worker for dynamic import
