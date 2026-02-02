@@ -70,14 +70,15 @@
 
 		<MemoryMap />
 
-		<ButtonGroup>
-			<Button @click="vm?.refreshVideo"
-				size="sm"
-				:disabled="isRunning"
-				class="hover:bg-gray-600 disabled:opacity-50"
-				title="Force a video refresh (useful when paused)"
-			>Refresh Video</Button>
-		</ButtonGroup>
+		<button
+			@click="vm?.refreshVideo"
+			:disabled="isRunning"
+			class="group relative flex items-center justify-center w-10 h-10 bg-gray-700 hover:bg-gray-600 rounded-lg border border-gray-600 transition-colors shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+			title="Force a video refresh (useful when paused)"
+		>
+			<RefreshCw class="h-6 w-6 text-cyan-400 group-hover:text-cyan-300" />
+			<Monitor class="absolute h-2.5 w-2.5 text-white group-hover:text-cyan-300" />
+		</button>
 
 		<ButtonGroup>
 			<Button @click="vm?.reset"
@@ -104,7 +105,7 @@
 </template>
 
 <script lang="ts" setup>
-import { ArrowDownToDot, ArrowUpFromDot, CornerDownRight, Octagon, Pause, Play, ScrollText } from "lucide-vue-next";
+import { ArrowDownToDot, ArrowUpFromDot, CornerDownRight, Monitor, Octagon, Pause, Play, RefreshCw, ScrollText } from "lucide-vue-next";
 import { inject, type Ref, ref } from "vue";
 import MemoryMap from "@/app/debugger/MemoryMap.vue";
 import { Button } from '@/components/ui/button';
