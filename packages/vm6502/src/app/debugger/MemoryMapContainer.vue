@@ -24,8 +24,9 @@
 			<div
 				v-for="region in processedRegions"
 				:key="region.name"
-				class="absolute rounded-sm text-white flex items-center justify-center overflow-hidden border border-black/10 shadow-sm transition-all hover:z-10 hover:brightness-110"
+				class="absolute rounded-sm text-white flex items-center justify-center overflow-hidden border border-black/10 shadow-sm transition-all hover:z-10 hover:brightness-110 cursor-pointer"
 				:style="region.style"
+				@click="onRegionClick(region)"
 				:title="`${region.name} ($${region.start.toString(16).toUpperCase()} - $${(region.start + region.size - 1).toString(16).toUpperCase()})${region.bank === undefined && totalBanks > 1 ? ' (Mirrored)' : ''}`"
 			>
 				<Layers
@@ -91,6 +92,7 @@
 <script lang="ts" setup>
 import { ChevronDown, ChevronUp, Layers, Maximize2, Minimize2 } from "lucide-vue-next";
 import { computed, inject, type Ref, ref } from "vue";
+import { useDebuggerNav } from "@/composables/useDebuggerNav";
 import { type MemoryRegion, useMemoryMap } from "@/composables/useMemoryMap";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 
@@ -98,6 +100,12 @@ const { regions, addRegion, removeRegion, currentBank } = useMemoryMap();
 const vm = inject<Ref<VirtualMachine>>("vm");
 
 const isCompact = ref(false);
+const { memoryViewAddress } = useDebuggerNav();
+
+const onRegionClick = (region: MemoryRegion) => {
+	const bank = region.bank !== undefined ? region.bank : currentBank.value;
+	memoryViewAddress.value = (bank << 16) | region.start;
+};
 
 const totalBanks = computed(() => vm?.value?.machineConfig?.memory?.banks ?? 1);
 
