@@ -76,8 +76,8 @@
 			class="group relative flex items-center justify-center w-10 h-10 bg-gray-700 hover:bg-gray-600 rounded-lg border border-gray-600 transition-colors shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
 			title="Force a video refresh (useful when paused)"
 		>
-			<RefreshCw class="h-6 w-6 text-cyan-400 group-hover:text-cyan-300" />
-			<Monitor class="absolute h-2.5 w-2.5 text-white group-hover:text-cyan-300" />
+			<RefreshCw class="h-2.5 w-2.5 -mt-1 text-cyan-400 group-hover:text-cyan-300" />
+			<Monitor class="absolute h-6 w-6 text-gray-400 group-hover:text-cyan-300" />
 		</button>
 
 		<ButtonGroup>
