@@ -27,7 +27,7 @@ export interface MemoryRegion {
 	name: string;
 	start: number;
 	size: number;
-	color: string;
+	color?: string;
 	removable?: boolean;
 	bank?: number;
 }

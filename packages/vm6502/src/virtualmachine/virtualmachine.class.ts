@@ -571,41 +571,16 @@ export class VirtualMachine {
 
 			case 0x03: {
 				// ADD_REGION
-				// Format: BRK $03 <Start:word> <Size:word> <NamePtr:word> <ColorPtr:word>
+				// Format: BRK $03 <Start:word> <Size:word> <NamePtr:word> <Bank:word>
 				const start = this.read(pc + 2) | (this.read(pc + 3) << 8);
 				const size = this.read(pc + 4) | (this.read(pc + 5) << 8);
 				const namePtr = this.read(pc + 6) | (this.read(pc + 7) << 8);
-				const colorPtr = this.read(pc + 8) | (this.read(pc + 9) << 8);
+				const bank = this.read(pc + 8) | (this.read(pc + 9) << 8);
 
 				const name = this.readString(namePtr);
-				let color: string | undefined;
-				if (colorPtr !== 0) color = this.readString(colorPtr);
-
-				if (!color) {
-					const colors = [
-						"#f87171",
-						"#fb923c",
-						"#fbbf24",
-						"#facc15",
-						"#a3e635",
-						"#4ade80",
-						"#34d399",
-						"#2dd4bf",
-						"#22d3ee",
-						"#38bdf8",
-						"#60a5fa",
-						"#818cf8",
-						"#a78bfa",
-						"#c084fc",
-						"#e879f9",
-						"#f472b6",
-						"#fb7185",
-					];
-					color = colors[Math.floor(Math.random() * colors.length)] ?? "#a855f7";
-				}
 
 				const { addRegion } = useMemoryMap();
-				addRegion({ name, start, size, color, removable: true });
+				addRegion({ name, start, size, bank, removable: true });
 
 				console.log(`VM: ADD_REGION: ${name} @ $${start.toString(16)} size $${size.toString(16)}`);
 
