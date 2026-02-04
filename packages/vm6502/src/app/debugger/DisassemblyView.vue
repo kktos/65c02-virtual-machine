@@ -1,7 +1,7 @@
 <template>
 	<div class="p-4 bg-gray-800 rounded-lg shadow-xl h-full flex flex-col" ref="scrollContainer">
 		<!-- Header combining title, count, and action button -->
-		<div class="flex justify-between items-center mb-2 shrink-0">
+		<div class="flex justify-between items-center mb-2 shrink-0 gap-4">
 			<!-- History Navigation -->
 			<ButtonGroup>
 				<Button @click="navigateBack" :disabled="!canNavigateBack" size="sm" class="px-2 hover:bg-gray-600 disabled:opacity-50" title="Go back in jump history">
@@ -35,13 +35,34 @@
 				</button>
 			</div>
 
-			<button
-				@click="handleExplain"
-				:disabled="isLoading || (disassembly && disassembly.length === 0)"
-				class="text-xs px-3 py-1 rounded-full bg-indigo-600 text-white hover:bg-indigo-500 transition duration-150 shadow-md flex items-center disabled:opacity-50"
-			>
-				{{ isLoading ? 'Analyzing...' : 'Explain Code Block ✨' }}
-			</button>
+			<div class="flex items-center space-x-2">
+				<button
+					@click="handleExplain"
+					:disabled="isLoading || (disassembly && disassembly.length === 0)"
+					class="text-xs px-3 py-1 rounded-full bg-indigo-600 text-white hover:bg-indigo-500 transition duration-150 shadow-md flex items-center disabled:opacity-50"
+				>
+					{{ isLoading ? 'Analyzing...' : '✨' }}
+				</button>
+
+				<Popover>
+					<PopoverTrigger as-child>
+						<Button variant="ghost" size="icon" class="h-6 w-6 text-gray-400 hover:text-cyan-300" title="Disassembly Options">
+							<Settings class="h-4 w-4" />
+						</Button>
+					</PopoverTrigger>
+					<PopoverContent class="w-60 bg-gray-800 border-gray-700 text-gray-200">
+						<div class="grid gap-4">
+							<span class="text-sm font-bold text-gray-200 capitalize">Disasm Settings</span>
+							<div class="grid gap-2">
+								<div class="flex items-center space-x-2">
+									<Checkbox id="showCycles" v-model="settings.disassembly.showCycles" />
+									<label for="showCycles" class="text-xs font-medium leading-none cursor-pointer select-none"> Show Cycles </label>
+								</div>
+							</div>
+						</div>
+					</PopoverContent>
+				</Popover>
+			</div>
 		</div>
 
 		<!-- Explanation Result Panel -->
@@ -67,13 +88,18 @@
 						<th class="py-1 text-left w-20"></th>
 						<th class="py-1 text-left w-36">Opcode</th>
 						<th class="py-1 text-left flex-grow">Comment</th>
-						<th class="py-1 text-right w-12">Cycles</th>
+						<th v-if="settings.disassembly.showCycles" class="py-1 text-right w-12">Cycles</th>
 					</tr>
 				</thead>
 				<tbody>
-					<tr
-						v-for="(line, index) in disassembly"
-						:key="index"
+					<template v-for="(line) in disassembly" :key="line.address">
+						<tr v-if="getLabelForAddress(line.address)">
+							<td class="py-0.5"></td>
+							<td colspan="5" class="py-0.5 px-2 text-yellow-500 font-bold font-mono text-xs border-l-4 border-transparent">
+								{{ getLabelForAddress(line.address) }}:
+							</td>
+						</tr>
+						<tr
 						:class="[
 							'hover:bg-gray-700 transition duration-100 border-l-4',
 							line.address === address ?
@@ -112,10 +138,11 @@
 						<td class="py-0.5 text-left text-gray-500 italic">
 							{{ line.comment || (getLabeledInstruction(line.opcode).labelComment ? '; ' + getLabeledInstruction(line.opcode).labelComment : '') }}
 						</td>
-						<td class="py-0.5 text-center text-gray-400">
+						<td v-if="settings.disassembly.showCycles" class="py-0.5 text-center text-gray-400">
 							{{ line.cycles }}
 						</td>
 					</tr>
+					</template>
 				</tbody>
 			</table>
 		</div>
@@ -125,14 +152,17 @@
 <script lang="ts" setup>
 	/** biome-ignore-all lint/correctness/noUnusedVariables: vue */
 
-import { ArrowLeft, ArrowRight } from "lucide-vue-next";
+import { ArrowLeft, ArrowRight, Settings } from "lucide-vue-next";
 import { computed, inject, onMounted, onUnmounted, type Ref, ref, watch } from "vue";
 import { Button } from '@/components/ui/button';
 import { ButtonGroup } from '@/components/ui/button-group';
+import { Checkbox } from "@/components/ui/checkbox";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useBreakpoints } from "@/composables/useBreakpoints";
 import { useDebuggerNav } from "@/composables/useDebuggerNav";
 import { useDisassembly } from "@/composables/useDisassembly";
 import { useLabeling } from "@/composables/useLabeling";
+import { useSettings } from "@/composables/useSettings";
 import { disassemble } from "@/lib/disassembler";
 import { handleExplainCode } from "@/lib/gemini.utils";
 import type { DisassemblyLine } from "@/types/disassemblyline.interface";
@@ -151,6 +181,7 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 	const { pcBreakpoints, toggleBreakpoint } = useBreakpoints();
 	const { jumpEvent } = useDisassembly();
 	const { setMemoryViewAddress, setActiveTab, addJumpHistory, historyNavigationEvent,navigateHistory, jumpHistory, historyIndex } = useDebuggerNav();
+	const { settings } = useSettings();
 
 	const handleAddressClick = (address: number) => {
 		setMemoryViewAddress(address);
@@ -310,7 +341,7 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 
 	const explanation = ref(null);
 	const isLoading = ref(false);
-	const { getLabeledInstruction } = useLabeling();
+	const { getLabeledInstruction, getLabelForAddress } = useLabeling();
 
 	const scrollContainer = ref<HTMLElement | null>(null);
 	const containerHeight = ref(0);

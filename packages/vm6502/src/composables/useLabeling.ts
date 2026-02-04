@@ -52,5 +52,9 @@ export function useLabeling() {
 		}
 		vm?.value?.addSymbols(symbols);
 	};
-	return { getLabeledInstruction, loadSymbolsFromText };
+
+	const getLabelForAddress = (address: number) => {
+		return vm?.value?.machineConfig?.symbols?.[address];
+	};
+	return { getLabeledInstruction, loadSymbolsFromText, getLabelForAddress };
 }
