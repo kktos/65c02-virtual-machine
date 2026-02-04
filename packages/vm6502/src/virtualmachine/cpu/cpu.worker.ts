@@ -2,6 +2,7 @@ import type { MachineConfig } from "@/types/machine.interface";
 import type { Video } from "@/types/video.interface";
 import { AppleBus } from "../../machines/apple2/apple.bus";
 import { VideoTester } from "../../machines/apple2/video/tester/video.tester";
+import { BP_PC, breakpointMap } from "./breakpoints";
 import type { IBus } from "./bus.interface";
 import {
 	addBreakpoint,
@@ -22,7 +23,7 @@ import {
 } from "./cpu.65c02";
 import { loadBus } from "./loaders/bus.loader";
 import { loadVideo } from "./loaders/video.loader";
-import { MEMORY_OFFSET, STACK_METADATA_OFFSET } from "./shared-memory";
+import { MEMORY_OFFSET, REG_PC_OFFSET, STACK_METADATA_OFFSET } from "./shared-memory";
 
 const COLORED_LOG = "color:magenta;font-weight:bold;";
 const COLORDEFAULT_LOG = "color:inherit;font-weight:normal;";
@@ -83,6 +84,12 @@ self.onmessage = async (event: MessageEvent) => {
 
 	switch (command) {
 		case "run":
+			// If we are paused at a breakpoint, step over the instruction first
+			// before resuming execution to avoid getting stuck.
+			{
+				const pc = registersView.getUint16(REG_PC_OFFSET, true);
+				if (Number(breakpointMap[pc]) & BP_PC) stepInstruction();
+			}
 			setRunning(true);
 			break;
 		case "pause":
