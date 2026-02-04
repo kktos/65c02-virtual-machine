@@ -2,10 +2,10 @@
 	<div class="flex justify-between items-center mb-2 shrink-0 gap-4">
 		<!-- History Navigation -->
 		<ButtonGroup>
-			<Button @click="$emit('navigateBack')" :disabled="!canNavigateBack" size="sm" class="px-2 hover:bg-gray-600 disabled:opacity-50" title="Go back in jump history">
+			<Button @click="navigateBack" :disabled="!canNavigateBack" size="sm" class="px-2 hover:bg-gray-600 disabled:opacity-50" title="Go back in jump history">
 				<ArrowLeft class="w-4 h-4" />
 			</Button>
-			<Button @click="$emit('navigateForward')" :disabled="!canNavigateForward" size="sm" class="px-2 hover:bg-gray-600 disabled:opacity-50" title="Go forward in jump history">
+			<Button @click="navigateForward" :disabled="!canNavigateForward" size="sm" class="px-2 hover:bg-gray-600 disabled:opacity-50" title="Go forward in jump history">
 				<ArrowRight class="w-4 h-4" />
 			</Button>
 		</ButtonGroup>
@@ -78,41 +78,44 @@
 
 <script lang="ts" setup>
 import { ArrowLeft, ArrowRight, Settings2 } from "lucide-vue-next";
-import { ref } from "vue";
+import { computed, ref } from "vue";
 import { Button } from '@/components/ui/button';
 import { ButtonGroup } from '@/components/ui/button-group';
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { useDebuggerNav } from "@/composables/useDebuggerNav";
 import { useSettings } from "@/composables/useSettings";
 
-defineProps<{
-	canNavigateBack: boolean;
-	canNavigateForward: boolean;
-	isFollowingPc: boolean;
-	isLoading: boolean;
-	hasDisassembly: boolean;
-	availableScopes: string[];
-}>();
+	defineProps<{
+		isFollowingPc: boolean;
+		isLoading: boolean;
+		hasDisassembly: boolean;
+		availableScopes: string[];
+	}>();
 
-const emit = defineEmits<{
-	(e: 'navigateBack'): void;
-	(e: 'navigateForward'): void;
-	(e: 'syncToPc'): void;
-	(e: 'explain'): void;
-	(e: 'gotoAddress', address: number): void;
-}>();
+	const emit = defineEmits<{
+		(e: 'syncToPc'): void;
+		(e: 'explain'): void;
+		(e: 'gotoAddress', address: number): void;
+	}>();
 
-const { settings } = useSettings();
-const gotoAddressInput = ref("");
+	const { historyIndex, jumpHistory, navigateHistory } = useDebuggerNav();
+	const { settings } = useSettings();
+	const gotoAddressInput = ref("");
 
-const onGotoAddress = () => {
-	let val = gotoAddressInput.value.trim();
-	if (!val) return;
-	val = val.replace(/^\$/, '').replace(/^0x/i, '');
-	const addr = parseInt(val, 16);
-	if (!Number.isNaN(addr)) {
-		emit('gotoAddress', addr);
-		gotoAddressInput.value = "";
-	}
-};
+	const canNavigateBack = computed(() => historyIndex.value > 0);
+	const canNavigateForward = computed(() => historyIndex.value < jumpHistory.value.length - 1);
+	const navigateBack = () => navigateHistory('back');
+	const navigateForward = () => navigateHistory('forward');
+
+	const onGotoAddress = () => {
+		let val = gotoAddressInput.value.trim();
+		if (!val) return;
+		val = val.replace(/^\$/, '').replace(/^0x/i, '');
+		const addr = parseInt(val, 16);
+		if (!Number.isNaN(addr)) {
+			emit('gotoAddress', addr);
+			gotoAddressInput.value = "";
+		}
+	};
 </script>
