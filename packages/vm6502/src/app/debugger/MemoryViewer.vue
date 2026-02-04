@@ -1,5 +1,5 @@
 <template>
-	<div class="p-4 bg-gray-800 rounded-lg shadow-xl h-full flex flex-col" ref="scrollContainer">
+	<div :class="['p-4 rounded-lg shadow-xl h-full flex flex-col transition-all duration-200', isActive ? 'bg-gray-800 ring-1 ring-cyan-500' : '']" ref="scrollContainer">
 		<div class="mb-3 mt-1 flex flex-wrap items-center gap-4 shrink-0">
 			<div class="flex items-center space-x-2">
 				<span class="text-gray-300 text-sm">Addr:</span>
@@ -192,6 +192,7 @@ import BinaryLoader from "./BinaryLoader.vue";
 		canClose?: boolean;
 		initialAddress?: number;
 		listenToNav?: boolean;
+		isActive?: boolean;
 	}>();
 
 	const emit = defineEmits<{

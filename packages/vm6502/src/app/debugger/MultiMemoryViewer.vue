@@ -6,7 +6,9 @@
 					:id="`mem-viewer-${viewer.id}`"
 					:can-close="viewers.length > 1"
 					:initial-address="viewer.address"
-					:listen-to-nav="index === 0"
+					:listen-to-nav="viewer.id === activeViewerId"
+					:is-active="viewer.id === activeViewerId"
+					@click="activeViewerId = viewer.id"
 					@split="addViewer(index, $event)"
 					@close="removeViewer(index)"
 					@update:address="updateViewerAddress(index, $event)"
@@ -32,6 +34,7 @@ interface Viewer {
 const STORAGE_KEY = 'memory-viewers-layout';
 const nextId = ref(1);
 const viewers = ref<Viewer[]>([{ id: 0 }]);
+const activeViewerId = ref(0);
 
 const saveLayout = () => {
 	localStorage.setItem(STORAGE_KEY, JSON.stringify(viewers.value));
@@ -53,7 +56,11 @@ const addViewer = (index: number, currentAddress?: number) => {
 };
 
 const removeViewer = (index: number) => {
+	const removedId = viewers.value[index].id;
 	viewers.value.splice(index, 1);
+	if (removedId === activeViewerId.value) {
+		activeViewerId.value = viewers.value[0]?.id ?? 0;
+	}
 	saveLayout();
 };
 
@@ -66,6 +73,9 @@ onMounted(() => {
 				viewers.value = parsed;
 				const maxId = parsed.reduce((max, v) => Math.max(max, v.id), 0);
 				nextId.value = maxId + 1;
+				if (!viewers.value.some((v) => v.id === activeViewerId.value)) {
+					activeViewerId.value = viewers.value[0]?.id ?? 0;
+				}
 			}
 		} catch (e) {
 			console.error('Failed to load memory viewers layout', e);
