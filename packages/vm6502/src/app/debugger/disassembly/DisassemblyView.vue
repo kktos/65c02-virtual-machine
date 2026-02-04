@@ -1,81 +1,19 @@
 <template>
 	<div class="p-4 bg-gray-800 rounded-lg shadow-xl h-full flex flex-col" ref="scrollContainer">
 		<!-- Header combining title, count, and action button -->
-		<div class="flex justify-between items-center mb-2 shrink-0 gap-4">
-			<!-- History Navigation -->
-			<ButtonGroup>
-				<Button @click="navigateBack" :disabled="!canNavigateBack" size="sm" class="px-2 hover:bg-gray-600 disabled:opacity-50" title="Go back in jump history">
-					<ArrowLeft class="w-4 h-4" />
-				</Button>
-				<Button @click="navigateForward" :disabled="!canNavigateForward" size="sm" class="px-2 hover:bg-gray-600 disabled:opacity-50" title="Go forward in jump history">
-					<ArrowRight class="w-4 h-4" />
-				</Button>
-			</ButtonGroup>
-
-			<div class="flex items-center space-x-2 mx-4">
-				<div class="relative group">
-					<span class="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500 text-xs font-mono">$</span>
-					<input
-						v-model="gotoAddressInput"
-						@keydown.enter="handleGotoAddress"
-						type="text"
-						class="w-20 bg-gray-900 text-gray-200 text-xs font-mono rounded px-2 pl-4 py-1 border border-gray-700 focus:border-cyan-500 focus:outline-none transition-all focus:w-24"
-						placeholder="Addr"
-						title="Enter address (hex)"
-					/>
-				</div>
-				<button
-					@click="syncToPc"
-					:class="['p-1 rounded transition-colors', isFollowingPc ? 'text-cyan-400 bg-cyan-400/10' : 'text-gray-500 hover:text-gray-300 hover:bg-gray-700']"
-					title="Sync with PC"
-				>
-					<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-						<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
-					</svg>
-				</button>
-			</div>
-
-			<div class="flex items-center space-x-2">
-				<button
-					@click="handleExplain"
-					:disabled="isLoading || (disassembly && disassembly.length === 0)"
-					class="text-xs px-3 py-1 rounded-full bg-indigo-600 text-white hover:bg-indigo-500 transition duration-150 shadow-md flex items-center disabled:opacity-50"
-				>
-					{{ isLoading ? 'Analyzing...' : '✨' }}
-				</button>
-
-				<Popover>
-					<PopoverTrigger as-child>
-						<Button variant="ghost" size="icon" class="h-6 w-6 text-gray-400 hover:text-cyan-300" title="Disassembly Options">
-							<Settings2 class="h-4 w-4" />
-						</Button>
-					</PopoverTrigger>
-					<PopoverContent class="w-60 bg-gray-800 border-gray-700 text-gray-200">
-						<div class="grid gap-4">
-							<span class="text-sm font-bold text-gray-200 capitalize">Disasm Settings</span>
-							<div class="grid gap-2 -mb-2">
-								<div class="flex items-center space-x-2">
-									<Checkbox id="showCycles" v-model="settings.disassembly.showCycles" />
-									<label for="showCycles" class="text-xs font-medium leading-none cursor-pointer select-none"> Show Cycles </label>
-								</div>
-							</div>
-							<div class="border-t border-gray-700 -mx-4 my-1"></div>
-							<div class="grid gap-2 max-h-48 overflow-y-auto pr-2 -mr-3">
-								<div v-for="scope in availableScopes" :key="scope" class="flex gap-2 items-center">
-									<input
-										type="color"
-										:id="`scope-color-${scope}`"
-										v-model="settings.disassembly.scopeColors[scope]"
-										class="w-5 h-5 p-0 border-none rounded bg-transparent cursor-pointer"
-									/>
-									<label :for="`scope-color-${scope}`" class="text-xs font-medium">{{ scope }}</label>
-								</div>
-							</div>
-						</div>
-					</PopoverContent>
-				</Popover>
-			</div>
-		</div>
+		<DisassemblyToolbar
+			:can-navigate-back="canNavigateBack"
+			:can-navigate-forward="canNavigateForward"
+			:is-following-pc="isFollowingPc"
+			:is-loading="isLoading"
+			:has-disassembly="!!(disassembly && disassembly.length > 0)"
+			:available-scopes="availableScopes"
+			@navigate-back="navigateBack"
+			@navigate-forward="navigateForward"
+			@sync-to-pc="syncToPc"
+			@explain="handleExplain"
+			@goto-address="onGotoAddress"
+		/>
 
 		<!-- Explanation Result Panel -->
 		<div v-if="explanation" class="mb-3 p-3 bg-gray-700 rounded-lg text-sm text-gray-200 shadow-inner shrink-0">
@@ -162,17 +100,15 @@
 </template>
 
 <script lang="ts" setup>
+
 	/** biome-ignore-all lint/correctness/noUnusedVariables: vue */
 
-import { ArrowLeft, ArrowRight, Settings2 } from "lucide-vue-next";
-import { computed, inject, onMounted, onUnmounted, type Ref, ref, watch } from "vue";
-import { Button } from '@/components/ui/button';
-import { ButtonGroup } from '@/components/ui/button-group';
-import { Checkbox } from "@/components/ui/checkbox";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { computed, inject, onMounted, type Ref, ref, watch } from "vue";
+import DisassemblyToolbar from "@/app/debugger/disassembly/DisassemblyToolbar.vue";
 import { useBreakpoints } from "@/composables/useBreakpoints";
 import { useDebuggerNav } from "@/composables/useDebuggerNav";
 import { useDisassembly } from "@/composables/useDisassembly";
+import { useDisassemblyScroll } from "@/composables/useDisassemblyScroll";
 import { useLabeling } from "@/composables/useLabeling";
 import { useSettings } from "@/composables/useSettings";
 import { disassemble } from "@/lib/disassembler";
@@ -296,19 +232,10 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 	const disassemblyStartAddress = ref(fullPcAddress.value);
 	const disassembly = ref<DisassemblyLine[]>([]);
 	const isFollowingPc = ref(true);
-	const gotoAddressInput = ref("");
 
-	const handleGotoAddress = () => {
-		let val = gotoAddressInput.value.trim();
-		if (!val) return;
-		// Remove $ or 0x prefixes
-		val = val.replace(/^\$/, '').replace(/^0x/i, '');
-		const addr = parseInt(val, 16);
-		if (!Number.isNaN(addr)) {
-			disassemblyStartAddress.value = addr;
-			isFollowingPc.value = false;
-			gotoAddressInput.value = "";
-		}
+	const onGotoAddress = (addr: number) => {
+		disassemblyStartAddress.value = addr;
+		isFollowingPc.value = false;
 	};
 
 	const syncToPc = () => {
@@ -318,26 +245,13 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 		}
 	};
 
-	let memoryProxy:Uint8Array<ArrayBufferLike>;
-
-
-	// Helper to find the start of the previous instruction.
-	// It does this by disassembling a small chunk before the target address
-	// and finding the last instruction boundary in that chunk.
-	const findPreviousInstructionAddress = (startAddr: number): number => {
-		if (startAddr <= 0) return 0;
-		// Go back a few bytes (max instruction length is 3) and disassemble
-		const lookbehind = 4;
-		const searchStart = Math.max(0, startAddr - lookbehind);
-		const tempDisassembly = disassemble(memoryProxy, searchStart, lookbehind);
-
-		// The last instruction in this temp block whose address is less than startAddr is our target.
-		for (let line of tempDisassembly.reverse())
-			if(line.address < startAddr) return line.address;
-
-		// Fallback if something goes wrong
-		return Math.max(0, startAddr - 1);
-	};
+	const { scrollContainer, visibleRowCount, handleScroll, memoryProxy, findPreviousInstructionAddress } = useDisassemblyScroll(
+		vm,
+		memory,
+		disassembly,
+		disassemblyStartAddress,
+		isFollowingPc
+	);
 
 	const formatAddress = (addr: number) => {
 		const bank = ((addr >> 16) & 0xFF).toString(16).toUpperCase().padStart(2, '0');
@@ -378,67 +292,16 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 		return { color };
 	};
 
-	const handleScroll = (event: WheelEvent) => {
-		if (isFollowingPc.value) isFollowingPc.value = false;
-
-		if (!disassembly.value || disassembly.value.length < 2) return;
-
-		if (event.deltaY < 0) { // Scroll Up
-			const newStartAddress = findPreviousInstructionAddress(disassemblyStartAddress.value);
-			disassemblyStartAddress.value = newStartAddress;
-		} else { // Scroll Down
-			// The new start address is the address of the second line
-			const newStartAddress = disassembly.value[1]?.address ?? 0;
-			disassemblyStartAddress.value = newStartAddress;
-		}
-	};
-
 	const explanation = ref(null);
 	const isLoading = ref(false);
 	const { getLabeledInstruction, getLabelForAddress } = useLabeling();
 
-	const scrollContainer = ref<HTMLElement | null>(null);
-	const containerHeight = ref(0);
-	const TABLE_ROW_HEIGHT = 20.5;
-	const TABLE_HEADER_HEIGHT = 24.5;
-	const PANEL_TITLE_HEIGHT = 33;
-	const PANEL_TITLE_MB_HEIGHT = 12;
-	let resizeObserver: ResizeObserver | null = null;
-
-	const visibleRowCount = computed(() => {
-		if (containerHeight.value === 0) return 10; // Default before mounted
-		return Math.max(1, Math.floor((containerHeight.value - TABLE_HEADER_HEIGHT - PANEL_TITLE_HEIGHT - PANEL_TITLE_MB_HEIGHT) / TABLE_ROW_HEIGHT));
-	});
-
 	onMounted(() => {
-		if (scrollContainer.value) {
-			// Set initial height and observe for changes
-			containerHeight.value = scrollContainer.value.clientHeight;
-			resizeObserver = new ResizeObserver(entries => {
-				if (entries[0]) containerHeight.value = entries[0].contentRect.height;
-			});
-			resizeObserver.observe(scrollContainer.value);
-		}
-
-		memoryProxy= new Proxy(memory, {
-			get(target, prop, _receiver) {
-				if (typeof prop === 'string') {
-					const idx = Number(prop);
-					if (Number.isInteger(idx) && vm?.value) {
-						return vm.value.readDebug(idx);
-					}
-				}
-				return Reflect.get(target, prop);
-			}
-		});
-
 		// Initialize history with the starting address if it's empty
 		if (historyIndex.value === -1) {
 			addJumpHistory(fullPcAddress.value);
 		}
 	});
-
-	onUnmounted(() => resizeObserver?.disconnect());
 
 	watch(
 		() => fullPcAddress.value,

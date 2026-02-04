@@ -120,7 +120,7 @@ import {
 import { VirtualMachine } from "../virtualmachine/virtualmachine.class";
 import BreakpointsList from './debugger/BreakpointsList.vue';
 import DebuggerControls from './debugger/DebuggerControls.vue';
-import DisassemblyView from './debugger/DisassemblyView.vue';
+import DisassemblyView from './debugger/disassembly/DisassemblyView.vue';
 import MachineStateView from "./debugger/MachineStateView.vue";
 import MultiMemoryViewer from './debugger/MultiMemoryViewer.vue';
 import RegistersView from './debugger/RegistersView.vue';
