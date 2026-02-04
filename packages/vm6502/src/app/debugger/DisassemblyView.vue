@@ -105,9 +105,9 @@
 				</thead>
 				<tbody>
 					<template v-for="(line) in disassembly" :key="line.address">
-						<tr v-if="getLabelForAddress(line.address)">
-							<td colspan="6" class="py-0.5 px-2 text-yellow-500 font-bold font-mono text-xs border-l-4 border-transparent">
-								{{ getLabelForAddress(line.address) }}:
+						<tr v-if="getLabelForAddress(line.address, vm?.getScope(line.address))">
+							<td colspan="6" class="py-0.5 px-2 text-yellow-500 font-bold font-mono text-xs border-l-4 border-transparent" :style="getLabelStyle(line.address)">
+								{{ getLabelForAddress(line.address, vm?.getScope(line.address)) }}:
 							</td>
 						</tr>
 						<tr
@@ -364,6 +364,18 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 		return {
 			backgroundColor: `${color}${opacity}`,
 		};
+	};
+
+	const getLabelStyle = (addr: number) => {
+		const scope = vm?.value?.getScope(addr & 0xFFFF);
+		if (!scope) return {};
+
+		const color = settings.disassembly.scopeColors[scope];
+
+		// If color is black or transparent, use default class (yellow-500)
+		if (!color || color === '#000000' || color === '#00000000') return {};
+
+		return { color };
 	};
 
 	const handleScroll = (event: WheelEvent) => {

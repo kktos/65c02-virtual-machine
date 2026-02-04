@@ -408,9 +408,15 @@ export class VirtualMachine {
 		this.worker.postMessage({ command: "removeBP", type, address, endAddress });
 	public clearBPs = () => this.worker.postMessage({ command: "clearBPs" });
 
-	public addSymbols = (newSymbols: Dict) => {
+	public addSymbols = (newSymbols: Record<number, Record<string, string>>) => {
 		if (!this.machineConfig.symbols) this.machineConfig.symbols = {};
-		Object.assign(this.machineConfig.symbols, newSymbols);
+
+		for (const [addrStr, scopes] of Object.entries(newSymbols)) {
+			const addr = Number(addrStr);
+			if (!this.machineConfig.symbols[addr]) this.machineConfig.symbols[addr] = {};
+			Object.assign(this.machineConfig.symbols[addr], scopes);
+		}
+
 		// Trigger reactivity for consumers (like DisassemblyView)
 		this.symbolsVersion.value++;
 	};

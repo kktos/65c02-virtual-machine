@@ -690,6 +690,6 @@ export class AppleBus implements IBus {
 	}
 
 	public getScopes?() {
-		return ["main", "aux", "io", "int_rom", "slot_rom", "lc_bank1", "lc_bank2"];
+		return ["main", "aux", "io", "int_rom", "slot_rom", "rom", "lc_bank1", "lc_bank2"];
 	}
 }

@@ -15,6 +15,7 @@ const symbols = `
 	0400 TXT_SCRN_START
 	07f8 MSLOT
 
+	[io]
 	c000 KBD
 	c010 KBDSTRB
 	c030 SPKR
@@ -64,6 +65,7 @@ const symbols = `
 	c089 ROMIN1
 	c08b LCBANK1_R
 
+	[rom]
 	e000 BASIC
 	e003 BASIC2
 
@@ -150,14 +152,25 @@ const symbols = `
 `;
 
 function parseSymbols(input: string): MachineConfig["symbols"] {
-	const result: Record<number, string> = {};
+	const result: Record<number, Record<string, string>> = {};
+	let currentScope = "main";
+
 	for (const line of input.split("\n")) {
 		const trimmed = line.trim();
 		if (!trimmed) continue;
+
+		if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+			currentScope = trimmed.slice(1, -1);
+			continue;
+		}
+
 		const [addrStr, label] = trimmed.split(/\s+/);
 		if (addrStr && label) {
 			const addr = parseInt(addrStr, 16);
-			if (!Number.isNaN(addr)) result[addr] = label;
+			if (!Number.isNaN(addr)) {
+				if (!result[addr]) result[addr] = {};
+				result[addr][currentScope] = label;
+			}
 		}
 	}
 	return result;
