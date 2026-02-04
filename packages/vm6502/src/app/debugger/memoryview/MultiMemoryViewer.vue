@@ -56,7 +56,7 @@ const addViewer = (index: number, currentAddress?: number) => {
 };
 
 const removeViewer = (index: number) => {
-	const removedId = viewers.value[index].id;
+	const removedId = viewers.value[index]?.id;
 	viewers.value.splice(index, 1);
 	if (removedId === activeViewerId.value) {
 		activeViewerId.value = viewers.value[0]?.id ?? 0;

@@ -122,7 +122,7 @@ import BreakpointsList from './debugger/BreakpointsList.vue';
 import DebuggerControls from './debugger/DebuggerControls.vue';
 import DisassemblyView from './debugger/disassembly/DisassemblyView.vue';
 import MachineStateView from "./debugger/MachineStateView.vue";
-import MultiMemoryViewer from './debugger/MultiMemoryViewer.vue';
+import MultiMemoryViewer from './debugger/memoryview/MultiMemoryViewer.vue';
 import RegistersView from './debugger/RegistersView.vue';
 import StackView from './debugger/StackView.vue';
 import StatusFlagsView from './debugger/StatusFlagsView.vue';
