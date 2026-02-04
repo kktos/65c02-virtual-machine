@@ -6,6 +6,7 @@
 					:id="`mem-viewer-${viewer.id}`"
 					:can-close="viewers.length > 1"
 					:initial-address="viewer.address"
+					:listen-to-nav="index === 0"
 					@split="addViewer(index, $event)"
 					@close="removeViewer(index)"
 					@update:address="updateViewerAddress(index, $event)"

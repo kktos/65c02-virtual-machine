@@ -191,6 +191,7 @@ import BinaryLoader from "./BinaryLoader.vue";
 	const props = defineProps<{
 		canClose?: boolean;
 		initialAddress?: number;
+		listenToNav?: boolean;
 	}>();
 
 	const emit = defineEmits<{
@@ -209,7 +210,7 @@ import BinaryLoader from "./BinaryLoader.vue";
 
 	const { memoryViewAddress } = useDebuggerNav();
 	watch(memoryViewAddress, (newAddress) => {
-		if (newAddress !== null) startAddress.value = newAddress;
+		if ((props.listenToNav ?? true) && newAddress !== null) startAddress.value = newAddress;
 	});
 
 	watch(startAddress, (newAddr) => {
