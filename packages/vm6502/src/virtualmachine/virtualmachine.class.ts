@@ -461,6 +461,10 @@ export class VirtualMachine {
 		return this.bus?.getScope ? this.bus.getScope(address) : "main";
 	}
 
+	public getScopes(): string[] {
+		return this.bus?.getScopes ? this.bus.getScopes() : ["main"];
+	}
+
 	public readDebug(address: number, overrides?: Dict): number {
 		return this.bus?.readDebug ? this.bus.readDebug(address, overrides) : this.read(address);
 	}

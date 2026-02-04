@@ -68,4 +68,6 @@ export interface IBus {
 
 	/** Returns the memory scope (e.g., "main", "aux", "rom", "lc_bank1") for the given address based on current state. */
 	getScope?(address: number): string;
+	/** Returns the possible memory scopes. */
+	getScopes?(): string[];
 }

@@ -6,6 +6,7 @@ const SETTINGS_KEY = "vm6502_debugger_settings";
 interface DebuggerSettings {
 	disassembly: {
 		showCycles: boolean;
+		scopeColors: Record<string, string>;
 	};
 }
 
@@ -13,6 +14,9 @@ interface DebuggerSettings {
 const defaultSettings: DebuggerSettings = {
 	disassembly: {
 		showCycles: true,
+		scopeColors: {
+			main: "#000000",
+		},
 	},
 };
 
@@ -28,6 +32,10 @@ const loadSettings = (): DebuggerSettings => {
 				disassembly: {
 					...defaultSettings.disassembly,
 					...parsed.disassembly,
+					scopeColors: {
+						...defaultSettings.disassembly.scopeColors,
+						...(parsed.disassembly?.scopeColors || {}),
+					},
 				},
 			};
 		}

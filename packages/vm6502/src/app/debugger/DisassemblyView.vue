@@ -47,16 +47,28 @@
 				<Popover>
 					<PopoverTrigger as-child>
 						<Button variant="ghost" size="icon" class="h-6 w-6 text-gray-400 hover:text-cyan-300" title="Disassembly Options">
-							<Settings class="h-4 w-4" />
+							<Settings2 class="h-4 w-4" />
 						</Button>
 					</PopoverTrigger>
 					<PopoverContent class="w-60 bg-gray-800 border-gray-700 text-gray-200">
 						<div class="grid gap-4">
 							<span class="text-sm font-bold text-gray-200 capitalize">Disasm Settings</span>
-							<div class="grid gap-2">
+							<div class="grid gap-2 -mb-2">
 								<div class="flex items-center space-x-2">
 									<Checkbox id="showCycles" v-model="settings.disassembly.showCycles" />
 									<label for="showCycles" class="text-xs font-medium leading-none cursor-pointer select-none"> Show Cycles </label>
+								</div>
+							</div>
+							<div class="border-t border-gray-700 -mx-4 my-1"></div>
+							<div class="grid gap-2 max-h-48 overflow-y-auto pr-2 -mr-3">
+								<div v-for="scope in availableScopes" :key="scope" class="flex gap-2 items-center">
+									<input
+										type="color"
+										:id="`scope-color-${scope}`"
+										v-model="settings.disassembly.scopeColors[scope]"
+										class="w-5 h-5 p-0 border-none rounded bg-transparent cursor-pointer"
+									/>
+									<label :for="`scope-color-${scope}`" class="text-xs font-medium">{{ scope }}</label>
 								</div>
 							</div>
 						</div>
@@ -84,7 +96,7 @@
 				<thead>
 					<tr class="text-gray-400 sticky top-0 bg-gray-900 border-b border-gray-700 shadow-md z-10">
 						<th class="py-1 text-center w-8"></th>
-						<th class="py-1 text-left px-2 w-24">Addr</th>
+						<th class="py-1 text-left px-2 w-20">Addr</th>
 						<th class="py-1 text-left w-20"></th>
 						<th class="py-1 text-left w-36">Opcode</th>
 						<th class="py-1 text-left flex-grow">Comment</th>
@@ -114,7 +126,8 @@
 						</td>
 						<td
 							class="py-0.5 px-2 tabular-nums text-indigo-300 font-mono cursor-pointer"
-							title="CTRL+Click to view in Memory Viewer"
+							:style="getScopeStyle(line.address)"
+							:title="`Scope: ${getScopeDisplay(line.address)} | CTRL+Click to view in Memory Viewer`"
 							@click.ctrl.prevent="handleAddressClick(line.address)"
 						>
 							{{ formatAddress(line.address) }}
@@ -151,7 +164,7 @@
 <script lang="ts" setup>
 	/** biome-ignore-all lint/correctness/noUnusedVariables: vue */
 
-import { ArrowLeft, ArrowRight, Settings } from "lucide-vue-next";
+import { ArrowLeft, ArrowRight, Settings2 } from "lucide-vue-next";
 import { computed, inject, onMounted, onUnmounted, type Ref, ref, watch } from "vue";
 import { Button } from '@/components/ui/button';
 import { ButtonGroup } from '@/components/ui/button-group';
@@ -181,6 +194,21 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 	const { jumpEvent } = useDisassembly();
 	const { setMemoryViewAddress, setActiveTab, addJumpHistory, historyNavigationEvent,navigateHistory, jumpHistory, historyIndex } = useDebuggerNav();
 	const { settings } = useSettings();
+
+	const availableScopes: Ref<string[]>= ref([]);
+	const getRandomColor = () => `#${Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0')}`;
+
+	watch(() => vm?.value, async (newVm) => {
+		if (newVm) {
+			await newVm.ready;
+			const scopes = newVm.getScopes();
+			availableScopes.value = scopes;
+			for (const scope of scopes) {
+				if (!settings.disassembly.scopeColors[scope])
+					settings.disassembly.scopeColors[scope] = getRandomColor();
+			}
+		}
+	}, { immediate: true });
 
 	const handleAddressClick = (address: number) => {
 		setMemoryViewAddress(address);
@@ -315,6 +343,27 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 		const bank = ((addr >> 16) & 0xFF).toString(16).toUpperCase().padStart(2, '0');
 		const offset = (addr & 0xFFFF).toString(16).toUpperCase().padStart(4, '0');
 		return `$${bank}:${offset}`;
+	};
+
+	const getScopeDisplay = (addr: number) => {
+		const scope = vm?.value?.getScope(addr & 0xFFFF);
+		return scope ?? "";
+	};
+
+	const getScopeStyle = (addr: number) => {
+		const scope = vm?.value?.getScope(addr & 0xFFFF);
+		if (!scope) return {};
+
+		const color = settings.disassembly.scopeColors[scope];
+
+		// Don't apply style for black/transparent or if not defined
+		if (!color || color === '#000000' || color === '#00000000') return {};
+
+		const opacity = "1A";
+
+		return {
+			backgroundColor: `${color}${opacity}`,
+		};
 	};
 
 	const handleScroll = (event: WheelEvent) => {

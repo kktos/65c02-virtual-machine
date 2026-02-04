@@ -671,15 +671,15 @@ export class AppleBus implements IBus {
 			// C800-CFFF
 			if (address >= 0xc800) {
 				if (this.intC8Rom) return "int_rom";
-				if (this.activeExpansionSlot > 0 && this.slots[this.activeExpansionSlot])
-					return `slot_rom_${this.activeExpansionSlot}`;
+				// if (this.activeExpansionSlot > 0 && this.slots[this.activeExpansionSlot])
+				// 	return `slot_rom_${this.activeExpansionSlot}`;
 				return "slot_rom";
 			}
 
 			// C100-C7FF
 			const slot = (address >> 8) & 0x0f;
 			if (slot === 3 && !this.slotC3Rom) return "int_rom";
-			if (this.slots[slot]) return `slot_rom_${slot}`;
+			// if (this.slots[slot]) return `slot_rom_${slot}`;
 
 			return "slot_rom";
 		}
@@ -687,5 +687,9 @@ export class AppleBus implements IBus {
 		if (!this.lcReadRam) return "rom";
 		if (this.lcBank2 && address < 0xe000) return "lc_bank2";
 		return "lc_bank1";
+	}
+
+	public getScopes?() {
+		return ["main", "aux", "io", "int_rom", "slot_rom", "lc_bank1", "lc_bank2"];
 	}
 }
