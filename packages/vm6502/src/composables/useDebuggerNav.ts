@@ -40,6 +40,11 @@ export function useDebuggerNav() {
 		}
 	};
 
+	const jumpToAddress = (address: number) => {
+		addJumpHistory(address);
+		historyNavigationEvent.value = { address, timestamp: Date.now() };
+	};
+
 	return {
 		memoryViewAddress,
 		setMemoryViewAddress,
@@ -50,5 +55,6 @@ export function useDebuggerNav() {
 		addJumpHistory,
 		navigateHistory,
 		historyNavigationEvent,
+		jumpToAddress,
 	};
 }

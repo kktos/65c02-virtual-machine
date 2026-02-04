@@ -18,6 +18,7 @@ import {
 	REG_STATUS_OFFSET,
 	REG_X_OFFSET,
 	REG_Y_OFFSET,
+	STACK_METADATA_OFFSET,
 } from "@/virtualmachine/cpu/shared-memory";
 import { VideoOutput } from "@/virtualmachine/video/video.output";
 import { useMemoryMap } from "../composables/useMemoryMap";
@@ -27,9 +28,10 @@ import type { EmulatorState } from "../types/emulatorstate.interface";
 
 const HYPERCALL_COMMANDS = new Set([0x01, 0x02, 0x03]);
 
-const MachinesBasePath = "../machines";
+const MACHINES_BASE_PATH = "../machines";
 const busModules = import.meta.glob("../machines/*/*.bus.ts");
 const cssModules = import.meta.glob("../machines/**/*.css");
+
 const kbdElements = new Set<string>(["INPUT", "TEXTAREA", "SELECT"]);
 
 // 1. Initialize AudioContext (Must be created after a user gesture like a click)
@@ -39,6 +41,7 @@ let nextStartTime = 0;
 export class VirtualMachine {
 	public sharedBuffer: SharedArrayBuffer;
 	public sharedRegisters: DataView;
+	public sharedStackMetadata: Uint8Array;
 	public sharedMemory: Uint8Array;
 	public videoBuffer?: SharedArrayBuffer;
 	public videoMemory?: Uint8Array;
@@ -75,7 +78,9 @@ export class VirtualMachine {
 
 		if (this.machineConfig.regions) {
 			const { addRegion } = useMemoryMap();
-			this.machineConfig.regions.forEach((region) => addRegion(region));
+			this.machineConfig.regions.forEach((region) => {
+				addRegion(region);
+			});
 		}
 
 		this.worker = new Worker(new URL("./cpu/cpu.worker.ts", import.meta.url), { type: "module" });
@@ -129,6 +134,7 @@ export class VirtualMachine {
 
 		this.sharedBuffer = new SharedArrayBuffer(bufferSize);
 		this.sharedRegisters = new DataView(this.sharedBuffer, 0, MEMORY_OFFSET);
+		this.sharedStackMetadata = new Uint8Array(this.sharedBuffer, STACK_METADATA_OFFSET, 256);
 		this.sharedMemory = new Uint8Array(this.sharedBuffer, MEMORY_OFFSET, this.machineConfig.memory.size);
 
 		if (this.machineConfig.video) {
@@ -139,6 +145,7 @@ export class VirtualMachine {
 
 		// 2. Load data into memory from the main thread
 		this.sharedMemory.fill(0);
+		this.sharedStackMetadata.fill(0);
 
 		this.loadCSS();
 		this.ready = this.loadBus();
@@ -148,7 +155,7 @@ export class VirtualMachine {
 		const cssFiles = this.machineConfig.css;
 		if (!cssFiles) return;
 		for (const file of cssFiles) {
-			const key = `${MachinesBasePath}/${file}`;
+			const key = `${MACHINES_BASE_PATH}/${file}`;
 			const loader = cssModules[key];
 			if (loader) {
 				await loader();
@@ -167,7 +174,7 @@ export class VirtualMachine {
 
 	private async loadBus() {
 		const busConfig = this.machineConfig.bus;
-		const busModuleKey = `${MachinesBasePath}/${busConfig.path}.ts`;
+		const busModuleKey = `${MACHINES_BASE_PATH}/${busConfig.path}.ts`;
 		const busModuleLoader = busModules[busModuleKey];
 		if (!busModuleLoader) {
 			console.error(`VM: Could not find a bus module loader for key: ${busModuleKey}`);

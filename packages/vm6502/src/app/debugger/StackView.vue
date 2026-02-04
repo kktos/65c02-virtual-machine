@@ -19,21 +19,41 @@
 						:key="index"
 						:class="[
 							'hover:bg-gray-700/50 transition duration-100 border-l-4',
-							item.address === stackPointerAddress ? 'bg-indigo-900/50 text-indigo-100 font-bold border-indigo-400' : 'text-gray-300 border-transparent'
+							item.address === stackPointerAddress ? 'bg-indigo-900/50 text-indigo-100 font-bold border-indigo-400' :
+							item.isReturnAddr ? 'text-emerald-300 border-emerald-500/30 bg-emerald-900/10' : 'text-gray-300 border-transparent'
 						]"
 						:ref="el => { if (item.address === stackPointerAddress) spElement = el as HTMLElement }"
 					>
 						<td class="py-0.5 px-2 tabular-nums text-indigo-300">
 							{{ '$' + item.address.toString(16).toUpperCase().padStart(4, '0') }}
 						</td>
-						<td class="p-0">
-							<input
-								type="text"
-								:value="item.value?.toString(16).toUpperCase().padStart(2, '0')"
-								@input="handleByteChange(item.address, $event)"
-								maxlength="2"
-								class="w-full text-left bg-transparent focus:bg-gray-600 focus:outline-none focus:ring-1 focus:ring-cyan-500 rounded-none tabular-nums"
-							/>
+						<td class="p-0 relative">
+							<div class="flex items-center">
+								<input
+									type="text"
+									:value="item.value?.toString(16).toUpperCase().padStart(2, '0')"
+									@input="handleByteChange(item.address, $event)"
+									maxlength="2"
+									class="flex-grow text-left bg-transparent focus:bg-gray-600 focus:outline-none focus:ring-1 focus:ring-cyan-500 rounded-none tabular-nums px-2"
+								/>
+								<div v-if="item.isLowByteForReturn" class="flex items-center text-xs text-emerald-400/80 px-2 whitespace-nowrap tabular-nums shrink-0">
+									<span
+										@click="handleJump(item.jsrSite!)"
+										class="cursor-pointer hover:underline"
+										:title="`Jump to call site $${item.jsrSite?.toString(16).toUpperCase().padStart(4, '0')}`"
+									>
+										{{ `$${item.jsrSite?.toString(16).toUpperCase().padStart(4, '0')}` }}
+									</span>
+									<span>:&nbsp;JSR&nbsp;</span>
+									<span
+										@click="handleJump(item.subroutineAddr!)"
+										class="cursor-pointer hover:underline"
+										:title="`Jump to subroutine $${item.subroutineAddr?.toString(16).toUpperCase().padStart(4, '0')}`"
+									>
+										{{ `$${item.subroutineAddr?.toString(16).toUpperCase().padStart(4, '0')}` }}
+									</span>
+								</div>
+							</div>
 						</td>
 					</tr>
 				</tbody>
@@ -46,6 +66,7 @@
 	/** biome-ignore-all lint/correctness/noUnusedVariables: vue */
 
 import { computed, inject, onMounted, onUnmounted, type Ref, ref, watch } from "vue";
+import { useDebuggerNav } from "@/composables/useDebuggerNav";
 import type { EmulatorState } from "@/types/emulatorstate.interface";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 
@@ -62,6 +83,13 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 	const ROW_HEIGHT_ESTIMATE = 25;
 	const scrollContainer = ref<HTMLElement | null>(null);
 	const containerHeight = ref(0);
+
+	const { jumpToAddress, setActiveTab } = useDebuggerNav();
+
+	const handleJump = (address: number) => {
+		jumpToAddress(address);
+		setActiveTab('disassembly');
+	};
 
 	const spElement = ref<HTMLElement | null>(null);
 	let resizeObserver: ResizeObserver | null = null;
@@ -102,11 +130,78 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 			if (startSP < 0) startSP = 0; // Prevent negative start if numRows > 256
 		}
 
-		const slice = [];
+		const slice: {
+			address: number;
+			value: number;
+			isReturnAddr: boolean;
+			isLowByteForReturn?: boolean;
+			jsrSite?: number;
+			subroutineAddr?: number;
+		}[] = [];
 		for (let i = startSP; i < endSP; i++) {
 			const address = stackBase + i;
 			const value = vm?.value?.readDebug(address) ?? 0;
-			slice.push({ address, value });
+			slice.push({ address, value, isReturnAddr: false });
+		}
+
+		// Post-process to find adjacent return address bytes
+		for (let i = 0; i < slice.length - 1; i++) {
+			// biome-ignore lint/style/noNonNullAssertion: <slice is built before>
+			const current = slice[i]!;
+			// biome-ignore lint/style/noNonNullAssertion: <slice is built before>
+			const next = slice[i + 1]!;
+			const vmValue = vm?.value;
+			if (!vmValue) continue;
+
+			if (next.address === current.address + 1) {
+				const currentStackOffset = current.address & 0xff;
+				const nextStackOffset = next.address & 0xff;
+
+				const metaCurrent = vmValue.sharedStackMetadata[currentStackOffset];
+				const metaNext = vmValue.sharedStackMetadata[nextStackOffset];
+
+				let isPairStart = false;
+
+				if (metaCurrent !== 0) {
+					// Scan up (higher addresses) to determine chain parity.
+					// An even chain starting here implies this is a LO byte.
+					let chainLen = 0;
+					let ptr = currentStackOffset;
+					while (ptr < 256 && vmValue.sharedStackMetadata[ptr] !== 0) {
+						chainLen++;
+						ptr++;
+					}
+					if (chainLen % 2 === 0) isPairStart = true;
+				} else if (metaNext !== 0) {
+					// metaCurrent is 0. It might be a valid LO byte (0x00) if the HI byte starts an odd chain.
+					let chainLen = 0;
+					let ptr = nextStackOffset;
+					while (ptr < 256 && vmValue.sharedStackMetadata[ptr] !== 0) {
+						chainLen++;
+						ptr++;
+					}
+					if (chainLen % 2 !== 0) isPairStart = true;
+				}
+
+				if (isPairStart) {
+					// We have a JSR return address pair.
+					current.isReturnAddr = true;
+					next.isReturnAddr = true;
+					current.isLowByteForReturn = true;
+
+					// Reconstruct target subroutine address from metadata
+					const targetAddrPlusOne = (metaNext << 8) | metaCurrent;
+					current.subroutineAddr = (targetAddrPlusOne - 1) & 0xffff;
+
+					// Reconstruct JSR site from stack values
+					const loRet = current.value;
+					const hiRet = next.value;
+					const pushedAddr = (hiRet << 8) | loRet;
+					current.jsrSite = (pushedAddr - 2) & 0xffff;
+
+					i++; // Skip next byte as it is consumed by this pair
+				}
+			}
 		}
 
 		return slice.reverse(); // Reverse to show higher addresses at the top

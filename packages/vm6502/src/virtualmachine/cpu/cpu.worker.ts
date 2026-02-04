@@ -22,7 +22,7 @@ import {
 } from "./cpu.65c02";
 import { loadBus } from "./loaders/bus.loader";
 import { loadVideo } from "./loaders/video.loader";
-import { MEMORY_OFFSET } from "./shared-memory";
+import { MEMORY_OFFSET, STACK_METADATA_OFFSET } from "./shared-memory";
 
 const COLORED_LOG = "color:magenta;font-weight:bold;";
 const COLORDEFAULT_LOG = "color:inherit;font-weight:normal;";
@@ -31,6 +31,7 @@ console.log("%cWorker:%c Loaded.", COLORED_LOG, COLORDEFAULT_LOG);
 // --- Worker State ---
 let sharedBuffer: SharedArrayBuffer | null = null;
 let memoryView: Uint8Array | null = null;
+let stackMetadataView: Uint8Array | null = null;
 let registersView: DataView | null = null;
 let video: Video | null = null;
 let bus: IBus | null = null;
@@ -44,6 +45,7 @@ async function init(machine: MachineConfig) {
 	sharedBuffer = machine.memory.buffer;
 	registersView = new DataView(sharedBuffer, 0, MEMORY_OFFSET);
 	memoryView = new Uint8Array(sharedBuffer, MEMORY_OFFSET, machine.memory.size);
+	stackMetadataView = new Uint8Array(sharedBuffer, STACK_METADATA_OFFSET, 256);
 
 	bus = await loadBus(machine.bus, memoryView);
 	if (!bus) return;
@@ -63,7 +65,7 @@ async function init(machine: MachineConfig) {
 		if (!video) return;
 	}
 
-	initCPU(bus, registersView, video, memoryView);
+	initCPU(bus, registersView, video, memoryView, stackMetadataView);
 
 	console.log(`%cWorker:%c Initialized with "${machine.name}".`, COLORED_LOG, COLORDEFAULT_LOG);
 	self.postMessage({ type: "ready" });

@@ -53,6 +53,7 @@ let maxTraceSize = 200;
 // Shared memory references, to be initialized from the worker
 let registersView: DataView | null = null;
 let memoryView: Uint8Array | null = null;
+let stackMetadataView: Uint8Array;
 let bus: IBus | null = null;
 let video: Video | null = null;
 
@@ -68,11 +69,18 @@ const isHyperCallActive = true;
 // Re-export breakpoint functions for external use
 export { addBreakpoint, removeBreakpoint, clearBreakpoints, setBreakOnBrk };
 
-export function initCPU(systemBus: IBus, regView: DataView, videoSystem: Video | null, memView: Uint8Array) {
+export function initCPU(
+	systemBus: IBus,
+	regView: DataView,
+	videoSystem: Video | null,
+	memView: Uint8Array,
+	stackMetaView: Uint8Array,
+) {
 	bus = systemBus;
 	registersView = regView;
 	video = videoSystem;
 	memoryView = memView;
+	stackMetadataView = stackMetaView;
 	if (clockSpeedMhz > 0) registersView.setFloat64(REG_SPEED_OFFSET, clockSpeedMhz, true);
 
 	updateCyclesPerTimeslice();
@@ -200,6 +208,8 @@ export function resetCPU() {
 	if (!registersView || !bus) return;
 
 	if (video) video.reset();
+
+	stackMetadataView.fill(0);
 
 	// The 6502's reset sequence
 	// Set Stack Pointer to 0xFD
@@ -1936,9 +1946,17 @@ function executeInstruction(): number {
 				pc += 2;
 				const returnAddr = pc - 1;
 				let s = registersView.getUint8(REG_SP_OFFSET);
+
+				// The address we store in metadata is targetAddr + 1 to avoid storing 0 for JSR $0000
+				const metaAddr = targetAddr + 1;
+				const metaHi = (metaAddr >> 8) & 0xff;
+				const metaLo = metaAddr & 0xff;
+
 				bus.write(STACK_PAGE_HI | s, (returnAddr >> 8) & 0xff);
+				stackMetadataView[s] = metaHi;
 				s = (s - 1) & 0xff;
 				bus.write(STACK_PAGE_HI | s, returnAddr & 0xff);
+				stackMetadataView[s] = metaLo;
 				s = (s - 1) & 0xff;
 				registersView.setUint8(REG_SP_OFFSET, s);
 				logTrace("JSR", startPC, targetAddr);
@@ -1951,8 +1969,10 @@ function executeInstruction(): number {
 				let s = registersView.getUint8(REG_SP_OFFSET);
 				s = (s + 1) & 0xff;
 				const lo = bus.read(STACK_PAGE_HI | s);
+				stackMetadataView[s] = 0;
 				s = (s + 1) & 0xff;
 				const hi = bus.read(STACK_PAGE_HI | s);
+				stackMetadataView[s] = 0;
 				registersView.setUint8(REG_SP_OFFSET, s);
 				pc = ((hi << 8) | lo) + 1;
 				cycles = 6;

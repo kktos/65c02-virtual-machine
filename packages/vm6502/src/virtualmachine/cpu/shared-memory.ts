@@ -34,6 +34,9 @@ export const MACHINE_STATE_OFFSET3 = 34;
 export const REG_TBCOLOR_OFFSET = 35; // Text/Background color (IIgs)
 export const REG_BORDERCOLOR_OFFSET = 36; // Border color (IIgs)
 
+// --- Stack Metadata ---
+export const STACK_METADATA_OFFSET = 256; // 256 bytes for stack metadata
+
 // --- Memory Section ---
 // We'll leave some space for future expansion of the register/status section.
-export const MEMORY_OFFSET = 256; // Main memory starts at byte 256
+export const MEMORY_OFFSET = 512; // Main memory starts at byte 512 (256 regs + 256 stack meta)
