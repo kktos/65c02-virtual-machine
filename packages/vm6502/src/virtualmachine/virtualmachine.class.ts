@@ -65,6 +65,7 @@ export class VirtualMachine {
 	public onLog?: (log: Dict) => void;
 
 	public isTraceEnabled = false;
+	public symbolsVersion = ref(0);
 	public traceOverflow = ref(false);
 	private lastTraceHead = "";
 	private tracePollInterval: number | undefined;
@@ -406,6 +407,13 @@ export class VirtualMachine {
 	public removeBP = (type: Breakpoint["type"], address: number, endAddress?: number) =>
 		this.worker.postMessage({ command: "removeBP", type, address, endAddress });
 	public clearBPs = () => this.worker.postMessage({ command: "clearBPs" });
+
+	public addSymbols = (newSymbols: Dict) => {
+		if (!this.machineConfig.symbols) this.machineConfig.symbols = {};
+		Object.assign(this.machineConfig.symbols, newSymbols);
+		// Trigger reactivity for consumers (like DisassemblyView)
+		this.symbolsVersion.value++;
+	};
 
 	public insertDisk = (data: Uint8Array, metadata: Dict = {}) =>
 		this.worker.postMessage({ command: "insertMedia", data, metadata });

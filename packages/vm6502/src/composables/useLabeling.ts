@@ -33,5 +33,24 @@ export function useLabeling() {
 
 		return { labeledOpcode: opcode, labelComment: null };
 	};
-	return getLabeledInstruction;
+
+	const loadSymbolsFromText = (text: string) => {
+		const symbols: Record<number, string> = {};
+		const lines = text.split(/\r?\n/);
+
+		// Regex to match: LABEL: number = $XXXX
+		// Captures: 1=Label, 2=HexAddress
+		const regex = /^\s*([a-zA-Z0-9_]+)(?:\(\))?\s*:\s*number\s*=\s*\$([0-9A-Fa-f]+)/;
+
+		for (const line of lines) {
+			const match = line.match(regex) as [unknown, string, string] | null;
+			if (match) {
+				const label = match[1];
+				const address = parseInt(match[2], 16);
+				if (!Number.isNaN(address)) symbols[address] = label;
+			}
+		}
+		vm?.value?.addSymbols(symbols);
+	};
+	return { getLabeledInstruction, loadSymbolsFromText };
 }

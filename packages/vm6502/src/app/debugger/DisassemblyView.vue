@@ -310,7 +310,7 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 
 	const explanation = ref(null);
 	const isLoading = ref(false);
-	const getLabeledInstruction = useLabeling();
+	const { getLabeledInstruction } = useLabeling();
 
 	const scrollContainer = ref<HTMLElement | null>(null);
 	const containerHeight = ref(0);
@@ -390,7 +390,7 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 	);
 
 	watch( // Re-disassemble when the start address or memory changes
-		() => [disassemblyStartAddress.value, memory, visibleRowCount.value, busState.value, registers],
+		() => [disassemblyStartAddress.value, memory, visibleRowCount.value, busState.value, registers, vm?.value?.symbolsVersion.value],
 		() => {
 			if (memory) {
 
