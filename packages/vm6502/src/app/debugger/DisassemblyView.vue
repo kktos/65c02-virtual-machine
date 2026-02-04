@@ -94,8 +94,7 @@
 				<tbody>
 					<template v-for="(line) in disassembly" :key="line.address">
 						<tr v-if="getLabelForAddress(line.address)">
-							<td class="py-0.5"></td>
-							<td colspan="5" class="py-0.5 px-2 text-yellow-500 font-bold font-mono text-xs border-l-4 border-transparent">
+							<td colspan="6" class="py-0.5 px-2 text-yellow-500 font-bold font-mono text-xs border-l-4 border-transparent">
 								{{ getLabelForAddress(line.address) }}:
 							</td>
 						</tr>
@@ -258,13 +257,7 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 	const busState = computed(() => vm?.value?.busState ?? {});
 
 	const getExecutionBankForAddress = (addr: number) => {
-		const state = busState.value;
-		if (!state || Object.keys(state).length === 0) return 0;
-		// This logic is for READ operations, which is what instruction fetch is.
-		if (addr < 0x0200 && state.altZp) return 0x01;
-		if (addr >= 0x0200 && addr < 0xc000 && state.ramRdAux) return 0x01;
-		if (addr >= 0xd000 && state.altZp) return 0x01;
-		return 0x00;
+		return vm?.value?.getScope(addr) === 'aux' ? 0x01 : 0x00;
 	};
 
 	const fullPcAddress = computed(() => {
@@ -480,13 +473,10 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 		} else {
 			const effectiveAddress = getEffectiveAddress(line);
 			if (effectiveAddress !== null) {
-				// Note: Data banking logic is complex. This is a simplified guess.
-				// For now, we'll navigate to the address in the currently selected memory bank.
-				// A more robust solution would require the VM to expose data banking state.
-				const state = busState.value;
 				let bank = 0;
-				if (state?.altZp && effectiveAddress < 0x0200) bank = 0x01;
-				else if (state?.ramRdAux && effectiveAddress >= 0x0200 && effectiveAddress < 0xC000) bank = 0x01;
+				if (vm?.value?.getScope(effectiveAddress) === 'aux') {
+					bank = 0x01;
+				}
 
 				setMemoryViewAddress((bank << 16) | effectiveAddress);
 				setActiveTab('memory');

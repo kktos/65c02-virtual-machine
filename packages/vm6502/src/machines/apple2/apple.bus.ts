@@ -649,4 +649,43 @@ export class AppleBus implements IBus {
 			if (card?.insertMedia) card.insertMedia(data);
 		}
 	}
+
+	public getScope(address: number): string {
+		if (address < 0x0200) return this.altZp ? "aux" : "main";
+
+		if (address < 0xc000) {
+			let aux = this.ramRdAux;
+			if (this.store80) {
+				if (address >= 0x0400 && address <= 0x07ff) aux = this.page2;
+				else if (this.hires && address >= 0x2000 && address <= 0x3fff) aux = this.page2;
+			}
+			return aux ? "aux" : "main";
+		}
+
+		if (address <= 0xcfff) {
+			if (address < 0xc100) return "io";
+
+			// Internal Cx ROM override
+			if (this.intCxRom) return "int_rom";
+
+			// C800-CFFF
+			if (address >= 0xc800) {
+				if (this.intC8Rom) return "int_rom";
+				if (this.activeExpansionSlot > 0 && this.slots[this.activeExpansionSlot])
+					return `slot_rom_${this.activeExpansionSlot}`;
+				return "slot_rom";
+			}
+
+			// C100-C7FF
+			const slot = (address >> 8) & 0x0f;
+			if (slot === 3 && !this.slotC3Rom) return "int_rom";
+			if (this.slots[slot]) return `slot_rom_${slot}`;
+
+			return "slot_rom";
+		}
+
+		if (!this.lcReadRam) return "rom";
+		if (this.lcBank2 && address < 0xe000) return "lc_bank2";
+		return "lc_bank1";
+	}
 }

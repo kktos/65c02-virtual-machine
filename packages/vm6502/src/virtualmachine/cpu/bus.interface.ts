@@ -65,4 +65,7 @@ export interface IBus {
 
 	initAudio?(sampleRate: number): void;
 	enableAudio?(isEnabled: boolean): void;
+
+	/** Returns the memory scope (e.g., "main", "aux", "rom", "lc_bank1") for the given address based on current state. */
+	getScope?(address: number): string;
 }
