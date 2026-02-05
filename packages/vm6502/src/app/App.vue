@@ -127,7 +127,7 @@ import RegistersView from './debugger/RegistersView.vue';
 import StackView from './debugger/StackView.vue';
 import StatusFlagsView from './debugger/StatusFlagsView.vue';
 import TraceView from './debugger/TraceView.vue';
-import DiskDriveControl from "./machine/DiskDriveControl.vue";
+import DiskDriveControl from "./machine/diskdrivecontrol/DiskDriveControl.vue";
 import MachineSelector from './machine/MachineSelector.vue';
 import SoundControl from "./machine/SoundControl.vue";
 import StatusPanel from './machine/StatusPanel.vue';
@@ -137,7 +137,6 @@ import VideoControl from "./machine/VideoControl.vue";
 		// console.log('dbgTopPanelResize resized', size);
 	};
 
-	const cpuWorker = ref<Worker | null>(null);
 	const vm = ref<VirtualMachine | null>(null);
 	const videoCanvas = ref<HTMLCanvasElement | null>(null);
 	const selectedMachine = ref<MachineConfig>(availableMachines[1] as MachineConfig);
@@ -152,8 +151,6 @@ import VideoControl from "./machine/VideoControl.vue";
 		const machine= new VirtualMachine(selectedMachine.value);
 		vm.value = markRaw(machine);
 		loadBreakpoints(machine);
-
-		cpuWorker.value = vm.value.worker; // Provide worker for legacy reasons if needed
 
 		// Listen for messages from the worker (e.g., for breakpoints, errors)
 		vm.value.onmessage = (event) => {
@@ -201,11 +198,7 @@ import VideoControl from "./machine/VideoControl.vue";
 	};
 	provide("subscribeToUiUpdates", subscribeToUiUpdates);
 
-	onUnmounted(() => {
-		if (cpuWorker.value) {
-			vm.value?.terminate();
-		}
-	});
+	onUnmounted(() => {	vm.value?.terminate(); });
 
 	const updateUiFromSharedBuffer = () => {
 		if (!vm.value) return requestAnimationFrame(updateUiFromSharedBuffer);
@@ -248,7 +241,6 @@ import VideoControl from "./machine/VideoControl.vue";
 		vm.value?.terminate();
 		vm.value = markRaw(new VirtualMachine(newMachine));
 		if(videoCanvas.value) vm.value.initVideo(videoCanvas.value);
-		cpuWorker.value = vm.value.worker;
 		selectedMachine.value = newMachine;
 	};
 
