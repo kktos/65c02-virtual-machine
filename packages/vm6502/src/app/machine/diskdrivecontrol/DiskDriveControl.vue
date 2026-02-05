@@ -52,6 +52,7 @@
 					<div class="flex gap-2">
 						<input
 							v-model="urlInput"
+							@input="urlError = null"
 							type="text"
 							placeholder="https://example.com/disk.dsk"
 							class="flex-1 bg-gray-800 border border-gray-600 text-gray-200 text-xs rounded px-2 py-1 focus:outline-none focus:border-blue-500 placeholder-gray-500"
@@ -72,6 +73,7 @@
 							</svg>
 						</button>
 					</div>
+					<div v-if="urlError" class="text-red-400 text-[10px] px-1">{{ urlError }}</div>
 
 					<div class="h-px bg-gray-800"></div>
 
@@ -149,6 +151,7 @@ const isLogSheetOpen = ref(false);
 
 const urlInput = ref('');
 const isLoading = ref(false);
+const urlError = ref<string | null>(null);
 const loggingEnabled = ref(false);
 
 const SLOT = 5;
@@ -174,19 +177,25 @@ const loadFromUrl = async (url: string) => {
 	if (!response.ok) throw new Error(`Failed to load disk: ${response.statusText}`);
 
 	const buffer = await response.arrayBuffer();
-	let name = url.split('/').pop();
-	if (!name || name.trim() === '') name = 'downloaded_disk.dsk';
-	name = name.split('?')[0];
+	let name = url.split('/').pop() as string;
+
+	console.log("name", name);
+	console.log("buffer", buffer);
+
+	if (!name || name.trim() === '') throw new Error('Invalid disk name');
+
+	name = name.split('?')[0] as string;
+
 
 	await loadDiskToVM(name, buffer);
 
 	// Try to fetch symbols
 	try {
 		const parts = url.split('.');
-		let symUrl = url + '.sym';
+		let symUrl = `${url}.sym`;
 		if (parts.length > 1) {
 			parts.pop();
-			symUrl = parts.join('.') + '.sym';
+			symUrl = `${parts.join('.')}.sym`;
 		}
 
 		const symRes = await fetch(symUrl);
@@ -228,18 +237,19 @@ const handleFileSelect = async (event: Event) => {
 const handleUrlLoad = async () => {
 	if (!urlInput.value) return;
 	isLoading.value = true;
+	urlError.value = null;
 
 	try {
 		const url = urlInput.value;
+		// Load first to verify it works
+		await loadFromUrl(url);
+
+		// If successful, save to library
 		let name = url.split('/').pop()?.split('?')[0] || url;
 		if (name.trim() === '') name = url;
 
-		// Save to library first, using the URL as the key to prevent duplicates
 		await saveUrlDisk(url, name, url);
 		await refreshLibrary();
-
-		// Now load it into the VM
-		await loadFromUrl(url);
 
 		localStorage.setItem(ACTIVE_DISK_URL_KEY, url);
 		localStorage.removeItem(ACTIVE_DISK_KEY);
@@ -247,7 +257,7 @@ const handleUrlLoad = async () => {
 		isLibraryOpen.value = false;
 	} catch (e) {
 		console.error(e);
-		alert('Failed to load from URL. Check console for details.');
+		urlError.value = (e as Error).message || 'Failed to load from URL';
 	} finally {
 		isLoading.value = false;
 	}
