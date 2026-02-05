@@ -1,7 +1,7 @@
 import { inject, type Ref } from "vue";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 
-export function useLabeling() {
+export function useSymbols() {
 	const vm = inject<Ref<VirtualMachine>>("vm");
 
 	const getLabeledInstruction = (opcode: string) => {
@@ -79,5 +79,28 @@ export function useLabeling() {
 		return vm?.value?.machineConfig?.symbols?.[address]?.[scope];
 	};
 
-	return { getLabeledInstruction, parseSymbolsFromText, getLabelForAddress };
+	const getAddressForSymbol = (symbol: string): number | undefined => {
+		const symbolMap = vm?.value?.machineConfig?.symbols;
+		if (!symbolMap) return undefined;
+
+		const upperSymbol = symbol.toUpperCase();
+
+		// This is not performant for large symbol tables, but it's simple.
+		// We can optimize this later by creating a reverse map if needed.
+		for (const addressStr in symbolMap) {
+			const address = parseInt(addressStr, 10);
+			const scopes = symbolMap[address];
+			if (scopes) {
+				for (const scope in scopes) {
+					if (scopes[scope].toUpperCase() === upperSymbol) {
+						return address;
+					}
+				}
+			}
+		}
+
+		return undefined;
+	};
+
+	return { getLabeledInstruction, parseSymbolsFromText, getLabelForAddress, getAddressForSymbol };
 }

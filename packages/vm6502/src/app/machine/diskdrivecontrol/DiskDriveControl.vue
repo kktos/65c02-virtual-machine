@@ -141,7 +141,7 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { type DiskInfo, useDiskStorage } from '@/composables/useDiskStorage';
-import { useLabeling } from "@/composables/useLabeling";
+import { useSymbols } from "@/composables/useSymbols";
 import type { VirtualMachine } from '@/virtualmachine/virtualmachine.class';
 import DiskDriveLogs from './DiskDriveLogs.vue';
 
@@ -150,7 +150,7 @@ const ACTIVE_DISK_URL_KEY = "vm6502_active_disk_url";
 
 const vm = inject<Ref<VirtualMachine>>('vm');
 
-const { parseSymbolsFromText } = useLabeling();
+const { parseSymbolsFromText } = useSymbols();
 const diskConfig = computed(() => vm?.value?.machineConfig?.disk);
 const fileName = ref('');
 const fileSize = ref(0);

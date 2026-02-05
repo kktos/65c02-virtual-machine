@@ -17,9 +17,9 @@
 					v-model="gotoAddressInput"
 					@keydown.enter="onGotoAddress"
 					type="text"
-					class="w-20 bg-gray-900 text-gray-200 text-xs font-mono rounded px-2 pl-4 py-1 border border-gray-700 focus:border-cyan-500 focus:outline-none transition-all focus:w-24"
-					placeholder="Addr"
-					title="Enter address (hex)"
+					class="w-35 bg-gray-900 text-gray-200 text-xs font-mono rounded px-2 pl-4 py-1 border border-gray-700 focus:border-cyan-500 focus:outline-none transition-all focus:w-40"
+					placeholder="addr or symbol"
+					title="Enter address (hex) or symbol"
 				/>
 			</div>
 			<button
@@ -27,9 +27,7 @@
 				:class="['p-1 rounded transition-colors', isFollowingPc ? 'text-cyan-400 bg-cyan-400/10' : 'text-gray-500 hover:text-gray-300 hover:bg-gray-700']"
 				title="Sync with PC"
 			>
-				<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-					<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
-				</svg>
+				<Paperclip class="h-4 w-4"/>
 			</button>
 		</div>
 
@@ -77,7 +75,7 @@
 </template>
 
 <script lang="ts" setup>
-import { ArrowLeft, ArrowRight, Settings2 } from "lucide-vue-next";
+import { ArrowLeft, ArrowRight, Paperclip, Settings2 } from "lucide-vue-next";
 import { computed, ref } from "vue";
 import { Button } from '@/components/ui/button';
 import { ButtonGroup } from '@/components/ui/button-group';
@@ -85,8 +83,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useDebuggerNav } from "@/composables/useDebuggerNav";
 import { useSettings } from "@/composables/useSettings";
+import { useSymbols } from "@/composables/useSymbols";
 
-	defineProps<{
+	const props = defineProps<{
 		isFollowingPc: boolean;
 		isLoading: boolean;
 		hasDisassembly: boolean;
@@ -99,6 +98,7 @@ import { useSettings } from "@/composables/useSettings";
 		(e: 'gotoAddress', address: number): void;
 	}>();
 
+	const { getAddressForSymbol } = useSymbols();
 	const { historyIndex, jumpHistory, navigateHistory } = useDebuggerNav();
 	const { settings } = useSettings();
 	const gotoAddressInput = ref("");
@@ -109,10 +109,14 @@ import { useSettings } from "@/composables/useSettings";
 	const navigateForward = () => navigateHistory('forward');
 
 	const onGotoAddress = () => {
-		let val = gotoAddressInput.value.trim();
+		const val = gotoAddressInput.value.trim();
 		if (!val) return;
-		val = val.replace(/^\$/, '').replace(/^0x/i, '');
-		const addr = parseInt(val, 16);
+
+		let addr= getAddressForSymbol(val);
+		if(addr === undefined) {
+			const hexVal = val.replace(/^\$/, '').replace(/^0x/i, '');
+			addr = parseInt(hexVal, 16);
+		}
 		if (!Number.isNaN(addr)) {
 			emit('gotoAddress', addr);
 			gotoAddressInput.value = "";

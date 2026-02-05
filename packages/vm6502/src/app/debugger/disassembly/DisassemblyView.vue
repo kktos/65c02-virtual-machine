@@ -51,8 +51,8 @@ import { useBreakpoints } from "@/composables/useBreakpoints";
 import { useDebuggerNav } from "@/composables/useDebuggerNav";
 import { useDisassembly } from "@/composables/useDisassembly";
 import { useDisassemblyScroll } from "@/composables/useDisassemblyScroll";
-import { useLabeling } from "@/composables/useLabeling";
 import { useSettings } from "@/composables/useSettings";
+import { useSymbols } from "@/composables/useSymbols";
 import { disassemble } from "@/lib/disassembler";
 import { handleExplainCode } from "@/lib/gemini.utils";
 import type { DisassemblyLine } from "@/types/disassemblyline.interface";
@@ -197,7 +197,7 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 
 	const explanation = ref(null);
 	const isLoading = ref(false);
-	const { getLabeledInstruction } = useLabeling();
+	const { getLabeledInstruction } = useSymbols();
 
 	onMounted(() => {
 		// Initialize history with the starting address if it's empty

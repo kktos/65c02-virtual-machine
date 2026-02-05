@@ -72,8 +72,8 @@
 
 <script lang="ts" setup>
 import { inject, type Ref } from "vue";
-import { useLabeling } from "@/composables/useLabeling";
 import { useSettings } from "@/composables/useSettings";
+import { useSymbols } from "@/composables/useSymbols";
 import type { DisassemblyLine } from "@/types/disassemblyline.interface";
 import type { EmulatorState } from "@/types/emulatorstate.interface";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
@@ -93,7 +93,7 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 		(e: "opcodeClick", line: DisassemblyLine): void;
 	}>();
 
-	const { getLabeledInstruction, getLabelForAddress } = useLabeling();
+	const { getLabeledInstruction, getLabelForAddress } = useSymbols();
 	const { settings } = useSettings();
 
 	const getBranchPrediction = (opcode: string) => {

@@ -127,7 +127,7 @@ import MemoryMap from "@/app/debugger/memorymap/MemoryMap.vue";
 import { Button } from '@/components/ui/button';
 import { ButtonGroup } from '@/components/ui/button-group';
 import { Kbd } from '@/components/ui/kbd';
-import { useLabeling } from "@/composables/useLabeling";
+import { useSymbols } from "@/composables/useSymbols";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 
 	const vm= inject<Ref<VirtualMachine>>("vm");
@@ -157,7 +157,7 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 	};
 
 	const symbolFileInput = ref<HTMLInputElement | null>(null);
-	const { parseSymbolsFromText } = useLabeling();
+	const { parseSymbolsFromText } = useSymbols();
 
 	const triggerSymbolLoad = () => {
 		symbolFileInput.value?.click();
