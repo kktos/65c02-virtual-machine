@@ -68,6 +68,15 @@
 			</Button>
 		</ButtonGroup>
 
+
+		<ButtonGroup>
+			<Button @click="vm?.reset"
+			size="sm"
+			class="hover:bg-gray-600"
+			title="Reset the CPU and memory"
+			>Reset</Button>
+		</ButtonGroup>
+
 		<MemoryMap />
 
 		<button
@@ -80,40 +89,33 @@
 			<Monitor class="absolute h-6 w-6 text-gray-400 group-hover:text-cyan-300" />
 		</button>
 
-		<ButtonGroup>
-			<Button @click="vm?.reset"
-				size="sm"
-				class="hover:bg-gray-600"
-				title="Reset the CPU and memory"
-			>Reset</Button>
-		</ButtonGroup>
-		<ButtonGroup>
-		<Button
-			class="p-2 hover:bg-gray-700 rounded text-gray-300 hover:text-white transition-colors"
-			title="Load Symbols (*.sym)"
-			@click="triggerSymbolLoad"
-		>
-			<Tag class="h-4 w-4" />
-		</Button>
-		<input
-			type="file"
-			ref="symbolFileInput"
-			class="hidden"
-			accept=".sym,.txt"
-			@change="handleSymbolFile"
-		/>
-		<Button
-			class="p-2 hover:bg-gray-700 rounded text-gray-300 hover:text-white transition-colors"
-			title="Paste from Clipboard"
-			@click="pasteFromClipboard"
-		>
-			<!-- Clipboard Icon -->
-			<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-				<path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
-				<rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect>
-			</svg>
-		</Button>
 
+		<ButtonGroup>
+			<Button
+				class="p-2 hover:bg-gray-700 rounded text-gray-300 hover:text-white transition-colors"
+				title="Load Symbols (*.sym)"
+				@click="triggerSymbolLoad"
+			>
+				<Tag class="h-4 w-4 text-cyan-400 group-hover:text-cyan-300" />
+			</Button>
+			<input
+				type="file"
+				ref="symbolFileInput"
+				class="hidden"
+				accept=".sym,.txt"
+				@change="handleSymbolFile"
+			/>
+			<Button
+				class="p-2 hover:bg-gray-700 rounded text-gray-300 hover:text-white transition-colors"
+				title="Paste from Clipboard"
+				@click="pasteFromClipboard"
+			>
+				<!-- Clipboard Icon -->
+				<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+					<path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
+					<rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect>
+				</svg>
+			</Button>
 		</ButtonGroup>
 	</div>
 </template>
@@ -121,7 +123,7 @@
 <script lang="ts" setup>
 import { ArrowDownToDot, ArrowUpFromDot, CornerDownRight, Monitor, Octagon, Pause, Play, RefreshCw, ScrollText, Tag } from "lucide-vue-next";
 import { inject, type Ref, ref } from "vue";
-import MemoryMap from "@/app/debugger/MemoryMap.vue";
+import MemoryMap from "@/app/debugger/memorymap/MemoryMap.vue";
 import { Button } from '@/components/ui/button';
 import { ButtonGroup } from '@/components/ui/button-group';
 import { Kbd } from '@/components/ui/kbd';
