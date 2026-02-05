@@ -24,16 +24,20 @@
 							No disks saved. Upload one to get started.
 						</div>
 
-						<div v-for="disk in savedDisks" :key="disk.key.toString()" class="group relative flex items-center justify-between p-2 bg-gray-800 rounded border border-gray-700 hover:border-gray-600 transition-colors">
-							<div class="overflow-hidden mr-2 flex-1">
-								<div class="font-medium truncate text-xs text-gray-200" :title="disk.name">{{ disk.name }}</div>
-								<div class="text-[10px] text-gray-500">{{ formatSize(disk.size) }}</div>
+						<div v-for="disk in savedDisks" :key="disk.key.toString()" class="group relative flex items-center justify-between p-2 bg-gray-800 rounded border border-gray-700 hover:border-blue-800/50 transition-colors">
+							<div class="overflow-hidden mr-2 flex-1 flex items-center gap-3">
+								<div class="shrink-0">
+									<Link v-if="disk.type === 'url'" class="h-6 w-6 text-cyan-400" />
+									<Save v-else class="h-6 w-6 text-cyan-400" />
+								</div>
+								<div class="flex-1 overflow-hidden">
+									<div class="font-medium truncate text-sm text-gray-200" :title="disk.name">{{ disk.name }}</div>
+									<div v-if="disk.type === 'url'" class="text-[10px] text-gray-500 truncate" :title="disk.url">{{ disk.url }}</div>
+									<div v-else class="text-[10px] text-gray-500">{{ formatSize(disk.size) }}</div>
+								</div>
 							</div>
 							<button @click="handleLoadFromLibrary(disk.key)" class="p-1 mr-2 text-green-400 hover:bg-gray-700 hover:text-green-300 rounded transition-colors" title="Load">
-								<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-								</svg>
+								<CirclePlay class="h-5 w-5"/>
 							</button>
 							<button @click.stop="handleDelete(disk.key)" class="absolute top-1 right-1 p-0.5 text-gray-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity" title="Delete">
 								<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -45,6 +49,32 @@
 				</ScrollArea>
 
 				<div class="p-4 border-t border-gray-800 bg-gray-900/50 flex flex-col gap-3">
+					<div class="flex gap-2">
+						<input
+							v-model="urlInput"
+							type="text"
+							placeholder="https://example.com/disk.dsk"
+							class="flex-1 bg-gray-800 border border-gray-600 text-gray-200 text-xs rounded px-2 py-1 focus:outline-none focus:border-blue-500 placeholder-gray-500"
+							@keydown.enter="handleUrlLoad"
+						/>
+						<button
+							@click="handleUrlLoad"
+							:disabled="!urlInput || isLoading"
+							class="px-3 py-1 bg-gray-700 hover:bg-gray-600 text-cyan-400 rounded border border-gray-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center shrink-0"
+							title="Load from URL"
+						>
+							<svg v-if="isLoading" class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+								<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+								<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+							</svg>
+							<svg v-else xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+							</svg>
+						</button>
+					</div>
+
+					<div class="h-px bg-gray-800"></div>
+
 					<label class="flex items-center justify-center px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded border border-gray-600 cursor-pointer transition-colors w-full">
 						<span class="mr-2">Upload New Disk</span>
 						<input
@@ -53,9 +83,7 @@
 							@change="handleFileSelect"
 							class="hidden"
 						/>
-						<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-cyan-400 group-hover:text-cyan-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-						</svg>
+						<Upload class="h-6 w-6 text-cyan-400" />
 					</label>
 
 					<div class="h-px bg-gray-800"></div>
@@ -66,9 +94,7 @@
 							<span>Enable Logging</span>
 						</label>
 						<button @click="openLogs" class="text-xs text-blue-400 hover:text-blue-300 flex items-center px-2 py-1 hover:bg-gray-800 rounded transition-colors">
-							<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-							</svg>
+							<FileText class="h-4 w-4 mr-1.5"/>
 							View Logs
 						</button>
 					</div>
@@ -95,29 +121,34 @@
 </template>
 
 <script lang="ts" setup>
+import { CirclePlay, FileText, Link, Save, Upload } from "lucide-vue-next";
 import { computed, inject, type Ref, ref, watch } from 'vue';
+
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
 } from '@/components/ui/popover';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { useDiskStorage } from '@/composables/useDiskStorage';
+import { type DiskInfo, useDiskStorage } from '@/composables/useDiskStorage';
 import type { VirtualMachine } from '@/virtualmachine/virtualmachine.class';
 import DiskDriveLogs from './DiskDriveLogs.vue';
 
 const ACTIVE_DISK_KEY = "vm6502_active_disk_name";
+const ACTIVE_DISK_URL_KEY = "vm6502_active_disk_url";
 
 const vm = inject<Ref<VirtualMachine>>('vm');
 
 const diskConfig = computed(() => vm?.value?.machineConfig?.disk);
 const fileName = ref('');
 const fileSize = ref(0);
-const { saveDisk, loadDisk, getAllDisks, deleteDisk } = useDiskStorage();
-const savedDisks = ref<{ key: IDBValidKey; name: string; size: number }[]>([]);
+const { saveDisk, saveUrlDisk, loadDisk, getAllDisks, deleteDisk } = useDiskStorage();
+const savedDisks = ref<DiskInfo[]>([]);
 const isLibraryOpen = ref(false);
 const isLogSheetOpen = ref(false);
 
+const urlInput = ref('');
+const isLoading = ref(false);
 const loggingEnabled = ref(false);
 
 const SLOT = 5;
@@ -136,7 +167,42 @@ const loadDiskToVM = async (name: string, data: ArrayBuffer) => {
 	fileName.value = name;
 	fileSize.value = data.byteLength;
 	vm?.value?.insertDisk(new Uint8Array(data), { slot: SLOT, name });
-	localStorage.setItem(ACTIVE_DISK_KEY, name);
+};
+
+const loadFromUrl = async (url: string) => {
+	const response = await fetch(url);
+	if (!response.ok) throw new Error(`Failed to load disk: ${response.statusText}`);
+
+	const buffer = await response.arrayBuffer();
+	let name = url.split('/').pop();
+	if (!name || name.trim() === '') name = 'downloaded_disk.dsk';
+	name = name.split('?')[0];
+
+	await loadDiskToVM(name, buffer);
+
+	// Try to fetch symbols
+	try {
+		const parts = url.split('.');
+		let symUrl = url + '.sym';
+		if (parts.length > 1) {
+			parts.pop();
+			symUrl = parts.join('.') + '.sym';
+		}
+
+		const symRes = await fetch(symUrl);
+		if (symRes.ok) {
+			const symText = await symRes.text();
+			try {
+				const symData = JSON.parse(symText);
+				vm?.value?.addSymbols(symData);
+				console.log(`Loaded symbols from ${symUrl}`);
+			} catch {
+				console.warn(`Failed to parse symbols from ${symUrl} as JSON.`);
+			}
+		}
+	} catch (e) {
+		console.warn('Symbol fetch failed', e);
+	}
 };
 
 const handleFileSelect = async (event: Event) => {
@@ -151,17 +217,64 @@ const handleFileSelect = async (event: Event) => {
 
 		// Load to VM
 		await loadDiskToVM(file.name, buffer);
+		localStorage.setItem(ACTIVE_DISK_KEY, file.name);
+		localStorage.removeItem(ACTIVE_DISK_URL_KEY);
 
 		// Reset input
 		input.value = '';
 	}
 };
 
+const handleUrlLoad = async () => {
+	if (!urlInput.value) return;
+	isLoading.value = true;
+
+	try {
+		const url = urlInput.value;
+		let name = url.split('/').pop()?.split('?')[0] || url;
+		if (name.trim() === '') name = url;
+
+		// Save to library first, using the URL as the key to prevent duplicates
+		await saveUrlDisk(url, name, url);
+		await refreshLibrary();
+
+		// Now load it into the VM
+		await loadFromUrl(url);
+
+		localStorage.setItem(ACTIVE_DISK_URL_KEY, url);
+		localStorage.removeItem(ACTIVE_DISK_KEY);
+		urlInput.value = '';
+		isLibraryOpen.value = false;
+	} catch (e) {
+		console.error(e);
+		alert('Failed to load from URL. Check console for details.');
+	} finally {
+		isLoading.value = false;
+	}
+};
+
 const handleLoadFromLibrary = async (key: IDBValidKey) => {
 	const disk = await loadDisk(key);
 	if (disk) {
-		await loadDiskToVM(disk.name, disk.data);
-		isLibraryOpen.value = false;
+		if (disk.type === 'url') {
+			isLoading.value = true;
+			try {
+				await loadFromUrl(disk.url);
+				localStorage.setItem(ACTIVE_DISK_URL_KEY, disk.url);
+				localStorage.removeItem(ACTIVE_DISK_KEY);
+				isLibraryOpen.value = false;
+			} catch (e) {
+				console.error(e);
+				alert('Failed to load from URL. Check console for details.');
+			} finally {
+				isLoading.value = false;
+			}
+		} else { // physical disk
+			await loadDiskToVM(disk.name, disk.data);
+			localStorage.setItem(ACTIVE_DISK_KEY, disk.name);
+			localStorage.removeItem(ACTIVE_DISK_URL_KEY);
+			isLibraryOpen.value = false;
+		}
 	}
 };
 
@@ -184,19 +297,31 @@ watch(
 			await newVm.ready;
 			await refreshLibrary();
 
-			// Try to load last active disk
-			const lastDiskName = localStorage.getItem(ACTIVE_DISK_KEY);
-			if (lastDiskName) {
-				const saved = await loadDisk(lastDiskName);
-				if (saved) await loadDiskToVM(saved.name, saved.data);
+			const lastUrl = localStorage.getItem(ACTIVE_DISK_URL_KEY);
+			if (lastUrl) {
+				isLoading.value = true;
+				try {
+					await loadFromUrl(lastUrl);
+				} catch (e) {
+					console.error("Failed to load last URL:", e);
+				} finally {
+					isLoading.value = false;
+				}
 			} else {
-				// Fallback to legacy slot 5 if exists
-				const legacy = await loadDisk(5);
-				if (legacy) {
-					await loadDiskToVM(legacy.name, legacy.data);
-					// Migrate to new system
-					await saveDisk(legacy.name, legacy.name, legacy.data);
-					localStorage.setItem(ACTIVE_DISK_KEY, legacy.name);
+				// Try to load last active disk
+				const lastDiskName = localStorage.getItem(ACTIVE_DISK_KEY);
+				if (lastDiskName) {
+					const saved = await loadDisk(lastDiskName);
+					if (saved) await loadDiskToVM(saved.name, saved.data);
+				} else {
+					// Fallback to legacy slot 5 if exists
+					const legacy = await loadDisk(5);
+					if (legacy) {
+						await loadDiskToVM(legacy.name, legacy.data);
+						// Migrate to new system
+						await saveDisk(legacy.name, legacy.name, legacy.data);
+						localStorage.setItem(ACTIVE_DISK_KEY, legacy.name);
+					}
 				}
 			}
 		}
