@@ -76,44 +76,11 @@
 			</PopoverContent>
 		</Popover>
 
-		<!-- Logs Sheet -->
-		<Sheet v-model:open="isLogSheetOpen">
-			<SheetContent side="right" class="bg-gray-900 border-gray-700 text-gray-100 w-[400px] flex flex-col h-full overflow-hidden">
-				<SheetHeader class="shrink-0">
-					<SheetTitle class="text-gray-100">SmartPort Logs</SheetTitle>
-					<SheetDescription class="text-gray-400">
-						Monitor disk read operations.
-					</SheetDescription>
-				</SheetHeader>
-
-				<div class="mt-4 flex items-center justify-end shrink-0">
-					<button @click="logs = []" class="text-xs text-red-400 hover:text-red-300">Clear</button>
-				</div>
-
-				<ScrollArea class="mt-4 flex-1 min-h-0 bg-black rounded border border-gray-800 p-2 font-mono text-xs">
-					<div v-if="logs.length === 0" class="text-gray-600 italic text-center py-4">
-						No logs yet...
-					</div>
-					<div v-for="(log, i) in logs" :key="i" class="mb-1">
-						<span class="text-green-500">[{{ log.type }}]</span>
-						<span class="text-gray-400"> Blk:</span>
-						<span class="text-yellow-500">{{ log.block }}</span>
-						<span class="text-gray-400"> Addr:</span>
-						<span class="text-cyan-500">${{ log.address.toString(16).padStart(4, '0') }}</span>
-					</div>
-				</ScrollArea>
-
-				<div class="mt-4 border-t border-gray-800 pt-4 shrink-0">
-					<div class="flex justify-between items-center mb-2 px-1">
-						<h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Sector Map</h3>
-						<span class="text-[10px] text-gray-500 font-mono">{{ uniqueBlocks }} / {{ totalBlocks }} blocks</span>
-					</div>
-					<div class="bg-black rounded border border-gray-800 p-1">
-						<canvas ref="mapCanvas" class="w-full h-auto block" style="image-rendering: pixelated;"></canvas>
-					</div>
-				</div>
-			</SheetContent>
-		</Sheet>
+		<DiskDriveLogs
+			v-model:open="isLogSheetOpen"
+			:logging-enabled="loggingEnabled"
+			:file-size="fileSize"
+		/>
 
 		<div class="flex flex-col overflow-hidden min-w-[8rem]">
 			<span class="text-[10px] uppercase text-gray-400 font-bold tracking-wider">{{ diskConfig?.name || 'Disk' }}</span>
@@ -128,30 +95,21 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, inject, nextTick, type Ref, ref, watch } from 'vue';
+import { computed, inject, type Ref, ref, watch } from 'vue';
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
 } from '@/components/ui/popover';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import {
-	Sheet,
-	SheetContent,
-	SheetDescription,
-	SheetHeader,
-	SheetTitle,
-} from '@/components/ui/sheet';
 import { useDiskStorage } from '@/composables/useDiskStorage';
 import type { VirtualMachine } from '@/virtualmachine/virtualmachine.class';
+import DiskDriveLogs from './DiskDriveLogs.vue';
 
-type DiskLog = {
-	type: string;
-	block: number;
-	address: number;
-};
+const ACTIVE_DISK_KEY = "vm6502_active_disk_name";
 
 const vm = inject<Ref<VirtualMachine>>('vm');
+
 const diskConfig = computed(() => vm?.value?.machineConfig?.disk);
 const fileName = ref('');
 const fileSize = ref(0);
@@ -160,67 +118,14 @@ const savedDisks = ref<{ key: IDBValidKey; name: string; size: number }[]>([]);
 const isLibraryOpen = ref(false);
 const isLogSheetOpen = ref(false);
 
-const logs = ref<DiskLog[]>([]);
 const loggingEnabled = ref(false);
-const mapCanvas = ref<HTMLCanvasElement | null>(null);
 
-const ACTIVE_DISK_KEY = 'vm6502_active_disk_name';
 const SLOT = 5;
 
 const formatSize = (bytes: number) => {
 	if (bytes < 1024) return `${bytes} B`;
 	if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
 	return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-};
-
-const totalBlocks = computed(() => Math.ceil(fileSize.value / 512));
-const uniqueBlocks = computed(() => new Set(logs.value.map((l) => l.block)).size);
-
-const drawMap = () => {
-	const canvas = mapCanvas.value;
-	if (!canvas) return;
-
-	const ctx = canvas.getContext('2d');
-	if (!ctx) return;
-
-	const size = fileSize.value;
-	if (size <= 0) {
-		ctx.clearRect(0, 0, canvas.width, canvas.height);
-		return;
-	}
-
-	const total = Math.ceil(size / 512);
-
-	// Auto-scale grid based on disk size
-	let cols = 256;
-	let blockSize = 1;
-
-	if (total <= 3200) {
-		// Floppy size (<= 1.6MB)
-		cols = 40;
-		blockSize = 8;
-	} else {
-		// Hard Drive size
-		cols = 256;
-		blockSize = 1;
-	}
-
-	canvas.width = cols * blockSize;
-	const rows = Math.ceil(total / cols);
-	canvas.height = rows * blockSize;
-
-	ctx.fillStyle = '#1f2937'; // gray-800 (unread)
-	ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-	ctx.fillStyle = '#34d399'; // emerald-400 (read)
-	const unique = new Set(logs.value.map((l) => l.block));
-	const gap = blockSize > 2 ? 1 : 0;
-
-	unique.forEach((block) => {
-		const r = Math.floor(block / cols);
-		const c = block % cols;
-		ctx.fillRect(c * blockSize, r * blockSize, blockSize - gap, blockSize - gap);
-	});
 };
 
 const refreshLibrary = async () => {
@@ -272,38 +177,31 @@ const openLogs = () => {
 	isLogSheetOpen.value = true;
 };
 
-watch(loggingEnabled, (enabled) => {
-	vm?.value?.setDebugOverrides("bus",{ slot:5, smartPortLogging: enabled });
-});
+watch(
+	() => vm?.value,
+	async (newVm) => {
+		if (newVm) {
+			await newVm.ready;
+			await refreshLibrary();
 
-watch([logs, fileSize, isLogSheetOpen], () => {
-	if (isLogSheetOpen.value) nextTick(drawMap);
-}, { deep: true });
-
-watch(() => vm?.value, async (newVm) => {
-	if (newVm) {
-		await newVm.ready;
-		await refreshLibrary();
-
-		// Try to load last active disk
-		const lastDiskName = localStorage.getItem(ACTIVE_DISK_KEY);
-		if (lastDiskName) {
-			const saved = await loadDisk(lastDiskName);
-			if (saved) await loadDiskToVM(saved.name, saved.data);
-		} else {
-			// Fallback to legacy slot 5 if exists
-			const legacy = await loadDisk(5);
-			if (legacy) {
-				await loadDiskToVM(legacy.name, legacy.data);
-				// Migrate to new system
-				await saveDisk(legacy.name, legacy.name, legacy.data);
-				localStorage.setItem(ACTIVE_DISK_KEY, legacy.name);
+			// Try to load last active disk
+			const lastDiskName = localStorage.getItem(ACTIVE_DISK_KEY);
+			if (lastDiskName) {
+				const saved = await loadDisk(lastDiskName);
+				if (saved) await loadDiskToVM(saved.name, saved.data);
+			} else {
+				// Fallback to legacy slot 5 if exists
+				const legacy = await loadDisk(5);
+				if (legacy) {
+					await loadDiskToVM(legacy.name, legacy.data);
+					// Migrate to new system
+					await saveDisk(legacy.name, legacy.name, legacy.data);
+					localStorage.setItem(ACTIVE_DISK_KEY, legacy.name);
+				}
 			}
 		}
+	},
+	{ immediate: true },
+);
 
-		newVm.onLog = (log) => {
-			if (loggingEnabled.value) logs.value.push(log as DiskLog);
-		};
-	}
-}, { immediate: true });
 </script>
