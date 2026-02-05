@@ -146,14 +146,8 @@ import VideoControl from "./machine/VideoControl.vue";
 	provide('vm', vm);
 	const { loadBreakpoints } = useBreakpoints();
 
-	onMounted(() => {
-
-		const machine= new VirtualMachine(selectedMachine.value);
-		vm.value = markRaw(machine);
-		loadBreakpoints(machine);
-
-		// Listen for messages from the worker (e.g., for breakpoints, errors)
-		vm.value.onmessage = (event) => {
+	const setupVmListeners = (targetVm: VirtualMachine) => {
+		targetVm.onmessage = (event) => {
 			const { type, error, message } = event.data;
 
 			switch (type) {
@@ -166,14 +160,21 @@ import VideoControl from "./machine/VideoControl.vue";
 				case 'isRunning':
 					// Update the local isRunning ref based on the worker's state
 					isRunning.value = event.data.isRunning;
-					if (!isRunning.value) vm.value?.refreshVideo();
+					if (!isRunning.value) targetVm.refreshVideo();
 
 					break;
 				default:
 					console.log("Message received from worker:", event.data);
 			}
-
 		};
+	};
+
+	onMounted(() => {
+
+		const machine= new VirtualMachine(selectedMachine.value);
+		vm.value = markRaw(machine);
+		loadBreakpoints(machine);
+		setupVmListeners(vm.value);
 
 		// Start the UI update loop
 		requestAnimationFrame(updateUiFromSharedBuffer);
@@ -239,20 +240,20 @@ import VideoControl from "./machine/VideoControl.vue";
 	const loadMachine = (newMachine: MachineConfig) => {
 		console.log(`Main: Loading machine ${newMachine.name}`);
 		vm.value?.terminate();
-		vm.value = markRaw(new VirtualMachine(newMachine));
-		if(videoCanvas.value) vm.value.initVideo(videoCanvas.value);
+		isRunning.value = false;
+		const newVm = new VirtualMachine(newMachine);
+		vm.value = markRaw(newVm);
+		setupVmListeners(newVm);
+		if(videoCanvas.value) newVm.initVideo(videoCanvas.value);
+		loadBreakpoints(newVm);
 		selectedMachine.value = newMachine;
 	};
 
 	const handleMachineSelected = (newMachine: MachineConfig) => {
-		if (newMachine && newMachine.name !== vm.value?.machineConfig.name) {
-			loadMachine(newMachine);
-		}
+		if (newMachine && newMachine.name !== vm.value?.machineConfig.name) loadMachine(newMachine);
 	};
 
 	const handlePowerCycle = () => {
-		if (selectedMachine.value) {
-			loadMachine(selectedMachine.value);
-		}
+		if (selectedMachine.value) loadMachine(selectedMachine.value);
 	};
 </script>
