@@ -49,44 +49,51 @@
 				</ScrollArea>
 
 				<div class="p-4 border-t border-gray-800 bg-gray-900/50 flex flex-col gap-3">
-					<div class="flex gap-2">
-						<input
-							v-model="urlInput"
-							@input="urlError = null"
-							type="text"
-							placeholder="https://example.com/disk.dsk"
-							class="flex-1 bg-gray-800 border border-gray-600 text-gray-200 text-xs rounded px-2 py-1 focus:outline-none focus:border-blue-500 placeholder-gray-500"
-							@keydown.enter="handleUrlLoad"
-						/>
-						<button
-							@click="handleUrlLoad"
-							:disabled="!urlInput || isLoading"
-							class="px-3 py-1 bg-gray-700 hover:bg-gray-600 text-cyan-400 rounded border border-gray-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center shrink-0"
-							title="Load from URL"
-						>
-							<svg v-if="isLoading" class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-								<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-								<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-							</svg>
-							<svg v-else xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-							</svg>
-						</button>
-					</div>
-					<div v-if="urlError" class="text-red-400 text-[10px] px-1">{{ urlError }}</div>
-
-					<div class="h-px bg-gray-800"></div>
-
-					<label class="flex items-center justify-center px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded border border-gray-600 cursor-pointer transition-colors w-full">
-						<span class="mr-2">Upload New Disk</span>
-						<input
-							type="file"
-							accept=".po,.2mg,.dsk,.hdv"
-							@change="handleFileSelect"
-							class="hidden"
-						/>
-						<Upload class="h-6 w-6 text-cyan-400" />
-					</label>
+					<Tabs default-value="url" class="w-full">
+						<TabsList class="grid w-full grid-cols-2 bg-gray-800 h-8 p-1">
+							<TabsTrigger value="url" class="text-xs data-[state=active]:bg-gray-700 data-[state=active]:text-cyan-300 text-gray-400">Web URL</TabsTrigger>
+							<TabsTrigger value="upload" class="text-xs data-[state=active]:bg-gray-700 data-[state=active]:text-cyan-300 text-gray-400">Upload File</TabsTrigger>
+						</TabsList>
+						<TabsContent value="url" class="mt-3 space-y-2">
+							<div class="flex gap-2">
+								<input
+									v-model="urlInput"
+									@input="urlError = null"
+									type="text"
+									placeholder="https://example.com/disk.dsk"
+									class="flex-1 bg-gray-800 border border-gray-600 text-gray-200 text-xs rounded px-2 py-1 focus:outline-none focus:border-blue-500 placeholder-gray-500"
+									@keydown.enter="handleUrlLoad"
+								/>
+								<button
+									@click="handleUrlLoad"
+									:disabled="!isValidUrl || isLoading"
+									class="px-3 py-1 bg-gray-700 hover:bg-gray-600 text-cyan-400 rounded border border-gray-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center shrink-0"
+									title="Load from URL"
+								>
+									<svg v-if="isLoading" class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+										<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+										<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+									</svg>
+									<svg v-else xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+									</svg>
+								</button>
+							</div>
+							<div v-if="urlError" class="text-red-400 text-[10px] px-1">{{ urlError }}</div>
+						</TabsContent>
+						<TabsContent value="upload" class="mt-3">
+							<label class="flex items-center justify-center px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded border border-gray-600 cursor-pointer transition-colors w-full">
+								<span class="mr-2">Upload New Disk</span>
+								<input
+									type="file"
+									accept=".po,.2mg,.dsk,.hdv"
+									@change="handleFileSelect"
+									class="hidden"
+								/>
+								<Upload class="h-5 w-5 text-cyan-400" />
+							</label>
+						</TabsContent>
+					</Tabs>
 
 					<div class="h-px bg-gray-800"></div>
 
@@ -132,7 +139,9 @@ import {
 	PopoverTrigger,
 } from '@/components/ui/popover';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { type DiskInfo, useDiskStorage } from '@/composables/useDiskStorage';
+import { useLabeling } from "@/composables/useLabeling";
 import type { VirtualMachine } from '@/virtualmachine/virtualmachine.class';
 import DiskDriveLogs from './DiskDriveLogs.vue';
 
@@ -141,6 +150,7 @@ const ACTIVE_DISK_URL_KEY = "vm6502_active_disk_url";
 
 const vm = inject<Ref<VirtualMachine>>('vm');
 
+const { parseSymbolsFromText } = useLabeling();
 const diskConfig = computed(() => vm?.value?.machineConfig?.disk);
 const fileName = ref('');
 const fileSize = ref(0);
@@ -153,6 +163,17 @@ const urlInput = ref('');
 const isLoading = ref(false);
 const urlError = ref<string | null>(null);
 const loggingEnabled = ref(false);
+
+const isValidUrl = computed(() => {
+	if (!urlInput.value) return false;
+	try {
+		const url = new URL(urlInput.value);
+		const pathname = url.pathname;
+		return pathname !== '/' && !pathname.endsWith('/');
+	} catch {
+		return false;
+	}
+});
 
 const SLOT = 5;
 
@@ -178,14 +199,8 @@ const loadFromUrl = async (url: string) => {
 
 	const buffer = await response.arrayBuffer();
 	let name = url.split('/').pop() as string;
-
-	console.log("name", name);
-	console.log("buffer", buffer);
-
 	if (!name || name.trim() === '') throw new Error('Invalid disk name');
-
 	name = name.split('?')[0] as string;
-
 
 	await loadDiskToVM(name, buffer);
 
@@ -202,7 +217,7 @@ const loadFromUrl = async (url: string) => {
 		if (symRes.ok) {
 			const symText = await symRes.text();
 			try {
-				const symData = JSON.parse(symText);
+				const symData = parseSymbolsFromText(symText);
 				vm?.value?.addSymbols(symData);
 				console.log(`Loaded symbols from ${symUrl}`);
 			} catch {
@@ -235,7 +250,7 @@ const handleFileSelect = async (event: Event) => {
 };
 
 const handleUrlLoad = async () => {
-	if (!urlInput.value) return;
+	if (!isValidUrl.value) return;
 	isLoading.value = true;
 	urlError.value = null;
 

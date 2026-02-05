@@ -36,7 +36,7 @@ export function useLabeling() {
 		return { labeledOpcode: opcode, labelComment: null };
 	};
 
-	const loadSymbolsFromText = (text: string) => {
+	const parseSymbolsFromText = (text: string) => {
 		const symbols: Record<number, Record<string, string>> = {};
 		const lines = text.split(/\r?\n/);
 		let currentScope = "main";
@@ -72,11 +72,12 @@ export function useLabeling() {
 				}
 			}
 		}
-		vm?.value?.addSymbols(symbols);
+		return symbols;
 	};
 
 	const getLabelForAddress = (address: number, scope = "main") => {
 		return vm?.value?.machineConfig?.symbols?.[address]?.[scope];
 	};
-	return { getLabeledInstruction, loadSymbolsFromText, getLabelForAddress };
+
+	return { getLabeledInstruction, parseSymbolsFromText, getLabelForAddress };
 }

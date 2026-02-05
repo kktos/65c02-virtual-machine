@@ -157,7 +157,7 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 	};
 
 	const symbolFileInput = ref<HTMLInputElement | null>(null);
-	const { loadSymbolsFromText } = useLabeling();
+	const { parseSymbolsFromText } = useLabeling();
 
 	const triggerSymbolLoad = () => {
 		symbolFileInput.value?.click();
@@ -166,11 +166,10 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 	const handleSymbolFile = async (event: Event) => {
 		const input = event.target as HTMLInputElement;
 		if (!input.files || input.files.length === 0) return;
-
 		const file = input.files[0] as File;
 		const text = await file.text();
-
-		loadSymbolsFromText(text);
+		const symbols= parseSymbolsFromText(text);
+		vm?.value?.addSymbols(symbols);
 		input.value = ''; // Reset input
 	};
 
