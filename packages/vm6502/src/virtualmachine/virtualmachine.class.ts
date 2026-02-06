@@ -62,7 +62,7 @@ export class VirtualMachine {
 	public onmessage?: (event: MessageEvent) => void;
 	public onStateChange?: (state: Dict) => void;
 	public onTraceReceived?: (history: { type: string; source: number; target: number }[]) => void;
-	public onLog?: (log: Dict) => void;
+	private logListeners: ((log: Dict) => void)[] = [];
 
 	public isTraceEnabled = false;
 	public symbolsVersion = ref(0);
@@ -77,8 +77,10 @@ export class VirtualMachine {
 	constructor(machineConfig: MachineConfig) {
 		this.machineConfig = machineConfig;
 
+		const { addRegion, clearRegions } = useMemoryMap();
+		clearRegions();
+
 		if (this.machineConfig.regions) {
-			const { addRegion } = useMemoryMap();
 			this.machineConfig.regions.forEach((region) => {
 				addRegion(region);
 			});
@@ -91,7 +93,7 @@ export class VirtualMachine {
 		});
 
 		this.worker.onmessage = (event) => {
-			const { command, colors, type, history, buffer, payload, address } = event.data;
+			const { command, colors, type, history, buffer, payload, address, kind } = event.data;
 
 			switch (type) {
 				case "audio":
@@ -104,7 +106,7 @@ export class VirtualMachine {
 					this.handleTraceReceived(history);
 					break;
 				case "log":
-					this.onLog?.(payload);
+					this.emitLog({ kind, ...payload });
 					break;
 				case "isRunning":
 					this._isRunning = event.data.isRunning;
@@ -562,6 +564,41 @@ export class VirtualMachine {
 		return message;
 	}
 
+	private readFormattedString(stringAddr: number, argPtr: number): { message: string; argsConsumed: number } {
+		let message = "";
+		let charAddr = stringAddr;
+		let argsConsumed = 0;
+
+		// Safety break at 256 chars to prevent infinite loops on unterminated strings
+		while (message.length < 256) {
+			const charCode = this.read(charAddr++);
+			if (charCode === 0) break; // End of string
+
+			if (charCode === 0x25) {
+				// '%'
+				const formatCode = this.read(charAddr++);
+				switch (String.fromCharCode(formatCode & 0x7f)) {
+					case "h": {
+						const val = this.read(argPtr + argsConsumed);
+						argsConsumed++;
+						message += val.toString(16).padStart(2, "0");
+						break;
+					}
+					case "%":
+						message += "%";
+						break;
+					default:
+						message += `%${String.fromCharCode(formatCode & 0x7f)}`;
+						break;
+				}
+			} else {
+				message += String.fromCharCode(charCode & 0x7f);
+			}
+		}
+
+		return { message, argsConsumed };
+	}
+
 	private executeHypercallCmd(hypercallCommand: number, pc: number) {
 		let offsetPC = 0;
 		switch (hypercallCommand) {
@@ -569,14 +606,13 @@ export class VirtualMachine {
 				// LOG_STRING
 				// Read the 16-bit address of the string from PC+2 and PC+3
 				const stringAddr = this.read(pc + 2) | (this.read(pc + 3) << 8);
-				const message = this.readString(stringAddr);
+				const { message, argsConsumed } = this.readFormattedString(stringAddr, pc + 4);
 
 				// Log the message
-				// this.onLog?.({ message: `GUEST: ${message}` });
-				console.log("VM: LOG_STRING:", message);
+				this.emitLog({ kind: "HYPER", message });
 
 				// Advance PC past the BRK and its arguments (BRK, CMD, ADDR_LO, ADDR_HI)
-				offsetPC = 4;
+				offsetPC = 4 + argsConsumed;
 				break;
 			}
 
@@ -589,8 +625,9 @@ export class VirtualMachine {
 				const P = this.sharedRegisters.getUint8(REG_STATUS_OFFSET);
 
 				const message = `A:${A.toString(16).padStart(2, "0")} X:${X.toString(16).padStart(2, "0")} Y:${Y.toString(16).padStart(2, "0")} P:${P.toString(16).padStart(2, "0")} SP:${SP.toString(16).padStart(2, "0")}`;
+				this.emitLog({ kind: "HYPER", message });
 				// this.onLog?.({ message: `GUEST_REGS: ${message}` });
-				console.log("VM: LOG_REGS:", message);
+				// console.log("VM: LOG_REGS:", message);
 
 				// Advance PC past BRK and command byte
 				offsetPC = 2;
@@ -631,5 +668,19 @@ export class VirtualMachine {
 		window.removeEventListener("keyup", this.keyUpHandler);
 		window.removeEventListener("paste", this.pasteHandler);
 		console.log("VM: Worker terminated.");
+	}
+
+	public onLog(listener: (log: Dict) => void) {
+		this.logListeners.push(listener);
+	}
+
+	public removeLogListener(listener: (log: Dict) => void) {
+		this.logListeners = this.logListeners.filter((l) => l !== listener);
+	}
+
+	private emitLog(log: Dict) {
+		this.logListeners.forEach((listener) => {
+			listener(log);
+		});
 	}
 }

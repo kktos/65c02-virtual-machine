@@ -33,5 +33,9 @@ export function useMemoryMap() {
 		}
 	};
 
-	return { ...toRefs(state), addRegion, removeRegion };
+	const clearRegions = () => {
+		state.regions.length = 0;
+	};
+
+	return { ...toRefs(state), addRegion, removeRegion, clearRegions };
 }

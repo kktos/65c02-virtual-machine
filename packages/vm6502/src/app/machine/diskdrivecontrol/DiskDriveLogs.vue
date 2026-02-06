@@ -39,19 +39,20 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, inject, nextTick, type Ref, ref, watch } from 'vue';
+import { computed, inject, nextTick, onUnmounted, type Ref, ref, watch } from 'vue';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
-    Sheet,
-    SheetContent,
-    SheetDescription,
-    SheetHeader,
-    SheetTitle,
+	Sheet,
+	SheetContent,
+	SheetDescription,
+	SheetHeader,
+	SheetTitle,
 } from '@/components/ui/sheet';
 import { useDiskMapDrawing } from '@/composables/useDiskMapDrawing';
 import type { VirtualMachine } from '@/virtualmachine/virtualmachine.class';
 
 type DiskLog = {
+	kind: "disk";
 	type: string;
 	block: number;
 	address: number;
@@ -81,16 +82,23 @@ watch([logs, () => props.fileSize, () => props.open], () => {
 	if (props.open) nextTick(() => drawMap(mapCanvas.value, props.fileSize, logs.value));
 }, { deep: true });
 
+const handleLog = (log: { kind: string }) => {
+	if (props.loggingEnabled && log.kind === "disk") logs.value.push(log as DiskLog);
+};
+
 watch(
 	() => vm?.value,
-	(newVm) => {
+	(newVm, oldVm) => {
+		if (oldVm) oldVm.removeLogListener(handleLog);
 		if (newVm) {
-			newVm.onLog = (log) => {
-				if (props.loggingEnabled) logs.value.push(log as DiskLog);
-			};
+			newVm.onLog(handleLog);
 			newVm.setDebugOverrides("bus", { slot: 5, smartPortLogging: props.loggingEnabled });
 		}
 	},
 	{ immediate: true },
 );
+
+onUnmounted(() => {
+	vm?.value?.removeLogListener(handleLog);
+});
 </script>

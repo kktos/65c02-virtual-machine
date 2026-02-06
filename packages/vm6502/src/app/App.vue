@@ -1,7 +1,7 @@
 <template>
   <ResizablePanelGroup v-if="vm" direction="horizontal" class="h-screen bg-gray-900 text-white" auto-save-id="appPanelLayout">
 
-    <ResizablePanel class="flex flex-col bg-white bg-[conic-gradient(#000_0_25%,#333_0_50%,#000_0_75%,#333_0_100%)] [background-size:1rem_1rem]">
+    <ResizablePanel class="flex flex-col bg-white bg-[conic-gradient(#000_0_25%,#333_0_50%,#000_0_75%,#333_0_100%)] [background-size:1rem_1rem] relative">
 		<div class="flex items-center justify-between pr-2 bg-gray-900">
 			<MachineSelector :machines="availableMachines" :selected-machine="selectedMachine" @machine-selected="handleMachineSelected" @power-cycle="handlePowerCycle"/>
 			<div class="flex items-center space-x-2">
@@ -9,6 +9,14 @@
 				<SoundControl />
 				<DiskDriveControl v-if="vm.machineConfig.disk?.enabled" />
 				<StatusPanel />
+				<button
+					@click="showLogs = !showLogs"
+					class="p-1 rounded hover:bg-gray-700 text-gray-400 hover:text-white transition-colors"
+					:class="{ 'text-green-400 bg-gray-800': showLogs }"
+					title="Toggle Log Viewer"
+				>
+					<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 12h-5"/><path d="M15 8h-5"/><path d="M19 17V5a2 2 0 0 0-2-2H4"/><path d="M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3"/></svg>
+				</button>
 			</div>
 		</div>
 		<canvas
@@ -16,6 +24,22 @@
 			class="border"
 			style="image-rendering: pixelated;"
 		></canvas>
+		<div v-if="showLogs" :style="{ height: logHeight + 'px' }" class="absolute bottom-0 left-5 right-5 min-h-[100px] bg-gray-800/70 text-green-400 font-mono text-xs flex flex-col border-t border-gray-700 backdrop-blur-sm z-10">
+			<!-- Resize Handle -->
+			<div
+				class="absolute -top-1 left-0 right-0 h-2 cursor-row-resize hover:bg-cyan-500/50 transition-colors z-20"
+				@mousedown.prevent="startResizeLogs"
+			></div>
+
+			<div class="flex justify-between items-center px-2 py-1 bg-gray-800/50 border-b border-gray-700 shrink-0">
+				<span class="font-bold text-gray-300 uppercase tracking-wider text-[10px]">System Logs</span>
+				<button @click="logs = []" class="text-[10px] hover:text-red-400 text-gray-400 transition-colors">Clear</button>
+			</div>
+			<div class="flex-1 overflow-y-auto p-2 space-y-0.5">
+				<div v-for="(log, i) in logs" :key="i" class="break-all border-b border-gray-800/30 pb-0.5">{{ log }}</div>
+				<div ref="logEndRef"></div>
+			</div>
+		</div>
 	</ResizablePanel>
 
     <ResizableHandle />
@@ -97,7 +121,7 @@
 </template>
 
 <script setup lang="ts">
-import { markRaw, onMounted, onUnmounted, provide, reactive, ref, watch } from "vue";
+import { markRaw, nextTick, onMounted, onUnmounted, provide, reactive, ref, watch } from "vue";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import TogglableDisplay from '../components/TogglableDisplay.vue';
 import ResizableHandle from '../components/ui/resizable/ResizableHandle.vue';
@@ -141,6 +165,29 @@ import VideoControl from "./machine/VideoControl.vue";
 	const videoCanvas = ref<HTMLCanvasElement | null>(null);
 	const selectedMachine = ref<MachineConfig>(availableMachines[1] as MachineConfig);
 
+	const logs = ref<string[]>([]);
+	const showLogs = ref(false);
+	const logEndRef = ref<HTMLDivElement | null>(null);
+	const logHeight = ref(200);
+
+	const startResizeLogs = (e: MouseEvent) => {
+		const startY = e.clientY;
+		const startHeight = logHeight.value;
+
+		const onMouseMove = (e: MouseEvent) => {
+			const deltaY = startY - e.clientY;
+			logHeight.value = Math.max(100, startHeight + deltaY);
+		};
+
+		const onMouseUp = () => {
+			window.removeEventListener('mousemove', onMouseMove);
+			window.removeEventListener('mouseup', onMouseUp);
+		};
+
+		window.addEventListener('mousemove', onMouseMove);
+		window.addEventListener('mouseup', onMouseUp);
+	};
+
 	const { activeTab: activeDebuggerTab } = useDebuggerNav();
 
 	provide('vm', vm);
@@ -167,6 +214,16 @@ import VideoControl from "./machine/VideoControl.vue";
 					console.log("Message received from worker:", event.data);
 			}
 		};
+
+		targetVm.onLog((payload) => {
+			if (!payload.message) return;
+
+			logs.value.push(payload.message);
+			if (logs.value.length > 500) logs.value.shift();
+			nextTick(() => {
+				if (logEndRef.value) logEndRef.value.scrollIntoView({ behavior: "smooth" });
+			});
+		});
 	};
 
 	onMounted(() => {
