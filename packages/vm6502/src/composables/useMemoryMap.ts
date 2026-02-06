@@ -21,7 +21,10 @@ export function useMemoryMap() {
 			console.warn(`Region with name ${region.name} already exists.`);
 			return;
 		}
-		state.regions.push({ ...region, removable: region.removable ?? true, color: region.color ?? getRandomColor() });
+		const isRemovable = region.removable ?? true;
+		const color = region.color ?? (isRemovable ? getRandomColor() : "rgb(102 5 5 / 35%)");
+
+		state.regions.push({ ...region, removable: isRemovable, color });
 		state.regions.sort((a, b) => a.start - b.start);
 	};
 
@@ -33,9 +36,20 @@ export function useMemoryMap() {
 		}
 	};
 
+	const removeRegions = (name: string) => {
+		const regions = state.regions.filter((r) => r.name.startsWith(name));
+		regions.forEach((region) => {
+			const index = state.regions.findIndex((r) => r.name === region.name);
+			if (state.regions[index]) {
+				if (state.regions[index].removable === false) return;
+				state.regions.splice(index, 1);
+			}
+		});
+	};
+
 	const clearRegions = () => {
 		state.regions.length = 0;
 	};
 
-	return { ...toRefs(state), addRegion, removeRegion, clearRegions };
+	return { ...toRefs(state), addRegion, removeRegion, clearRegions, removeRegions };
 }

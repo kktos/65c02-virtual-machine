@@ -33,21 +33,18 @@ export const regionsConfig: MemoryRegion[] = [
 		name: "Slot ROM",
 		start: 0xc100,
 		size: 0xf00,
-		color: "#3b82f6", // blue-500
 		removable: false,
 	},
 	{
 		name: "LC ROM",
 		start: 0xd000,
 		size: 0x1000,
-		color: "#3b82f6", // blue-500
 		removable: false,
 	},
 	{
 		name: "ROM",
 		start: 0xe000,
 		size: 0x2000,
-		color: "#3b82f6", // blue-500
 		removable: false,
 	},
 ];

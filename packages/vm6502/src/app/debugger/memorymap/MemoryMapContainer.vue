@@ -1,6 +1,6 @@
 <template>
-	<div class="flex flex-col space-y-6">
-		<div class="flex gap-4">
+	<div class="flex flex-col h-full space-y-6">
+		<div class="flex gap-4 shrink-0">
 			<!-- Bank Controls -->
 			<div v-if="totalBanks > 1" class="flex flex-col items-center justify-between bg-gray-800 rounded p-1 border border-gray-700 w-10 shrink-0 h-24 self-end">
 				<button @click="nextBank" :disabled="currentBank >= totalBanks - 1" class="p-1 hover:bg-gray-700 rounded disabled:opacity-50 disabled:cursor-not-allowed text-gray-300">
@@ -33,6 +33,10 @@
 					v-if="region.bank === undefined && totalBanks > 1"
 					class="w-3 h-3 absolute top-0.5 right-0.5 text-white/70"
 				/>
+				<Lock
+					v-if="!region.removable"
+					class="w-3 h-3 absolute top-0.5 left-0.5 text-white/70"
+				/>
 				<span class="text-xs text-white font-bold text-center mix-blend-difference whitespace-nowrap px-2">
 					{{ region.name }}
 				</span>
@@ -42,10 +46,10 @@
 		</div>
 
 		<!-- The controls -->
-		<div class="grid grid-cols-1 md:grid-cols-2 gap-8" v-if="!isCompact">
-			<div class="flex flex-col space-y-2">
-				<h3 class="text-sm font-bold uppercase text-gray-500 tracking-wider">Regions</h3>
-				<ul class="space-y-1 overflow-y-auto pr-2 -mr-2">
+		<div class="grid grid-cols-1 md:grid-cols-2 gap-8 min-h-0 flex-1" v-if="!isCompact">
+			<div class="flex flex-col space-y-2 min-h-0">
+				<h3 class="text-sm font-bold uppercase text-gray-500 tracking-wider shrink-0">Regions</h3>
+				<ul class="space-y-1 overflow-y-auto pr-2 -mr-2 flex-1">
 					<li
 						v-for="region in removableRegions"
 						:key="region.name"
@@ -90,7 +94,7 @@
 </template>
 
 <script lang="ts" setup>
-import { ChevronDown, ChevronUp, Layers, Maximize2, Minimize2 } from "lucide-vue-next";
+import { ChevronDown, ChevronUp, Layers, Lock, Maximize2, Minimize2 } from "lucide-vue-next";
 import { computed, inject, type Ref, ref } from "vue";
 import { useDebuggerNav } from "@/composables/useDebuggerNav";
 import { type MemoryRegion, useMemoryMap } from "@/composables/useMemoryMap";
@@ -108,17 +112,10 @@ const onRegionClick = (region: MemoryRegion) => {
 };
 
 const totalBanks = computed(() => vm?.value?.machineConfig?.memory?.banks ?? 1);
-
-const nextBank = () => {
-	if (currentBank.value < totalBanks.value - 1) currentBank.value++;
-};
-
-const prevBank = () => {
-	if (currentBank.value > 0) currentBank.value--;
-};
+const nextBank = () => { if (currentBank.value < totalBanks.value - 1) currentBank.value++; };
+const prevBank = () => { if (currentBank.value > 0) currentBank.value--; };
 
 const visibleRegions = computed(() => regions.value.filter((r) => r.bank === undefined || r.bank === currentBank.value));
-
 const removableRegions = computed(() => visibleRegions.value.filter((region) => region.removable !== false));
 
 const newRegion = ref({
@@ -169,7 +166,6 @@ const processedRegions = computed(() => {
 	const totalTracks = Math.max(1, tracks.length);
 
 	return regionTracks.map(({ region, trackIndex, isIsolated }) => {
-		const isRemovable = region.removable !== false;
 		return {
 			...region,
 			style: {
@@ -177,10 +173,7 @@ const processedRegions = computed(() => {
 				width: `${Math.max(0.1, (region.size / 0x10000) * 100)}%`,
 				height: isIsolated ? "100%" : `${100 / totalTracks}%`,
 				top: isIsolated ? "0%" : `${(trackIndex / totalTracks) * 100}%`,
-				backgroundColor: isRemovable ? region.color : "transparent",
-				backgroundImage: isRemovable
-					? "none"
-					: "repeating-linear-gradient(45deg, #6b7280 0, #6b7280 1px, transparent 1px, transparent 6px)",
+				backgroundColor: region.color,
 			},
 		};
 	});
