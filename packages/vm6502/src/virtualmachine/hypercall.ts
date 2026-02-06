@@ -2,9 +2,9 @@ import { useMemoryMap } from "@/composables/useMemoryMap";
 import { REG_A_OFFSET, REG_SP_OFFSET, REG_STATUS_OFFSET, REG_X_OFFSET, REG_Y_OFFSET } from "./cpu/shared-memory";
 import type { VirtualMachine } from "./virtualmachine.class";
 
-export const HYPERCALL_COMMANDS = new Set([0x01, 0x02, 0x03]);
+export const HYPERCALL_COMMANDS = new Set([0x01, 0x02, 0x03, 0x04]);
 
-export function executeHypercallCmd(vm: VirtualMachine, cmd: number, pc: number) {
+export function executeHypercallCmd(vm: VirtualMachine, cmd: number, pc: number, shouldResume = true) {
 	let offsetPC = 0;
 	switch (cmd) {
 		case 0x01: {
@@ -56,12 +56,28 @@ export function executeHypercallCmd(vm: VirtualMachine, cmd: number, pc: number)
 			offsetPC = 10;
 			break;
 		}
+
+		case 0x04: {
+			// REMOVE_REGIONS
+			// Format: BRK $04 <count:byte> <NamePtr:word>
+			const { removeRegions } = useMemoryMap();
+
+			const count = vm.read(pc + 2);
+			for (let i = 0; i < count; i++) {
+				const namePtr = vm.read(pc + 3 + i * 2) | (vm.read(pc + 4 + i * 2) << 8);
+				const name = readString(vm, namePtr);
+				removeRegions(name);
+			}
+
+			offsetPC = 2 + 1 + count * 2;
+			break;
+		}
 	}
 
-	console.log(`VM: PC = $${(pc + offsetPC).toString(16)}`);
+	// console.log(`VM: PC = $${(pc + offsetPC).toString(16)}`);
 
 	vm.updateRegister("PC", pc + offsetPC);
-	vm.play();
+	if (shouldResume) vm.play();
 }
 
 function readString(vm: VirtualMachine, address: number): string {
