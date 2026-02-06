@@ -25,8 +25,7 @@ import { useMemoryMap } from "../composables/useMemoryMap";
 import { parseHexData } from "../lib/array.utils";
 import type { Breakpoint } from "../types/breakpoint.interface";
 import type { EmulatorState } from "../types/emulatorstate.interface";
-
-const HYPERCALL_COMMANDS = new Set([0x01, 0x02, 0x03]);
+import { executeHypercallCmd, HYPERCALL_COMMANDS } from "./hypercall";
 
 const MACHINES_BASE_PATH = "../machines";
 const busModules = import.meta.glob("../machines/*/*.bus.ts");
@@ -115,7 +114,7 @@ export class VirtualMachine {
 				case "break": {
 					// It's a BRK instruction. Check for hypercalls.
 					const hypercallCommand = this.read(address + 1);
-					if (HYPERCALL_COMMANDS.has(hypercallCommand)) this.executeHypercallCmd(hypercallCommand, address);
+					if (HYPERCALL_COMMANDS.has(hypercallCommand)) executeHypercallCmd(this, hypercallCommand, address);
 					break;
 				}
 				case "breakpointHit":
@@ -551,116 +550,6 @@ export class VirtualMachine {
 		return this.bus?.getMachineStateSpecs ? this.bus.getMachineStateSpecs() : [];
 	}
 
-	private readString(address: number): string {
-		let message = "";
-		let charAddr = address;
-		let charCode = this.read(charAddr);
-		// Safety break at 256 chars to prevent infinite loops on unterminated strings
-		while (charCode !== 0 && message.length < 256) {
-			message += String.fromCharCode(charCode & 0x7f);
-			charAddr++;
-			charCode = this.read(charAddr);
-		}
-		return message;
-	}
-
-	private readFormattedString(stringAddr: number, argPtr: number): { message: string; argsConsumed: number } {
-		let message = "";
-		let charAddr = stringAddr;
-		let argsConsumed = 0;
-
-		// Safety break at 256 chars to prevent infinite loops on unterminated strings
-		while (message.length < 256) {
-			const charCode = this.read(charAddr++);
-			if (charCode === 0) break; // End of string
-
-			if (charCode === 0x25) {
-				// '%'
-				const formatCode = this.read(charAddr++);
-				switch (String.fromCharCode(formatCode & 0x7f)) {
-					case "h": {
-						const val = this.read(argPtr + argsConsumed);
-						argsConsumed++;
-						message += val.toString(16).padStart(2, "0");
-						break;
-					}
-					case "%":
-						message += "%";
-						break;
-					default:
-						message += `%${String.fromCharCode(formatCode & 0x7f)}`;
-						break;
-				}
-			} else {
-				message += String.fromCharCode(charCode & 0x7f);
-			}
-		}
-
-		return { message, argsConsumed };
-	}
-
-	private executeHypercallCmd(hypercallCommand: number, pc: number) {
-		let offsetPC = 0;
-		switch (hypercallCommand) {
-			case 0x01: {
-				// LOG_STRING
-				// Read the 16-bit address of the string from PC+2 and PC+3
-				const stringAddr = this.read(pc + 2) | (this.read(pc + 3) << 8);
-				const { message, argsConsumed } = this.readFormattedString(stringAddr, pc + 4);
-
-				// Log the message
-				this.emitLog({ kind: "HYPER", message });
-
-				// Advance PC past the BRK and its arguments (BRK, CMD, ADDR_LO, ADDR_HI)
-				offsetPC = 4 + argsConsumed;
-				break;
-			}
-
-			case 0x02: {
-				// LOG_REGS
-				const A = this.sharedRegisters.getUint8(REG_A_OFFSET);
-				const X = this.sharedRegisters.getUint8(REG_X_OFFSET);
-				const Y = this.sharedRegisters.getUint8(REG_Y_OFFSET);
-				const SP = this.sharedRegisters.getUint8(REG_SP_OFFSET);
-				const P = this.sharedRegisters.getUint8(REG_STATUS_OFFSET);
-
-				const message = `A:${A.toString(16).padStart(2, "0")} X:${X.toString(16).padStart(2, "0")} Y:${Y.toString(16).padStart(2, "0")} P:${P.toString(16).padStart(2, "0")} SP:${SP.toString(16).padStart(2, "0")}`;
-				this.emitLog({ kind: "HYPER", message });
-				// this.onLog?.({ message: `GUEST_REGS: ${message}` });
-				// console.log("VM: LOG_REGS:", message);
-
-				// Advance PC past BRK and command byte
-				offsetPC = 2;
-
-				break;
-			}
-
-			case 0x03: {
-				// ADD_REGION
-				// Format: BRK $03 <Start:word> <Size:word> <NamePtr:word> <Bank:word>
-				const start = this.read(pc + 2) | (this.read(pc + 3) << 8);
-				const size = this.read(pc + 4) | (this.read(pc + 5) << 8);
-				const namePtr = this.read(pc + 6) | (this.read(pc + 7) << 8);
-				const bank = this.read(pc + 8) | (this.read(pc + 9) << 8);
-
-				const name = this.readString(namePtr);
-
-				const { addRegion } = useMemoryMap();
-				addRegion({ name, start, size, bank, removable: true });
-
-				console.log(`VM: ADD_REGION: ${name} @ $${start.toString(16)} size $${size.toString(16)}`);
-
-				offsetPC = 10;
-				break;
-			}
-		}
-
-		console.log(`VM: PC = $${(pc + offsetPC).toString(16)}`);
-
-		this.updateRegister("PC", pc + offsetPC);
-		this.play();
-	}
-
 	public terminate() {
 		this.isRendering = false;
 		this.worker.terminate();
@@ -678,7 +567,7 @@ export class VirtualMachine {
 		this.logListeners = this.logListeners.filter((l) => l !== listener);
 	}
 
-	private emitLog(log: Dict) {
+	public emitLog(log: Dict) {
 		this.logListeners.forEach((listener) => {
 			listener(log);
 		});
