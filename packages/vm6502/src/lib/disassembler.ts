@@ -24,6 +24,19 @@ function getHypercallArgs(memory: Uint8Array, stringAddr: number): number {
 	return args;
 }
 
+function readString(memory: Uint8Array, address: number): string {
+	let str = "";
+	let ptr = address;
+	let limit = 256;
+	while (limit-- > 0 && ptr < memory.length) {
+		const char = memory[ptr] ?? 0;
+		if (char === 0) break;
+		str += String.fromCharCode(char & 0x7f);
+		ptr++;
+	}
+	return str;
+}
+
 export function disassemble(
 	memory: Uint8Array,
 	fromAddress: number,
@@ -96,11 +109,17 @@ export function disassemble(
 						const count = memory[pc + 2] ?? 0;
 						bytesConsumed = 3 + count * 2;
 						if (pc + bytesConsumed <= memory.length) {
+							const names: string[] = [];
+							for (let i = 0; i < count; i++) {
+								const ptrAddr = pc + 3 + i * 2;
+								const namePtr = (memory[ptrAddr] ?? 0) | ((memory[ptrAddr + 1] ?? 0) << 8);
+								names.push(readString(memory, namePtr));
+							}
 							hypercallLine = {
 								address,
 								opcode: "!!REMOVE_REGIONS",
 								rawBytes: "",
-								comment: `Count: ${count}`,
+								comment: `Count: ${count} (${names.join(", ")})`,
 								cycles: 7,
 							};
 						}
