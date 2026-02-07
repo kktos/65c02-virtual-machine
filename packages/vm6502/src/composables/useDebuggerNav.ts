@@ -45,6 +45,11 @@ export function useDebuggerNav() {
 		historyNavigationEvent.value = { address, timestamp: Date.now() };
 	};
 
+	const clearHistory = () => {
+		jumpHistory.value.length = 0;
+		historyIndex.value = -1;
+	};
+
 	return {
 		memoryViewAddress,
 		setMemoryViewAddress,
@@ -56,5 +61,6 @@ export function useDebuggerNav() {
 		navigateHistory,
 		historyNavigationEvent,
 		jumpToAddress,
+		clearHistory,
 	};
 }

@@ -70,7 +70,7 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 
 	const { pcBreakpoints, toggleBreakpoint } = useBreakpoints();
 	const { jumpEvent } = useDisassembly();
-	const { setMemoryViewAddress, setActiveTab, addJumpHistory, historyNavigationEvent, historyIndex } = useDebuggerNav();
+	const { setMemoryViewAddress, setActiveTab, addJumpHistory, historyNavigationEvent, historyIndex,clearHistory } = useDebuggerNav();
 	const { settings } = useSettings();
 
 	const availableScopes: Ref<string[]>= ref([]);
@@ -85,6 +85,8 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 				if (!settings.disassembly.scopeColors[scope])
 					settings.disassembly.scopeColors[scope] = getRandomColor();
 			}
+			isFollowingPc.value = true;
+			clearHistory();
 		}
 	}, { immediate: true });
 
@@ -182,9 +184,7 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 
 	const syncToPc = () => {
 		isFollowingPc.value = !isFollowingPc.value;
-		if (isFollowingPc.value) {
-			disassemblyStartAddress.value = fullPcAddress.value;
-		}
+		if (isFollowingPc.value) disassemblyStartAddress.value = fullPcAddress.value;
 	};
 
 	const { scrollContainer, visibleRowCount, handleScroll, memoryProxy, findPreviousInstructionAddress } = useDisassemblyScroll(
@@ -201,9 +201,7 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 
 	onMounted(() => {
 		// Initialize history with the starting address if it's empty
-		if (historyIndex.value === -1) {
-			addJumpHistory(fullPcAddress.value);
-		}
+		if (historyIndex.value === -1) addJumpHistory(fullPcAddress.value);
 	});
 
 	watch(
