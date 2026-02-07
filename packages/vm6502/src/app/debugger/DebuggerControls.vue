@@ -6,42 +6,35 @@
 				size="sm"
 				:class="[ isRunning ? 'bg-red-600 hover:bg-red-500' : 'bg-green-600 hover:bg-green-500']"
 			>
-				<Pause v-if="isRunning" class="mr-2 h-4 w-4" />
-				<Play v-else class="mr-2 h-4 w-4" />
-				{{ isRunning ? 'Pause' : 'Run' }}
-				<Kbd class="ml-2 h-5 px-1.5 text-[10px] bg-black/20 border-white/20 text-white/90">F5</Kbd>
-			</Button>
-			<Button @click="vm?.step"
-				size="sm"
-				:disabled="isRunning"
-				class="hover:bg-gray-600 disabled:opacity-50"
-				title="Execute the current instruction, stepping into subroutines (JSR)"
-			>
-				<ArrowDownToDot class="mr-2 h-4 w-4" />
-				Step Into
-				<Kbd class="ml-2 h-5 px-1.5 text-[10px] bg-gray-700 border-gray-600 text-gray-400">F11</Kbd>
+				<Pause v-if="isRunning" class="h-4 w-4" />
+				<Play v-else class="h-4 w-4" />
 			</Button>
 
 			<Button @click="vm?.stepOver"
 				size="sm"
 				:disabled="isRunning"
 				class="hover:bg-gray-600 disabled:opacity-50"
-				title="Execute the current instruction. If JSR, run until return address."
+				title="Step Over (F10)"
 			>
-				<CornerDownRight class="mr-2 h-4 w-4" />
-				Step Over
-				<Kbd class="ml-2 h-5 px-1.5 text-[10px] bg-gray-700 border-gray-600 text-gray-400">F10</Kbd>
+				<RedoDot class="h-4 w-4"/>
+			</Button>
+
+			<Button @click="vm?.step"
+				size="sm"
+				:disabled="isRunning"
+				class="hover:bg-gray-600 disabled:opacity-50"
+				title="Step Into (F11)"
+			>
+				<ArrowDownToDot class="h-4 w-4" />
 			</Button>
 
 			<Button @click="vm?.stepOut"
 				:disabled="isRunning"
 				size="sm"
 				class="hover:bg-gray-600 disabled:opacity-50"
-				title="Run program until the next RTS or RTI (Return from Subroutine/Interrupt)"
+				title="Step Out (shift-F11)"
 			>
-				<ArrowUpFromDot class="mr-2 h-4 w-4" />
-				Step Out
-				<Kbd class="ml-2 h-5 px-1.5 text-[10px] bg-gray-700 border-gray-600 text-gray-400">⇧F11</Kbd>
+				<ArrowUpFromDot class="h-4 w-4" />
 			</Button>
 		</ButtonGroup>
 
@@ -49,7 +42,7 @@
 			<Button @click="toggleBreakOnBrk"
 				size="sm"
 				:class="[ breakOnBrk ? 'bg-yellow-600 hover:bg-yellow-500 text-white' : 'hover:bg-gray-600 text-gray-300']"
-				title="Pause execution when a BRK instruction (opcode $00) is encountered"
+				title="Pause on BRK instruction"
 			>
 				<Octagon class="mr-2 h-4 w-4" />
 				BRK
@@ -121,12 +114,11 @@
 </template>
 
 <script lang="ts" setup>
-import { ArrowDownToDot, ArrowUpFromDot, CornerDownRight, Monitor, Octagon, Pause, Play, RefreshCw, ScrollText, Tag } from "lucide-vue-next";
+import { ArrowDownToDot, ArrowUpFromDot, Monitor, Octagon, Pause, Play, RedoDot, RefreshCw, ScrollText, Tag } from "lucide-vue-next";
 import { inject, type Ref, ref } from "vue";
 import MemoryMap from "@/app/debugger/memorymap/MemoryMap.vue";
 import { Button } from '@/components/ui/button';
 import { ButtonGroup } from '@/components/ui/button-group';
-import { Kbd } from '@/components/ui/kbd';
 import { useSymbols } from "@/composables/useSymbols";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 
