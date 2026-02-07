@@ -113,8 +113,10 @@ export class VirtualMachine {
 					break;
 				case "break": {
 					// It's a BRK instruction. Check for hypercalls.
+					const { wasRunning } = event.data;
 					const hypercallCommand = this.read(address + 1);
-					if (HYPERCALL_COMMANDS.has(hypercallCommand)) executeHypercallCmd(this, hypercallCommand, address);
+					if (HYPERCALL_COMMANDS.has(hypercallCommand))
+						executeHypercallCmd(this, hypercallCommand, address, wasRunning);
 					break;
 				}
 				case "breakpointHit":

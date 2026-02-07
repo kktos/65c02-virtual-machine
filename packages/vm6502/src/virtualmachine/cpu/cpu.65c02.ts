@@ -440,9 +440,10 @@ function executeInstruction(): number {
 			case 0x00: {
 				// BRK
 				if (isHyperCallActive || (breakOnBrk && isRunning)) {
+					const wasRunning = isRunning;
 					setRunning(false);
 					pc--; // Point back to the BRK instruction so the user sees it
-					self.postMessage({ type: "break", address: pc });
+					self.postMessage({ type: "break", address: pc, wasRunning });
 					cycles = 0;
 					break;
 				}
