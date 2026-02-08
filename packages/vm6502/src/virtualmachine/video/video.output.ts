@@ -20,7 +20,7 @@ export class VideoOutput {
 		this.canvas.style.objectFit = "contain";
 		this.canvas.style.imageRendering = "pixelated";
 
-		const gl = this.canvas.getContext("webgl2");
+		const gl = this.canvas.getContext("webgl2", { preserveDrawingBuffer: true });
 		if (!gl) throw new Error("Could not get WebGL2 context");
 		this.gl = gl;
 

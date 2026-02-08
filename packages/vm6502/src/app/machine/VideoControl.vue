@@ -26,6 +26,16 @@
 						<option value="HGR">Hi-Res Full (HGR)</option>
 					</select>
 				</div>
+				<div class="flex flex-col space-y-1 mt-2">
+					<span class="text-[10px] uppercase text-gray-500 font-bold tracking-wider">Capture</span>
+					<button
+						@click="saveSnapshot"
+						class="flex items-center space-x-2 w-full bg-gray-900 text-xs text-gray-300 border border-gray-600 rounded px-2 py-1 hover:bg-gray-800 transition-colors"
+					>
+						<Camera class="w-3 h-3" />
+						<span>Save Screenshot</span>
+					</button>
+				</div>
 			</template>
 		</DebugOptionsPopover>
 		<div class="flex flex-col overflow-hidden min-w-[4rem]">
@@ -38,7 +48,7 @@
 </template>
 
 <script lang="ts" setup>
-import { Monitor } from "lucide-vue-next";
+import { Camera, Monitor } from "lucide-vue-next";
 import { computed, inject, type Ref, ref } from "vue";
 import DebugOptionsPopover from "@/components/DebugOptionsPopover.vue";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
@@ -62,6 +72,16 @@ const runTest = (event: Event) => {
 		vm.value.testVideo(mode);
 		// Reset to default so we can select the same one again if needed
 		select.value = "";
+	}
+};
+
+const saveSnapshot = () => {
+	const canvas = document.querySelector("canvas");
+	if (canvas) {
+		const link = document.createElement("a");
+		link.download = `snapshot-${new Date().toISOString().replace(/[:.]/g, "-")}.png`;
+		link.href = canvas.toDataURL("image/png");
+		link.click();
 	}
 };
 </script>
