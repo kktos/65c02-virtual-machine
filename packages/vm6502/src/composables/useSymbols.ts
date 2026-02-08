@@ -161,6 +161,10 @@ export function useSymbols() {
 		activeNamespaces.value.set(ns, !isActive);
 	};
 
+	const getNamespaceList = () => {
+		return Array.from(activeNamespaces.value.entries());
+	};
+
 	return {
 		getLabeledInstruction,
 		parseSymbolsFromText,
@@ -168,7 +172,7 @@ export function useSymbols() {
 		getAddressForSymbol,
 		getSymbolSource,
 		getNamespaceForAddress,
-		activeNamespaces,
+		getNamespaceList,
 		toggleNamespace,
 	};
 }

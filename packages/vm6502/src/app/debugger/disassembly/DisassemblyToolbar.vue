@@ -46,7 +46,7 @@
 						<Settings2 class="h-4 w-4" />
 					</Button>
 				</PopoverTrigger>
-				<PopoverContent class="w-60 bg-gray-800 border-gray-700 text-gray-200">
+				<PopoverContent class="w-100 bg-gray-800 border-gray-700 text-gray-200">
 					<div class="grid gap-4">
 						<span class="text-sm font-bold text-gray-200 capitalize">Disasm Settings</span>
 						<div class="grid gap-2 -mb-2">
@@ -56,15 +56,29 @@
 							</div>
 						</div>
 						<div class="border-t border-gray-700 -mx-4 my-1"></div>
-						<div class="grid gap-2 max-h-48 overflow-y-auto pr-2 -mr-3">
-							<div v-for="scope in availableScopes" :key="scope" class="flex gap-2 items-center">
-								<input
-									type="color"
-									:id="`scope-color-${scope}`"
-									v-model="settings.disassembly.scopeColors[scope]"
-									class="w-5 h-5 p-0 border-none rounded bg-transparent cursor-pointer"
-								/>
-								<label :for="`scope-color-${scope}`" class="text-xs font-medium">{{ scope }}</label>
+						<div class="grid grid-cols-2 gap-4">
+							<div>
+								<div class="text-sm font-bold text-gray-200 capitalize mb-4">Memory Scopes</div>
+								<div class="grid gap-2 max-h-48 overflow-y-auto pr-2">
+									<div v-for="scope in availableScopes" :key="scope" class="flex gap-2 items-center">
+										<input
+											type="color"
+											:id="`scope-color-${scope}`"
+											v-model="settings.disassembly.scopeColors[scope]"
+											class="w-5 h-5 p-0 border-none rounded bg-transparent cursor-pointer"
+										/>
+										<label :for="`scope-color-${scope}`" class="text-xs font-medium">{{ scope }}</label>
+									</div>
+								</div>
+							</div>
+							<div>
+								<div class="text-sm font-bold text-gray-200 capitalize mb-4">Symbol Namespaces</div>
+								<div class="grid gap-2 max-h-48 overflow-y-auto pr-2">
+									<div v-for="[ns, isActive] in getNamespaceList()" :key="ns" class="flex items-center space-x-2">
+										<Checkbox :id="`ns-${ns}`" :model-value="isActive" @update:model-value="toggleNamespace(ns)" />
+										<label :for="`ns-${ns}`" class="text-xs font-medium leading-none cursor-pointer select-none truncate" :title="ns">{{ ns }}</label>
+									</div>
+								</div>
 							</div>
 						</div>
 					</div>
@@ -98,7 +112,7 @@ import { useSymbols } from "@/composables/useSymbols";
 		(e: 'gotoAddress', address: number): void;
 	}>();
 
-	const { getAddressForSymbol } = useSymbols();
+	const { getAddressForSymbol, getNamespaceList, toggleNamespace } = useSymbols();
 	const { historyIndex, jumpHistory, navigateHistory } = useDebuggerNav();
 	const { settings } = useSettings();
 	const gotoAddressInput = ref("");
