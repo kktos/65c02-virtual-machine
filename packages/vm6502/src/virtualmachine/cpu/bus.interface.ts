@@ -13,7 +13,7 @@ export interface MachineStateSpec {
  */
 export interface IBus {
 	reset(): void;
-	tick?(deltaCycles: number): void;
+	tick(deltaCycles: number): void;
 
 	/** Reads an 8-bit value from the specified address. */
 	read(address: number, isOpcodeFetch?: boolean): number;

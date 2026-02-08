@@ -254,23 +254,18 @@ function run() {
 
 	const initialCycles = cyclesThisSlice;
 
-	// Hoist bus.tick check out of the loop for performance
-	const tickFn = bus.tick ? bus.tick.bind(bus) : null;
-
 	while (cyclesThisSlice > 0) {
 		const cycles = executeInstruction();
-		if (tickFn) tickFn(cycles);
+		bus.tick(cycles);
 		cyclesThisSlice -= cycles;
-
 		if (!isRunning) break;
 	}
 
 	if (video && now - lastVideoTickTime >= VIDEO_INTERVAL_MS) {
 		video.tick();
+		bus?.syncState?.();
 		lastVideoTickTime = now;
 	}
-
-	bus?.syncState?.();
 
 	const executed = initialCycles - cyclesThisSlice;
 	cyclesSinceLastPerf += executed;
