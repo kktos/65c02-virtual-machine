@@ -72,16 +72,14 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 	const { jumpEvent } = useDisassembly();
 	const { setMemoryViewAddress, setActiveTab, addJumpHistory, historyNavigationEvent, historyIndex,clearHistory } = useDebuggerNav();
 	const { settings } = useSettings();
-
 	const availableScopes: Ref<string[]>= ref([]);
 	const getRandomColor = () => `#${Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0')}`;
 
 	watch(() => vm?.value, async (newVm) => {
 		if (newVm) {
 			await newVm.ready;
-			const scopes = newVm.getScopes();
-			availableScopes.value = scopes;
-			for (const scope of scopes) {
+			availableScopes.value = newVm.getScopes(); // This now returns namespaces due to parsing change
+			for (const scope of availableScopes.value) {
 				if (!settings.disassembly.scopeColors[scope])
 					settings.disassembly.scopeColors[scope] = getRandomColor();
 			}

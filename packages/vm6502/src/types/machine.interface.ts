@@ -1,3 +1,5 @@
+export type SymbolDict = Record<number, Record<string, { label: string; source: string; scope: string }>>;
+
 export interface DebugOption {
 	id: string;
 	label: string;
@@ -68,5 +70,5 @@ export interface MachineConfig {
 	disk?: DiskConfig;
 	css?: string[];
 	debugOptions?: DebugGroup[];
-	symbols?: Record<number, Record<string, string>>;
+	symbols?: SymbolDict;
 }

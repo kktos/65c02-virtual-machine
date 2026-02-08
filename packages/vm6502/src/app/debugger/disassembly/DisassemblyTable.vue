@@ -12,13 +12,14 @@
 		</thead>
 		<tbody>
 			<template v-for="line in disassembly" :key="line.address">
-				<tr v-if="getLabelForAddress(line.address, getScopeDisplay(line.address))">
+				<tr v-if="getLabelForAddress(line.address)">
 					<td
 						colspan="6"
 						class="py-0.5 px-2 text-yellow-500 font-bold font-mono text-xs border-l-4 border-transparent"
 						:style="getLabelStyle(line.address)"
+						:title="getSymbolSource(line.address)"
 					>
-						{{ getLabelForAddress(line.address, getScopeDisplay(line.address)) }}:
+						{{ getLabelForAddress(line.address) }}:
 					</td>
 				</tr>
 				<tr
@@ -93,7 +94,7 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 		(e: "opcodeClick", line: DisassemblyLine): void;
 	}>();
 
-	const { getLabeledInstruction, getLabelForAddress } = useSymbols();
+	const { getLabeledInstruction, getLabelForAddress, getSymbolSource, getNamespaceForAddress } = useSymbols();
 	const { settings } = useSettings();
 
 	const getBranchPrediction = (opcode: string) => {
@@ -161,10 +162,10 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 	};
 
 	const getLabelStyle = (addr: number) => {
-		const scope = vm?.value?.getScope(addr & 0xFFFF);
-		if (!scope) return {};
+		const ns = getNamespaceForAddress(addr);
+		if (!ns) return {};
 
-		const color = settings.disassembly.scopeColors[scope];
+		const color = settings.disassembly.scopeColors[ns];
 
 		// If color is black or transparent, use default class (yellow-500)
 		if (!color || color === '#000000' || color === '#00000000') return {};

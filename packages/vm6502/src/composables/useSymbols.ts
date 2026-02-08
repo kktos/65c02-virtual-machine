@@ -1,8 +1,34 @@
-import { inject, type Ref } from "vue";
+import { inject, type Ref, ref } from "vue";
+import type { SymbolDict } from "@/types/machine.interface";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
+
+// Shared state for active namespaces across components
+const activeNamespaces = ref<Map<string, boolean>>(new Map());
 
 export function useSymbols() {
 	const vm = inject<Ref<VirtualMachine>>("vm");
+
+	const resolveActiveNamespace = (address: number): string | undefined => {
+		const map = vm?.value?.machineConfig?.symbols?.[address];
+		if (!map) return undefined;
+
+		const currentMemoryScope = vm?.value?.getScope(address) ?? "main";
+
+		// Look for an active namespace that has a symbol for this address AND matches the memory scope
+		for (const [ns, isActive] of activeNamespaces.value) {
+			if (!isActive) continue;
+			const entry = map[ns];
+			if (entry) {
+				// Check if the symbol's scope matches the VM's current memory scope
+				// We handle legacy entries that might not have a scope property by defaulting to 'main'
+				const entryScope = entry.scope;
+				if (entryScope === currentMemoryScope) {
+					return ns;
+				}
+			}
+		}
+		return undefined;
+	};
 
 	const getLabeledInstruction = (opcode: string) => {
 		const labels = vm?.value?.machineConfig?.symbols;
@@ -21,9 +47,10 @@ export function useSymbols() {
 				// const address = parseInt(addressHex, 16);
 
 				// Determine scope for the target address
-				const scope = vm?.value?.getScope(address) ?? "main";
-				if (labels[address]?.[scope]) {
-					const label = labels[address][scope];
+				const ns = resolveActiveNamespace(address);
+				if (ns && labels[address]?.[ns]) {
+					const entry = labels[address][ns];
+					const label = entry.label;
 					// Replace the address part with the label, keeping the addressing mode suffix
 					const suffix = fullAddressExpression.substring(addressHexMatch[0].length + 1);
 					const newOpcode = opcode.replace(fullAddressExpression, label + suffix);
@@ -37,32 +64,41 @@ export function useSymbols() {
 	};
 
 	const parseSymbolsFromText = (text: string) => {
-		const symbols: Record<number, Record<string, string>> = {};
+		const symbols: SymbolDict = {};
 		const lines = text.split(/\r?\n/);
-		let currentScope = "main";
+		let currentNamespace = "";
+		let currentScope = "";
 
-		// Regex to match: LABEL: number = $XXXX
-		// Captures: 1=Label, 2=HexAddress
-		const symbolRegex = /^\s*([a-zA-Z0-9_]+)(?:\(\))?\s*:\s*number\s*=\s*\$([0-9A-Fa-f]+)/;
+		// Regex to match: LABEL: number = $XXXX [; source]
+		// Captures: 1=Label, 2=HexAddress, 3=Source (optional)
+		const symbolRegex = /^\s*([a-zA-Z0-9_]+)(?:\(\))?\s*:\s*number\s*=\s*\$([0-9A-Fa-f]+)(?:\s*;\s*(.*))?/;
 
 		// Regex to match header: LABEL [META]:
 		// Captures: 1=Label, 2=Metadata content (optional)
 		const headerRegex = /^\s*([a-zA-Z0-9_.]+)(?:\s*\[(.*)\])?\s*:/;
 
 		for (const line of lines) {
-			const symbolMatch = line.match(symbolRegex) as [unknown, string, string] | null;
+			const symbolMatch = line.match(symbolRegex) as [unknown, string, string, string] | null;
 			if (symbolMatch) {
 				const label = symbolMatch[1];
 				const address = parseInt(symbolMatch[2], 16);
+				const source = symbolMatch[3];
+
 				if (!Number.isNaN(address)) {
 					if (!symbols[address]) symbols[address] = {};
-					symbols[address][currentScope] = label;
+					// Store by Namespace, but include the Scope in the entry
+					symbols[address][currentNamespace] = { label, source, scope: currentScope };
 				}
 				continue;
 			}
 
-			const headerMatch = line.match(headerRegex);
+			const headerMatch = line.match(headerRegex) as [unknown, string, string] | null;
 			if (headerMatch) {
+				currentNamespace = headerMatch[1]; // The label is the namespace
+				if (!activeNamespaces.value.has(currentNamespace)) {
+					activeNamespaces.value.set(currentNamespace, true);
+				}
+
 				const metadata = headerMatch[2];
 				if (metadata) {
 					const scopeMatch = metadata.match(/SCOPE\s*=\s*([a-zA-Z0-9_]+)/i) as [unknown, string] | null;
@@ -72,11 +108,15 @@ export function useSymbols() {
 				}
 			}
 		}
+
 		return symbols;
 	};
 
-	const getLabelForAddress = (address: number, scope = "main") => {
-		return vm?.value?.machineConfig?.symbols?.[address]?.[scope];
+	const getLabelForAddress = (address: number) => {
+		const ns = resolveActiveNamespace(address);
+		if (!ns) return undefined;
+		const entry = vm?.value?.machineConfig?.symbols?.[address]?.[ns];
+		return typeof entry === "string" ? entry : entry?.label;
 	};
 
 	const getAddressForSymbol = (symbol: string): number | undefined => {
@@ -89,10 +129,13 @@ export function useSymbols() {
 		// We can optimize this later by creating a reverse map if needed.
 		for (const addressStr in symbolMap) {
 			const address = parseInt(addressStr, 10);
-			const scopes = symbolMap[address];
-			if (scopes) {
-				for (const scope in scopes) {
-					if (scopes[scope].toUpperCase() === upperSymbol) {
+			const namespaces = symbolMap[address];
+			if (namespaces) {
+				for (const ns in namespaces) {
+					if (!activeNamespaces.value.get(ns)) continue;
+					const entry = namespaces[ns];
+					const label = entry?.label;
+					if (label?.toUpperCase() === upperSymbol) {
 						return address;
 					}
 				}
@@ -102,5 +145,30 @@ export function useSymbols() {
 		return undefined;
 	};
 
-	return { getLabeledInstruction, parseSymbolsFromText, getLabelForAddress, getAddressForSymbol };
+	const getSymbolSource = (address: number) => {
+		const ns = resolveActiveNamespace(address);
+		if (!ns) return undefined;
+		const entry = vm?.value?.machineConfig?.symbols?.[address]?.[ns];
+		return typeof entry === "string" ? undefined : entry?.source;
+	};
+
+	const getNamespaceForAddress = (address: number) => {
+		return resolveActiveNamespace(address);
+	};
+
+	const toggleNamespace = (ns: string) => {
+		const isActive = activeNamespaces.value.get(ns) ?? false;
+		activeNamespaces.value.set(ns, !isActive);
+	};
+
+	return {
+		getLabeledInstruction,
+		parseSymbolsFromText,
+		getLabelForAddress,
+		getAddressForSymbol,
+		getSymbolSource,
+		getNamespaceForAddress,
+		activeNamespaces,
+		toggleNamespace,
+	};
 }

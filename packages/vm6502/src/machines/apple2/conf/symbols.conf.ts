@@ -1,5 +1,5 @@
 /** biome-ignore-all lint/complexity/useSimpleNumberKeys: Firmware addr in hex */
-import type { MachineConfig } from "@/types/machine.interface";
+import type { MachineConfig, SymbolDict } from "@/types/machine.interface";
 
 const symbols = `
 	0200 INPUTBUF
@@ -152,7 +152,7 @@ const symbols = `
 `;
 
 function parseSymbols(input: string): MachineConfig["symbols"] {
-	const result: Record<number, Record<string, string>> = {};
+	const result: SymbolDict = {};
 	let currentScope = "main";
 
 	for (const line of input.split("\n")) {
@@ -169,7 +169,7 @@ function parseSymbols(input: string): MachineConfig["symbols"] {
 			const addr = parseInt(addrStr, 16);
 			if (!Number.isNaN(addr)) {
 				if (!result[addr]) result[addr] = {};
-				result[addr][currentScope] = label;
+				result[addr][currentScope] = { label, source: "conf", scope: currentScope };
 			}
 		}
 	}
