@@ -24,7 +24,7 @@ export class LowGrRenderer {
 		this.resize(targetWidth, targetHeight);
 	}
 
-	public resize(width: number, height: number) {
+	public resize(_width: number, _height: number) {
 		this.scaleX = NATIVE_VIEW_WIDTH / GR_WIDTH;
 		this.scaleY = NATIVE_VIEW_HEIGHT / GR_LINES;
 		this.offsetX = Math.floor((this.bufferWidth - NATIVE_VIEW_WIDTH) / 2);

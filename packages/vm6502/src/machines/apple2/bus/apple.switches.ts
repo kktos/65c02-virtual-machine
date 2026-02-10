@@ -40,12 +40,11 @@ export function installSoftSwitches(bus: AppleBus) {
 	});
 
 	// --- Annunciator for Double Res Video ---
-	onRead(SoftSwitches.CLRAN3, () => {
-		bus.dblRes = true;
-		return 0;
-	});
-	onWrite(SoftSwitches.SETAN3, () => {
+	onAccess(SoftSwitches.SETAN3, () => {
 		bus.dblRes = false;
+	});
+	onAccess(SoftSwitches.CLRAN3, () => {
+		bus.dblRes = true;
 	});
 
 	// --- Video State Reads ---

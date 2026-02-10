@@ -28,3 +28,22 @@ export const textScreenLineOffsets = [
 	0x400, 0x480, 0x500, 0x580, 0x600, 0x680, 0x700, 0x780, 0x428, 0x4a8, 0x528, 0x5a8, 0x628, 0x6a8, 0x728, 0x7a8, 0x450,
 	0x4d0, 0x550, 0x5d0, 0x650, 0x6d0, 0x750, 0x7d0,
 ];
+
+export const DHGRPaletteRGB = [
+	`#000000`,
+	`#722640`,
+	`#40337F`,
+	`#E434FE`,
+	`#006834`,
+	`#7F7F7F`,
+	`#2497EB`,
+	`#AACBFF`,
+	`#7F5900`,
+	`#FF6A3C`,
+	`#C8C8C8`,
+	`#FFA0D0`,
+	`#00DD00`,
+	`#FFD900`,
+	`#50F5D0`,
+	`#FFFFFF`,
+];

@@ -7,7 +7,7 @@ import {
 	REG_TBCOLOR_OFFSET,
 } from "@/virtualmachine/cpu/shared-memory";
 import type { AppleBus } from "../apple.bus";
-import { IIgsPaletteRGB } from "./constants";
+import { DHGRPaletteRGB, IIgsPaletteRGB } from "./constants";
 import { DebugText } from "./debug/debug.text";
 import { LowGrRenderer } from "./gr";
 import { HGR_COLORS, HGRRenderer } from "./hgr";
@@ -54,6 +54,14 @@ function loadFont(name: string) {
 		})
 		.catch((e) => console.warn("Failed to load font in worker:", e));
 }
+
+function hexToRgb(hex: string): [number, number, number] {
+	const r = parseInt(hex.slice(1, 3), 16);
+	const g = parseInt(hex.slice(3, 5), 16);
+	const b = parseInt(hex.slice(5, 7), 16);
+	return [r, g, b];
+}
+
 export class AppleVideo implements Video {
 	private parent: Worker;
 	private buffer: Uint8Array;
@@ -142,6 +150,15 @@ export class AppleVideo implements Video {
 			palette[i * 4 + 3] = 0xff;
 		}
 
+		// DHGR color palette (Indices 32-47)
+		for (let i = 0; i < 16; i++) {
+			const rgb = hexToRgb(DHGRPaletteRGB[i]!);
+			const idx = 32 + i;
+			palette[idx * 4 + 0] = rgb[0];
+			palette[idx * 4 + 1] = rgb[1];
+			palette[idx * 4 + 2] = rgb[2];
+			palette[idx * 4 + 3] = 0xff;
+		}
 		this.parent.postMessage({ command: "setPalette", colors: palette });
 	}
 
@@ -255,7 +272,7 @@ export class AppleVideo implements Video {
 			if (is80Col) this.renderText80(0, bgIdx, fgIdx, isAltCharset);
 			else this.renderText40(0, isPage2, bgIdx, fgIdx, isAltCharset);
 		} else if (isHgr) {
-			this.hgrRenderer.render(isMixed, isPage2);
+			this.hgrRenderer.render(isMixed, isPage2, isDblRes && is80Col);
 			if (isMixed) {
 				if (is80Col) this.renderText80(20, bgIdx, fgIdx, isAltCharset);
 				else this.renderText40(20, isPage2, bgIdx, fgIdx, isAltCharset);

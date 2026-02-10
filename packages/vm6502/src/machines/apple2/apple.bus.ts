@@ -675,6 +675,7 @@ export class AppleBus implements IBus {
 			{ id: "mixed", label: "Mixed Mode", type: "led", group: "Video" },
 			{ id: "page2", label: "Page 2", type: "led", group: "Video" },
 			{ id: "hires", label: "Hi-Res", type: "led", group: "Video" },
+			{ id: "dblRes", label: "Dbl Hi-Res", type: "led", group: "Video" },
 		];
 	}
 
@@ -696,6 +697,7 @@ export class AppleBus implements IBus {
 			mixed: this.mixed,
 			page2: this.page2,
 			hires: this.hires,
+			dblRes: this.dblRes,
 		};
 	}
 

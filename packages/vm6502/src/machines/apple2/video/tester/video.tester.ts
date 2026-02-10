@@ -53,6 +53,12 @@ export class VideoTester {
 			case "HGR":
 				this.testFullHGR();
 				break;
+			case "DHGR":
+				this.testFullDoubleHGR();
+				break;
+			case "MIXEDDHGR":
+				this.testMixedDoubleHGR();
+				break;
 			case "DGR":
 				this.testFullDoubleGR();
 				break;
@@ -356,6 +362,63 @@ export class VideoTester {
 				if (val !== 0) this.bus.write(lineBase + x, val);
 			}
 		}
+		this.bottomText80();
+	}
+
+	private testFullDoubleHGR() {
+		this.bus.text = false;
+		this.bus.hires = true;
+		this.bus.mixed = false;
+		this.bus.col80 = true;
+		this.bus.store80 = true;
+		this.bus.dblRes = true;
+
+		// Clear HGR Page 1 (0x2000 - 0x4000) on both main and aux
+		this.fillPage1(0x2000, 0x4000, () => 0x00);
+		for (let i = 0x12000; i < 0x14000; i++) this.bus.writeDebug(i, 0);
+
+		const auxLine = new Uint8Array(40);
+		const mainLine = new Uint8Array(40);
+
+		// Generate one line of 16 color bars
+		for (let p = 0; p < 140; p++) {
+			let color = 0;
+			// Center 16 bars of 8 pixels each (128 pixels total)
+			if (p >= 6 && p < 134) {
+				color = Math.floor((p - 6) / 8);
+			}
+
+			const startDot = p * 4;
+			for (let i = 0; i < 4; i++) {
+				if ((color >> i) & 1) {
+					const dot = startDot + i;
+					const col = Math.floor(dot / 14);
+					const bit = dot % 14;
+
+					if (col < 40) {
+						if (bit < 7) {
+							auxLine[col] |= 1 << bit;
+						} else {
+							mainLine[col] |= 1 << (bit - 7);
+						}
+					}
+				}
+			}
+		}
+
+		const hgrLimit = 192;
+		for (let y = 0; y < hgrLimit; y++) {
+			const lineBase = this.getHgrLineOffset(y);
+			for (let x = 0; x < 40; x++) {
+				if (mainLine[x] !== 0) this.bus.write(lineBase + x, mainLine[x]);
+				if (auxLine[x] !== 0) this.bus.writeDebug(0x10000 + lineBase + x, auxLine[x]);
+			}
+		}
+	}
+
+	private testMixedDoubleHGR() {
+		this.testFullDoubleHGR();
+		this.bus.mixed = true;
 		this.bottomText80();
 	}
 

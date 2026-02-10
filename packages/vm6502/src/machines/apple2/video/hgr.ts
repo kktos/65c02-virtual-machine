@@ -3,6 +3,7 @@ import { NATIVE_VIEW_HEIGHT, NATIVE_VIEW_WIDTH } from "./constants";
 const HGR_WIDTH = 280;
 const HGR_LINES = 192;
 const HGR_MIXED_LINES = 160;
+const AUX_BANK_OFFSET = 0x10000;
 
 // Pre-calculated line base addresses for HGR screen memory
 const HGR_LINE_ADDRS: ReadonlyArray<number> = Object.freeze([
@@ -58,10 +59,15 @@ export class HGRRenderer {
 		this.destOffsetY = (targetHeight - NATIVE_VIEW_HEIGHT) / 2;
 	}
 
-	public render(isMixed: boolean, isPage2: boolean): void {
+	public render(isMixed: boolean, isPage2: boolean, isDblRes: boolean): void {
 		const baseAddr = isPage2 ? 0x2000 : 0;
-
 		const endLine = isMixed ? HGR_MIXED_LINES : HGR_LINES;
+
+		if (isDblRes) this.renderDblHGR(endLine, baseAddr);
+		else this.renderHGR(endLine, baseAddr);
+	}
+
+	private renderHGR(endLine: number, baseAddr: number) {
 		for (let y = 0; y < endLine; y++) {
 			const lineBase = baseAddr + (HGR_LINE_ADDRS[y] ?? 0);
 			const startY = Math.floor(this.destOffsetY + y * baseScaleY);
@@ -135,6 +141,57 @@ export class HGRRenderer {
 						for (let dx = startX; dx < endX; dx++) {
 							this.buffer[rowOffset + dx] = paletteIdx;
 						}
+					}
+				}
+			}
+		}
+	}
+
+	private renderDblHGR(endLine: number, baseAddr: number) {
+		// DHGR has 140 pixels per line, each 4 units wide (relative to 560 width)
+		const pixelWidth = 4;
+
+		for (let y = 0; y < endLine; y++) {
+			const lineBase = baseAddr + (HGR_LINE_ADDRS[y] ?? 0);
+			const startY = Math.floor(this.destOffsetY + y * baseScaleY);
+			const endY = Math.floor(this.destOffsetY + (y + 1) * baseScaleY);
+
+			for (let p = 0; p < 140; p++) {
+				let colorIdx = 0;
+				const startDot = p * 4;
+
+				for (let i = 0; i < 4; i++) {
+					const dot = startDot + i;
+					const col = Math.floor(dot / 14); // 14 dots per column pair (Aux+Main)
+					const bit = dot % 14;
+
+					let byteVal = 0;
+					let bitPos = 0;
+
+					if (bit < 7) {
+						// Aux
+						byteVal = this.ram[AUX_BANK_OFFSET + lineBase + col] ?? 0;
+						bitPos = bit;
+					} else {
+						// Main
+						byteVal = this.ram[lineBase + col] ?? 0;
+						bitPos = bit - 7;
+					}
+
+					if ((byteVal >> bitPos) & 1) {
+						colorIdx |= 1 << i;
+					}
+				}
+
+				// Draw pixel p
+				const startX = Math.floor(this.destOffsetX + p * pixelWidth);
+				const endX = Math.floor(this.destOffsetX + (p + 1) * pixelWidth);
+				const paletteIdx = 32 + colorIdx;
+
+				for (let dy = startY; dy < endY; dy++) {
+					const rowOffset = dy * this.targetWidth;
+					for (let dx = startX; dx < endX; dx++) {
+						this.buffer[rowOffset + dx] = paletteIdx;
 					}
 				}
 			}
