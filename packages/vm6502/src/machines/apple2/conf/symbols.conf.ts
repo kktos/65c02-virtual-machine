@@ -169,7 +169,7 @@ function parseSymbols(input: string): MachineConfig["symbols"] {
 			const addr = parseInt(addrStr, 16);
 			if (!Number.isNaN(addr)) {
 				if (!result[addr]) result[addr] = {};
-				result[addr][currentScope] = { label, source: "conf", scope: currentScope };
+				result[addr].SYSTEM = { label, source: "conf", scope: currentScope };
 			}
 		}
 	}
