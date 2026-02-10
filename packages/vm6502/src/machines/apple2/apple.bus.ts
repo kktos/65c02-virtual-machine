@@ -1,6 +1,9 @@
 import type { Dict } from "@/types/dict.type";
 import type { IBus, MachineStateSpec } from "@/virtualmachine/cpu/bus.interface";
 import {
+	INPUT_ANALOG_0_OFFSET,
+	INPUT_ANALOG_1_OFFSET,
+	INPUT_DIGITAL_OFFSET,
 	MACHINE_STATE_OFFSET1,
 	MACHINE_STATE_OFFSET2,
 	MACHINE_STATE_OFFSET3,
@@ -92,8 +95,20 @@ export class AppleBus implements IBus {
 	public keyStrobe = false;
 
 	// Game I/O / Pushbutton State
-	public pb0 = false; // Open Apple (Left Alt)
-	public pb1 = false; // Solid Apple (Right Alt)
+	public kbd_pb0 = false; // Open Apple (from keyboard)
+	public kbd_pb1 = false; // Solid Apple (from keyboard)
+	public joy_pb0 = false; // from joystick
+	public joy_pb1 = false; // from joystick
+
+	get pb0() {
+		return this.kbd_pb0 || this.joy_pb0;
+	}
+	get pb1() {
+		return this.kbd_pb1 || this.joy_pb1;
+	}
+
+	// Paddles
+	public paddleValues = [127, 127, 127, 127]; // 0-255, from joystick
 
 	// Speaker State
 	public speaker: Speaker;
@@ -139,6 +154,21 @@ export class AppleBus implements IBus {
 	}
 
 	public tick(deltaCycles: number): void {
+		if (this.registers) {
+			// Read analog inputs as floats and convert to 0-255 byte
+			const axisX = this.registers.getFloat32(INPUT_ANALOG_0_OFFSET, true); // -1.0 to 1.0
+			const axisY = this.registers.getFloat32(INPUT_ANALOG_1_OFFSET, true); // -1.0 to 1.0
+
+			// Convert float to paddle value.
+			this.paddleValues[0] = Math.max(0, Math.min(255, Math.round(((axisX + 1) / 2) * 255)));
+			this.paddleValues[1] = Math.max(0, Math.min(255, Math.round(((axisY + 1) / 2) * 255)));
+
+			// Read digital inputs
+			const digital1 = this.registers.getUint8(INPUT_DIGITAL_OFFSET);
+			this.joy_pb0 = (digital1 & 0b0000_0001) !== 0;
+			this.joy_pb1 = (digital1 & 0b0000_0010) !== 0;
+		}
+
 		if (deltaCycles <= 0) return;
 		for (let index = 0; index < this.tickHandlers.length; index++) {
 			// biome-ignore lint/style/noNonNullAssertion: <if present then always defined>
@@ -238,6 +268,12 @@ export class AppleBus implements IBus {
 		this.tbColor = DEFAULT_TEXT_COLORS;
 		this.dblRes = false;
 
+		this.kbd_pb0 = false;
+		this.kbd_pb1 = false;
+		this.joy_pb0 = false;
+		this.joy_pb1 = false;
+		this.paddleValues = [127, 127, 127, 127];
+
 		this.syncState();
 	}
 
@@ -245,12 +281,12 @@ export class AppleBus implements IBus {
 		return generateApple2Assets();
 	}
 
-	public readStateFromBuffer(view: DataView): Record<string, boolean> {
+	public syncStateFromBuffer(view: DataView): Dict {
 		const byte1 = view.getUint8(MACHINE_STATE_OFFSET1);
 		const byte2 = view.getUint8(MACHINE_STATE_OFFSET2);
 		const byte3 = view.getUint8(MACHINE_STATE_OFFSET3);
 
-		return {
+		const state = {
 			lcBank2: (byte1 & APPLE_LC_BANK2_MASK) !== 0,
 			lcReadRam: (byte1 & APPLE_LC_READRAM_MASK) !== 0,
 			lcWriteRam: (byte1 & APPLE_LC_WRITERAM_MASK) !== 0,
@@ -259,6 +295,7 @@ export class AppleBus implements IBus {
 			ramWrAux: (byte1 & APPLE_RAMWR_AUX_MASK) !== 0,
 			altZp: (byte1 & APPLE_ALTZP_MASK) !== 0,
 			intCxRom: (byte1 & APPLE_INTCXROM_MASK) !== 0,
+
 			slotC3Rom: (byte2 & APPLE_SLOTC3ROM_MASK) !== 0,
 			col80: (byte2 & APPLE_80COL_MASK) !== 0,
 			altChar: (byte2 & APPLE_ALTCHAR_MASK) !== 0,
@@ -267,7 +304,36 @@ export class AppleBus implements IBus {
 			page2: (byte2 & APPLE_PAGE2_MASK) !== 0,
 			hires: (byte2 & APPLE_HIRES_MASK) !== 0,
 			intC8Rom: (byte2 & APPLE_INTC8ROM_MASK) !== 0,
+
 			dblRes: (byte3 & APPLE_DBLRES_MASK) !== 0,
+		};
+
+		// Load state into this bus instance
+		this.lcBank2 = state.lcBank2;
+		this.lcReadRam = state.lcReadRam;
+		this.lcWriteRam = state.lcWriteRam;
+		this.store80 = state.store80;
+		this.ramRdAux = state.ramRdAux;
+		this.ramWrAux = state.ramWrAux;
+		this.altZp = state.altZp;
+		this.intCxRom = state.intCxRom;
+		this.intC8Rom = state.intC8Rom;
+		this.slotC3Rom = state.slotC3Rom;
+		this.col80 = state.col80;
+		this.altChar = state.altChar;
+		this.text = state.text;
+		this.mixed = state.mixed;
+		this.page2 = state.page2;
+		this.hires = state.hires;
+		this.dblRes = state.dblRes;
+
+		this.tbColor = view.getUint8(REG_TBCOLOR_OFFSET);
+		this.brdrColor = view.getUint8(REG_BORDERCOLOR_OFFSET);
+
+		return {
+			...state,
+			tbColor: this.tbColor,
+			brdrColor: this.brdrColor,
 		};
 	}
 
@@ -434,10 +500,10 @@ export class AppleBus implements IBus {
 
 	public pressKey(key: string, code?: string, ctrl?: boolean) {
 		if (code === "AltLeft") {
-			this.pb0 = true;
+			this.kbd_pb0 = true;
 			return;
 		} else if (code === "AltRight") {
-			this.pb1 = true;
+			this.kbd_pb1 = true;
 			return;
 		}
 
@@ -479,9 +545,9 @@ export class AppleBus implements IBus {
 
 	public releaseKey(_key: string, code?: string) {
 		if (code === "AltLeft") {
-			this.pb0 = false;
+			this.kbd_pb0 = false;
 		} else if (code === "AltRight") {
-			this.pb1 = false;
+			this.kbd_pb1 = false;
 		}
 	}
 
@@ -622,25 +688,6 @@ export class AppleBus implements IBus {
 			page2: this.page2,
 			hires: this.hires,
 		};
-	}
-
-	loadState(state: Record<string, boolean>): void {
-		this.lcBank2 = state.lcBank2 ?? this.lcBank2;
-		this.lcReadRam = state.lcReadRam ?? this.lcReadRam;
-		this.lcWriteRam = state.lcWriteRam ?? this.lcWriteRam;
-		this.store80 = state.store80 ?? this.store80;
-		this.ramRdAux = state.ramRdAux ?? this.ramRdAux;
-		this.ramWrAux = state.ramWrAux ?? this.ramWrAux;
-		this.altZp = state.altZp ?? this.altZp;
-		this.intCxRom = state.intCxRom ?? this.intCxRom;
-		this.intC8Rom = state.intC8Rom ?? this.intC8Rom;
-		this.slotC3Rom = state.slotC3Rom ?? this.slotC3Rom;
-		this.col80 = state.col80 ?? this.col80;
-		this.altChar = state.altChar ?? this.altChar;
-		this.text = state.text ?? this.text;
-		this.mixed = state.mixed ?? this.mixed;
-		this.page2 = state.page2 ?? this.page2;
-		this.hires = state.hires ?? this.hires;
 	}
 
 	public insertMedia(data: Uint8Array, metadata?: Record<string, unknown>) {

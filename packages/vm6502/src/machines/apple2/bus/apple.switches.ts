@@ -153,6 +153,8 @@ export function installSoftSwitches(bus: AppleBus) {
 	// --- Game I/O ---
 	onRead(SoftSwitches.PB0, () => (bus.pb0 ? 0x80 : 0x00));
 	onRead(SoftSwitches.PB1, () => (bus.pb1 ? 0x80 : 0x00));
+	onRead(SoftSwitches.PADDL0, () => bus.paddleValues[0] as number);
+	onRead(SoftSwitches.PADDL1, () => bus.paddleValues[1] as number);
 
 	// --- Speaker ---
 	onAccess(SoftSwitches.SPEAKER, () => bus.speaker.toggle());

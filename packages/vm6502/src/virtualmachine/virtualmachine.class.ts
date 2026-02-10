@@ -1,6 +1,6 @@
 import { ref } from "vue";
 import type { Dict } from "@/types/dict.type";
-import type { DebugOption, MachineConfig } from "@/types/machine.interface";
+import type { MachineConfig } from "@/types/machine.interface";
 import type { IBus, MachineStateSpec } from "@/virtualmachine/cpu/bus.interface";
 import {
 	FLAG_B_MASK,
@@ -10,6 +10,9 @@ import {
 	FLAG_N_MASK,
 	FLAG_V_MASK,
 	FLAG_Z_MASK,
+	INPUT_ANALOG_0_OFFSET,
+	INPUT_DIGITAL_OFFSET,
+	MAX_ANALOG_INPUTS,
 	MEMORY_OFFSET,
 	REG_A_OFFSET,
 	REG_PC_OFFSET,
@@ -64,7 +67,6 @@ export class VirtualMachine {
 	private logListeners: ((log: Dict) => void)[] = [];
 
 	public isTraceEnabled = false;
-	public symbolsVersion = ref(0);
 	public traceOverflow = ref(false);
 	private lastTraceHead = "";
 	private tracePollInterval: number | undefined;
@@ -153,6 +155,11 @@ export class VirtualMachine {
 
 		this.loadCSS();
 		this.ready = this.loadBus();
+
+		// Attach keyboard listener
+		window.addEventListener("keydown", this.keyHandler);
+		window.addEventListener("keyup", this.keyUpHandler);
+		window.addEventListener("paste", this.pasteHandler);
 	}
 
 	private async loadCSS() {
@@ -248,11 +255,6 @@ export class VirtualMachine {
 			this.videoOutput.setPalette(this.pendingPalette);
 			this.pendingPalette = null;
 		}
-
-		// Attach keyboard listener
-		window.addEventListener("keydown", this.keyHandler);
-		window.addEventListener("keyup", this.keyUpHandler);
-		window.addEventListener("paste", this.pasteHandler);
 
 		this.isRendering = true;
 		this.renderFrame();
@@ -353,9 +355,8 @@ export class VirtualMachine {
 	}
 
 	public syncBusState() {
-		if (this.bus?.readStateFromBuffer) {
-			const state = this.bus.readStateFromBuffer(this.sharedRegisters);
-			if (this.bus.loadState) this.bus.loadState(state);
+		if (this.bus?.syncStateFromBuffer) {
+			const state = this.bus.syncStateFromBuffer(this.sharedRegisters);
 			this.busState = state;
 			this.onStateChange?.(state);
 		}
@@ -410,19 +411,6 @@ export class VirtualMachine {
 	public removeBP = (type: Breakpoint["type"], address: number, endAddress?: number) =>
 		this.worker.postMessage({ command: "removeBP", type, address, endAddress });
 	public clearBPs = () => this.worker.postMessage({ command: "clearBPs" });
-
-	public addSymbols = (newSymbols: Record<number, Record<string, string>>) => {
-		if (!this.machineConfig.symbols) this.machineConfig.symbols = {};
-
-		for (const [addrStr, scopes] of Object.entries(newSymbols)) {
-			const addr = Number(addrStr);
-			if (!this.machineConfig.symbols[addr]) this.machineConfig.symbols[addr] = {};
-			Object.assign(this.machineConfig.symbols[addr], scopes);
-		}
-
-		// Trigger reactivity for consumers (like DisassemblyView)
-		this.symbolsVersion.value++;
-	};
 
 	public insertDisk = (data: Uint8Array, metadata: Dict = {}) =>
 		this.worker.postMessage({ command: "insertMedia", data, metadata });
@@ -487,6 +475,16 @@ export class VirtualMachine {
 		this.worker.postMessage({ command: "setDebugOverrides", category, overrides: { ...overrides } });
 	}
 
+	public setAnalogInput(index: number, value: number) {
+		if (index >= 0 && index < MAX_ANALOG_INPUTS) {
+			this.sharedRegisters.setFloat32(INPUT_ANALOG_0_OFFSET + index * 4, value, true);
+		}
+	}
+
+	public setDigitalInput(value: number) {
+		this.sharedRegisters.setUint16(INPUT_DIGITAL_OFFSET, value, true);
+	}
+
 	public updateMemory(addr: number, value: number) {
 		if (this.bus) this.bus.write(addr, value);
 		else this.sharedMemory[addr] = value;
@@ -544,7 +542,7 @@ export class VirtualMachine {
 		}
 	}
 
-	public getDebugOptions(): DebugOption[] {
+	public getDebugOptions() {
 		return this.machineConfig.debugOptions ?? (this.bus?.getDebugOptions ? this.bus.getDebugOptions() : []);
 	}
 
@@ -558,6 +556,9 @@ export class VirtualMachine {
 		window.removeEventListener("keydown", this.keyHandler);
 		window.removeEventListener("keyup", this.keyUpHandler);
 		window.removeEventListener("paste", this.pasteHandler);
+		this.logListeners.length = 0;
+		this.stopTracePolling();
+
 		console.log("VM: Worker terminated.");
 	}
 

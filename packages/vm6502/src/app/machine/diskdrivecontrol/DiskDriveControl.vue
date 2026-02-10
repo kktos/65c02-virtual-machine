@@ -150,7 +150,7 @@ const ACTIVE_DISK_URL_KEY = "vm6502_active_disk_url";
 
 const vm = inject<Ref<VirtualMachine>>('vm');
 
-const { parseSymbolsFromText } = useSymbols();
+const { parseSymbolsFromText, addSymbols } = useSymbols();
 const diskConfig = computed(() => vm?.value?.machineConfig?.disk);
 const fileName = ref('');
 const fileSize = ref(0);
@@ -218,7 +218,7 @@ const loadFromUrl = async (url: string) => {
 			const symText = await symRes.text();
 			try {
 				const symData = parseSymbolsFromText(symText);
-				vm?.value?.addSymbols(symData);
+				addSymbols(symData);
 				console.log(`Loaded symbols from ${symUrl}`);
 			} catch {
 				console.warn(`Failed to parse symbols from ${symUrl} as JSON.`);
@@ -337,11 +337,11 @@ watch(
 				const lastDiskName = localStorage.getItem(ACTIVE_DISK_KEY);
 				if (lastDiskName) {
 					const saved = await loadDisk(lastDiskName);
-					if (saved) await loadDiskToVM(saved.name, saved.data);
+					if (saved?.type === "physical") await loadDiskToVM(saved.name, saved.data);
 				} else {
 					// Fallback to legacy slot 5 if exists
 					const legacy = await loadDisk(5);
-					if (legacy) {
+					if (legacy?.type === "physical") {
 						await loadDiskToVM(legacy.name, legacy.data);
 						// Migrate to new system
 						await saveDisk(legacy.name, legacy.name, legacy.data);

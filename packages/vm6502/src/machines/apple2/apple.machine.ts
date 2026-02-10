@@ -20,4 +20,16 @@ export const apple2e: MachineConfig = {
 	debugOptions: debugConfig,
 	symbols: symbolsConfig,
 	regions: regionsConfig,
+	inputs: [
+		{
+			id: "joystick",
+			label: "Joystick",
+			controls: [
+				{ id: "axis_x", label: "Horizontal (Paddle 0)", type: "axis", index: 0 },
+				{ id: "axis_y", label: "Vertical (Paddle 1)", type: "axis", index: 1 },
+				{ id: "btn_0", label: "Button 0 (Open Apple)", type: "button", index: 0 },
+				{ id: "btn_1", label: "Button 1 (Solid Apple)", type: "button", index: 1 },
+			],
+		},
+	],
 };

@@ -52,12 +52,9 @@ export interface IBus {
 	/** Saves the internal state of the bus (e.g., softswitch flags). */
 	saveState?(): Dict;
 
-	/** Loads the internal state of the bus. */
-	loadState?(state: Dict): void;
-
-	readStateFromBuffer?(view: DataView): Record<string, boolean>;
 	setRegistersView?(view: DataView): void;
 	syncState?(): void;
+	syncStateFromBuffer?(view: DataView): Dict;
 	prepareWorkerPayloads?(): Promise<{ video?: unknown; bus?: unknown }>;
 
 	/** Inserts media (disk, tape, etc.) into the machine. Metadata can specify drive/slot. */

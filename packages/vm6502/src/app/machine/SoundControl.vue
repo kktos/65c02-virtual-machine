@@ -8,12 +8,6 @@
 			<Volume2 v-if="isEnabled" class="h-5 w-5 text-green-400 group-hover:text-green-300" />
 			<VolumeX v-else class="h-5 w-5 text-red-400 group-hover:text-red-300" />
 		</button>
-		<div class="flex flex-col overflow-hidden min-w-[4rem]">
-			<span class="text-[10px] uppercase text-gray-400 font-bold tracking-wider">Sound</span>
-			<div class="text-xs font-mono truncate text-gray-300">
-				{{ isEnabled ? 'On' : 'Off' }}
-			</div>
-		</div>
 	</div>
 </template>
 

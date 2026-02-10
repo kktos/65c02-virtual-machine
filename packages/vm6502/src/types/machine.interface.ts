@@ -56,6 +56,19 @@ export interface DiskConfig {
 	boot?: boolean;
 }
 
+export interface MachineInputControl {
+	id: string;
+	label: string;
+	type: "button" | "axis";
+	index?: number;
+}
+
+export interface MachineInputDevice {
+	id: string;
+	label: string;
+	controls: MachineInputControl[];
+}
+
 export interface MachineConfig {
 	name: string;
 	speed?: number;
@@ -71,4 +84,5 @@ export interface MachineConfig {
 	css?: string[];
 	debugOptions?: DebugGroup[];
 	symbols?: SymbolDict;
+	inputs?: MachineInputDevice[];
 }

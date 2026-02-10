@@ -34,6 +34,21 @@ export const MACHINE_STATE_OFFSET3 = 34;
 export const REG_TBCOLOR_OFFSET = 35; // Text/Background color (IIgs)
 export const REG_BORDERCOLOR_OFFSET = 36; // Border color (IIgs)
 
+// --- Input State ---
+// A generic block for analog and digital inputs (e.g., joysticks, paddles, gamepads)
+export const INPUT_STATE_OFFSET = 40;
+export const MAX_ANALOG_INPUTS = 4;
+export const MAX_DIGITAL_INPUTS = 16;
+
+// Layout:
+// INPUT_STATE_OFFSET+0:  analog 0 (Float32, -1.0 to 1.0)
+// INPUT_STATE_OFFSET+4:  analog 1 (Float32, -1.0 to 1.0)
+// INPUT_STATE_OFFSET+8:  analog 2 (Float32, -1.0 to 1.0)
+// INPUT_STATE_OFFSET+12: analog 3 (Float32, -1.0 to 1.0)
+export const INPUT_ANALOG_0_OFFSET = INPUT_STATE_OFFSET + 0;
+export const INPUT_ANALOG_1_OFFSET = INPUT_STATE_OFFSET + 4;
+export const INPUT_DIGITAL_OFFSET = INPUT_STATE_OFFSET + 16; // 2 bytes for buttons (16 bits)
+
 // --- Stack Metadata ---
 export const STACK_METADATA_OFFSET = 256; // 256 bytes for stack metadata
 

@@ -7,15 +7,17 @@
 			<div class="flex items-center space-x-2">
 				<VideoControl />
 				<SoundControl />
-				<DiskDriveControl v-if="vm.machineConfig.disk?.enabled" />
+				<GamepadControl v-if="hasGamepad"/>
+				<DiskDriveControl v-if="hasDisk" />
 				<StatusPanel />
+
 				<button
 					@click="showLogs = !showLogs"
 					class="p-1 rounded hover:bg-gray-700 text-gray-400 hover:text-white transition-colors"
 					:class="{ 'text-green-400 bg-gray-800': showLogs }"
 					title="Toggle Log Viewer"
 				>
-					<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 12h-5"/><path d="M15 8h-5"/><path d="M19 17V5a2 2 0 0 0-2-2H4"/><path d="M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3"/></svg>
+					<ScrollText />
 				</button>
 			</div>
 		</div>
@@ -121,7 +123,8 @@
 </template>
 
 <script setup lang="ts">
-import { markRaw, nextTick, onMounted, onUnmounted, provide, reactive, ref, watch } from "vue";
+import { ScrollText } from "lucide-vue-next";
+import { computed, markRaw, nextTick, onMounted, onUnmounted, provide, reactive, ref, watch } from "vue";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import TogglableDisplay from '../components/TogglableDisplay.vue';
 import ResizableHandle from '../components/ui/resizable/ResizableHandle.vue';
@@ -152,6 +155,7 @@ import StackView from './debugger/StackView.vue';
 import StatusFlagsView from './debugger/StatusFlagsView.vue';
 import TraceView from './debugger/TraceView.vue';
 import DiskDriveControl from "./machine/diskdrivecontrol/DiskDriveControl.vue";
+import GamepadControl from "./machine/GamepadControl.vue";
 import MachineSelector from './machine/MachineSelector.vue';
 import SoundControl from "./machine/SoundControl.vue";
 import StatusPanel from './machine/StatusPanel.vue';
@@ -164,6 +168,8 @@ import VideoControl from "./machine/VideoControl.vue";
 	const vm = ref<VirtualMachine | null>(null);
 	const videoCanvas = ref<HTMLCanvasElement | null>(null);
 	const selectedMachine = ref<MachineConfig>(availableMachines[1] as MachineConfig);
+	const hasGamepad= computed(() => (selectedMachine.value.inputs?.length ?? 0) > 0 );
+	const hasDisk= computed(() => selectedMachine.value.disk?.enabled );
 
 	const logs = ref<string[]>([]);
 	const showLogs = ref(false);
