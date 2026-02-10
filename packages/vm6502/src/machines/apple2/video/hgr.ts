@@ -48,6 +48,7 @@ const baseScaleY = NATIVE_VIEW_HEIGHT / HGR_LINES;
 export class HGRRenderer {
 	private destOffsetX: number;
 	private destOffsetY: number;
+	public isMonochrome = false;
 
 	constructor(
 		private ram: Uint8Array,
@@ -63,8 +64,10 @@ export class HGRRenderer {
 		const baseAddr = isPage2 ? 0x2000 : 0;
 		const endLine = isMixed ? HGR_MIXED_LINES : HGR_LINES;
 
-		if (isDblRes) this.renderDblHGR(endLine, baseAddr);
-		else this.renderHGR(endLine, baseAddr);
+		if (isDblRes) {
+			if (this.isMonochrome) this.renderDblHGRMono(endLine, baseAddr);
+			else this.renderDblHGR(endLine, baseAddr);
+		} else this.renderHGR(endLine, baseAddr);
 	}
 
 	private renderHGR(endLine: number, baseAddr: number) {
@@ -192,6 +195,38 @@ export class HGRRenderer {
 					const rowOffset = dy * this.targetWidth;
 					for (let dx = startX; dx < endX; dx++) {
 						this.buffer[rowOffset + dx] = paletteIdx;
+					}
+				}
+			}
+		}
+	}
+
+	private renderDblHGRMono(endLine: number, baseAddr: number) {
+		// DHGR Mono has 560 pixels per line
+		const pixelWidth = 1;
+
+		for (let y = 0; y < endLine; y++) {
+			const lineBase = baseAddr + (HGR_LINE_ADDRS[y] ?? 0);
+			const startY = Math.floor(this.destOffsetY + y * baseScaleY);
+			const endY = Math.floor(this.destOffsetY + (y + 1) * baseScaleY);
+
+			for (let col = 0; col < 40; col++) {
+				const auxVal = this.ram[AUX_BANK_OFFSET + lineBase + col] ?? 0;
+				const mainVal = this.ram[lineBase + col] ?? 0;
+
+				for (let i = 0; i < 14; i++) {
+					const isSet = i < 7 ? (auxVal & (1 << i)) !== 0 : (mainVal & (1 << (i - 7))) !== 0;
+
+					const dotX = col * 14 + i;
+					const startX = Math.floor(this.destOffsetX + dotX * pixelWidth);
+					const endX = Math.floor(this.destOffsetX + (dotX + 1) * pixelWidth);
+					const paletteIdx = isSet ? 47 : 32; // White : Black
+
+					for (let dy = startY; dy < endY; dy++) {
+						const rowOffset = dy * this.targetWidth;
+						for (let dx = startX; dx < endX; dx++) {
+							this.buffer[rowOffset + dx] = paletteIdx;
+						}
 					}
 				}
 			}

@@ -40,6 +40,7 @@ interface AppleVideoOverrides {
 	customWidth?: number;
 	customHeight?: number;
 	runTest?: string;
+	isMonochrome?: boolean;
 }
 
 const baseurl = import.meta.url.match(/http:\/\/[^/]+/)?.[0];
@@ -169,12 +170,6 @@ export class AppleVideo implements Video {
 	public setDebugOverrides(overrides: Dict) {
 		this.overrides = overrides as unknown as AppleVideoOverrides;
 
-		if (this.overrides.runTest && this.tester) {
-			console.log("runTest", this.overrides.runTest);
-			this.tester.run(this.overrides.runTest);
-			return;
-		}
-
 		let newWidth = this.defaultWidth;
 		let newHeight = this.defaultHeight;
 
@@ -189,10 +184,18 @@ export class AppleVideo implements Video {
 		// this.hgrRenderer.resize(newWidth, newHeight);
 
 		this.updateRenderers();
+
+		if (this.overrides.runTest && this.tester) {
+			console.log("runTest", this.overrides.runTest);
+			this.tester.run(this.overrides.runTest);
+			return;
+		}
 	}
 
 	private updateRenderers() {
 		// this.textRenderer.wannaScale = !!this.overrides.wannaScale;
+		this.hgrRenderer.isMonochrome = !!this.overrides.isMonochrome;
+
 		if (this.overrides.textRenderer === "FONT") {
 			this.renderText40 = this.textRenderer.render40WithFont.bind(this.textRenderer);
 			this.renderText80 = this.textRenderer.render80WithFont.bind(this.textRenderer);
@@ -272,7 +275,7 @@ export class AppleVideo implements Video {
 			if (is80Col) this.renderText80(0, bgIdx, fgIdx, isAltCharset);
 			else this.renderText40(0, isPage2, bgIdx, fgIdx, isAltCharset);
 		} else if (isHgr) {
-			this.hgrRenderer.render(isMixed, isPage2, isDblRes && is80Col);
+			this.hgrRenderer.render(isMixed, isPage2, isDblRes && is80Col, this.overrides.isMonochrome);
 			if (isMixed) {
 				if (is80Col) this.renderText80(20, bgIdx, fgIdx, isAltCharset);
 				else this.renderText40(20, isPage2, bgIdx, fgIdx, isAltCharset);

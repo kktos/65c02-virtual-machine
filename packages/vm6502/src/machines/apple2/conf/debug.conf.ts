@@ -152,6 +152,13 @@ export const debugConfig: MachineConfig["debugOptions"] = [
 		rows: [
 			[
 				{
+					id: "isMonochrome",
+					label: "Monochrome",
+					type: "boolean",
+				},
+			],
+			[
+				{
 					id: "borderColor",
 					label: "Border Color",
 					type: "color",
