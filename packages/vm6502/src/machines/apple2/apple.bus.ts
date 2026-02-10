@@ -108,7 +108,9 @@ export class AppleBus implements IBus {
 	}
 
 	// Paddles
-	public paddleValues = [127, 127, 127, 127]; // 0-255, from joystick
+	public paddleValues: [number, number, number, number] = [127, 127, 127, 127]; // 0-255, from joystick
+	public paddleTimers: [number, number, number, number] = [0, 0, 0, 0];
+	public totalCycles = 0;
 
 	// Speaker State
 	public speaker: Speaker;
@@ -154,10 +156,15 @@ export class AppleBus implements IBus {
 	}
 
 	public tick(deltaCycles: number): void {
+		this.totalCycles += deltaCycles;
+
 		if (this.registers) {
 			// Read analog inputs as floats and convert to 0-255 byte
 			const axisX = this.registers.getFloat32(INPUT_ANALOG_0_OFFSET, true); // -1.0 to 1.0
 			const axisY = this.registers.getFloat32(INPUT_ANALOG_1_OFFSET, true); // -1.0 to 1.0
+
+			// axisX = Math.round((axisX + Number.EPSILON) * 10) / 10;
+			// axisY = Math.round((axisY + Number.EPSILON) * 10) / 10;
 
 			// Convert float to paddle value.
 			this.paddleValues[0] = Math.max(0, Math.min(255, Math.round(((axisX + 1) / 2) * 255)));
@@ -272,7 +279,9 @@ export class AppleBus implements IBus {
 		this.kbd_pb1 = false;
 		this.joy_pb0 = false;
 		this.joy_pb1 = false;
-		this.paddleValues = [127, 127, 127, 127];
+		this.paddleValues.fill(127);
+		this.paddleTimers.fill(0);
+		this.totalCycles = 0;
 
 		this.syncState();
 	}

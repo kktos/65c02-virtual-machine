@@ -1,7 +1,7 @@
 import type { Dict } from "./dict.type";
 
 export interface Video {
-	tick(): void;
+	tick(meta?: unknown): void;
 	reset(): void;
 	setDebugOverrides?(overrides: Dict): void;
 

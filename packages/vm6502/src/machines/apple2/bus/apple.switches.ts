@@ -1,6 +1,9 @@
 import type { AppleBus } from "../apple.bus";
 import * as SoftSwitches from "./softswitches";
 
+// Cycles per paddle unit
+const PADDLE_TIMEOUT_MULTIPLIER = 11.18;
+
 export function installSoftSwitches(bus: AppleBus) {
 	const readHandlers: Array<() => number> = new Array(256);
 	const writeHandlers: Array<(val: number) => void> = new Array(256);
@@ -153,8 +156,17 @@ export function installSoftSwitches(bus: AppleBus) {
 	// --- Game I/O ---
 	onRead(SoftSwitches.PB0, () => (bus.pb0 ? 0x80 : 0x00));
 	onRead(SoftSwitches.PB1, () => (bus.pb1 ? 0x80 : 0x00));
-	onRead(SoftSwitches.PADDL0, () => bus.paddleValues[0] as number);
-	onRead(SoftSwitches.PADDL1, () => bus.paddleValues[1] as number);
+
+	onAccess(SoftSwitches.PTRIG, () => {
+		bus.paddleTimers[0] = bus.totalCycles + (bus.paddleValues[0] as number) * PADDLE_TIMEOUT_MULTIPLIER;
+		bus.paddleTimers[1] = bus.totalCycles + (bus.paddleValues[1] as number) * PADDLE_TIMEOUT_MULTIPLIER;
+		bus.paddleTimers[2] = bus.totalCycles + (bus.paddleValues[2] as number) * PADDLE_TIMEOUT_MULTIPLIER;
+		bus.paddleTimers[3] = bus.totalCycles + (bus.paddleValues[3] as number) * PADDLE_TIMEOUT_MULTIPLIER;
+	});
+	onRead(SoftSwitches.PADDL0, () => (bus.totalCycles < bus.paddleTimers[0] ? 0x80 : 0x00));
+	onRead(SoftSwitches.PADDL1, () => (bus.totalCycles < bus.paddleTimers[1] ? 0x80 : 0x00));
+	onRead(SoftSwitches.PADDL2, () => (bus.totalCycles < bus.paddleTimers[2] ? 0x80 : 0x00));
+	onRead(SoftSwitches.PADDL3, () => (bus.totalCycles < bus.paddleTimers[3] ? 0x80 : 0x00));
 
 	// --- Speaker ---
 	onAccess(SoftSwitches.SPEAKER, () => bus.speaker.toggle());

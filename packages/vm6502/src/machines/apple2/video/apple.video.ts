@@ -170,7 +170,7 @@ export class AppleVideo implements Video {
 		}
 	}
 
-	public tick() {
+	public tick(meta?: unknown) {
 		this.textRenderer.tick();
 
 		const tbColor = this.registers.getUint8(REG_TBCOLOR_OFFSET);
