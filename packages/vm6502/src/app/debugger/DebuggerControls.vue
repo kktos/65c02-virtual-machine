@@ -149,7 +149,7 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 	};
 
 	const symbolFileInput = ref<HTMLInputElement | null>(null);
-	const { parseSymbolsFromText } = useSymbols();
+	const { parseSymbolsFromText, addSymbols } = useSymbols();
 
 	const triggerSymbolLoad = () => {
 		symbolFileInput.value?.click();
@@ -161,7 +161,7 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 		const file = input.files[0] as File;
 		const text = await file.text();
 		const symbols= parseSymbolsFromText(text);
-		vm?.value?.addSymbols(symbols);
+		addSymbols(symbols);
 		input.value = ''; // Reset input
 	};
 
@@ -171,10 +171,8 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 		try {
 			// Read text from the system clipboard
 			const text = await navigator.clipboard.readText();
-			if (text) {
-				// Send to VM to simulate keystrokes
-				await vm.value.typeText(text);
-			}
+			// Send to VM to simulate keystrokes
+			if (text) await vm.value.typeText(text);
 		} catch (err) {
 			console.error("Failed to read clipboard:", err);
 			// Fallback or alert if permission denied

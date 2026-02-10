@@ -237,7 +237,8 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 	);
 
 	watch( // Re-disassemble when the start address or memory changes
-		() => [disassemblyStartAddress.value, memory, visibleRowCount.value, busState.value, registers, vm?.value?.symbolsVersion.value],
+		// () => [disassemblyStartAddress.value, memory, visibleRowCount.value, busState.value, registers, vm?.value?.symbolsVersion.value],
+		() => [disassemblyStartAddress.value, memory, visibleRowCount.value, busState.value, registers],
 		() => {
 			if (memory) {
 

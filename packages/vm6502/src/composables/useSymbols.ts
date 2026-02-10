@@ -8,6 +8,27 @@ const activeNamespaces = ref<Map<string, boolean>>(new Map());
 export function useSymbols() {
 	const vm = inject<Ref<VirtualMachine>>("vm");
 
+	const addSymbols = (newSymbols: SymbolDict) => {
+		if (!vm?.value?.machineConfig) return;
+		if (!vm.value.machineConfig.symbols) vm.value.machineConfig.symbols = {};
+
+		const symbols = vm.value.machineConfig.symbols;
+
+		for (const [addrStr, namespaces] of Object.entries(newSymbols)) {
+			const addr = Number(addrStr);
+			if (!symbols[addr]) symbols[addr] = {};
+			Object.assign(symbols[addr], namespaces);
+		}
+
+		for (const namespaces of Object.values(symbols)) {
+			Object.keys(namespaces).forEach((ns) => {
+				if (!activeNamespaces.value.has(ns)) {
+					activeNamespaces.value.set(ns, true);
+				}
+			});
+		}
+	};
+
 	const resolveActiveNamespace = (address: number): string | undefined => {
 		const map = vm?.value?.machineConfig?.symbols?.[address];
 		if (!map) return undefined;
@@ -75,7 +96,7 @@ export function useSymbols() {
 
 		// Regex to match header: LABEL [META]:
 		// Captures: 1=Label, 2=Metadata content (optional)
-		const headerRegex = /^\s*([a-zA-Z0-9_.]+)(?:\s*\[(.*)\])?\s*:/;
+		const headerRegex = /^('[^']+'|[a-zA-Z0-9_.]+)(?:\s*\[(.*)\])?\s*:/;
 
 		for (const line of lines) {
 			const symbolMatch = line.match(symbolRegex) as [unknown, string, string, string] | null;
@@ -95,10 +116,6 @@ export function useSymbols() {
 			const headerMatch = line.match(headerRegex) as [unknown, string, string] | null;
 			if (headerMatch) {
 				currentNamespace = headerMatch[1]; // The label is the namespace
-				if (!activeNamespaces.value.has(currentNamespace)) {
-					activeNamespaces.value.set(currentNamespace, true);
-				}
-
 				const metadata = headerMatch[2];
 				if (metadata) {
 					const scopeMatch = metadata.match(/SCOPE\s*=\s*([a-zA-Z0-9_]+)/i) as [unknown, string] | null;
@@ -174,5 +191,6 @@ export function useSymbols() {
 		getNamespaceForAddress,
 		getNamespaceList,
 		toggleNamespace,
+		addSymbols,
 	};
 }
