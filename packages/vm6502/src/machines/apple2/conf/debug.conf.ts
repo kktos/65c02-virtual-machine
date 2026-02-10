@@ -222,4 +222,30 @@ export const debugConfig: MachineConfig["debugOptions"] = [
 			],
 		],
 	},
+	{
+		label: "Diagnostics",
+		category: "video",
+		rows: [
+			[
+				{
+					id: "runTest",
+					label: "Video Tests",
+					type: "select",
+					options: [
+						{ label: "None", value: "" },
+						{ value: "TEXT40", label: "Text 40 col" },
+						{ value: "TEXT80", label: "Text 80 col" },
+						{ value: "MIXED40GR", label: "Low-Res Mixed 40cols (GR)" },
+						{ value: "MIXED80GR", label: "Low-Res Mixed 80cols (GR)" },
+						{ value: "GR", label: "Low-Res Full (GR)" },
+						{ value: "MIXEDDGR", label: "Double Low-Res Mixed (DGR)" },
+						{ value: "DGR", label: "Double Low-Res Full (DGR)" },
+						{ value: "MIXED40HGR", label: "Hi-Res Mixed 40cols (HGR)" },
+						{ value: "MIXED80HGR", label: "Hi-Res Mixed 80cols (HGR)" },
+						{ value: "HGR", label: "Hi-Res Full (HGR)" },
+					],
+				},
+			],
+		],
+	},
 ];

@@ -6,10 +6,12 @@ import {
 	REG_BORDERCOLOR_OFFSET,
 	REG_TBCOLOR_OFFSET,
 } from "@/virtualmachine/cpu/shared-memory";
+import type { AppleBus } from "../apple.bus";
 import { IIgsPaletteRGB } from "./constants";
 import { DebugText } from "./debug/debug.text";
 import { LowGrRenderer } from "./gr";
 import { HGR_COLORS, HGRRenderer } from "./hgr";
+import { VideoTester } from "./tester/video.tester";
 import { TextRenderer } from "./text";
 
 // Memory layout offset (matches AppleBus)
@@ -37,6 +39,7 @@ interface AppleVideoOverrides {
 	canvasSize?: "AUTO" | "CUSTOM";
 	customWidth?: number;
 	customHeight?: number;
+	runTest?: string;
 }
 
 const baseurl = import.meta.url.match(/http:\/\/[^/]+/)?.[0];
@@ -69,6 +72,8 @@ export class AppleVideo implements Video {
 	private lowGrRenderer: LowGrRenderer;
 	private hgrRenderer: HGRRenderer;
 	private debugText: DebugText;
+
+	private tester: VideoTester | undefined;
 
 	private borderColorIdx: number;
 	private borderColorDbgIdx: number;
@@ -140,8 +145,18 @@ export class AppleVideo implements Video {
 		this.parent.postMessage({ command: "setPalette", colors: palette });
 	}
 
+	public setupTests(bus: AppleBus) {
+		this.tester = new VideoTester(bus, this);
+	}
+
 	public setDebugOverrides(overrides: Dict) {
 		this.overrides = overrides as unknown as AppleVideoOverrides;
+
+		if (this.overrides.runTest && this.tester) {
+			console.log("runTest", this.overrides.runTest);
+			this.tester.run(this.overrides.runTest);
+			return;
+		}
 
 		let newWidth = this.defaultWidth;
 		let newHeight = this.defaultHeight;
@@ -170,7 +185,7 @@ export class AppleVideo implements Video {
 		}
 	}
 
-	public tick(meta?: unknown) {
+	public tick(_meta?: unknown) {
 		this.textRenderer.tick();
 
 		const tbColor = this.registers.getUint8(REG_TBCOLOR_OFFSET);

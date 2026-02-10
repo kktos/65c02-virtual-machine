@@ -7,25 +7,6 @@
 				</button>
 			</template>
 			<template #extra-content>
-				<div class="flex flex-col space-y-1">
-					<span class="text-[10px] uppercase text-gray-500 font-bold tracking-wider">Diagnostics</span>
-					<select
-						@change="runTest"
-						class="w-full bg-gray-900 text-xs text-gray-300 border border-gray-600 rounded px-2 py-1 outline-none focus:border-blue-500 cursor-pointer"
-					>
-						<option value="" selected disabled>Run Video Test...</option>
-						<option value="TEXT40">Text 40 col</option>
-						<option value="TEXT80">Text 80 col</option>
-						<option value="MIXED40GR">Low-Res Mixed 40cols (GR)</option>
-						<option value="MIXED80GR">Low-Res Mixed 80cols (GR)</option>
-						<option value="GR">Low-Res Full (GR)</option>
-						<option value="MIXEDDGR">Double Low-Res Mixed (DGR)</option>
-						<option value="DGR">Double Low-Res Full (DGR)</option>
-						<option value="MIXED40HGR">Hi-Res Mixed 40cols (HGR)</option>
-						<option value="MIXED80HGR">Hi-Res Mixed 80cols (HGR)</option>
-						<option value="HGR">Hi-Res Full (HGR)</option>
-					</select>
-				</div>
 				<div class="flex flex-col space-y-1 mt-2">
 					<span class="text-[10px] uppercase text-gray-500 font-bold tracking-wider">Capture</span>
 					<button
@@ -49,14 +30,10 @@
 
 <script lang="ts" setup>
 import { Camera, Monitor } from "lucide-vue-next";
-import { computed, inject, type Ref, ref } from "vue";
+import { computed, ref } from "vue";
 import DebugOptionsPopover from "@/components/DebugOptionsPopover.vue";
-import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
-
-const vm = inject<Ref<VirtualMachine>>("vm");
 
 const debugOptionsPopover = ref<InstanceType<typeof DebugOptionsPopover> | null>(null);
-
 const debugOverrides = computed(() => debugOptionsPopover.value?.debugOverrides || {});
 
 const activeMode = computed(() => {
@@ -64,16 +41,6 @@ const activeMode = computed(() => {
 	if (mode === "AUTO" || !mode) return "Auto";
 	return String(mode);
 });
-
-const runTest = (event: Event) => {
-	const select = event.target as HTMLSelectElement;
-	const mode = select.value;
-	if (mode && vm?.value) {
-		vm.value.testVideo(mode);
-		// Reset to default so we can select the same one again if needed
-		select.value = "";
-	}
-};
 
 const saveSnapshot = () => {
 	const canvas = document.querySelector("canvas");

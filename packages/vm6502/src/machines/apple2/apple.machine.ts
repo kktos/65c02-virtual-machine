@@ -15,6 +15,7 @@ export const apple2e: MachineConfig = {
 		height: 480,
 		class: "AppleVideo",
 		path: "apple2/video/apple.video",
+		hasTests: true,
 	},
 	disk: { enabled: true, name: "SPDisk" },
 	debugOptions: debugConfig,

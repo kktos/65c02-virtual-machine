@@ -48,6 +48,7 @@ export interface VideoConfig {
 	path: string; // Path relative to the worker for dynamic import
 	buffer?: SharedArrayBuffer;
 	payload?: unknown;
+	hasTests?: boolean;
 }
 
 export interface DiskConfig {

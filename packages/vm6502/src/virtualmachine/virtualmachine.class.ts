@@ -229,6 +229,7 @@ export class VirtualMachine {
 					class: this.machineConfig.video?.class,
 					buffer: this.videoBuffer,
 					payload: payloads.video,
+					hasTests: this.machineConfig.video?.hasTests,
 				},
 				memory: { buffer: this.sharedBuffer, size: this.machineConfig.memory.size, chunks },
 				disk: { ...this.machineConfig.disk },
@@ -448,7 +449,6 @@ export class VirtualMachine {
 	};
 	public refreshVideo = () => this.worker.postMessage({ command: "refreshVideo" });
 	public mute = (enabled: boolean) => this.worker.postMessage({ command: "mute", enabled });
-	public testVideo = (mode: string) => this.worker.postMessage({ command: "testVideo", mode });
 
 	public read(address: number): number {
 		return this.bus ? this.bus.read(address) : (this.sharedMemory[address] ?? 0);

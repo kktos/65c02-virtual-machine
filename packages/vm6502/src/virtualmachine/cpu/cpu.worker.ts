@@ -1,7 +1,5 @@
 import type { MachineConfig } from "@/types/machine.interface";
 import type { Video } from "@/types/video.interface";
-import { AppleBus } from "../../machines/apple2/apple.bus";
-import { VideoTester } from "../../machines/apple2/video/tester/video.tester";
 import { BP_PC, breakpointMap } from "./breakpoints";
 import type { IBus } from "./bus.interface";
 import {
@@ -64,6 +62,7 @@ async function init(machine: MachineConfig) {
 	if (machine.video) {
 		video = await loadVideo(machine.video, registersView, memoryView);
 		if (!video) return;
+		if (machine.video.hasTests) video.setupTests?.(bus);
 	}
 
 	initCPU(bus, registersView, video, memoryView, stackMetadataView);
@@ -163,11 +162,6 @@ self.onmessage = async (event: MessageEvent) => {
 			break;
 		case "mute":
 			bus?.enableAudio?.(event.data.enabled);
-			break;
-		case "testVideo":
-			if (bus instanceof AppleBus) {
-				new VideoTester(bus, video).run(event.data.mode);
-			}
 			break;
 		case "initAudio":
 			bus?.initAudio?.(event.data.sampleRate);
