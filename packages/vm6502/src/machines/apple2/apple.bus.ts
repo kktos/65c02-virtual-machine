@@ -13,6 +13,7 @@ import {
 import { generateApple2Assets } from "./bus/apple.assets";
 import { loadMemoryChunks } from "./bus/apple.loader";
 import { installSoftSwitches } from "./bus/apple.switches";
+import { MouseCard } from "./slots/mouse.card";
 import type { ISlotCard } from "./slots/slotcard.interface";
 import { SmartPortCard } from "./slots/smartport.card";
 import { Speaker } from "./speaker";
@@ -136,6 +137,9 @@ export class AppleBus implements IBus {
 		// Install SmartPort Card in Slot 5
 		const slot5Rom = this.slotRoms.subarray(0x400, 0x500);
 		this.installCard(new SmartPortCard(this, 5, slot5Rom));
+
+		const slot4Rom = this.slotRoms.subarray(0x300, 0x400);
+		this.installCard(new MouseCard(this, 4, slot4Rom));
 
 		// this.installCard(new MockingboardCard(4));
 
