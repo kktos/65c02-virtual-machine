@@ -700,9 +700,11 @@ export class AppleBus implements IBus {
 	}
 
 	public insertMedia(data: Uint8Array, metadata?: Record<string, unknown>) {
+		console.log("insertMedia", metadata);
+
 		if (metadata && typeof metadata.slot === "number") {
 			const card = this.slots[metadata.slot];
-			if (card?.insertMedia) card.insertMedia(data);
+			if (card?.insertMedia) card.insertMedia(data, metadata);
 		}
 	}
 

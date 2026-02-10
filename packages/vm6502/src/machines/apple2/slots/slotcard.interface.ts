@@ -10,7 +10,7 @@ export interface ISlotCard {
 	readExpansion(offset: number): number;
 	writeExpansion?(offset: number, value: number): void;
 	setRegisters?(view: DataView): void;
-	insertMedia?(data: Uint8Array): void;
+	insertMedia?(data: Uint8Array, metadata?: Record<string, unknown>): void;
 	tick?(cycles: number): Float32Array[];
 
 	setDebugOverrides?(overrides: Dict): void;

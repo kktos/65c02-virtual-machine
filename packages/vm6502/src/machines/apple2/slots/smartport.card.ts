@@ -25,7 +25,14 @@ export class SmartPortCard implements ISlotCard {
 		this.initRom();
 	}
 
-	public insertMedia(data: Uint8Array) {
+	public insertMedia(data: Uint8Array, metadata?: Record<string, unknown>) {
+		if (metadata) {
+			// https://gswv.apple2.org.za/a2zine/Docs/DiskImage_2MG_Info.txt
+			if ((metadata.name as string).match(/\.2mg$/)) {
+				this.diskData = data.subarray(64);
+				return;
+			}
+		}
 		this.diskData = data;
 	}
 
