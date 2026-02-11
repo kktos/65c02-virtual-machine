@@ -64,8 +64,10 @@ export interface MachineInputControl {
 	index?: number;
 }
 
+export type InputDeviceType = "joystick" | "paddle" | "gamepad" | "mouse";
+
 export interface MachineInputDevice {
-	id: string;
+	type: InputDeviceType;
 	label: string;
 	controls: MachineInputControl[];
 }

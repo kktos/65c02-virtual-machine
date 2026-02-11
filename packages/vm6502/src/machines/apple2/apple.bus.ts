@@ -123,6 +123,7 @@ export class AppleBus implements IBus {
 
 	// Speaker State
 	public speaker: Speaker;
+	public mouseCard?: MouseCard;
 
 	private tickHandlers: ((cycles: number) => void)[] = [];
 
@@ -147,7 +148,8 @@ export class AppleBus implements IBus {
 		this.installCard(new SmartPortCard(this, 5, slot5Rom));
 
 		const slot4Rom = this.slotRoms.subarray(0x300, 0x400);
-		this.installCard(new MouseCard(this, 4, slot4Rom));
+		this.mouseCard = new MouseCard(this, 4, slot4Rom);
+		this.installCard(this.mouseCard);
 
 		// this.installCard(new MockingboardCard(4));
 

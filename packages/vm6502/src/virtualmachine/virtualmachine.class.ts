@@ -476,13 +476,19 @@ export class VirtualMachine {
 	}
 
 	public setAnalogInput(index: number, value: number) {
-		if (index >= 0 && index < MAX_ANALOG_INPUTS) {
+		if (index >= 0 && index < MAX_ANALOG_INPUTS)
 			this.sharedRegisters.setFloat32(INPUT_ANALOG_0_OFFSET + index * 4, value, true);
-		}
 	}
 
 	public setDigitalInput(value: number) {
 		this.sharedRegisters.setUint16(INPUT_DIGITAL_OFFSET, value, true);
+	}
+
+	public setInputButton(index: number, pressed: boolean) {
+		const current = this.sharedRegisters.getUint16(INPUT_DIGITAL_OFFSET, true);
+		const mask = 1 << index;
+		const newValue = pressed ? current | mask : current & ~mask;
+		this.sharedRegisters.setUint16(INPUT_DIGITAL_OFFSET, newValue, true);
 	}
 
 	public updateMemory(addr: number, value: number) {

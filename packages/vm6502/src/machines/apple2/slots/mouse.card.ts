@@ -1,6 +1,8 @@
 import type { IBus } from "@/virtualmachine/cpu/bus.interface";
 import {
 	FLAG_C_MASK,
+	INPUT_ANALOG_0_OFFSET,
+	INPUT_DIGITAL_OFFSET,
 	REG_A_OFFSET,
 	REG_STATUS_OFFSET,
 	REG_X_OFFSET,
@@ -8,8 +10,20 @@ import {
 } from "@/virtualmachine/cpu/shared-memory";
 import type { ISlotCard } from "./slotcard.interface";
 
+// AppleMouse II User Manual
+// https://mirrors.apple2.org.za/ftp.apple.asimov.net/documentation/hardware/io/AppleMouse%20II%20User%27s%20Manual.pdf
+
+const SETMOUSE = 0x12;
+const SERVEMOUSE = 0x13;
+const READMOUSE = 0x14;
+const CLEARMOUSE = 0x15;
+const POSMOUSE = 0x16;
+const CLAMPMOUSE = 0x17;
+const HOMEMOUSE = 0x18;
+const INITMOUSE = 0x19;
+
 export class MouseCard implements ISlotCard {
-	private registers?: DataView;
+	private registers!: DataView;
 
 	// Mouse State
 	private x = 0;
@@ -23,6 +37,12 @@ export class MouseCard implements ISlotCard {
 	private minY = 0;
 	private maxY = 1023;
 
+	// Bit 	  0 : Turn mouse on
+	// Bit 	  0 : Turn mouse on
+	//		  1 : Enable interrupts on mouse movement
+	// 		  2 : Enable interrupts when button pressed
+	// 		  3 : Enable interrupts every screen refresh
+	// Bits	4-7 : Reserved
 	private mode = 0;
 
 	constructor(
@@ -42,37 +62,66 @@ export class MouseCard implements ISlotCard {
 		this.rom[0x05] = 0x38;
 		this.rom[0x07] = 0x18;
 		this.rom[0x0b] = 0x01;
+		//technote Mouse #5: Check on Mouse Firmware Card
 		this.rom[0x0c] = 0x20;
+		this.rom[0xfb] = 0xd6;
 
-		// --- HLE Entry Points ---
-		// We construct JMP instructions to the card's I/O space ($C080 + slot*16).
-		// Writing to these I/O addresses will trigger our writeIo handler.
-		// Slot 4 I/O base is $C0C0.
+		// --- HLE Vector Table ---
+		// The firmware card has a vector table from $Cn12 to $Cn19.
+		// Each byte is the low-byte of the address for a specific mouse function.
+		// The high-byte is implicitly $Cn.
+		// We will create small HLE routines that trigger our I/O handlers,
+		// and point the vectors to these routines.
 
 		const ioBase = 0xc080 + (this.slot << 4);
 		const ioLo = ioBase & 0xff;
 		const ioHi = ioBase >> 8;
 
-		const writeJmp = (addr: number, cmd: number) => {
-			this.rom[addr] = 0x8d; // STA Absolute
-			this.rom[addr + 1] = ioLo + cmd;
-			this.rom[addr + 2] = ioHi;
-			this.rom[addr + 3] = 0x60; // RTS
+		// This function creates a small routine: STA $C0C[x]; RTS
+		const writeHleRoutine = (romOffset: number, ioOffset: number) => {
+			this.rom[romOffset] = 0x8d; // STA Absolute
+			this.rom[romOffset + 1] = ioLo + ioOffset;
+			this.rom[romOffset + 2] = ioHi;
+			this.rom[romOffset + 3] = 0x60; // RTS
 		};
 
-		// Standard Pascal/Firmware Interface Offsets
-		writeJmp(0x12, 0x00); // SETMOUSE
-		writeJmp(0x19, 0x01); // SERVEMOUSE
-		writeJmp(0x1c, 0x02); // READMOUSE
-		writeJmp(0x1f, 0x03); // CLEARMOUSE
-		writeJmp(0x22, 0x04); // POSMOUSE
-		writeJmp(0x25, 0x05); // CLAMPMOUSE
-		writeJmp(0x28, 0x06); // HOMEMOUSE
-		writeJmp(0x2b, 0x07); // INITMOUSE
+		// Define where our HLE routines will live in the 256-byte ROM space
+		const hleBase = 0x40;
+		type Command = { vector: number; io: number };
+		const commands: Command[] = [
+			{ vector: SETMOUSE, io: 0x00 },
+			{ vector: SERVEMOUSE, io: 0x01 },
+			{ vector: READMOUSE, io: 0x02 },
+			{ vector: CLEARMOUSE, io: 0x03 },
+			{ vector: POSMOUSE, io: 0x04 },
+			{ vector: CLAMPMOUSE, io: 0x05 },
+			{ vector: HOMEMOUSE, io: 0x06 },
+			{ vector: INITMOUSE, io: 0x07 },
+		];
+
+		// Create the HLE routines and populate the vector table
+		for (let i = 0; i < commands.length; i++) {
+			const { vector, io } = commands[i] as Command;
+			const routineAddr = hleBase + i * 4;
+			writeHleRoutine(routineAddr, io);
+			this.rom[vector] = routineAddr;
+		}
 	}
 
 	setRegisters(view: DataView) {
 		this.registers = view;
+	}
+
+	tick?(_cycles: number): Float32Array[] {
+		// Read Mouse Axes (Indices 2 & 3 -> Offsets +8 & +12)
+		const mx = this.registers.getFloat32(INPUT_ANALOG_0_OFFSET + 8, true);
+		const my = this.registers.getFloat32(INPUT_ANALOG_0_OFFSET + 12, true);
+		const digital1 = this.registers.getUint8(INPUT_DIGITAL_OFFSET);
+		const mb0 = (digital1 & 0b0000_0100) !== 0;
+		const mb1 = (digital1 & 0b0000_1000) !== 0;
+		this.setMouse(Math.max(0, Math.min(1, mx)) * 1023, Math.max(0, Math.min(1, my)) * 1023, mb0, mb1);
+
+		return [];
 	}
 
 	readRom(offset: number): number {
@@ -155,7 +204,7 @@ export class MouseCard implements ISlotCard {
 		// For HLE, we often assume bit 7 set if button is down.
 		let status = 0;
 		if (this.button0) status |= 0x80;
-		// if (this.button1) status |= 0x40;
+		if (this.button1) status |= 0x40;
 
 		this.registers?.setUint8(REG_A_OFFSET, status);
 		this.clearCarry();
@@ -168,9 +217,7 @@ export class MouseCard implements ISlotCard {
 
 	private cmdSetMouse() {
 		// A = Mode
-		if (this.registers) {
-			this.mode = this.registers.getUint8(REG_A_OFFSET);
-		}
+		if (this.registers) this.mode = this.registers.getUint8(REG_A_OFFSET);
 		this.clearCarry();
 	}
 
@@ -198,10 +245,15 @@ export class MouseCard implements ISlotCard {
 
 	private updateScreenHoles() {
 		// Screen Holes for Slot N:
-		// $0478 + N
-		// $0578 + N
-		// $04F8 + N
-		// $05F8 + N
+		// $478 + n		Low byte of X position
+		// $4F8 + n 	Low byte of Y position
+		// $578 + n 	High byte of X position
+		// $5F8 + n 	High byte of Y position
+		// $678 + n 	Reserved
+		// $6F8 + n 	Reserved
+		// $778 + n 	Button and interrupt status
+		// $7F8 + n 	Current mode
+
 		const base = 0x0478 + this.slot;
 
 		// X Coordinate
@@ -211,6 +263,17 @@ export class MouseCard implements ISlotCard {
 		// Y Coordinate
 		this.bus.write(base + 0x80, this.y & 0xff);
 		this.bus.write(base + 0x180, (this.y >> 8) & 0xff);
+
+		// mode
+		// Bit 	7: Button is down
+		// 		6: Button was down at last reading
+		// 		5: Xor Y changed since last reading
+		// 		4: Reserved
+		// 		3: Interrupt caused by screen refresh
+		// 		2: Interrupt caused by button press
+		// 		1: Interrupt caused by mouse movement
+		// 		0: Reserved
+		this.bus.write(0x7f8 + this.slot, this.mode);
 	}
 
 	private clearCarry() {

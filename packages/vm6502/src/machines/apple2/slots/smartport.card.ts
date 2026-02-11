@@ -277,6 +277,7 @@ export class SmartPortCard implements ISlotCard {
 		if (!this.bus || !this.diskData) return 0x2f; // Device Offline
 
 		// Param List: [Count, Unit, PtrLo, PtrHi, Code]
+		const unit = this.bus.read(paramAddr + 1);
 		const listPtrLo = this.bus.read(paramAddr + 2);
 		const listPtrHi = this.bus.read(paramAddr + 3);
 		const listPtr = (listPtrHi << 8) | listPtrLo;
@@ -314,9 +315,10 @@ export class SmartPortCard implements ISlotCard {
 				this.bus.write(listPtr + 2, 0x00);
 				this.bus.write(listPtr + 3, 0x01);
 				this.bus.write(listPtr + 4, 0x03);
-				const name = "SmartPort Drive ";
-				this.bus.write(listPtr + 5, name.length);
-				for (let i = 0; i < name.length; i++) this.bus.write(listPtr + 6 + i, name.charCodeAt(i));
+				const name = `SP Drive ${unit.toString(16).padStart(2, "0")}       `;
+				const len = Math.min(name.length, 16);
+				this.bus.write(listPtr + 5, len);
+				for (let i = 0; i < len; i++) this.bus.write(listPtr + 6 + i, name.charCodeAt(i));
 				break;
 			}
 			default:

@@ -16,17 +16,17 @@
 					<div class="text-xs font-mono text-gray-300">{{  GamepadID }}</div>
 				</DialogHeader>
 				<div v-if="inputs && inputs.length > 0">
-					<div v-for="device in inputs" :key="device.id" class="mb-4">
+					<div v-for="device in inputs" :key="device.label" class="mb-4">
 						<h4 class="text-xs font-semibold text-gray-400 uppercase mb-2">{{ device.label }}</h4>
 						<div class="space-y-2">
 							<div v-for="control in device.controls" :key="control.id" class="flex items-center justify-between text-xs">
 								<span class="text-gray-300">{{ control.label }}</span>
 								<button
-									@click="startMapping(control.id)"
+									@click="startMapping(getUniqueControlId(device, control))"
 									class="px-2 py-1 rounded border transition-colors min-w-[80px] text-center"
-									:class="listeningFor === control.id ? 'bg-yellow-600 border-yellow-500 text-white animate-pulse' : 'bg-gray-800 border-gray-600 text-gray-400 hover:bg-gray-700'"
+									:class="listeningFor === getUniqueControlId(device, control) ? 'bg-yellow-600 border-yellow-500 text-white animate-pulse' : 'bg-gray-800 border-gray-600 text-gray-400 hover:bg-gray-700'"
 								>
-									{{ getMappingLabel(control.id) }}
+									{{ getMappingLabel(getUniqueControlId(device, control)) }}
 								</button>
 							</div>
 						</div>
@@ -46,7 +46,7 @@ import { useGamepad, useRafFn } from "@vueuse/core";
 import { Gamepad2 } from "lucide-vue-next";
 import { inject, type Ref, ref, watch } from "vue";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import type { MachineInputDevice } from "@/types/machine.interface";
+import type { MachineInputControl, MachineInputDevice } from "@/types/machine.interface";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 
 	const vm = inject<Ref<VirtualMachine>>("vm");
@@ -68,8 +68,8 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 	watch(() => vm?.value, async (newVm) => {
 		if (newVm) {
 			await newVm.ready;
-			if(newVm.machineConfig.inputs) {
-				inputs.value = newVm.machineConfig.inputs;
+			if (newVm.machineConfig.inputs) {
+				inputs.value = newVm.machineConfig.inputs.filter((d) => d.type === "joystick");
 				// Load mappings
 				const saved = localStorage.getItem(`gamepad_map_${newVm.machineConfig.name}`);
 				if (saved) {
@@ -110,6 +110,8 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 	watch(showMapping, (isOpen) => {
 		if (!isOpen) listeningFor.value = null;
 	});
+
+	const getUniqueControlId = (device: MachineInputDevice, control: MachineInputControl) => `${device.label}::${control.id}`;
 
 	const startMapping = (controlId: string) => {
 		listeningFor.value = controlId;
@@ -155,16 +157,14 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 		const gp = gamepads.value[activeGamepadIndex.value];
 		if (!gp) return;
 
-		const machineInputs = vm.value.machineConfig.inputs;
-		if (!machineInputs) return;
+		if (!inputs.value) return;
 
-		let digitalState = 0;
-
-		for (const device of machineInputs) {
+		for (const device of inputs.value) {
 			for (const control of device.controls) {
 				if (control.index === undefined) continue;
 
-				const mapping = mappings.value[control.id];
+				const uniqueId = getUniqueControlId(device, control);
+				const mapping = mappings.value[uniqueId];
 				if (!mapping) continue;
 
 				if (control.type === "axis" && mapping.type === "axis") {
@@ -172,18 +172,11 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 					vm.value.setAnalogInput(control.index, value);
 				} else if (control.type === "button" && mapping.type === "button") {
 					const pressed = gp.buttons[mapping.index]?.pressed ?? false;
-					if (pressed) {
-						digitalState |= 1 << control.index;
-					}
+					vm.value.setInputButton(control.index, pressed);
 				}
 
 			}
 		}
-
-		// Write the accumulated bitmask for all buttons
-		vm?.value.setDigitalInput(digitalState);
-
 	});
 
-	// defineExpose({ mappings });
 </script>

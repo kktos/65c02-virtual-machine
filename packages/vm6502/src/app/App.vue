@@ -8,6 +8,7 @@
 				<VideoControl />
 				<SoundControl />
 				<GamepadControl v-if="hasGamepad"/>
+				<MouseControl v-if="hasMouse" />
 				<DiskDriveControl v-if="hasDisk" />
 				<StatusPanel />
 
@@ -157,6 +158,7 @@ import TraceView from './debugger/TraceView.vue';
 import DiskDriveControl from "./machine/diskdrivecontrol/DiskDriveControl.vue";
 import GamepadControl from "./machine/GamepadControl.vue";
 import MachineSelector from './machine/MachineSelector.vue';
+import MouseControl from "./machine/MouseControl.vue";
 import SoundControl from "./machine/SoundControl.vue";
 import StatusPanel from './machine/StatusPanel.vue';
 import VideoControl from "./machine/VideoControl.vue";
@@ -168,7 +170,8 @@ import VideoControl from "./machine/VideoControl.vue";
 	const vm = ref<VirtualMachine | null>(null);
 	const videoCanvas = ref<HTMLCanvasElement | null>(null);
 	const selectedMachine = ref<MachineConfig>(availableMachines[1] as MachineConfig);
-	const hasGamepad= computed(() => (selectedMachine.value.inputs?.length ?? 0) > 0 );
+	const hasGamepad = computed(() => selectedMachine.value.inputs?.some(d => d.type === 'joystick' || d.type === 'gamepad') ?? false);
+	const hasMouse = computed(() => selectedMachine.value.inputs?.some(d => d.type === 'mouse') ?? false);
 	const hasDisk= computed(() => selectedMachine.value.disk?.enabled );
 
 	const logs = ref<string[]>([]);

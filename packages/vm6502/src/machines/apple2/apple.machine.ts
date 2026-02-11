@@ -23,13 +23,23 @@ export const apple2e: MachineConfig = {
 	regions: regionsConfig,
 	inputs: [
 		{
-			id: "joystick",
+			type: "joystick",
 			label: "Joystick",
 			controls: [
 				{ id: "axis_x", label: "Horizontal (Paddle 0)", type: "axis", index: 0 },
 				{ id: "axis_y", label: "Vertical (Paddle 1)", type: "axis", index: 1 },
 				{ id: "btn_0", label: "Button 0 (Open Apple)", type: "button", index: 0 },
 				{ id: "btn_1", label: "Button 1 (Solid Apple)", type: "button", index: 1 },
+			],
+		},
+		{
+			type: "mouse",
+			label: "Mouse",
+			controls: [
+				{ id: "axis_x", label: "Mouse X", type: "axis", index: 2 },
+				{ id: "axis_y", label: "Mouse Y", type: "axis", index: 3 },
+				{ id: "btn_0", label: "Left Button", type: "button", index: 2 },
+				{ id: "btn_1", label: "Right Button", type: "button", index: 3 },
 			],
 		},
 	],
