@@ -26,6 +26,8 @@ const APPLE_PAGE2_MASK = 0b0010_0000;
 const APPLE_HIRES_MASK = 0b0100_0000;
 // Byte at MACHINE_STATE_OFFSET3
 const APPLE_DBLRES_MASK = 0b0000_0001;
+const APPLE_VIDEO7_REG_MASK = 0b0000_0110; // bits 1,2
+const APPLE_VIDEO7_REG_SHIFT = 1;
 
 interface AppleVideoOverrides {
 	videoMode?: "AUTO" | "TEXT" | "HGR";
@@ -194,7 +196,6 @@ export class AppleVideo implements Video {
 
 	private updateRenderers() {
 		// this.textRenderer.wannaScale = !!this.overrides.wannaScale;
-		this.hgrRenderer.isMonochrome = !!this.overrides.isMonochrome;
 
 		if (this.overrides.textRenderer === "FONT") {
 			this.renderText40 = this.textRenderer.render40WithFont.bind(this.textRenderer);
@@ -256,6 +257,7 @@ export class AppleVideo implements Video {
 
 		const stateByte3 = this.registers.getUint8(MACHINE_STATE_OFFSET3);
 		const isDblRes = (stateByte3 & APPLE_DBLRES_MASK) !== 0;
+		const video7Register = (stateByte3 & APPLE_VIDEO7_REG_MASK) >> APPLE_VIDEO7_REG_SHIFT;
 
 		if (this.overrides.videoMode === "TEXT") {
 			isText = true;
@@ -275,7 +277,7 @@ export class AppleVideo implements Video {
 			if (is80Col) this.renderText80(0, bgIdx, fgIdx, isAltCharset);
 			else this.renderText40(0, isPage2, bgIdx, fgIdx, isAltCharset);
 		} else if (isHgr) {
-			this.hgrRenderer.render(isMixed, isPage2, isDblRes && is80Col, this.overrides.isMonochrome);
+			this.hgrRenderer.render(isMixed, isPage2, isDblRes && is80Col, this.overrides.isMonochrome, video7Register);
 			if (isMixed) {
 				if (is80Col) this.renderText80(20, bgIdx, fgIdx, isAltCharset);
 				else this.renderText40(20, isPage2, bgIdx, fgIdx, isAltCharset);

@@ -42,9 +42,25 @@ export function installSoftSwitches(bus: AppleBus) {
 	// --- Annunciator for Double Res Video ---
 	onAccess(SoftSwitches.SETAN3, () => {
 		bus.dblRes = false;
+		if (bus.video7SeqState === 1) {
+			// Sequence complete, push the bit
+			if (bus.video7NextBit === 0) {
+				// This is the first push, for bit 0.
+				bus.video7Register = (bus.video7Register & 0b10) | (bus.col80 ? 0x00 : 0x01); //bus.video7BitToPush;
+				bus.video7NextBit = 1; // Next push will be for bit 1.
+			} else {
+				// This is the second push, for bit 1.
+				bus.video7Register = (bus.video7Register & 0b01) | ((bus.col80 ? 0x00 : 0x01) << 1); //(bus.video7BitToPush << 1);
+				bus.video7NextBit = 0; // Reset for the next 2-bit sequence.
+			}
+		}
+		// Any access to SETAN3 resets the sequence state, regardless of whether it completed a sequence.
+		bus.video7SeqState = 0;
 	});
 	onAccess(SoftSwitches.CLRAN3, () => {
 		bus.dblRes = true;
+		// CLRAN3 always starts the sequence.
+		bus.video7SeqState = 1;
 	});
 
 	// --- Video State Reads ---
@@ -69,9 +85,11 @@ export function installSoftSwitches(bus: AppleBus) {
 	});
 	onWrite(SoftSwitches.COL80OFF, () => {
 		bus.col80 = false;
+		// bus.video7BitToPush = 1;
 	});
 	onWrite(SoftSwitches.COL80ON, () => {
 		bus.col80 = true;
+		// bus.video7BitToPush = 0;
 	});
 	onWrite(SoftSwitches.ALTCHARSETOFF, () => {
 		bus.altChar = false;

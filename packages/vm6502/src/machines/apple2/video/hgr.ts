@@ -48,7 +48,6 @@ const baseScaleY = NATIVE_VIEW_HEIGHT / HGR_LINES;
 export class HGRRenderer {
 	private destOffsetX: number;
 	private destOffsetY: number;
-	public isMonochrome = false;
 
 	constructor(
 		private ram: Uint8Array,
@@ -60,14 +59,39 @@ export class HGRRenderer {
 		this.destOffsetY = (targetHeight - NATIVE_VIEW_HEIGHT) / 2;
 	}
 
-	public render(isMixed: boolean, isPage2: boolean, isDblRes: boolean): void {
+	public render(
+		isMixed: boolean,
+		isPage2: boolean,
+		isDblRes: boolean,
+		isMonochromeOverride = false,
+		video7Register = 0b10,
+	): void {
 		const baseAddr = isPage2 ? 0x2000 : 0;
 		const endLine = isMixed ? HGR_MIXED_LINES : HGR_LINES;
 
 		if (isDblRes) {
-			if (this.isMonochrome) this.renderDblHGRMono(endLine, baseAddr);
-			else this.renderDblHGR(endLine, baseAddr);
-		} else this.renderHGR(endLine, baseAddr);
+			if (isMonochromeOverride) {
+				this.renderDblHGRMono(endLine, baseAddr);
+				return;
+			}
+
+			switch (video7Register) {
+				case 0b00: // 140x192 colours (Video-7 mode, ignores mono bit)
+					this.renderDblHGR(endLine, baseAddr);
+					break;
+				case 0b01: // 160x192 colours - Not implemented, fallback to standard color
+					this.renderDblHGR(endLine, baseAddr);
+					break;
+				case 0b10: // mixed 140x192 colours / 560x192 b&w (Standard Apple IIe DHGR)
+					this.renderDblHGRCombined(endLine, baseAddr);
+					break;
+				case 0b11: // 560x192 b&w
+					this.renderDblHGRMono(endLine, baseAddr);
+					break;
+			}
+		} else {
+			this.renderHGR(endLine, baseAddr);
+		}
 	}
 
 	private renderHGR(endLine: number, baseAddr: number) {
@@ -144,6 +168,106 @@ export class HGRRenderer {
 						for (let dx = startX; dx < endX; dx++) {
 							this.buffer[rowOffset + dx] = paletteIdx;
 						}
+					}
+				}
+			}
+		}
+	}
+
+	private renderDblHGRCombined(endLine: number, baseAddr: number): void {
+		const colorPixelWidth = 4;
+		const monoPixelWidth = 1;
+
+		for (let y = 0; y < endLine; y++) {
+			const lineBase = baseAddr + (HGR_LINE_ADDRS[y] ?? 0);
+			const startY = Math.floor(this.destOffsetY + y * baseScaleY);
+			const endY = Math.floor(this.destOffsetY + (y + 1) * baseScaleY);
+
+			let dot = 0;
+			while (dot < 560) {
+				const col = Math.floor(dot / 14);
+				const auxVal = this.ram[AUX_BANK_OFFSET + lineBase + col] ?? 0;
+				const isMono = (auxVal & 0x80) !== 0;
+
+				if (isMono) {
+					// This dot is in a mono segment. Render it as a single mono pixel.
+					const mainVal = this.ram[lineBase + col] ?? 0;
+					const bitInCol = dot % 14;
+					const isSet = bitInCol < 7 ? (auxVal & (1 << bitInCol)) !== 0 : (mainVal & (1 << (bitInCol - 7))) !== 0;
+
+					const startX = Math.floor(this.destOffsetX + dot * monoPixelWidth);
+					const endX = Math.floor(this.destOffsetX + (dot + 1) * monoPixelWidth);
+					const paletteIdx = isSet ? 47 : 32; // White : Black
+
+					for (let dy = startY; dy < endY; dy++) {
+						const rowOffset = dy * this.targetWidth;
+						for (let dx = startX; dx < endX; dx++) {
+							this.buffer[rowOffset + dx] = paletteIdx;
+						}
+					}
+					dot++;
+				} else {
+					// This dot is in a color segment. We must check if the whole 4-dot group is in a color area.
+					const p = Math.floor(dot / 4);
+					let isContaminated = false;
+					for (let i = 0; i < 4; i++) {
+						const currentDot = p * 4 + i;
+						if (currentDot >= 560) break;
+						const currentDotCol = Math.floor(currentDot / 14);
+						const currentAuxVal = this.ram[AUX_BANK_OFFSET + lineBase + currentDotCol] ?? 0;
+						if ((currentAuxVal & 0x80) !== 0) {
+							isContaminated = true;
+							break;
+						}
+					}
+
+					if (isContaminated) {
+						// The group is on a boundary. Render as a single mono dot and continue.
+						const mainVal = this.ram[lineBase + col] ?? 0;
+						const bitInCol = dot % 14;
+						const isSet = bitInCol < 7 ? (auxVal & (1 << bitInCol)) !== 0 : (mainVal & (1 << (bitInCol - 7))) !== 0;
+
+						const startX = Math.floor(this.destOffsetX + dot * monoPixelWidth);
+						const endX = Math.floor(this.destOffsetX + (dot + 1) * monoPixelWidth);
+						const paletteIdx = isSet ? 47 : 32; // White : Black
+
+						for (let dy = startY; dy < endY; dy++) {
+							const rowOffset = dy * this.targetWidth;
+							for (let dx = startX; dx < endX; dx++) {
+								this.buffer[rowOffset + dx] = paletteIdx;
+							}
+						}
+						dot++;
+					} else {
+						// The group is purely color. Render a 4-dot color pixel.
+						let colorIdx = 0;
+						for (let i = 0; i < 4; i++) {
+							const currentDot = p * 4 + i;
+							const currentDotCol = Math.floor(currentDot / 14);
+							const currentDotBitInCol = currentDot % 14;
+
+							const currentAuxVal = this.ram[AUX_BANK_OFFSET + lineBase + currentDotCol] ?? 0;
+							const currentMainVal = this.ram[lineBase + currentDotCol] ?? 0;
+
+							const isSet =
+								currentDotBitInCol < 7
+									? (currentAuxVal & (1 << currentDotBitInCol)) !== 0
+									: (currentMainVal & (1 << (currentDotBitInCol - 7))) !== 0;
+
+							if (isSet) colorIdx |= 1 << i;
+						}
+
+						const startX = Math.floor(this.destOffsetX + p * colorPixelWidth);
+						const endX = Math.floor(this.destOffsetX + (p + 1) * colorPixelWidth);
+						const paletteIdx = 32 + colorIdx;
+
+						for (let dy = startY; dy < endY; dy++) {
+							const rowOffset = dy * this.targetWidth;
+							for (let dx = startX; dx < endX; dx++) {
+								this.buffer[rowOffset + dx] = paletteIdx;
+							}
+						}
+						dot += 4;
 					}
 				}
 			}

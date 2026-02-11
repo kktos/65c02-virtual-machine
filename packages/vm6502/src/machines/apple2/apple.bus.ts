@@ -39,6 +39,8 @@ const APPLE_HIRES_MASK = 0b0100_0000;
 const APPLE_INTC8ROM_MASK = 0b1000_0000;
 // Byte at MACHINE_STATE_OFFSET3
 const APPLE_DBLRES_MASK = 0b0000_0001;
+const APPLE_VIDEO7_REG_MASK = 0b0000_0110; // bits 1,2
+const APPLE_VIDEO7_REG_SHIFT = 1;
 
 const RAM_OFFSET = 0x4000; // 16KB reserved for Bank2 (4KB) + ROM (12KB) at the beginning
 
@@ -87,6 +89,12 @@ export class AppleBus implements IBus {
 	public hires = false; // Hi-Res Mode
 	public fakingVBL = false;
 	public dblRes = false;
+
+	// Video-7 State
+	public video7Register = 0; // 2-bit register for extended modes
+	// public video7BitToPush = 0; // 0 or 1, set by 80COL softswitches
+	public video7SeqState = 0; // 0=idle, 1=CLRAN3 seen
+	public video7NextBit = 0; // 0=pushing bit 0, 1=pushing bit 1
 
 	public tbColor = DEFAULT_TEXT_COLORS; // IIgs text/bg color (black bg, white text)
 	public brdrColor = DEFAULT_TEXT_COLORS & 0x0f; // IIgs border color
@@ -249,6 +257,7 @@ export class AppleBus implements IBus {
 
 		let byte3 = 0;
 		if (this.dblRes) byte3 |= APPLE_DBLRES_MASK;
+		byte3 |= (this.video7Register << APPLE_VIDEO7_REG_SHIFT) & APPLE_VIDEO7_REG_MASK;
 		this.registers.setUint8(MACHINE_STATE_OFFSET3, byte3);
 
 		this.registers.setUint8(REG_TBCOLOR_OFFSET, this.tbColor);
@@ -278,6 +287,11 @@ export class AppleBus implements IBus {
 		this.hires = false;
 		this.tbColor = DEFAULT_TEXT_COLORS;
 		this.dblRes = false;
+
+		this.video7Register = 0;
+		// this.video7BitToPush = 0;
+		this.video7SeqState = 0;
+		this.video7NextBit = 0;
 
 		this.kbd_pb0 = false;
 		this.kbd_pb1 = false;
@@ -319,6 +333,7 @@ export class AppleBus implements IBus {
 			intC8Rom: (byte2 & APPLE_INTC8ROM_MASK) !== 0,
 
 			dblRes: (byte3 & APPLE_DBLRES_MASK) !== 0,
+			video7Register: (byte3 & APPLE_VIDEO7_REG_MASK) >> APPLE_VIDEO7_REG_SHIFT,
 		};
 
 		// Load state into this bus instance
@@ -339,6 +354,7 @@ export class AppleBus implements IBus {
 		this.page2 = state.page2;
 		this.hires = state.hires;
 		this.dblRes = state.dblRes;
+		this.video7Register = state.video7Register;
 
 		this.tbColor = view.getUint8(REG_TBCOLOR_OFFSET);
 		this.brdrColor = view.getUint8(REG_BORDERCOLOR_OFFSET);
@@ -680,6 +696,7 @@ export class AppleBus implements IBus {
 			{ id: "page2", label: "Page 2", type: "led", group: "Video" },
 			{ id: "hires", label: "Hi-Res", type: "led", group: "Video" },
 			{ id: "dblRes", label: "Dbl Hi-Res", type: "led", group: "Video" },
+			{ id: "video7Register", label: "Video-7 Mode", type: "text", group: "Video" },
 		];
 	}
 
