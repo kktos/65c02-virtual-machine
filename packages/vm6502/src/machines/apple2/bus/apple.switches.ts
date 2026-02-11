@@ -42,6 +42,22 @@ export function installSoftSwitches(bus: AppleBus) {
 	// --- Annunciator for Double Res Video ---
 	onAccess(SoftSwitches.SETAN3, () => {
 		bus.dblRes = false;
+		/*
+			src : https://mirrors.apple2.org.za/ftp.apple.asimov.net/documentation/hardware/video/Video-7%20RGB-SL7.pdf
+			src : https://www.fenarinarsa.com/?p=1440#Les_modes_DHGR_des_cartes_RGB_Apple_Video-7_Chat_Mauve_EVEFelineIIc
+
+			the whole mechanism is quite simple:
+			  there is a hidden 2-bit register in the card and to set the bits, we need to do a sequence of CLRAN3/SETAN3 (which will push a bit to the hidden register).
+			  As this is a 2-bit register, we need 2 sequences of CLRAN3/SETAN3.
+			  The value of the bit to push is set with COL80ON:0/COL80OFF:1.
+			  The first push is bit 0, the second is bit 1.
+			  Here are the modes:
+			  	<hidden bit> : <mode>
+				00 : 140x192 colours
+				01 : 160x192 colours
+				10 : mixed 140x192 colours / 560x192 b&w
+				11 : 560x192 b&w
+		*/
 		if (bus.video7SeqState === 1) {
 			// Sequence complete, push the bit
 			if (bus.video7NextBit === 0) {
