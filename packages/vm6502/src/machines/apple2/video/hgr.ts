@@ -77,16 +77,16 @@ export class HGRRenderer {
 
 			switch (video7Register) {
 				case 0b00: // 140x192 colours (Video-7 mode, ignores mono bit)
-					this.renderDblHGR(endLine, baseAddr);
+					this.renderDblHGR(endLine);
 					break;
 				case 0b01: // 160x192 colours - Not implemented, fallback to standard color
-					this.renderDblHGR(endLine, baseAddr);
+					this.renderDblHGR(endLine);
 					break;
 				case 0b10: // mixed 140x192 colours / 560x192 b&w (Standard Apple IIe DHGR)
-					this.renderDblHGRCombined(endLine, baseAddr);
+					this.renderDblHGRCombined(endLine);
 					break;
 				case 0b11: // 560x192 b&w
-					this.renderDblHGRMono(endLine, baseAddr);
+					this.renderDblHGRMono(endLine);
 					break;
 			}
 		} else {
@@ -174,7 +174,7 @@ export class HGRRenderer {
 		}
 	}
 
-	private renderDblHGRCombined(endLine: number, baseAddr: number): void {
+	private renderDblHGRCombined(endLine: number, baseAddr = 0): void {
 		const colorPixelWidth = 4;
 		const monoPixelWidth = 1;
 
@@ -274,7 +274,7 @@ export class HGRRenderer {
 		}
 	}
 
-	private renderDblHGR(endLine: number, baseAddr: number) {
+	private renderDblHGR(endLine: number, baseAddr = 0) {
 		// DHGR has 140 pixels per line, each 4 units wide (relative to 560 width)
 		const pixelWidth = 4;
 
@@ -325,7 +325,7 @@ export class HGRRenderer {
 		}
 	}
 
-	private renderDblHGRMono(endLine: number, baseAddr: number) {
+	private renderDblHGRMono(endLine: number, baseAddr = 0) {
 		// DHGR Mono has 560 pixels per line
 		const pixelWidth = 1;
 

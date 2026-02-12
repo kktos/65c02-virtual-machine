@@ -290,7 +290,7 @@ export class AppleVideo implements Video {
 			}
 		}
 
-		const debugStr = `${isText ? "TEXT" : isHgr ? "HGR" : "GR"} ${is80Col ? "80" : "40"} ${isMixed ? " MIXED" : ""} ${isDblRes ? " DBL" : ""}`;
+		const debugStr = `${isText ? "TEXT" : isHgr ? " HGR" : "  GR"} ${is80Col ? "80" : "40"} ${isMixed ? "MIXED" : " FULL"} ${isPage2 ? "P2" : "P1"} ${isDblRes ? "DBL" : ""}`;
 		this.debugText.drawCenteredString(5, debugStr, 15, 0);
 		// if ((globalThis as any).DEBUG_VIDEO) this.handleDebugVideo();
 	}
