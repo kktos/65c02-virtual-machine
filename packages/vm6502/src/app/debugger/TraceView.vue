@@ -46,8 +46,8 @@
 			<table class="text-left border-collapse w-full">
 				<thead class="sticky top-0 bg-gray-900">
 					<tr class="text-gray-500 border-b border-gray-700">
-						<th class="py-1 w-15">Source</th>
-						<th class="py-1 w-15">Type</th>
+						<th class="py-1 w-12">Source</th>
+						<th class="py-1 w-15 text-center">Type</th>
 						<th class="py-1">Target</th>
 					</tr>
 				</thead>
@@ -60,8 +60,14 @@
 						>
 							{{ formatAddress(entry.source) }}
 						</td>
-						<td class="py-0.5 text-gray-400">{{ entry.type }}</td>
-						<td class="py-0.5 text-cyan-400">{{ formatAddress(entry.target) }}</td>
+						<td class="py-0.5 text-gray-400 text-center">{{ entry.type }}</td>
+						<td
+							class="py-0.5 text-cyan-400 cursor-pointer hover:text-yellow-300 hover:underline"
+							@click="handleJumpToSource(entry.target)"
+							title="Jump to disassembly"
+						>
+							{{ formatAddress(entry.target) }}
+						</td>
 					</tr>
 					<tr v-if="traceHistory.length === 0">
 						<td colspan="3" class="py-4 text-center text-gray-600 italic">
@@ -90,7 +96,9 @@ const traceHistory = ref<{ type: string; source: number; target: number }[]>([])
 const traceSize = ref(200);
 
 const formatAddress = (addr: number) => {
-	return `$${addr.toString(16).toUpperCase().padStart(4, '0')}`;
+	const bank= addr >> 16;
+	const address= addr & 0xFFFF;
+	return `$${bank.toString(16).toUpperCase().padStart(2, '0')}:${address.toString(16).toUpperCase().padStart(4, '0')}`;
 };
 
 const refreshTrace = () => vm?.value?.getTrace();

@@ -140,7 +140,9 @@ export function clearTrace() {
 
 function logTrace(type: string, source: number, target: number) {
 	if (!traceEnabled) return;
-	traceHistory.push({ type, source, target });
+	const sourceFullAddr = ((bus?.getBank?.(source) ?? 0) << 16) | source;
+	const targetFullAddr = ((bus?.getBank?.(target) ?? 0) << 16) | target;
+	traceHistory.push({ type, source: sourceFullAddr, target: targetFullAddr });
 	if (traceHistory.length > maxTraceSize) traceHistory.shift();
 }
 
@@ -261,8 +263,8 @@ function run() {
 		if (!isRunning) break;
 	}
 
-	if (video && now - lastVideoTickTime >= VIDEO_INTERVAL_MS) {
-		video.tick();
+	if (!isRunning || (video && now - lastVideoTickTime >= VIDEO_INTERVAL_MS)) {
+		video?.tick();
 		bus?.syncState?.();
 		lastVideoTickTime = now;
 	}
@@ -438,7 +440,8 @@ function executeInstruction(): number {
 					const wasRunning = isRunning;
 					setRunning(false);
 					pc--; // Point back to the BRK instruction so the user sees it
-					self.postMessage({ type: "break", address: pc, wasRunning });
+					const bank = bus.getBank?.(pc) ?? 0;
+					self.postMessage({ type: "break", address: (bank << 16) | pc, wasRunning });
 					cycles = 0;
 					break;
 				}
@@ -490,19 +493,6 @@ function executeInstruction(): number {
 				cycles = 5;
 				break;
 			}
-			case 0x0c: {
-				// TSB Absolute (65C02)
-				const addr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
-				pc += 2;
-				const memValue = bus.read(addr);
-				const accumulator = registersView.getUint8(REG_A_OFFSET);
-				let status = registersView.getUint8(REG_STATUS_OFFSET);
-				status = (memValue & accumulator) === 0 ? status | FLAG_Z_MASK : status & ~FLAG_Z_MASK;
-				bus.write(addr, memValue | accumulator);
-				registersView.setUint8(REG_STATUS_OFFSET, status);
-				cycles = 6;
-				break;
-			}
 			case 0x08: {
 				// PHP (Push Processor Status)
 				let s = registersView.getUint8(REG_SP_OFFSET);
@@ -532,6 +522,16 @@ function executeInstruction(): number {
 				cycles = 3;
 				break;
 			}
+			case 0x06: {
+				// ASL Zero Page
+				const addr = bus.read(pc, true);
+				pc++;
+				let value = bus.read(addr);
+				value = asl(value);
+				bus.write(addr, value);
+				cycles = 5;
+				break;
+			}
 			case 0x09: {
 				// ORA Immediate
 				const value = bus.read(pc, true);
@@ -540,6 +540,29 @@ function executeInstruction(): number {
 				cycles = 2;
 				break;
 			}
+
+			case 0x0a: {
+				// ASL Accumulator
+				let value = registersView.getUint8(REG_A_OFFSET);
+				value = asl(value);
+				registersView.setUint8(REG_A_OFFSET, value);
+				cycles = 2;
+				break;
+			}
+			case 0x0c: {
+				// TSB Absolute (65C02)
+				const addr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
+				pc += 2;
+				const memValue = bus.read(addr);
+				const accumulator = registersView.getUint8(REG_A_OFFSET);
+				let status = registersView.getUint8(REG_STATUS_OFFSET);
+				status = (memValue & accumulator) === 0 ? status | FLAG_Z_MASK : status & ~FLAG_Z_MASK;
+				bus.write(addr, memValue | accumulator);
+				registersView.setUint8(REG_STATUS_OFFSET, status);
+				cycles = 6;
+				break;
+			}
+
 			case 0x0d: {
 				// ORA Absolute
 				const addr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
@@ -548,6 +571,17 @@ function executeInstruction(): number {
 				cycles = 4;
 				break;
 			}
+			case 0x0e: {
+				// ASL Absolute
+				const addr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
+				pc += 2;
+				let value = bus.read(addr);
+				value = asl(value);
+				bus.write(addr, value);
+				cycles = 6;
+				break;
+			}
+
 			case 0x11: {
 				// ORA (Indirect),Y
 				const zeroPageAddr = bus.read(pc, true);
@@ -580,6 +614,33 @@ function executeInstruction(): number {
 				cycles = 5;
 				break;
 			}
+			case 0x15: {
+				// ORA Zero Page,X
+				const addr = (bus.read(pc, true) + registersView.getUint8(REG_X_OFFSET)) & 0xff;
+				pc++;
+				ora(bus.read(addr));
+				cycles = 4;
+				break;
+			}
+			case 0x16: {
+				// ASL Zero Page,X
+				const addr = (bus.read(pc, true) + registersView.getUint8(REG_X_OFFSET)) & 0xff;
+				pc++;
+				let value = bus.read(addr);
+				value = asl(value);
+				bus.write(addr, value);
+				cycles = 6;
+				break;
+			}
+			case 0x19: {
+				// ORA Absolute,Y
+				const baseAddr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
+				pc += 2;
+				const addr = baseAddr + registersView.getUint8(REG_Y_OFFSET);
+				ora(bus.read(addr));
+				cycles = 4 + ((baseAddr & 0xff00) !== (addr & 0xff00) ? 1 : 0);
+				break;
+			}
 			case 0x1c: {
 				// TRB Absolute (65C02)
 				const addr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
@@ -593,23 +654,6 @@ function executeInstruction(): number {
 				cycles = 6;
 				break;
 			}
-			case 0x15: {
-				// ORA Zero Page,X
-				const addr = (bus.read(pc, true) + registersView.getUint8(REG_X_OFFSET)) & 0xff;
-				pc++;
-				ora(bus.read(addr));
-				cycles = 4;
-				break;
-			}
-			case 0x19: {
-				// ORA Absolute,Y
-				const baseAddr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
-				pc += 2;
-				const addr = baseAddr + registersView.getUint8(REG_Y_OFFSET);
-				ora(bus.read(addr));
-				cycles = 4 + ((baseAddr & 0xff00) !== (addr & 0xff00) ? 1 : 0);
-				break;
-			}
 			case 0x1d: {
 				// ORA Absolute,X
 				const baseAddr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
@@ -619,6 +663,18 @@ function executeInstruction(): number {
 				cycles = 4 + ((baseAddr & 0xff00) !== (addr & 0xff00) ? 1 : 0);
 				break;
 			}
+			case 0x1e: {
+				// ASL Absolute,X
+				const baseAddr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
+				pc += 2;
+				const addr = baseAddr + registersView.getUint8(REG_X_OFFSET);
+				let value = bus.read(addr);
+				value = asl(value);
+				bus.write(addr, value);
+				cycles = 7;
+				break;
+			}
+
 			case 0x28: {
 				// PLP (Pull Processor Status)
 				let s = registersView.getUint8(REG_SP_OFFSET);
@@ -1067,57 +1123,6 @@ function executeInstruction(): number {
 				const addr = baseAddr + registersView.getUint8(REG_X_OFFSET);
 				eor(bus.read(addr));
 				cycles = 4 + ((baseAddr & 0xff00) !== (addr & 0xff00) ? 1 : 0);
-				break;
-			}
-
-			// --- Shift Operations ---
-			case 0x0a: {
-				// ASL Accumulator
-				let value = registersView.getUint8(REG_A_OFFSET);
-				value = asl(value);
-				registersView.setUint8(REG_A_OFFSET, value);
-				cycles = 2;
-				break;
-			}
-			case 0x06: {
-				// ASL Zero Page
-				const addr = bus.read(pc, true);
-				pc++;
-				let value = bus.read(addr);
-				value = asl(value);
-				bus.write(addr, value);
-				cycles = 5;
-				break;
-			}
-			case 0x16: {
-				// ASL Zero Page,X
-				const addr = (bus.read(pc, true) + registersView.getUint8(REG_X_OFFSET)) & 0xff;
-				pc++;
-				let value = bus.read(addr);
-				value = asl(value);
-				bus.write(addr, value);
-				cycles = 6;
-				break;
-			}
-			case 0x0e: {
-				// ASL Absolute
-				const addr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
-				pc += 2;
-				let value = bus.read(addr);
-				value = asl(value);
-				bus.write(addr, value);
-				cycles = 6;
-				break;
-			}
-			case 0x1e: {
-				// ASL Absolute,X
-				const baseAddr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
-				pc += 2;
-				const addr = baseAddr + registersView.getUint8(REG_X_OFFSET);
-				let value = bus.read(addr);
-				value = asl(value);
-				bus.write(addr, value);
-				cycles = 7;
 				break;
 			}
 
