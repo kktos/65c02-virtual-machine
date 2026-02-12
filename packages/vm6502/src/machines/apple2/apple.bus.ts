@@ -16,6 +16,7 @@ import { installSoftSwitches } from "./bus/apple.switches";
 import { MouseCard } from "./slots/mouse.card";
 import type { ISlotCard } from "./slots/slotcard.interface";
 import { SmartPortCard } from "./slots/smartport.card";
+import { ThunderClockCard } from "./slots/thunderclock.card";
 import { Speaker } from "./speaker";
 
 // Apple II specific flags (packed into the MACHINE_STATE bytes)
@@ -149,6 +150,9 @@ export class AppleBus implements IBus {
 
 		const slot4Rom = this.slotRoms.subarray(0x300, 0x400);
 		this.installCard(new MouseCard(this, 4, slot4Rom));
+
+		const slot2Rom = this.slotRoms.subarray(0x100, 0x200);
+		this.installCard(new ThunderClockCard(this, 2, slot2Rom));
 
 		// this.installCard(new MockingboardCard(4));
 

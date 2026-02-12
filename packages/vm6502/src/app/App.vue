@@ -264,7 +264,7 @@ import VideoControl from "./machine/VideoControl.vue";
 		requestAnimationFrame(updateUiFromSharedBuffer);
 
 		machine.ready.then(()=>{
-			vm.value?.initAudio();
+			machine.initAudio();
 		});
 
 	});
