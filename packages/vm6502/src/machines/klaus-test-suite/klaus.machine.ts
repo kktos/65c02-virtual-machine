@@ -3,7 +3,7 @@ import { KlausTest_RAM } from "./65C02_extended_opcodes_test";
 
 export const klausTest: MachineConfig = {
 	name: "KlausTest",
-	speed: 0,
+	speed: 0, // maxSpeed
 	memory: {
 		size: 64 * 1024,
 		banks: 1,
