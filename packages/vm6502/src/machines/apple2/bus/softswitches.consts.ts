@@ -223,6 +223,9 @@ export const LC_C08D = 0xc08d;
 export const LC_C08E = 0xc08e;
 export const LC_C08F = 0xc08f;
 
+// RamWorks Memory Bank Selector
+// $C071 / $C075 / $C077 are other valid possibilities
+// apple //c Rom 3 uses $C073
 export const BANKSEL = 0xc073;
 
 // R7 =1 open apple is pressed

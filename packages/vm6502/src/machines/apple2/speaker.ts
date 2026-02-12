@@ -25,7 +25,7 @@ export class Speaker {
 		this.isEnabled = enabled;
 
 		if (enabled) this.bus.registerTickHandler(this.boundTick);
-		else this.bus.removeTickHandler(this.boundTick);
+		else this.bus.unregisterTickHandler(this.boundTick);
 	}
 
 	public init(sampleRate: number) {

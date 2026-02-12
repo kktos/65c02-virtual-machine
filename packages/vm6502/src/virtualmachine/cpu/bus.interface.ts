@@ -28,7 +28,7 @@ export interface IBus {
 	load(address: number, data: Uint8Array, bank?: number, tag?: string): void;
 
 	registerTickHandler(handler: (cycles: number) => void): void;
-	removeTickHandler(handler: (cycles: number) => void): void;
+	unregisterTickHandler(handler: (cycles: number) => void): void;
 
 	/** Optional method to handle keyboard input. */
 	pressKey?(key: string, code?: string, ctrl?: boolean, shift?: boolean, alt?: boolean, meta?: boolean): void;

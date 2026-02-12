@@ -1,5 +1,7 @@
+// biome-ignore-all lint/suspicious/noAssignInExpressions: compactness
+
 import type { AppleBus } from "../apple.bus";
-import * as SoftSwitches from "./softswitches";
+import * as SoftSwitches from "./softswitches.consts";
 
 // Cycles per paddle unit
 const PADDLE_TIMEOUT_MULTIPLIER = 11.18;
@@ -93,58 +95,24 @@ export function installSoftSwitches(bus: AppleBus) {
 	onRead(SoftSwitches.RDVBLBAR, () => (bus.fakingVBL ? 0x80 : 0x00));
 
 	// --- Video State Writes ---
-	onWrite(SoftSwitches.STORE80OFF, () => {
-		bus.store80 = false;
-	});
-	onWrite(SoftSwitches.STORE80ON, () => {
-		bus.store80 = true;
-	});
-	onWrite(SoftSwitches.COL80OFF, () => {
-		bus.col80 = false;
-		// bus.video7BitToPush = 1;
-	});
-	onWrite(SoftSwitches.COL80ON, () => {
-		bus.col80 = true;
-		// bus.video7BitToPush = 0;
-	});
-	onWrite(SoftSwitches.ALTCHARSETOFF, () => {
-		bus.altChar = false;
-	});
-	onWrite(SoftSwitches.ALTCHARSETON, () => {
-		bus.altChar = true;
-	});
-	onWrite(SoftSwitches.TBCOLOR, (v) => {
-		bus.tbColor = v;
-	});
-	onWrite(SoftSwitches.CLOCKCTL, (v) => {
-		bus.brdrColor = v;
-	});
+	onWrite(SoftSwitches.STORE80OFF, () => (bus.store80 = false));
+	onWrite(SoftSwitches.STORE80ON, () => (bus.store80 = true));
+	onWrite(SoftSwitches.COL80OFF, () => (bus.col80 = false));
+	onWrite(SoftSwitches.COL80ON, () => (bus.col80 = true));
+	onWrite(SoftSwitches.ALTCHARSETOFF, () => (bus.altChar = false));
+	onWrite(SoftSwitches.ALTCHARSETON, () => (bus.altChar = true));
+	onWrite(SoftSwitches.TBCOLOR, (v) => (bus.tbColor = v));
+	onWrite(SoftSwitches.CLOCKCTL, (v) => (bus.brdrColor = v));
 
 	// R/W switches that trigger state changes
-	onAccess(SoftSwitches.TEXTOFF, () => {
-		bus.text = false;
-	});
-	onAccess(SoftSwitches.TEXTON, () => {
-		bus.text = true;
-	});
-	onAccess(SoftSwitches.MIXEDOFF, () => {
-		bus.mixed = false;
-	});
-	onAccess(SoftSwitches.MIXEDON, () => {
-		bus.mixed = true;
-	});
-	onAccess(SoftSwitches.PAGE2OFF, () => {
-		bus.page2 = false;
-	});
-	onAccess(SoftSwitches.PAGE2ON, () => {
-		bus.page2 = true;
-	});
-	onAccess(SoftSwitches.HIRESOFF, () => {
-		bus.hires = false;
-	});
-	onAccess(SoftSwitches.HIRESON, () => {
-		bus.hires = true;
-	});
+	onAccess(SoftSwitches.TEXTOFF, () => (bus.text = false));
+	onAccess(SoftSwitches.TEXTON, () => (bus.text = true));
+	onAccess(SoftSwitches.MIXEDOFF, () => (bus.mixed = false));
+	onAccess(SoftSwitches.MIXEDON, () => (bus.mixed = true));
+	onAccess(SoftSwitches.PAGE2OFF, () => (bus.page2 = false));
+	onAccess(SoftSwitches.PAGE2ON, () => (bus.page2 = true));
+	onAccess(SoftSwitches.HIRESOFF, () => (bus.hires = false));
+	onAccess(SoftSwitches.HIRESON, () => (bus.hires = true));
 
 	// --- Memory Management ---
 	onRead(SoftSwitches.RAMRD, () => (bus.ramRdAux ? 0x80 : 0x00));
@@ -155,36 +123,20 @@ export function installSoftSwitches(bus: AppleBus) {
 	onRead(SoftSwitches.RDLCBNK2, () => (bus.lcBank2 ? 0x80 : 0x00));
 	onRead(SoftSwitches.RDLCRAM, () => (bus.lcReadRam ? 0x80 : 0x00));
 
-	onWrite(SoftSwitches.RAMRDOFF, () => {
-		bus.ramRdAux = false;
-	});
-	onWrite(SoftSwitches.RAMRDON, () => {
-		bus.ramRdAux = true;
-	});
-	onWrite(SoftSwitches.RAMWRTOFF, () => {
-		bus.ramWrAux = false;
-	});
-	onWrite(SoftSwitches.RAMWRTON, () => {
-		bus.ramWrAux = true;
-	});
-	onWrite(SoftSwitches.ALTZPOFF, () => {
-		bus.altZp = false;
-	});
-	onWrite(SoftSwitches.ALTZPON, () => {
-		bus.altZp = true;
-	});
-	onWrite(SoftSwitches.INTCXROMOFF, () => {
-		bus.intCxRom = false;
-	});
-	onWrite(SoftSwitches.INTCXROMON, () => {
-		bus.intCxRom = true;
-	});
-	onWrite(SoftSwitches.SLOTC3ROMOFF, () => {
-		bus.slotC3Rom = false;
-	});
-	onWrite(SoftSwitches.SLOTC3ROMON, () => {
-		bus.slotC3Rom = true;
-	});
+	onWrite(SoftSwitches.RAMRDOFF, () => (bus.ramRdAux = false));
+	onWrite(SoftSwitches.RAMRDON, () => (bus.ramRdAux = true));
+	onWrite(SoftSwitches.RAMWRTOFF, () => (bus.ramWrAux = false));
+	onWrite(SoftSwitches.RAMWRTON, () => (bus.ramWrAux = true));
+	onWrite(SoftSwitches.ALTZPOFF, () => (bus.altZp = false));
+	onWrite(SoftSwitches.ALTZPON, () => (bus.altZp = true));
+	onWrite(SoftSwitches.INTCXROMOFF, () => (bus.intCxRom = false));
+	onWrite(SoftSwitches.INTCXROMON, () => (bus.intCxRom = true));
+	onWrite(SoftSwitches.SLOTC3ROMOFF, () => (bus.slotC3Rom = false));
+	onWrite(SoftSwitches.SLOTC3ROMON, () => (bus.slotC3Rom = true));
+
+	// --- Memory Bank Selection ---
+	onWrite(SoftSwitches.BANKSEL, (v) => (bus.memBank = v));
+	onRead(SoftSwitches.BANKSEL, () => bus.memBank);
 
 	// --- Game I/O ---
 	onRead(SoftSwitches.PB0, () => (bus.pb0 ? 0x80 : 0x00));

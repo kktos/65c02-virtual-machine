@@ -74,6 +74,7 @@ export class AppleBus implements IBus {
 	public ramRdAux = false; // Read from Aux memory ($0200-$BFFF)
 	public ramWrAux = false; // Write to Aux memory ($0200-$BFFF)
 	public altZp = false; // Use Aux for ZP/Stack and LC area
+	public memBank = 0;
 
 	// Slot ROM State
 	public intCxRom = false; // false = Slot, true = Internal
@@ -123,7 +124,6 @@ export class AppleBus implements IBus {
 
 	// Speaker State
 	public speaker: Speaker;
-	public mouseCard?: MouseCard;
 
 	private tickHandlers: ((cycles: number) => void)[] = [];
 
@@ -148,8 +148,7 @@ export class AppleBus implements IBus {
 		this.installCard(new SmartPortCard(this, 5, slot5Rom));
 
 		const slot4Rom = this.slotRoms.subarray(0x300, 0x400);
-		this.mouseCard = new MouseCard(this, 4, slot4Rom);
-		this.installCard(this.mouseCard);
+		this.installCard(new MouseCard(this, 4, slot4Rom));
 
 		// this.installCard(new MockingboardCard(4));
 
@@ -164,7 +163,7 @@ export class AppleBus implements IBus {
 		this.tickHandlers.push(handler);
 	}
 
-	public removeTickHandler(handler: (cycles: number) => void) {
+	public unregisterTickHandler(handler: (cycles: number) => void) {
 		const index = this.tickHandlers.indexOf(handler);
 		if (index > -1) this.tickHandlers.splice(index, 1);
 	}
@@ -375,8 +374,10 @@ export class AppleBus implements IBus {
 		// this.lcPreWriteCount = 0;
 
 		let bankOffset = 0;
-		if (address < 0x0200 && this.altZp) bankOffset = 0x10000;
-		else if (address >= 0x0200 && address < 0xc000) {
+
+		if (address < 0x0200) {
+			if (this.altZp) bankOffset = 0x10000;
+		} else if (address < 0xc000) {
 			let aux = this.ramRdAux;
 			if (this.store80) {
 				if (address >= 0x0400 && address <= 0x07ff) aux = this.page2;
@@ -384,6 +385,7 @@ export class AppleBus implements IBus {
 			}
 			if (aux) bankOffset = 0x10000;
 		} else if (address >= 0xd000 && this.altZp) bankOffset = 0x10000;
+
 		if (bankOffset > 0) return this.memory[RAM_OFFSET + address + bankOffset] ?? 0;
 
 		// Slot ROMs / Internal ROM ($C100-$CFFF)
@@ -438,13 +440,8 @@ export class AppleBus implements IBus {
 		}
 
 		if (address >= 0xd000) {
-			if (this.lcReadRam) {
-				if (this.lcBank2 && address < 0xe000) {
-					return this.bank2[address - 0xd000] ?? 0;
-				}
-			} else {
-				return this.rom[address - 0xd000] ?? 0;
-			}
+			if (!this.lcReadRam) return this.rom[address - 0xd000] ?? 0;
+			if (this.lcBank2 && address < 0xe000) return this.bank2[address - 0xd000] ?? 0;
 		}
 
 		return this.memory[RAM_OFFSET + address] ?? 0;
