@@ -30,7 +30,7 @@
 				v-else
 				:registers="registers"
 				:disassembly="disassembly"
-				:address="address"
+				:address="fullPcAddress"
 				:get-breakpoint-class="getBreakpointClass"
 				@toggle-breakpoint="onToggleBreakpoint"
 				@address-click="handleAddressClick"
@@ -162,12 +162,8 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 
 	const busState = computed(() => vm?.value?.busState ?? {});
 
-	const getExecutionBankForAddress = (addr: number) => {
-		return vm?.value?.getScope(addr) === 'aux' ? 0x01 : 0x00;
-	};
-
 	const fullPcAddress = computed(() => {
-		const bank = getExecutionBankForAddress(address);
+		const bank = vm?.value?.getBank(address) ?? 0;
 		return address | (bank << 16);
 	});
 
