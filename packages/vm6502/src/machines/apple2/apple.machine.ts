@@ -43,4 +43,13 @@ export const apple2e: MachineConfig = {
 			],
 		},
 	],
+	speeds: [
+		{ label: "1.02 MHz", value: 1.02 },
+		{ label: "2.8 MHz", value: 2.8 },
+		{ label: "4 MHz", value: 4 },
+		{ label: "8 MHz", value: 8 },
+		{ label: "10 MHz", value: 10 },
+		{ label: "20 MHz", value: 40 },
+		{ label: "Max", value: 0 },
+	],
 };

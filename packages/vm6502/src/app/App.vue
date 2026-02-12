@@ -10,7 +10,7 @@
 				<GamepadControl v-if="hasGamepad"/>
 				<MouseControl v-if="hasMouse" />
 				<DiskDriveControl v-if="hasDisk" />
-				<StatusPanel />
+				<SpeedControl />
 
 				<button
 					@click="showLogs = !showLogs"
@@ -160,7 +160,7 @@ import GamepadControl from "./machine/GamepadControl.vue";
 import MachineSelector from './machine/MachineSelector.vue';
 import MouseControl from "./machine/MouseControl.vue";
 import SoundControl from "./machine/SoundControl.vue";
-import StatusPanel from './machine/StatusPanel.vue';
+import SpeedControl from './machine/SpeedControl.vue';
 import VideoControl from "./machine/VideoControl.vue";
 
 	const dbgTopPanelResize= (_size:unknown) => {

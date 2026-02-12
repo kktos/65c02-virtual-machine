@@ -11,14 +11,9 @@
 					@change="updateSpeed"
 					class="bg-gray-700 text-gray-200 text-xs rounded border border-gray-600 focus:ring-1 focus:ring-cyan-500 outline-none px-1 py-0.5"
 				>
-					<option :value="1">1 MHz</option>
-					<option :value="2">2 MHz</option>
-					<option :value="4">4 MHz</option>
-					<option :value="8">8 MHz</option>
-					<option :value="10">10 MHz</option>
-					<option :value="40">40 MHz</option>
-					<option :value="50">50 MHz</option>
-					<option :value="0">Max</option>
+					<option v-for="speed in speeds" :key="speed.value" :value="speed.value">
+						{{ speed.label }}
+					</option>
 				</select>
 			</div>
 		</div>
@@ -26,7 +21,7 @@
 </template>
 
 <script lang="ts" setup>
-import { inject, onMounted, type Ref, ref, watch } from "vue";
+import { computed, inject, onMounted, type Ref, ref, watch } from "vue";
 import { useEmulatorSpeed } from "@/composables/useEmulatorSpeed";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 
@@ -35,6 +30,10 @@ const subscribeToUiUpdates = inject<(callback: () => void) => void>("subscribeTo
 
 const speedMhz = ref(0);
 const { targetSpeed } = useEmulatorSpeed();
+
+const speeds = computed(() => {
+	return vm?.value?.machineConfig.speeds;
+});
 
 const updateSpeed = () => vm?.value.setSpeed(targetSpeed.value);
 

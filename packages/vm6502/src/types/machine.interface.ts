@@ -72,6 +72,11 @@ export interface MachineInputDevice {
 	controls: MachineInputControl[];
 }
 
+export interface MachineSpeed {
+	label: string;
+	value: number;
+}
+
 export interface MachineConfig {
 	name: string;
 	speed?: number;
@@ -88,4 +93,5 @@ export interface MachineConfig {
 	debugOptions?: DebugGroup[];
 	symbols?: SymbolDict;
 	inputs?: MachineInputDevice[];
+	speeds?: MachineSpeed[];
 }
