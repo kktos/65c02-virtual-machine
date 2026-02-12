@@ -5,8 +5,6 @@ import {
 	INPUT_DIGITAL_OFFSET,
 	REG_A_OFFSET,
 	REG_STATUS_OFFSET,
-	REG_X_OFFSET,
-	REG_Y_OFFSET,
 } from "@/virtualmachine/cpu/shared-memory";
 import type { ISlotCard } from "./slotcard.interface";
 
@@ -28,7 +26,9 @@ export class MouseCard implements ISlotCard {
 	// Mouse State
 	private x = 0;
 	private y = 0;
+	private lastButton0 = false;
 	private button0 = false;
+	private lastButton1 = false;
 	private button1 = false;
 
 	// Clamping
@@ -139,6 +139,18 @@ export class MouseCard implements ISlotCard {
 	writeIo(offset: number, _value: number): void {
 		if (!this.registers) return;
 
+		// const COMMANDS = [
+		// 	"SETMOUSE",
+		// 	"SERVEMOUSE",
+		// 	"READMOUSE",
+		// 	"CLEARMOUSE",
+		// 	"POSMOUSE",
+		// 	"CLAMPMOUSE",
+		// 	"HOMEMOUSE",
+		// 	"INITMOUSE",
+		// ];
+		// console.log("--- MOUSE ", COMMANDS[offset], "Acc", this.registers.getUint8(REG_A_OFFSET));
+
 		switch (offset) {
 			case 0x00:
 				this.cmdSetMouse();
@@ -191,6 +203,7 @@ export class MouseCard implements ISlotCard {
 		// Update Screen Holes with current position
 		this.updateScreenHoles();
 
+		/*
 		// Return Low X in X Register, High X in Y Register
 		const lowX = this.x & 0xff;
 		const highX = (this.x >> 8) & 0xff;
@@ -207,6 +220,7 @@ export class MouseCard implements ISlotCard {
 		if (this.button1) status |= 0x40;
 
 		this.registers?.setUint8(REG_A_OFFSET, status);
+*/
 		this.clearCarry();
 	}
 
@@ -264,15 +278,23 @@ export class MouseCard implements ISlotCard {
 		this.bus.write(base + 0x80, this.y & 0xff);
 		this.bus.write(base + 0x180, (this.y >> 8) & 0xff);
 
-		// mode
+		// button & interrupt status
 		// Bit 	7: Button is down
 		// 		6: Button was down at last reading
-		// 		5: Xor Y changed since last reading
+		// 		5: X or Y changed since last reading
 		// 		4: Reserved
 		// 		3: Interrupt caused by screen refresh
 		// 		2: Interrupt caused by button press
 		// 		1: Interrupt caused by mouse movement
 		// 		0: Reserved
+		let status = 0;
+		if (this.button0) status |= 0x80;
+		if (this.lastButton0) status |= 0x40;
+		this.bus.write(0x778 + this.slot, status);
+
+		this.lastButton0 = this.button0;
+
+		// mode
 		this.bus.write(0x7f8 + this.slot, this.mode);
 	}
 
