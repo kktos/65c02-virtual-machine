@@ -1,4 +1,5 @@
 <template>
+  <Toaster rich-colors position="top-right"/>
   <ResizablePanelGroup v-if="vm" direction="horizontal" class="h-screen bg-gray-900 text-white" auto-save-id="appPanelLayout">
 
     <ResizablePanel class="flex flex-col bg-white bg-[conic-gradient(#000_0_25%,#333_0_50%,#000_0_75%,#333_0_100%)] [background-size:1rem_1rem] relative">
@@ -126,6 +127,8 @@
 <script setup lang="ts">
 import { ScrollText } from "lucide-vue-next";
 import { computed, markRaw, nextTick, onMounted, onUnmounted, provide, reactive, ref, watch } from "vue";
+import { Toaster, toast } from "vue-sonner";
+import 'vue-sonner/style.css';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import TogglableDisplay from '../components/TogglableDisplay.vue';
 import ResizableHandle from '../components/ui/resizable/ResizableHandle.vue';
@@ -204,7 +207,7 @@ import VideoControl from "./machine/VideoControl.vue";
 
 	const setupVmListeners = (targetVm: VirtualMachine) => {
 		targetVm.onmessage = (event) => {
-			const { type, error, message } = event.data;
+			const { type, error, message, address } = event.data;
 
 			switch (type) {
 				case 'error':
@@ -219,6 +222,21 @@ import VideoControl from "./machine/VideoControl.vue";
 					if (!isRunning.value) targetVm.refreshVideo();
 
 					break;
+				case 'break': {
+					isRunning.value = false;
+					const msg= `BRK hit at $${address.toString(16).toUpperCase()}`
+					toast.error(msg, {
+						style: {
+							color: "white",
+							background:"#810707"
+						},
+						closeButton: true,
+						closeButtonPosition: "top-left",
+						duration: Infinity
+					});
+					targetVm.refreshVideo();
+					break;
+				}
 				default:
 					console.log("Message received from worker:", event.data);
 			}

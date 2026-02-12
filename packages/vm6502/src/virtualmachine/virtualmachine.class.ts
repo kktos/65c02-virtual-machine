@@ -119,6 +119,7 @@ export class VirtualMachine {
 					const hypercallCommand = this.read(address + 1);
 					if (HYPERCALL_COMMANDS.has(hypercallCommand))
 						executeHypercallCmd(this, hypercallCommand, address, wasRunning);
+					else this.onmessage?.(event);
 					break;
 				}
 				case "breakpointHit":
@@ -454,12 +455,16 @@ export class VirtualMachine {
 		return this.bus ? this.bus.read(address) : (this.sharedMemory[address] ?? 0);
 	}
 
+	public getBank(address: number) {
+		return this.bus?.getBank?.(address) ?? 0;
+	}
+
 	public getScope(address: number): string {
-		return this.bus?.getScope ? this.bus.getScope(address) : "main";
+		return this.bus?.getScope?.(address) ?? "main";
 	}
 
 	public getScopes(): string[] {
-		return this.bus?.getScopes ? this.bus.getScopes() : ["main"];
+		return this.bus?.getScopes?.() ?? ["main"];
 	}
 
 	public readDebug(address: number, overrides?: Dict): number {

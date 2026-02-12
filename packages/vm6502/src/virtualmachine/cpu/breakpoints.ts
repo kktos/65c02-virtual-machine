@@ -50,9 +50,7 @@ export function addBreakpoint(type: Breakpoint["type"], startAddress: number, en
 			flag = BP_READ | BP_WRITE;
 			break;
 	}
-	for (let i = startAddress; i <= endAddress; i++) {
-		breakpointMap[i] |= flag;
-	}
+	for (let i = startAddress; i <= endAddress; i++) breakpointMap[i] |= flag;
 }
 
 export function removeBreakpoint(type: Breakpoint["type"], startAddress: number, endAddress: number = startAddress) {
@@ -72,9 +70,7 @@ export function removeBreakpoint(type: Breakpoint["type"], startAddress: number,
 			break;
 	}
 	const mask = ~flag;
-	for (let i = startAddress; i <= endAddress; i++) {
-		breakpointMap[i] &= mask;
-	}
+	for (let i = startAddress; i <= endAddress; i++) breakpointMap[i] &= mask;
 }
 
 export function clearBreakpoints() {
