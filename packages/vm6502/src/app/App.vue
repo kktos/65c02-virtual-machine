@@ -258,12 +258,12 @@ import VideoControl from "./machine/VideoControl.vue";
 		const machine= new VirtualMachine(selectedMachine.value);
 		vm.value = markRaw(machine);
 		loadBreakpoints(machine);
-		setupVmListeners(vm.value);
+		setupVmListeners(machine);
 
 		// Start the UI update loop
 		requestAnimationFrame(updateUiFromSharedBuffer);
 
-		vm.value.ready.then(()=>{
+		machine.ready.then(()=>{
 			vm.value?.initAudio();
 		});
 
