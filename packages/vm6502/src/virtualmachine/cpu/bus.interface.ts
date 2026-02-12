@@ -67,4 +67,7 @@ export interface IBus {
 	getScope?(address: number): string;
 	/** Returns the possible memory scopes. */
 	getScopes?(): string[];
+
+	/** Returns the memory bank for address using MMU rules */
+	getBank?(address: number): number;
 }

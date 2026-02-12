@@ -74,7 +74,7 @@ export class AppleBus implements IBus {
 	public ramRdAux = false; // Read from Aux memory ($0200-$BFFF)
 	public ramWrAux = false; // Write to Aux memory ($0200-$BFFF)
 	public altZp = false; // Use Aux for ZP/Stack and LC area
-	public memBank = 0;
+	public auxMemBank = 1;
 
 	// Slot ROM State
 	public intCxRom = false; // false = Slot, true = Internal
@@ -769,5 +769,10 @@ export class AppleBus implements IBus {
 
 	public getScopes?() {
 		return ["main", "aux", "io", "int_rom", "slot_rom", "rom", "lc_bank1", "lc_bank2"];
+	}
+
+	public getBank?(address: number): number {
+		if (address > 0x200 && address < 0xd000) return this.ramRdAux ? this.auxMemBank : 0;
+		return this.altZp ? this.auxMemBank : 0;
 	}
 }

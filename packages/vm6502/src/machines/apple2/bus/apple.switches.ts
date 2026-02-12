@@ -135,8 +135,8 @@ export function installSoftSwitches(bus: AppleBus) {
 	onWrite(SoftSwitches.SLOTC3ROMON, () => (bus.slotC3Rom = true));
 
 	// --- Memory Bank Selection ---
-	onWrite(SoftSwitches.BANKSEL, (v) => (bus.memBank = v));
-	onRead(SoftSwitches.BANKSEL, () => bus.memBank);
+	onWrite(SoftSwitches.BANKSEL, (v) => (bus.auxMemBank = v > 0 ? v : 1));
+	onRead(SoftSwitches.BANKSEL, () => bus.auxMemBank);
 
 	// --- Game I/O ---
 	onRead(SoftSwitches.PB0, () => (bus.pb0 ? 0x80 : 0x00));
