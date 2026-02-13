@@ -30,6 +30,8 @@ export const apple2e: MachineConfig = {
 				{ id: "axis_y", label: "Vertical (Paddle 1)", type: "axis", index: 1 },
 				{ id: "btn_0", label: "Button 0 (Open Apple)", type: "button", index: 0 },
 				{ id: "btn_1", label: "Button 1 (Solid Apple)", type: "button", index: 1 },
+				{ id: "btn_2", label: "Button 2", type: "button", index: 2 },
+				{ id: "btn_3", label: "Button 3", type: "button", index: 3 },
 			],
 		},
 		{

@@ -110,6 +110,8 @@ export class AppleBus implements IBus {
 	public kbd_pb1 = false; // Solid Apple (from keyboard)
 	public joy_pb0 = false; // from joystick
 	public joy_pb1 = false; // from joystick
+	public joy_pb2 = false; // from joystick
+	public joy_pb3 = false; // from joystick
 
 	get pb0() {
 		return this.kbd_pb0 || this.joy_pb0;
@@ -144,7 +146,6 @@ export class AppleBus implements IBus {
 		// Slot ROMs: $C100-$CFFF in aux RAM
 		this.slotRoms = this.memory.subarray(RAM_OFFSET + 0x1c100, RAM_OFFSET + 0x1d000);
 
-		// Install SmartPort Card in Slot 5
 		const slot5Rom = this.slotRoms.subarray(0x400, 0x500);
 		this.installCard(new SmartPortCard(this, 5, slot5Rom));
 
@@ -161,6 +162,28 @@ export class AppleBus implements IBus {
 		this.writeHandlers = handlers.writeHandlers;
 
 		this.speaker = new Speaker(this);
+
+		this.registerTickHandler((_cycles) => {
+			const registers = this.registers as DataView<ArrayBufferLike>;
+
+			// Read analog inputs as floats and convert to 0-255 byte
+			const axisX = registers.getFloat32(INPUT_ANALOG_0_OFFSET, true); // -1.0 to 1.0
+			const axisY = registers.getFloat32(INPUT_ANALOG_1_OFFSET, true); // -1.0 to 1.0
+
+			// axisX = Math.round((axisX + Number.EPSILON) * 10) / 10;
+			// axisY = Math.round((axisY + Number.EPSILON) * 10) / 10;
+
+			// Convert float to paddle value.
+			this.paddleValues[0] = Math.max(0, Math.min(255, Math.round(((axisX + 1) / 2) * 255)));
+			this.paddleValues[1] = Math.max(0, Math.min(255, Math.round(((axisY + 1) / 2) * 255)));
+
+			// Read digital inputs
+			const digital1 = registers.getUint8(INPUT_DIGITAL_OFFSET);
+			this.joy_pb0 = (digital1 & 0b0000_0001) !== 0;
+			this.joy_pb1 = (digital1 & 0b0000_0010) !== 0;
+			this.joy_pb2 = (digital1 & 0b0000_0100) !== 0;
+			this.joy_pb3 = (digital1 & 0b0000_1000) !== 0;
+		});
 	}
 
 	public registerTickHandler(handler: (cycles: number) => void) {
@@ -173,27 +196,8 @@ export class AppleBus implements IBus {
 	}
 
 	public tick(deltaCycles: number): void {
-		this.totalCycles += deltaCycles;
-
-		if (this.registers) {
-			// Read analog inputs as floats and convert to 0-255 byte
-			const axisX = this.registers.getFloat32(INPUT_ANALOG_0_OFFSET, true); // -1.0 to 1.0
-			const axisY = this.registers.getFloat32(INPUT_ANALOG_1_OFFSET, true); // -1.0 to 1.0
-
-			// axisX = Math.round((axisX + Number.EPSILON) * 10) / 10;
-			// axisY = Math.round((axisY + Number.EPSILON) * 10) / 10;
-
-			// Convert float to paddle value.
-			this.paddleValues[0] = Math.max(0, Math.min(255, Math.round(((axisX + 1) / 2) * 255)));
-			this.paddleValues[1] = Math.max(0, Math.min(255, Math.round(((axisY + 1) / 2) * 255)));
-
-			// Read digital inputs
-			const digital1 = this.registers.getUint8(INPUT_DIGITAL_OFFSET);
-			this.joy_pb0 = (digital1 & 0b0000_0001) !== 0;
-			this.joy_pb1 = (digital1 & 0b0000_0010) !== 0;
-		}
-
 		if (deltaCycles <= 0) return;
+		this.totalCycles += deltaCycles;
 		for (let index = 0; index < this.tickHandlers.length; index++) {
 			// biome-ignore lint/style/noNonNullAssertion: <if present then always defined>
 			this.tickHandlers[index]!(deltaCycles);
