@@ -12,24 +12,58 @@ export function installSoftSwitches(bus: AppleBus) {
 
 	// Initialize with default no-op/error handlers
 	readHandlers.fill(() => 0);
+	readHandlers.forEach((_, index, handlers) => {
+		handlers[index] = () => {
+			console.warn(`I/O READ: $C0${index.toString(16).padStart(2, "0")}`);
+			return 0;
+		};
+	});
 	writeHandlers.fill(() => {});
+	writeHandlers.forEach((_, index, handlers) => {
+		handlers[index] = (val: number) => {
+			console.warn(`I/O WRITE: $C0${index.toString(16).padStart(2, "0")}: ${val.toString(16).padStart(2, "0")}`);
+		};
+	});
 
-	const onRead = (address: number, handler: () => number) => {
-		readHandlers[address & 0xff] = handler;
-	};
-	const onWrite = (address: number, handler: (val: number) => void) => {
-		writeHandlers[address & 0xff] = handler;
-	};
-
+	const onRead = (address: number, handler: () => number) => (readHandlers[address & 0xff] = handler);
+	const onWrite = (address: number, handler: (val: number) => void) => (writeHandlers[address & 0xff] = handler);
 	const onAccess = (address: number, handler: () => void) => {
 		onRead(address, () => {
 			handler();
 			return 0;
 		});
-		onWrite(address, () => {
-			handler();
-		});
+		onWrite(address, () => handler());
 	};
+	const warnOnAccess = (name: string, address: number, isSilent: boolean) => {
+		if (isSilent) {
+			onRead(address, () => 0);
+			onWrite(address, () => {});
+		} else {
+			onRead(address, () => {
+				console.warn(`I/O READ: ${name} $${address.toString(16).padStart(4, "0")}`);
+				return 0;
+			});
+			onWrite(address, (val: number) =>
+				console.warn(
+					`I/O WRITE: ${name} $${address.toString(16).padStart(4, "0")}: ${val.toString(16).padStart(2, "0")}`,
+				),
+			);
+		}
+	};
+
+	// --- Accelerator Cards ---
+	warnOnAccess("TRANSWARP", SoftSwitches.TRANSWARP, true);
+	warnOnAccess("FASTCHIP", SoftSwitches.FASTCHIP_6A, true);
+	warnOnAccess("FASTCHIP", SoftSwitches.FASTCHIP_6B, true);
+	warnOnAccess("FASTCHIP", SoftSwitches.FASTCHIP_6D, true);
+	warnOnAccess("FASTCHIP", SoftSwitches.FASTCHIP_6E, true);
+	warnOnAccess("FASTCHIP", SoftSwitches.FASTCHIP_6F, true);
+	warnOnAccess("ZIPCHIP", SoftSwitches.ZIPCHIP_5A, true);
+	warnOnAccess("ZIPCHIP", SoftSwitches.ZIPCHIP_5B, true);
+	warnOnAccess("ZIPCHIP", SoftSwitches.ZIPCHIP_5C, true);
+	warnOnAccess("ZIPCHIP", SoftSwitches.ZIPCHIP_5D, true);
+	warnOnAccess("ZIPCHIP", SoftSwitches.ZIPCHIP_5E, true);
+	warnOnAccess("ZIPCHIP", SoftSwitches.ZIPCHIP_5F, true);
 
 	// --- Keyboard ---
 	onRead(SoftSwitches.KBD, () => bus.lastKey | (bus.keyStrobe ? 0x80 : 0x00));
@@ -37,9 +71,7 @@ export function installSoftSwitches(bus: AppleBus) {
 		bus.keyStrobe = false;
 		return 0;
 	});
-	onWrite(SoftSwitches.KBDSTRB, () => {
-		bus.keyStrobe = false;
-	});
+	onWrite(SoftSwitches.KBDSTRB, () => (bus.keyStrobe = false));
 
 	// --- Annunciator for Double Res Video ---
 	onAccess(SoftSwitches.SETAN3, () => {
@@ -141,6 +173,8 @@ export function installSoftSwitches(bus: AppleBus) {
 	// --- Game I/O ---
 	onRead(SoftSwitches.PB0, () => (bus.pb0 ? 0x80 : 0x00));
 	onRead(SoftSwitches.PB1, () => (bus.pb1 ? 0x80 : 0x00));
+	onRead(SoftSwitches.PB2, () => (bus.joy_pb2 ? 0x80 : 0x00));
+	onRead(SoftSwitches.PB3, () => (bus.joy_pb3 ? 0x80 : 0x00));
 
 	onAccess(SoftSwitches.PTRIG, () => {
 		bus.paddleTimers[0] = bus.totalCycles + (bus.paddleValues[0] as number) * PADDLE_TIMEOUT_MULTIPLIER;

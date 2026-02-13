@@ -228,10 +228,31 @@ export const LC_C08F = 0xc08f;
 // apple //c Rom 3 uses $C073
 export const BANKSEL = 0xc073;
 
+// Accelerator Cards
+// TransWarp
+// 0:default=fast 1:normal=1.02MHz 3:disabled
+export const TRANSWARP = 0xc074;
+// FASTCHIP
+export const FASTCHIP_6A = 0xc06a;
+export const FASTCHIP_6B = 0xc06b;
+export const FASTCHIP_6D = 0xc06d;
+export const FASTCHIP_6E = 0xc06e;
+export const FASTCHIP_6F = 0xc06f;
+// ZIPCHIP
+// https://mirrors.apple2.org.za/ftp.apple.asimov.net/documentation/hardware/accelerators/zip_instruction_manual.pdf
+export const ZIPCHIP_5A = 0xc05a;
+export const ZIPCHIP_5B = 0xc05b;
+export const ZIPCHIP_5C = 0xc05c;
+export const ZIPCHIP_5D = 0xc05d;
+export const ZIPCHIP_5E = 0xc05e;
+export const ZIPCHIP_5F = 0xc05f;
+
+export const PB3 = 0xc060;
 // R7 =1 open apple is pressed
 export const PB0 = 0xc061;
 // R7 =1 solid apple is pressed
 export const PB1 = 0xc062;
+export const PB2 = 0xc063;
 
 export const PADDL0 = 0xc064;
 export const PADDL1 = 0xc065;

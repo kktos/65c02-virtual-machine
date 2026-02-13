@@ -61,7 +61,7 @@ export class SmartPortCard implements ISlotCard {
 		this.rom[0xfc] = 0x00; // block count
 		this.rom[0xfd] = 0x00; //
 		this.rom[0xfe] = 0xff; // device info flags
-		this.rom[0xff] = 0x0a; // Lo MLI ENtrypoint
+		this.rom[0xff] = 0x0a; // Lo Block-level Interface ENtrypoint
 
 		// --- HLE Trigger 1: Registers ($Cn40) ---
 		const ioBase = 0xc080 + (this.slot << 4);
