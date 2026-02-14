@@ -156,9 +156,7 @@ export function useSymbols() {
 					if (!activeNamespaces.value.get(ns)) continue;
 					const entry = namespaces[ns];
 					const label = entry?.label;
-					if (label?.toUpperCase() === upperSymbol) {
-						return address;
-					}
+					if (label?.toUpperCase() === upperSymbol) return address;
 				}
 			}
 		}
@@ -173,17 +171,53 @@ export function useSymbols() {
 		return typeof entry === "string" ? undefined : entry?.source;
 	};
 
-	const getNamespaceForAddress = (address: number) => {
-		return resolveActiveNamespace(address);
-	};
+	const getNamespaceForAddress = (address: number) => resolveActiveNamespace(address);
+	const getNamespaceList = () => Array.from(activeNamespaces.value.entries());
 
 	const toggleNamespace = (ns: string) => {
 		const isActive = activeNamespaces.value.get(ns) ?? false;
 		activeNamespaces.value.set(ns, !isActive);
 	};
 
-	const getNamespaceList = () => {
-		return Array.from(activeNamespaces.value.entries());
+	const searchSymbols = (query: string, limit = 20): { label: string; address: number; scope?: string }[] => {
+		const symbolMap = vm?.value?.machineConfig?.symbols;
+		if (!symbolMap || !query || query.trim().length === 0) return [];
+
+		const upperQuery = query.trim().toUpperCase();
+		const results: { label: string; address: number; scope?: string }[] = [];
+
+		for (const addressStr in symbolMap) {
+			const address = parseInt(addressStr, 10);
+			const namespaces = symbolMap[address];
+			if (!namespaces) continue;
+			for (const ns in namespaces) {
+				if (!activeNamespaces.value.get(ns)) continue;
+				const entry = namespaces[ns];
+				const label = entry?.label;
+				const scope = entry?.scope;
+				if (label?.toUpperCase().includes(upperQuery)) {
+					results.push({ label, address, scope });
+				}
+			}
+		}
+
+		results.sort((a, b) => {
+			const aUpper = a.label.toUpperCase();
+			const bUpper = b.label.toUpperCase();
+
+			if (aUpper === upperQuery) return -1;
+			if (bUpper === upperQuery) return 1;
+
+			const aStarts = aUpper.startsWith(upperQuery);
+			const bStarts = bUpper.startsWith(upperQuery);
+
+			if (aStarts && !bStarts) return -1;
+			if (!aStarts && bStarts) return 1;
+
+			return a.label.length - b.label.length;
+		});
+
+		return results.slice(0, limit);
 	};
 
 	return {
@@ -197,5 +231,6 @@ export function useSymbols() {
 		toggleNamespace,
 		addSymbols,
 		buildNamespacesFromSymbols,
+		searchSymbols,
 	};
 }

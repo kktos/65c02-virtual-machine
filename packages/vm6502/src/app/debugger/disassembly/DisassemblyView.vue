@@ -44,7 +44,7 @@
 
 	/** biome-ignore-all lint/correctness/noUnusedVariables: vue */
 
-import { computed, inject, onMounted, type Ref, ref, watch } from "vue";
+import { computed, inject, type Ref, ref, watch } from "vue";
 import DisassemblyTable from "@/app/debugger/disassembly/DisassemblyTable.vue";
 import DisassemblyToolbar from "@/app/debugger/disassembly/DisassemblyToolbar.vue";
 import { useBreakpoints } from "@/composables/useBreakpoints";
@@ -70,7 +70,7 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 
 	const { pcBreakpoints, toggleBreakpoint } = useBreakpoints();
 	const { jumpEvent } = useDisassembly();
-	const { setMemoryViewAddress, setActiveTab, addJumpHistory, historyNavigationEvent, historyIndex,clearHistory } = useDebuggerNav();
+	const { setMemoryViewAddress, setActiveTab, addJumpHistory, historyIndex, historyNavigationEvent, clearHistory } = useDebuggerNav();
 	const { settings } = useSettings();
 	const availableScopes: Ref<string[]>= ref([]);
 	const getRandomColor = () => `#${Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0')}`;
@@ -195,15 +195,12 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 	const isLoading = ref(false);
 	const { getLabeledInstruction } = useSymbols();
 
-	onMounted(() => {
-		// Initialize history with the starting address if it's empty
-		if (historyIndex.value === -1) addJumpHistory(fullPcAddress.value);
-	});
-
 	watch(
 		() => fullPcAddress.value,
 		(newAddress, oldAddress) => {
 			if (!isFollowingPc.value) return;
+
+			if(historyIndex.value===-1) addJumpHistory(newAddress);
 
 			// Try to keep the PC at the same visual row index as before.
 			const oldIndex = disassembly.value.findIndex((line) => line.address === oldAddress);

@@ -17,10 +17,9 @@ export function useDebuggerNav() {
 
 	const addJumpHistory = (address: number) => {
 		// If we are not at the end of history, truncate it
-		if (historyIndex.value < jumpHistory.value.length - 1) {
-			jumpHistory.value.splice(historyIndex.value + 1);
-		}
+		if (historyIndex.value < jumpHistory.value.length - 1) jumpHistory.value.splice(historyIndex.value + 1);
 		if (jumpHistory.value[jumpHistory.value.length - 1] === address) return;
+
 		jumpHistory.value.push(address);
 		historyIndex.value++;
 	};
@@ -50,6 +49,14 @@ export function useDebuggerNav() {
 		historyIndex.value = -1;
 	};
 
+	const jumpToHistoryIndex = (index: number) => {
+		if (index >= 0 && index < jumpHistory.value.length) {
+			historyIndex.value = index;
+			const address = jumpHistory.value[index];
+			historyNavigationEvent.value = { address, timestamp: Date.now() };
+		}
+	};
+
 	return {
 		memoryViewAddress,
 		setMemoryViewAddress,
@@ -61,6 +68,7 @@ export function useDebuggerNav() {
 		navigateHistory,
 		historyNavigationEvent,
 		jumpToAddress,
+		jumpToHistoryIndex,
 		clearHistory,
 	};
 }
