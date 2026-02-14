@@ -7,15 +7,13 @@ import {
 	REG_TBCOLOR_OFFSET,
 } from "@/virtualmachine/cpu/shared-memory";
 import type { AppleBus } from "../apple.bus";
+import { RAM_OFFSET } from "../memory.consts";
 import { DHGRPaletteRGB, IIgsPaletteRGB } from "./constants";
 import { DebugText } from "./debug/debug.text";
 import { LowGrRenderer } from "./gr";
 import { HGR_COLORS, HGRRenderer } from "./hgr";
 import { VideoTester } from "./tester/video.tester";
 import { TextRenderer } from "./text";
-
-// Memory layout offset (matches AppleBus)
-const RAM_OFFSET = 0x4000;
 
 // Machine State Flags (Byte 2 at MACHINE_STATE_OFFSET + 1)
 const APPLE_80COL_MASK = 0b0000_0010;

@@ -204,9 +204,7 @@ export class VirtualMachine {
 
 		// 3. Prepare worker payloads (if any)
 		let payloads: { video?: unknown; bus?: unknown } = {};
-		if (this.bus.prepareWorkerPayloads) {
-			payloads = await this.bus.prepareWorkerPayloads();
-		}
+		if (this.bus.prepareWorkerPayloads) payloads = await this.bus.prepareWorkerPayloads();
 
 		// 4. Initialize the worker with the prepared buffer, config, and payloads
 		const chunks = this.machineConfig.memory.chunks?.map((chunk) => ({

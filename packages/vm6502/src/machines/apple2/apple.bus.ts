@@ -13,37 +13,36 @@ import {
 import { generateApple2Assets } from "./bus/apple.assets";
 import { loadMemoryChunks } from "./bus/apple.loader";
 import { installSoftSwitches } from "./bus/apple.switches";
+import {
+	APPLE_80COL_MASK,
+	APPLE_ALTCHAR_MASK,
+	APPLE_ALTZP_MASK,
+	APPLE_DBLRES_MASK,
+	APPLE_HIRES_MASK,
+	APPLE_INTC8ROM_MASK,
+	APPLE_INTCXROM_MASK,
+	APPLE_LC_BANK2_MASK,
+	APPLE_LC_READRAM_MASK,
+	APPLE_LC_WRITERAM_MASK,
+	APPLE_MIXED_MASK,
+	APPLE_PAGE2_MASK,
+	APPLE_RAMRD_AUX_MASK,
+	APPLE_RAMWR_AUX_MASK,
+	APPLE_SLOTC3ROM_MASK,
+	APPLE_STORE80_MASK,
+	APPLE_TEXT_MASK,
+	APPLE_VIDEO7_REG_MASK,
+	APPLE_VIDEO7_REG_SHIFT,
+	LC_AUX_BANK2_OFFSET,
+	LC_MAIN_BANK2_OFFSET,
+	LC_ROM_OFFSET,
+	RAM_OFFSET,
+} from "./memory.consts";
 import { MouseCard } from "./slots/mouse.card";
 import type { ISlotCard } from "./slots/slotcard.interface";
 import { SmartPortCard } from "./slots/smartport.card";
 import { ThunderClockCard } from "./slots/thunderclock.card";
 import { Speaker } from "./speaker";
-
-// Apple II specific flags (packed into the MACHINE_STATE bytes)
-// Byte at MACHINE_STATE_OFFSET1
-const APPLE_LC_BANK2_MASK = 0b0000_0001;
-const APPLE_LC_READRAM_MASK = 0b0000_0010;
-const APPLE_LC_WRITERAM_MASK = 0b0000_0100;
-const APPLE_STORE80_MASK = 0b0000_1000;
-const APPLE_RAMRD_AUX_MASK = 0b0001_0000;
-const APPLE_RAMWR_AUX_MASK = 0b0010_0000;
-const APPLE_ALTZP_MASK = 0b0100_0000;
-const APPLE_INTCXROM_MASK = 0b1000_0000;
-// Byte at MACHINE_STATE_OFFSET2
-const APPLE_SLOTC3ROM_MASK = 0b0000_0001;
-const APPLE_80COL_MASK = 0b0000_0010;
-const APPLE_ALTCHAR_MASK = 0b0000_0100;
-const APPLE_TEXT_MASK = 0b0000_1000;
-const APPLE_MIXED_MASK = 0b0001_0000;
-const APPLE_PAGE2_MASK = 0b0010_0000;
-const APPLE_HIRES_MASK = 0b0100_0000;
-const APPLE_INTC8ROM_MASK = 0b1000_0000;
-// Byte at MACHINE_STATE_OFFSET3
-const APPLE_DBLRES_MASK = 0b0000_0001;
-const APPLE_VIDEO7_REG_MASK = 0b0000_0110; // bits 1,2
-const APPLE_VIDEO7_REG_SHIFT = 1;
-
-const RAM_OFFSET = 0x4000; // 16KB reserved for Bank2 (4KB) + ROM (12KB) at the beginning
 
 // IIgs default colors - white on blue
 const DEFAULT_TEXT_COLORS = 0xf2;
@@ -51,10 +50,14 @@ const DEFAULT_TEXT_COLORS = 0xf2;
 export class AppleBus implements IBus {
 	public memory: Uint8Array;
 	private registers?: DataView;
+
 	// Private storage for the system ROM ($D000-$FFFF)
 	public rom: Uint8Array;
-	// Private storage for Language Card Bank 2 RAM ($D000-$DFFF)
+	// Private storage for Language Card Bank 2 RAM Bank 0 (main) ($D000-$DFFF)
 	public bank2: Uint8Array;
+	// Private storage for Language Card Bank 2 RAM Bank 1 (aux) ($D000-$DFFF)
+	public auxbank2: Uint8Array;
+
 	// Internal ROM ($C100-$CFFF) mapped to main RAM bank
 	public romC: Uint8Array;
 	// Slot ROMs ($C100-$CFFF) mapped to aux RAM bank
@@ -136,11 +139,17 @@ export class AppleBus implements IBus {
 
 	constructor(memory: Uint8Array) {
 		this.memory = memory;
+
+		if (memory.length % 0x10000 < RAM_OFFSET) throw new Error("Not enough memory for Apple Bus");
+
 		// Map Bank 2 and ROM to the beginning of shared memory
-		// Bank 2: 0x0000 - 0x0FFF (4KB)
-		this.bank2 = this.memory.subarray(0x0000, 0x1000);
+		// Main Bank 2: 0x0000 - 0x0FFF (4KB)
+		this.bank2 = this.memory.subarray(LC_MAIN_BANK2_OFFSET, LC_MAIN_BANK2_OFFSET + 0x1000);
+		// Aux Bank 2: 0x0000 - 0x0FFF (4KB)
+		this.auxbank2 = this.memory.subarray(LC_AUX_BANK2_OFFSET, LC_AUX_BANK2_OFFSET + 0x1000);
 		// ROM: 0x1000 - 0x3FFF (12KB)
-		this.rom = this.memory.subarray(0x1000, 0x4000);
+		this.rom = this.memory.subarray(LC_ROM_OFFSET, LC_ROM_OFFSET + 0x3000);
+
 		// Internal C-ROM: $C100-$CFFF in main RAM
 		this.romC = this.memory.subarray(RAM_OFFSET + 0xc100, RAM_OFFSET + 0xd000);
 		// Slot ROMs: $C100-$CFFF in aux RAM
@@ -375,6 +384,10 @@ export class AppleBus implements IBus {
 		};
 	}
 
+	public readRaw(address: number): number {
+		return this.memory[RAM_OFFSET + address] ?? 0;
+	}
+
 	read(address: number): number {
 		// biome-ignore lint/style/noNonNullAssertion: all handlers are defined
 		if (address >= 0xc000 && address <= 0xc0ff) return this.readHandlers[address & 0xff]!();
@@ -383,18 +396,32 @@ export class AppleBus implements IBus {
 
 		let bankOffset = 0;
 
+		// $0000:01FF
 		if (address < 0x0200) {
 			if (this.altZp) bankOffset = 0x10000;
-		} else if (address < 0xc000) {
+			return this.memory[RAM_OFFSET + address + bankOffset] ?? 0;
+		}
+
+		// $0200:BFFF
+		if (address < 0xc000) {
 			let aux = this.ramRdAux;
 			if (this.store80) {
 				if (address >= 0x0400 && address <= 0x07ff) aux = this.page2;
 				else if (this.hires && address >= 0x2000 && address <= 0x3fff) aux = this.page2;
 			}
 			if (aux) bankOffset = 0x10000;
-		} else if (address >= 0xd000 && this.altZp) bankOffset = 0x10000;
+			return this.memory[RAM_OFFSET + address + bankOffset] ?? 0;
+		}
 
-		if (bankOffset > 0) return this.memory[RAM_OFFSET + address + bankOffset] ?? 0;
+		if (address >= 0xd000) {
+			if (!this.lcReadRam) return this.rom[address - 0xd000] ?? 0;
+			if (this.lcBank2 && address < 0xe000) {
+				const bank = this.altZp ? this.auxbank2 : this.bank2;
+				return bank[address - 0xd000] ?? 0;
+			}
+			if (this.altZp) bankOffset = 0x10000;
+			return this.memory[RAM_OFFSET + address + bankOffset] ?? 0;
+		}
 
 		// Slot ROMs / Internal ROM ($C100-$CFFF)
 		if (address >= 0xc100 && address <= 0xcfff) {
@@ -447,16 +474,8 @@ export class AppleBus implements IBus {
 			return value;
 		}
 
-		if (address >= 0xd000) {
-			if (!this.lcReadRam) return this.rom[address - 0xd000] ?? 0;
-			if (this.lcBank2 && address < 0xe000) return this.bank2[address - 0xd000] ?? 0;
-		}
-
-		return this.memory[RAM_OFFSET + address] ?? 0;
-	}
-
-	public readRaw(address: number): number {
-		return this.memory[RAM_OFFSET + address] ?? 0;
+		throw new Error(`Unknown read address ${address.toString(16).padStart(4, "0")}`);
+		// return this.memory[RAM_OFFSET + address] ?? 0;
 	}
 
 	write(address: number, value: number): void {
@@ -466,23 +485,36 @@ export class AppleBus implements IBus {
 			return;
 		}
 
-		// this.lcPreWriteCount = 0;
-
 		let bankOffset = 0;
-		if (address < 0x0200 && this.altZp) {
-			bankOffset = 0x10000;
-		} else if (address >= 0x0200 && address < 0xc000) {
+
+		// $0000:01FF
+		if (address < 0x0200) {
+			if (this.altZp) bankOffset = 0x10000;
+			this.memory[RAM_OFFSET + address + bankOffset] = value & 0xff;
+			return;
+		}
+
+		// $0200:BFFF
+		if (address < 0xc000) {
 			let aux = this.ramWrAux;
 			if (this.store80) {
 				if (address >= 0x0400 && address <= 0x07ff) aux = this.page2;
 				else if (this.hires && address >= 0x2000 && address <= 0x3fff) aux = this.page2;
 			}
 			if (aux) bankOffset = 0x10000;
-		} else if (address >= 0xd000 && this.altZp) {
-			bankOffset = 0x10000;
+			this.memory[RAM_OFFSET + address + bankOffset] = value & 0xff;
+			return;
 		}
 
-		if (bankOffset > 0) {
+		if (address >= 0xd000) {
+			// can't write on ROM
+			if (!this.lcReadRam) return;
+			if (this.lcBank2 && address < 0xe000) {
+				const bank = this.altZp ? this.auxbank2 : this.bank2;
+				bank[address - 0xd000] = value & 0xff;
+				return;
+			}
+			if (this.altZp) bankOffset = 0x10000;
 			this.memory[RAM_OFFSET + address + bankOffset] = value & 0xff;
 			return;
 		}
@@ -516,18 +548,8 @@ export class AppleBus implements IBus {
 			return;
 		}
 
-		if (address >= 0xd000) {
-			if (this.lcWriteRam) {
-				if (this.lcBank2 && address < 0xe000) {
-					this.bank2[address - 0xd000] = value & 0xff;
-				} else {
-					this.memory[RAM_OFFSET + address] = value & 0xff;
-				}
-			}
-			return;
-		}
-
-		this.memory[RAM_OFFSET + address] = value & 0xff;
+		// this.memory[RAM_OFFSET + address] = value & 0xff;
+		throw new Error(`Unknown write address ${address.toString(16).padStart(4, "0")}`);
 	}
 
 	load(address: number, data: Uint8Array, bank: number = 0, tag?: string): void {
@@ -588,12 +610,30 @@ export class AppleBus implements IBus {
 	}
 
 	readDebug(address: number, overrides?: Record<string, unknown>): number {
-		if (address > 0xffff) return this.memory[RAM_OFFSET + address] ?? 0;
+		const bank = address >> 16;
+		const addr16 = address & 0xffff;
+		if (addr16 >= 0xd000) {
+			switch (overrides?.lcView) {
+				case "ROM":
+					return this.rom[addr16 - 0xd000] ?? 0;
+				case "BANK2":
+					if (addr16 < 0xe000) return (bank ? this.auxbank2[addr16 - 0xd000] : this.bank2[addr16 - 0xd000]) ?? 0;
+					else return this.memory[RAM_OFFSET + address] ?? 0;
+				case "BANK1":
+					return this.memory[RAM_OFFSET + address] ?? 0;
+			}
+			if (!this.lcReadRam) return this.rom[addr16 - 0xd000] ?? 0;
+			if (this.lcBank2 && addr16 < 0xe000)
+				return (bank ? this.auxbank2[addr16 - 0xd000] : this.bank2[addr16 - 0xd000]) ?? 0;
+			return this.memory[RAM_OFFSET + address] ?? 0;
+		}
 
-		if (address < 0xc000) return this.memory[RAM_OFFSET + address] ?? 0;
+		// if (address > 0xffff) return this.memory[RAM_OFFSET + address] ?? 0;
 
-		if (address >= 0xc100 && address <= 0xcfff) {
-			const offset = address - 0xc100;
+		if (addr16 < 0xc000) return this.memory[RAM_OFFSET + address] ?? 0;
+
+		if (addr16 >= 0xc100 && addr16 <= 0xcfff) {
+			const offset = addr16 - 0xc100;
 
 			if (overrides) {
 				const view = overrides?.cxView;
@@ -602,34 +642,13 @@ export class AppleBus implements IBus {
 			}
 
 			// intC8Rom forces Internal
-			if (address >= 0xc7ff && this.intC8Rom) return this.romC[offset] ?? 0;
+			if (addr16 >= 0xc7ff && this.intC8Rom) return this.romC[offset] ?? 0;
 
 			if (this.intCxRom) return this.romC[offset] ?? 0;
 
-			if (address >= 0xc300 && address <= 0xc3ff && this.slotC3Rom) return this.romC[offset] ?? 0;
+			if (addr16 >= 0xc300 && addr16 <= 0xc3ff && this.slotC3Rom) return this.romC[offset] ?? 0;
 
 			return this.slotRoms[offset] ?? 0;
-		}
-
-		if (address >= 0xd000) {
-			switch (overrides?.lcView) {
-				case "ROM":
-					return this.rom[address - 0xd000] ?? 0;
-				case "BANK2":
-					if (address < 0xe000) return this.bank2[address - 0xd000] ?? 0;
-					else return this.memory[RAM_OFFSET + address] ?? 0;
-				case "BANK1":
-					return this.memory[RAM_OFFSET + address] ?? 0;
-			}
-
-			// Default view (what CPU sees, but no side effects like pre-write count reset)
-			if (this.lcReadRam) {
-				if (this.lcBank2 && address < 0xe000) {
-					return this.bank2[address - 0xd000] ?? 0;
-				}
-				return this.memory[RAM_OFFSET + address] ?? 0;
-			}
-			return this.rom[address - 0xd000] ?? 0;
 		}
 
 		// Softswitches - return 0 to avoid side effects
@@ -637,49 +656,50 @@ export class AppleBus implements IBus {
 	}
 
 	writeDebug(address: number, value: number, overrides?: Record<string, unknown>): void {
-		if (address > 0xffff) {
+		const bank = address >> 16;
+		const addr16 = address & 0xffff;
+
+		if (addr16 >= 0xd000) {
+			switch (overrides?.lcView) {
+				case "ROM":
+					this.rom[addr16 - 0xd000] = value & 0xff;
+					return;
+				case "BANK2":
+					if (addr16 < 0xe000) {
+						const bank2 = bank ? this.auxbank2 : this.bank2;
+						bank2[addr16 - 0xd000] = value & 0xff;
+						return;
+					}
+					this.memory[RAM_OFFSET + addr16] = value & 0xff;
+					return;
+				case "BANK1":
+					this.memory[RAM_OFFSET + address] = value & 0xff;
+					return;
+			}
+
+			if (!this.lcReadRam) {
+				this.rom[addr16 - 0xd000] = value & 0xff;
+				return;
+			}
+
+			if (this.lcBank2 && addr16 < 0xe000) {
+				const bank2 = bank ? this.auxbank2 : this.bank2;
+				bank2[addr16 - 0xd000] = value & 0xff;
+				return;
+			}
+
 			this.memory[RAM_OFFSET + address] = value & 0xff;
 			return;
 		}
 
-		if (address >= 0xc100 && address <= 0xcfff) {
+		if (addr16 >= 0xc100 && addr16 <= 0xcfff) {
 			const view = overrides?.cxView;
-			if (view === "INT") this.romC[address - 0xc100] = value & 0xff;
-			if (view === "SLOT") this.slotRoms[address - 0xc100] = value & 0xff;
+			if (view === "INT") this.romC[addr16 - 0xc100] = value & 0xff;
+			if (view === "SLOT") this.slotRoms[addr16 - 0xc100] = value & 0xff;
 			return;
 		}
 
-		if (address >= 0xc100 && address <= 0xcfff) return;
-
-		if (address >= 0xd000) {
-			const view = overrides?.lcView;
-			if (view === "ROM") {
-				this.rom[address - 0xd000] = value & 0xff;
-				return;
-			}
-			if (view === "BANK2" && address < 0xe000) {
-				this.bank2[address - 0xd000] = value & 0xff;
-				return;
-			}
-			if (view === "BANK1" || (view === "BANK2" && address >= 0xe000)) {
-				this.memory[RAM_OFFSET + address] = value & 0xff;
-				return;
-			}
-
-			// Write to whatever is currently visible (ignoring write protection)
-			if (this.lcReadRam) {
-				if (this.lcBank2 && address < 0xe000) {
-					this.bank2[address - 0xd000] = value & 0xff;
-				} else {
-					this.memory[RAM_OFFSET + address] = value & 0xff;
-				}
-			} else {
-				this.rom[address - 0xd000] = value & 0xff;
-			}
-			return;
-		}
-
-		if (address >= 0xc000 && address <= 0xc0ff) return;
+		if (addr16 >= 0xc000 && addr16 <= 0xc0ff) return;
 
 		this.memory[RAM_OFFSET + address] = value & 0xff;
 	}
@@ -780,7 +800,7 @@ export class AppleBus implements IBus {
 	}
 
 	public getBank?(address: number): number {
-		if (address > 0x200 && address < 0xd000) return this.ramRdAux ? this.auxMemBank : 0;
+		if (address >= 0x200 && address < 0xd000) return this.ramRdAux ? this.auxMemBank : 0;
 		return this.altZp ? this.auxMemBank : 0;
 	}
 }
