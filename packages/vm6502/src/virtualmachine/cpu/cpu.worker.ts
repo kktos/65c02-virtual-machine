@@ -1,6 +1,6 @@
 import type { MachineConfig } from "@/types/machine.interface";
 import type { Video } from "@/types/video.interface";
-import { BP_PC, breakpointMap } from "./breakpoints";
+import { BP_PC, bankedBreakpoints, breakpointMap } from "./breakpoints";
 import type { IBus } from "./bus.interface";
 import {
 	addBreakpoint,
@@ -87,7 +87,16 @@ self.onmessage = async (event: MessageEvent) => {
 			// before resuming execution to avoid getting stuck.
 			{
 				const pc = registersView.getUint16(REG_PC_OFFSET, true);
-				if (Number(breakpointMap[pc]) & BP_PC) stepInstruction();
+				// biome-ignore lint/style/noNonNullAssertion: <expected>
+				if (breakpointMap[pc]! & BP_PC) {
+					// Fast check passed, now do detailed check
+					const bank = bus?.getBank?.(pc) ?? 0;
+					const physicalPC = (bank << 16) | pc;
+					// biome-ignore lint/style/noNonNullAssertion: <expected>
+					if (bankedBreakpoints.get(physicalPC)! & BP_PC) {
+						stepInstruction();
+					}
+				}
 			}
 			setRunning(true);
 			break;

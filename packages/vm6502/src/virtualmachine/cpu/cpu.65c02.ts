@@ -5,6 +5,7 @@ import {
 	BP_READ,
 	BP_WRITE,
 	BreakpointError,
+	bankedBreakpoints,
 	breakOnBrk,
 	breakpointMap,
 	cleanStepBP,
@@ -88,14 +89,32 @@ export function initCPU(
 	// Wrap bus methods to check for breakpoints
 	const originalRead = bus.read.bind(bus);
 	bus.read = (address: number, isOpcodeFetch = false): number => {
-		if (!isOpcodeFetch && isRunning && breakpointMap[address] & BP_READ) throw new BreakpointError("read", address);
+		// Fast check
+		// biome-ignore lint/style/noNonNullAssertion: <expected>
+		if (!isOpcodeFetch && isRunning && breakpointMap[address]! & BP_READ) {
+			// Potential hit, do detailed check
+			const bank = bus?.getBank?.(address) ?? 0;
+			const physicalAddress = (bank << 16) | address;
+
+			// biome-ignore lint/style/noNonNullAssertion: <expected>
+			if (bankedBreakpoints.get(physicalAddress)! & BP_READ) {
+				throw new BreakpointError("read", physicalAddress);
+			}
+		}
 
 		return originalRead(address, isOpcodeFetch);
 	};
 
 	const originalWrite = bus.write.bind(bus);
 	bus.write = (address: number, value: number): void => {
-		if (isRunning && breakpointMap[address] & BP_WRITE) throw new BreakpointError("write", address);
+		// biome-ignore lint/style/noNonNullAssertion: <expected>
+		if (isRunning && breakpointMap[address]! & BP_WRITE) {
+			const bank = bus?.getBank?.(address) ?? 0;
+			const physicalAddress = (bank << 16) | address;
+
+			// biome-ignore lint/style/noNonNullAssertion: <expected>
+			if (bankedBreakpoints.get(physicalAddress)! & BP_WRITE) throw new BreakpointError("write", physicalAddress);
+		}
 		originalWrite(address, value);
 	};
 
@@ -167,11 +186,15 @@ export function stepOverInstruction() {
 
 	if (opcode === 0x20) {
 		// JSR Absolute
-		const target = (pc + 3) & 0xffff;
-		setStepBPAddress(target);
-		const added = (breakpointMap[target] & BP_PC) === 0;
+		const logicalTarget = (pc + 3) & 0xffff;
+		const bank = bus.getBank?.(pc) ?? 0;
+		const physicalTarget = (bank << 16) | logicalTarget;
+
+		setStepBPAddress(physicalTarget);
+		// biome-ignore lint/style/noNonNullAssertion: <expected>
+		const added = !bankedBreakpoints.has(physicalTarget) || (bankedBreakpoints.get(physicalTarget)! & BP_PC) === 0;
 		setStepAddedBreakpoint(added);
-		if (added) addBreakpoint("pc", target);
+		if (added) addBreakpoint("pc", physicalTarget);
 
 		setRunning(true);
 	} else {
@@ -188,12 +211,17 @@ export function stepOutInstruction() {
 	const sp = registersView.getUint8(REG_SP_OFFSET);
 	const lo = bus.read(STACK_PAGE_HI | ((sp + 1) & 0xff));
 	const hi = bus.read(STACK_PAGE_HI | ((sp + 2) & 0xff));
-	const target = (((hi << 8) | lo) + 1) & 0xffff;
+	const logicalTarget = (((hi << 8) | lo) + 1) & 0xffff;
 
-	setStepBPAddress(target);
-	const added = (breakpointMap[target] & BP_PC) === 0;
+	// Assume we return to the same bank we are in now. This might be incorrect for far JSR/RTS, but is the best guess.
+	const bank = bus.getBank?.(registersView.getUint16(REG_PC_OFFSET, true)) ?? 0;
+	const physicalTarget = (bank << 16) | logicalTarget;
+
+	setStepBPAddress(physicalTarget);
+	// biome-ignore lint/style/noNonNullAssertion: <expected>
+	const added = !bankedBreakpoints.has(physicalTarget) || (bankedBreakpoints.get(physicalTarget)! & BP_PC) === 0;
 	setStepAddedBreakpoint(added);
-	if (added) addBreakpoint("pc", target);
+	if (added) addBreakpoint("pc", physicalTarget);
 
 	setRunning(true);
 }
@@ -410,18 +438,31 @@ function executeInstruction(): number {
 
 	// Check for PC breakpoint before executing
 	// Only halt if we are in "run" mode. If we are single-stepping, we want to execute the instruction.
-	if (isRunning && breakpointMap[pc] & BP_PC) {
-		setRunning(false);
+	// biome-ignore lint/style/noNonNullAssertion: <expected>
+	if (isRunning && breakpointMap[pc]! & BP_PC) {
+		const bank = bus.getBank?.(pc) ?? 0;
+		const physicalPC = (bank << 16) | pc;
 
-		let type = "pc";
-		// Check if this is our step-over target
-		if (stepBPAddress !== null && pc === stepBPAddress) {
-			type = "step";
-			cleanStepBP();
+		console.log("BREAKPOINT", physicalPC.toString(16).padStart(4, "0").toUpperCase());
+
+		// Potential hit, do detailed check
+		// biome-ignore lint/style/noNonNullAssertion: <expected>
+		if (bankedBreakpoints.get(physicalPC)! & BP_PC) {
+			setRunning(false);
+
+			let type = "pc";
+			// Check if this is our step-over target
+			if (stepBPAddress !== null && physicalPC === stepBPAddress) {
+				type = "step";
+				cleanStepBP();
+			}
+
+			video?.tick();
+			bus?.syncState?.();
+
+			self.postMessage({ type: "breakpointHit", breakpointType: type, address: physicalPC });
+			return 0;
 		}
-
-		self.postMessage({ type: "breakpointHit", breakpointType: type, address: pc });
-		return 0;
 	}
 
 	const opcode = bus.read(pc, true); // Opcode fetch (SYNC)
