@@ -4,9 +4,10 @@
 			<PopoverTrigger as-child>
 				<slot>
 					<!-- Default trigger -->
-					<Button variant="outline" size="sm" class="h-[30px] px-2 text-xs bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600 hover:text-white">
-						<Settings2 class="mr-2 h-3 w-3" />
-						Options
+					<Button variant="outline" size="sm"
+						class="h-[30px] px-2 text-xs bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600 hover:text-white"
+						title="Options">
+						<Settings2 class="h-3 w-3" />
 					</Button>
 				</slot>
 			</PopoverTrigger>
@@ -32,8 +33,7 @@
 				<slot>
 					<!-- Default trigger -->
 					<Button variant="outline" size="sm" class="h-[30px] px-2 text-xs bg-gray-700 border-gray-600 text-gray-300" disabled>
-						<Settings2 class="mr-2 h-3 w-3" />
-						Options
+						<Settings2 class="h-3 w-3" />
 					</Button>
 				</slot>
 			</div>

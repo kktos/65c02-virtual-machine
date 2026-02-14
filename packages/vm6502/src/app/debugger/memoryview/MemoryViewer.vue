@@ -40,8 +40,6 @@
 					/>
 				</div>
 
-				<BinaryLoader :address="startAddress" :debug-overrides="debugOverrides" />
-
 			</div>
 
 			<!-- Search Popover -->
@@ -75,8 +73,18 @@
 				</PopoverContent>
 			</Popover>
 
+			<BinaryLoader :address="startAddress" :debug-overrides="debugOverrides" />
+
+			<!-- Active Debug Badges -->
+			<div v-if="activeDebugBadges.length > 0" class="flex items-center gap-2 ml-auto">
+				<div v-for="badge in activeDebugBadges" :key="badge.id" class="flex items-center px-2 py-0.5 rounded bg-cyan-900/40 border border-cyan-700/50 text-[10px] text-cyan-200 font-medium shadow-sm">
+					<span class="uppercase tracking-wider">{{ badge.label }}</span>
+					<span v-if="badge.value" class="ml-1 text-cyan-100 font-bold">: {{ badge.value }}</span>
+				</div>
+			</div>
+
 			<!-- Debug Options -->
-			<DebugOptionsPopover ref="debugOptionsPopover" category="memory" align="end" class="ml-auto" />
+			<DebugOptionsPopover ref="debugOptionsPopover" category="memory" align="end" :class="activeDebugBadges.length > 0 ? '' : 'ml-auto'" />
 
 			<div class="flex items-center space-x-1 ml-2 border-l border-gray-700 pl-2">
 				<Button variant="ghost" size="icon" class="h-6 w-6 text-gray-400 hover:text-cyan-300" @click="$emit('split', startAddress)" title="Split View">
@@ -182,6 +190,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useBreakpoints } from "@/composables/useBreakpoints";
 import { useDebuggerNav } from "@/composables/useDebuggerNav";
+import type { DebugGroup } from "@/types/machine.interface";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import BinaryLoader from "./BinaryLoader.vue";
 
@@ -392,6 +401,47 @@ import BinaryLoader from "./BinaryLoader.vue";
 
 	const debugOptionsPopover = ref<InstanceType<typeof DebugOptionsPopover> | null>(null);
 	const debugOverrides = computed(() => debugOptionsPopover.value?.debugOverrides || {});
+
+	const activeDebugBadges = computed(() => {
+		if (!debugOptionsPopover.value || !vm?.value) return [];
+
+		const options = (debugOptionsPopover.value.debugOptions as DebugGroup[]) || [];
+		const overrides = (debugOptionsPopover.value.debugOverrides as Record<string, unknown>) || {};
+		const badges: { id: string; label: string; value?: string }[] = [];
+
+		for (const group of options) {
+			for (const row of group.rows) {
+				for (const opt of row) {
+					const val = overrides[opt.id];
+
+					// Determine default value
+					let defaultVal = opt.defaultValue;
+					if (defaultVal === undefined) {
+						if (opt.type === "select" && opt.options?.length) {
+							defaultVal = opt.options[0]?.value;
+						} else if (opt.type === "boolean") {
+							defaultVal = false;
+						}
+					}
+
+					if (val !== undefined && val !== defaultVal) {
+						if (opt.type === "boolean") {
+							if (val === true) {
+								badges.push({ id: opt.id, label: opt.label });
+							}
+						} else if (opt.type === "select") {
+							const selectedOption = opt.options?.find((o) => o.value === val);
+							const displayValue = selectedOption ? selectedOption.label : String(val);
+							badges.push({ id: opt.id, label: opt.label, value: displayValue });
+						} else if (opt.type === "number") {
+							badges.push({ id: opt.id, label: opt.label, value: String(val) });
+						}
+					}
+				}
+			}
+		}
+		return badges;
+	});
 
 	onMounted(() => {
 		if (scrollContainer.value) {

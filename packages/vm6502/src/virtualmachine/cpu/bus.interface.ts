@@ -1,5 +1,4 @@
 import type { Dict } from "@/types/dict.type";
-import type { DebugOption } from "@/types/machine.interface";
 
 export interface MachineStateSpec {
 	id: string;
@@ -43,7 +42,6 @@ export interface IBus {
 	writeDebug?(address: number, value: number, overrides?: Dict): void;
 
 	/** Returns a list of available debug options for the UI. */
-	getDebugOptions?(): DebugOption[];
 	setDebugOverrides?(overrides: Dict): void;
 
 	/** Returns a list of machine state specifications for the UI. */

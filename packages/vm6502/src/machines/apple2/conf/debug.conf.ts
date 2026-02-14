@@ -9,13 +9,13 @@ export const debugConfig: MachineConfig["debugOptions"] = [
 			[
 				{
 					id: "lcView",
-					label: "LC ROM",
+					label: "LC",
 					type: "select",
 					options: [
 						{ label: "Auto", value: "AUTO" },
 						{ label: "ROM", value: "ROM" },
-						{ label: "LC Bank 1", value: "BANK1" },
-						{ label: "LC Bank 2", value: "BANK2" },
+						{ label: "RAM Bank 1", value: "BANK1" },
+						{ label: "RAM Bank 2", value: "BANK2" },
 					],
 				},
 			],
