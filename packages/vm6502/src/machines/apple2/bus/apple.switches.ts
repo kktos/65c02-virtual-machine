@@ -211,9 +211,9 @@ export function installSoftSwitches(bus: AppleBus) {
 }
 
 function updateLcState(bus: AppleBus, address: number) {
-	const bit0 = (address & 1) !== 0; // 0=Read RAM/ROM, 1=Write RAM (maybe)
-	const bit1 = (address & 2) !== 0; // 0=Read RAM/ROM, 1=Read ROM
-	const bit3 = (address & 8) !== 0; // 0=Bank 2, 1=Bank 1
+	const bit0 = (address & 0b0001) !== 0; // 0=Read RAM/ROM, 1=Write RAM (maybe)
+	const bit1 = (address & 0b0010) !== 0; // 0=Read RAM/ROM, 1=Read ROM
+	const bit3 = (address & 0b1000) !== 0; // 0=Bank 2, 1=Bank 1
 
 	bus.lcBank2 = !bit3;
 	bus.lcReadRam = bit0 === bit1;
@@ -229,4 +229,10 @@ function updateLcState(bus: AppleBus, address: number) {
 			bus.lcPreWriteCount = 0;
 		}
 	}
+
+	// let state = `${bus.lcReadRam ? "READ RAM" : "READ ROM"}`;
+	// if (bus.lcReadRam) state += ` ${bus.lcBank2 ? "BANK2" : "BANK1"}`;
+	// state += `${bus.lcWriteRam ? " WRITE RAM" : ""}`;
+	// const flags = address & 0xff;
+	// console.log(flags.toString(16).toUpperCase(), (flags & 0xf).toString(2).padStart(4, "0"), state);
 }

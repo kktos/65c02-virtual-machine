@@ -191,13 +191,14 @@ export const RDLCRAM = 0xc012;
 // LC BANK2
 
 // R  LCRAMIN2 Read RAM bank 2; no write
-export const LCRAMIN2 = 0xc080;
+export const LCRAMIN2 = 0xc080; // 0000
 // RR ROMIN2 Read ROM; write RAM bank 2
-export const ROMIN2 = 0xc081;
+export const ROMIN2 = 0xc081; // 0001
 // R  LCROMIN2 Read ROM; no write
-export const LCROMIN2 = 0xc082;
+export const LCROMIN2 = 0xc082; // 0010
 // RR LCBANK2 Read/write RAM bank 2
-export const LCBANK2 = 0xc083;
+export const LCBANK2 = 0xc083; // 0011
+
 // echoes of C080-C083
 export const LC_C084 = 0xc084;
 export const LC_C085 = 0xc085;
@@ -207,16 +208,17 @@ export const LC_C087 = 0xc087;
 // LC BANK1
 
 // R LC RAM bank1, Read and WR-protect RAM
-export const LCRAMIN1 = 0xc088;
+export const LCRAMIN1 = 0xc088; // 1000
 // RR LC RAM bank1, Read ROM instead of RAM,
 // ;two or more successive reads WR-enables RAM
-export const ROMIN1 = 0xc089;
+export const ROMIN1 = 0xc089; // 1001
 // R LC RAM bank1, Read ROM instead of RAM,
 // ;WR-protect RAM
-export const LCROMIN1 = 0xc08a;
+export const LCROMIN1 = 0xc08a; // 1010
 // RR LCBANK1 ;LC RAM bank1, Read RAM
 // two or more successive reads WR-enables RAM
-export const LCBANK1 = 0xc08b;
+export const LCBANK1 = 0xc08b; // 1011
+
 // echoes of C088-C08B
 export const LC_C08C = 0xc08c;
 export const LC_C08D = 0xc08d;

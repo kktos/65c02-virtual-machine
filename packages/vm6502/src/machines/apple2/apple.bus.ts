@@ -508,7 +508,7 @@ export class AppleBus implements IBus {
 
 		if (address >= 0xd000) {
 			// can't write on ROM
-			if (!this.lcReadRam) return;
+			if (!this.lcWriteRam) return;
 			if (this.lcBank2 && address < 0xe000) {
 				const bank = this.altZp ? this.auxbank2 : this.bank2;
 				bank[address - 0xd000] = value & 0xff;
