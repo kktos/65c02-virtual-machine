@@ -130,6 +130,7 @@ import { computed, markRaw, nextTick, onMounted, onUnmounted, provide, reactive,
 import { Toaster, toast } from "vue-sonner";
 import 'vue-sonner/style.css';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useSymbols } from "@/composables/useSymbols";
 import TogglableDisplay from '../components/TogglableDisplay.vue';
 import ResizableHandle from '../components/ui/resizable/ResizableHandle.vue';
 import ResizablePanel from '../components/ui/resizable/ResizablePanel.vue';
@@ -237,6 +238,11 @@ import VideoControl from "./machine/VideoControl.vue";
 					targetVm.refreshVideo();
 					break;
 				}
+				case "breakpointHit": {
+					targetVm.refreshVideo();
+					targetVm.syncBusState();
+					break;
+				}
 				default:
 					console.log("Message received from worker:", event.data);
 			}
@@ -254,19 +260,10 @@ import VideoControl from "./machine/VideoControl.vue";
 	};
 
 	onMounted(() => {
-
-		const machine= new VirtualMachine(selectedMachine.value);
-		vm.value = markRaw(machine);
-		loadBreakpoints(machine);
-		setupVmListeners(machine);
+		loadMachine(selectedMachine.value);
 
 		// Start the UI update loop
 		requestAnimationFrame(updateUiFromSharedBuffer);
-
-		machine.ready.then(()=>{
-			machine.initAudio();
-		});
-
 	});
 
 	// Wait for the canvas to be mounted by the ResizablePanel before setting it on the VM
@@ -323,14 +320,22 @@ import VideoControl from "./machine/VideoControl.vue";
 
 	const loadMachine = (newMachine: MachineConfig) => {
 		console.log(`Main: Loading machine ${newMachine.name}`);
+		selectedMachine.value = newMachine;
+
 		vm.value?.terminate();
 		isRunning.value = false;
+
 		const newVm = new VirtualMachine(newMachine);
 		vm.value = markRaw(newVm);
 		setupVmListeners(newVm);
 		if(videoCanvas.value) newVm.initVideo(videoCanvas.value);
 		loadBreakpoints(newVm);
-		selectedMachine.value = newMachine;
+		newVm.ready.then(()=>{
+			newVm.initAudio();
+		});
+
+		const {  buildNamespacesFromSymbols } = useSymbols();
+		if(newMachine.symbols) buildNamespacesFromSymbols(newMachine.symbols);
 	};
 
 	const handleMachineSelected = (newMachine: MachineConfig) => {

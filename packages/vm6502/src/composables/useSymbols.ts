@@ -20,6 +20,10 @@ export function useSymbols() {
 			Object.assign(symbols[addr], namespaces);
 		}
 
+		buildNamespacesFromSymbols(symbols);
+	};
+
+	const buildNamespacesFromSymbols = (symbols: SymbolDict) => {
 		for (const namespaces of Object.values(symbols)) {
 			Object.keys(namespaces).forEach((ns) => {
 				if (!activeNamespaces.value.has(ns)) {
@@ -192,5 +196,6 @@ export function useSymbols() {
 		getNamespaceList,
 		toggleNamespace,
 		addSymbols,
+		buildNamespacesFromSymbols,
 	};
 }

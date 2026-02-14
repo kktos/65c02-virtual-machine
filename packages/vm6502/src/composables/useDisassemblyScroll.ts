@@ -5,7 +5,6 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 
 export function useDisassemblyScroll(
 	vm: Ref<VirtualMachine> | undefined,
-	memory: Uint8Array,
 	disassembly: Ref<DisassemblyLine[]>,
 	disassemblyStartAddress: Ref<number>,
 	isFollowingPc: Ref<boolean>,
@@ -18,20 +17,6 @@ export function useDisassemblyScroll(
 	const PANEL_TITLE_MB_HEIGHT = 12;
 	let resizeObserver: ResizeObserver | null = null;
 
-	// Create a proxy to allow the disassembler to read debug memory (handling soft switches, etc.)
-	// independent of the main memory array state.
-	const memoryProxy = new Proxy(memory, {
-		get(target, prop, _receiver) {
-			if (typeof prop === "string") {
-				const idx = Number(prop);
-				if (Number.isInteger(idx) && vm?.value) {
-					return vm.value.readDebug(idx);
-				}
-			}
-			return Reflect.get(target, prop);
-		},
-	});
-
 	const visibleRowCount = computed(() => {
 		if (containerHeight.value === 0) return 10; // Default before mounted
 		return Math.max(
@@ -42,12 +27,16 @@ export function useDisassemblyScroll(
 		);
 	});
 
+	const readByte = (address: number) => {
+		return vm?.value.readDebug(address) ?? 0;
+	};
+
 	const findPreviousInstructionAddress = (startAddr: number): number => {
 		if (startAddr <= 0) return 0;
 		// Go back a few bytes (max instruction length is 3) and disassemble
 		const lookbehind = 4;
 		const searchStart = Math.max(0, startAddr - lookbehind);
-		const tempDisassembly = disassemble(memoryProxy, searchStart, lookbehind);
+		const tempDisassembly = disassemble(readByte, searchStart, lookbehind);
 
 		// The last instruction in this temp block whose address is less than startAddr is our target.
 		for (const line of tempDisassembly.reverse()) if (line.address < startAddr) return line.address;
@@ -90,7 +79,6 @@ export function useDisassemblyScroll(
 		scrollContainer,
 		visibleRowCount,
 		handleScroll,
-		memoryProxy,
 		findPreviousInstructionAddress,
 	};
 }

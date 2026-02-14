@@ -181,13 +181,15 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 		if (isFollowingPc.value) disassemblyStartAddress.value = fullPcAddress.value;
 	};
 
-	const { scrollContainer, visibleRowCount, handleScroll, memoryProxy, findPreviousInstructionAddress } = useDisassemblyScroll(
+	const { scrollContainer, visibleRowCount, handleScroll, findPreviousInstructionAddress } = useDisassemblyScroll(
 		vm,
-		memory,
 		disassembly,
 		disassemblyStartAddress,
 		isFollowingPc
 	);
+
+	// useless line - used as ref in template but not seen in VSCode
+	scrollContainer;
 
 	const explanation = ref(null);
 	const isLoading = ref(false);
@@ -232,6 +234,10 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 		}
 	);
 
+	const readByte = (address: number, debug= true) => {
+		return (debug ? vm?.value.readDebug(address) : vm?.value.read(address)) ?? 0;
+	};
+
 	watch( // Re-disassemble when the start address or memory changes
 		// () => [disassemblyStartAddress.value, memory, visibleRowCount.value, busState.value, registers, vm?.value?.symbolsVersion.value],
 		() => [disassemblyStartAddress.value, memory, visibleRowCount.value, busState.value, registers],
@@ -241,7 +247,7 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 				vm?.value?.syncBusState();
 
 				// Disassemble enough lines to fill the view (e.g., 50 lines)
-				disassembly.value = disassemble(memoryProxy, disassemblyStartAddress.value, visibleRowCount.value, registers);
+				disassembly.value = disassemble(readByte, disassemblyStartAddress.value, visibleRowCount.value, registers);
 			}
 		},
 		{ immediate: true, deep: true },
