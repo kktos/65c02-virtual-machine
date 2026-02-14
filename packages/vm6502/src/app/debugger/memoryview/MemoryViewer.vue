@@ -1,45 +1,8 @@
 <template>
 	<div :class="['p-4 rounded-lg shadow-xl h-full flex flex-col transition-all duration-200', isActive ? 'bg-gray-800 ring-1 ring-cyan-500' : 'bg-gray-800/20']" ref="scrollContainer">
 		<div class="mb-3 mt-1 flex flex-wrap items-center gap-4 shrink-0">
-			<div class="flex items-center space-x-2">
-				<span class="text-gray-300 text-sm">Addr:</span>
-				<div class="flex items-center">
-					<Popover v-model:open="openBankSelect">
-						<PopoverTrigger as-child>
-							<Button
-								variant="outline"
-								role="combobox"
-								:aria-expanded="openBankSelect"
-								class="w-16 justify-between px-2 font-mono text-sm bg-gray-700 text-yellow-300 border-gray-600 hover:bg-gray-600 hover:text-yellow-300 h-[30px] rounded-l-md rounded-r-none border-r-0 focus-visible:ring-0 focus-visible:ring-offset-0"
-							>
-								{{ currentBank.toString(16).toUpperCase().padStart(2, '0') }}
-								<ChevronsUpDown class="ml-1 h-3 w-3 shrink-0 opacity-50" />
-							</Button>
-						</PopoverTrigger>
-						<PopoverContent class="w-32 p-0 bg-gray-800 border-gray-700">
-							<Command class="bg-gray-800 text-gray-100">
-								<CommandInput class="h-8 text-xs" placeholder="Bank..." />
-								<CommandEmpty class="py-2 text-center text-xs text-gray-500">No bank.</CommandEmpty>
-								<CommandList>
-									<CommandGroup>
-										<CommandItem v-for="bank in availableBanks" :key="bank.value" :value="bank.label" @select="selectBank(bank.value)" class="text-xs font-mono data-[highlighted]:bg-gray-700 data-[highlighted]:text-yellow-300 cursor-pointer text-white">
-											<Check :class="['mr-2 h-3 w-3', currentBank === bank.value ? 'opacity-100' : 'opacity-0']" />
-											{{ bank.label }}
-										</CommandItem>
-									</CommandGroup>
-								</CommandList>
-							</Command>
-						</PopoverContent>
-					</Popover>
-					<span class="bg-gray-700 text-gray-400 font-mono text-sm py-1 border-y border-gray-600">:</span>
-					<input
-						type="text"
-						:value="(startAddress & 0xFFFF).toString(16).toUpperCase().padStart(4, '0')"
-						@input="handleOffsetChange"
-						class="bg-gray-700 text-yellow-300 font-mono text-sm rounded-r-md px-2 py-1 w-16 border-y border-r border-gray-600 focus:ring-2 focus:ring-cyan-500 tabular-nums outline-none"
-					/>
-				</div>
-
+			<div class="flex flex-1 items-center gap-2" >
+				<AddressNavigator @goto="handleGoto" />
 			</div>
 
 			<!-- Search Popover -->
@@ -182,11 +145,11 @@
 <script lang="ts" setup>
 	/** biome-ignore-all lint/correctness/noUnusedVariables: vue */
 
-	import { Check, ChevronsUpDown, Search, Split, X } from "lucide-vue-next";
+	import { Search, Split, X } from "lucide-vue-next";
 import { computed, inject, nextTick, onMounted, onUnmounted, type Ref, ref, watch } from "vue";
+import AddressNavigator from "@/app/debugger/AddressNavigator.vue";
 import DebugOptionsPopover from "@/components/DebugOptionsPopover.vue";
 import { Button } from "@/components/ui/button";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useBreakpoints } from "@/composables/useBreakpoints";
 import { useDebuggerNav } from "@/composables/useDebuggerNav";
@@ -232,24 +195,9 @@ import BinaryLoader from "./BinaryLoader.vue";
 		return Math.max(1, Math.floor(containerHeight.value / ROW_HEIGHT_ESTIMATE));
 	});
 
-	const openBankSelect = ref(false);
-
 	const highBitEnabled = ref(false);
 
-	const availableBanks = computed(() => {
-		const banks = vm?.value?.machineConfig?.memory?.banks || 1;
-		return Array.from({ length: banks }, (_, i) => ({
-			value: i,
-			label: i.toString(16).toUpperCase().padStart(2, "0"),
-		}));
-	});
-
-	const currentBank = computed(() => (startAddress.value >> 16) & 0xff);
-
-	const selectBank = (bankValue: number) => {
-		startAddress.value = (startAddress.value & 0xffff) | (bankValue << 16);
-		openBankSelect.value = false;
-	};
+	const handleGoto = (addr: number) => (startAddress.value = addr);
 
 	// --- Search Functionality ---
 	const isSearchOpen = ref(false);
@@ -462,14 +410,6 @@ import BinaryLoader from "./BinaryLoader.vue";
 	});
 
 	onUnmounted(() => { resizeObserver?.disconnect(); document.removeEventListener('click', closeContextMenu); });
-
-	const handleOffsetChange = (event: Event) => {
-		const target = event.target as HTMLInputElement;
-		const val = parseInt(target.value, 16);
-		if (!Number.isNaN(val) && val >= 0 && val <= 0xFFFF) {
-			startAddress.value = (startAddress.value & 0xFF0000) | val;
-		}
-	};
 
 	const formatAddress = (addr: number) => {
 		const bank = ((addr >> 16) & 0xFF).toString(16).toUpperCase().padStart(2, '0');

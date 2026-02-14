@@ -69,6 +69,9 @@
 
 		<!-- Address Input -->
 		<div class="flex-1 flex items-center relative h-full">
+			<div class="ml-2 pointer-events-none text-gray-500">
+				<SearchIcon class="w-3.5 h-3.5" />
+			</div>
 			<input
 				v-model="inputValue"
 				@keydown.enter="handleGoto"
@@ -84,9 +87,6 @@
 				title="Enter address (hex) or symbol"
 				autocomplete="off"
 			/>
-			<div class="absolute right-2 pointer-events-none text-gray-500">
-				<SearchIcon class="w-3.5 h-3.5" />
-			</div>
 
 			<!-- Suggestions Dropdown -->
 			<div v-if="showSuggestions && suggestions.length" class="absolute top-full left-0 w-full mt-1 bg-gray-800 border border-gray-700 rounded-md shadow-lg z-50 max-h-60 overflow-y-auto">

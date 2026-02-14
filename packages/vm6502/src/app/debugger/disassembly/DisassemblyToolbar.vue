@@ -74,7 +74,7 @@
 
 <script lang="ts" setup>
 import { Paperclip, Settings2 } from "lucide-vue-next";
-import AddressNavigator from "@/components/AddressNavigator.vue";
+import AddressNavigator from "@/app/debugger/AddressNavigator.vue";
 import { Button } from '@/components/ui/button';
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
