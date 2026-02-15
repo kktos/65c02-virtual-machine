@@ -261,8 +261,8 @@ export function resetCPU() {
 }
 
 function vblrun() {
-	video?.tick();
 	bus?.syncState?.();
+	video?.tick(bus);
 	if (isRunning) requestAnimationFrame(vblrun);
 }
 
