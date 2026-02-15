@@ -177,15 +177,22 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 	};
 
 	const syncToPc = () => {
-		isFollowingPc.value = !isFollowingPc.value;
-		if (isFollowingPc.value) disassemblyStartAddress.value = fullPcAddress.value;
+		if (isFollowingPc.value) {
+			isFollowingPc.value = false;
+		} else {
+			isFollowingPc.value = true;
+			const pcIsVisible = disassembly.value.some((line) => line.address === fullPcAddress.value);
+			if (!pcIsVisible) {
+				disassemblyStartAddress.value = fullPcAddress.value;
+			}
+		}
 	};
 
 	const { scrollContainer, visibleRowCount, handleScroll, findPreviousInstructionAddress } = useDisassemblyScroll(
 		vm,
 		disassembly,
 		disassemblyStartAddress,
-		isFollowingPc
+		ref(false)
 	);
 
 	// useless line - used as ref in template but not seen in VSCode

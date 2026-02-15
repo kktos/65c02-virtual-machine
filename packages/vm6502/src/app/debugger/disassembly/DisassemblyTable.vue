@@ -123,11 +123,11 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 		return null;
 	};
 
+	const pcOpcodes= new Set(['JMP', 'JSR', 'BCC', 'BCS', 'BEQ', 'BMI', 'BNE', 'BPL', 'BVC', 'BVS']);
+
 	const isOpcodeClickable = (line: DisassemblyLine) => {
 		const mnemonic = line.opcode.substring(0, 3);
-		const isPcAffecting = ['JMP', 'JSR', 'BCC', 'BCS', 'BEQ', 'BMI', 'BNE', 'BPL', 'BVC', 'BVS'].includes(mnemonic);
-		if (isPcAffecting) return true;
-
+		if (pcOpcodes.has(mnemonic)) return true;
 		const operand = line.opcode.split(' ')[1] || '';
 		return operand.includes('$'); // Simple check for an address operand
 	};
@@ -135,8 +135,7 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 	const getOpcodeTitle = (line: DisassemblyLine) => {
 		if (!isOpcodeClickable(line)) return '';
 		const mnemonic = line.opcode.substring(0, 3);
-		const isPcAffecting = ['JMP', 'JSR', 'BCC', 'BCS', 'BEQ', 'BMI', 'BNE', 'BPL', 'BVC', 'BVS'].includes(mnemonic);
-		if (isPcAffecting) return 'CTRL+Click to follow jump/branch';
+		if (pcOpcodes.has(mnemonic)) return 'CTRL+Click to follow jump/branch';
 		return 'CTRL+Click to view effective address in Memory Viewer';
 	};
 
