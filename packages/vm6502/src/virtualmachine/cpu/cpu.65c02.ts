@@ -43,8 +43,6 @@ let lastPerfTime = 0;
 let cyclesSinceLastPerf = 0;
 let lastRunTime = 0;
 let cycleAccumulator = 0;
-const lastVideoTickTime = 0;
-const VIDEO_INTERVAL_MS = 1000 / 60;
 
 // --- Trace State ---
 let traceEnabled = false;
@@ -297,12 +295,6 @@ function run() {
 		cyclesThisSlice -= cycles;
 		if (!isRunning) break;
 	}
-
-	// if (!isRunning || (video && now - lastVideoTickTime >= VIDEO_INTERVAL_MS)) {
-	// 	video?.tick();
-	// 	bus?.syncState?.();
-	// 	lastVideoTickTime = now;
-	// }
 
 	const executed = initialCycles - cyclesThisSlice;
 	cyclesSinceLastPerf += executed;
