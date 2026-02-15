@@ -51,7 +51,7 @@ export const apple2e: MachineConfig = {
 		{ label: "4 MHz", value: 4 },
 		{ label: "8 MHz", value: 8 },
 		{ label: "10 MHz", value: 10 },
-		{ label: "20 MHz", value: 40 },
+		{ label: "20 MHz", value: 20 },
 		{ label: "Max", value: 0 },
 	],
 };
