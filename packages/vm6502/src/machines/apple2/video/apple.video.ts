@@ -244,7 +244,14 @@ export class AppleVideo implements Video {
 			newBorderColor = borderIdx;
 		}
 
-		if (newBorderColor >= 0) this.buffer.fill(newBorderColor);
+		if (newBorderColor >= 0) {
+			const top = 12;
+			this.debugText.drawRect(0, top, this.targetWidth, 48, newBorderColor);
+			this.debugText.drawRect(0, this.targetHeight - 48, this.targetWidth, 48, newBorderColor);
+			this.debugText.drawRect(0, top, 40, this.targetHeight, newBorderColor);
+			this.debugText.drawRect(this.targetWidth - 40, top, 40, this.targetHeight, newBorderColor);
+			// this.buffer.fill(newBorderColor);
+		}
 
 		const stateByte2 = this.registers.getUint8(MACHINE_STATE_OFFSET2);
 		let isText = (stateByte2 & APPLE_TEXT_MASK) !== 0;
@@ -288,8 +295,9 @@ export class AppleVideo implements Video {
 			}
 		}
 
+		this.debugText.drawRect(0, 0, this.targetWidth, 11, 15);
 		const debugStr = `${isText ? "TEXT" : isHgr ? " HGR" : "  GR"} ${is80Col ? "80" : "40"} ${isMixed ? "MIXED" : " FULL"} ${isPage2 ? "P2" : "P1"} ${isDblRes ? "DBL" : ""}`;
-		this.debugText.drawCenteredString(5, debugStr, 15, 0);
+		this.debugText.drawCenteredString(2, debugStr, 0);
 		// if ((globalThis as any).DEBUG_VIDEO) this.handleDebugVideo();
 	}
 	/*
