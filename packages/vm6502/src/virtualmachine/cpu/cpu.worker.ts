@@ -67,6 +67,7 @@ async function init(machine: MachineConfig) {
 
 	initCPU(bus, registersView, video, memoryView, stackMetadataView);
 
+	bus.syncState?.();
 	console.log(`%cWorker:%c Initialized with "${machine.name}".`, COLORED_LOG, COLORDEFAULT_LOG);
 	self.postMessage({ type: "ready" });
 }
