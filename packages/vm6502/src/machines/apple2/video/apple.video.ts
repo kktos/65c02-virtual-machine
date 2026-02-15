@@ -41,6 +41,9 @@ interface AppleVideoOverrides {
 	customHeight?: number;
 	runTest?: string;
 	isMonochrome?: boolean;
+	wannaShowDebug?: boolean;
+	dbgTextFgColor?: number;
+	dbgTextBgColor?: number;
 }
 
 const baseurl = import.meta.url.match(/http:\/\/[^/]+/)?.[0];
@@ -75,17 +78,24 @@ export class AppleVideo implements Video {
 	private defaultWidth: number;
 	private defaultHeight: number;
 
-	private overrides: AppleVideoOverrides = { borderColor: -1, textFgColor: -1, textBgColor: -1 };
+	private overrides: AppleVideoOverrides = {
+		borderColor: -1,
+		textFgColor: -1,
+		textBgColor: -1,
+	};
 
 	private textRenderer: TextRenderer;
 	private lowGrRenderer: LowGrRenderer;
 	private hgrRenderer: HGRRenderer;
+
 	private debugText: DebugText;
+	private wannaShowDebug = false;
 
 	private tester: VideoTester | undefined;
 
-	private borderColorIdx: number;
-	private borderColorDbgIdx: number;
+	private borderOverrideColorIdx = 0;
+	private borderOverrideColorLatch = false;
+	private borderColorIdx = 2;
 
 	private renderText40!: (
 		startRow: number,
@@ -128,9 +138,6 @@ export class AppleVideo implements Video {
 		this.debugText = new DebugText(this.buffer, this.targetWidth, this.targetHeight);
 
 		this.updateRenderers();
-
-		this.borderColorIdx = -3;
-		this.borderColorDbgIdx = -1;
 	}
 
 	private initPalette() {
@@ -170,6 +177,18 @@ export class AppleVideo implements Video {
 	public setDebugOverrides(overrides: Dict) {
 		this.overrides = overrides as unknown as AppleVideoOverrides;
 
+		if (!this.borderOverrideColorLatch) {
+			if (this.borderOverrideColorIdx !== this.overrides.borderColor) {
+				this.borderOverrideColorIdx = this.overrides.borderColor;
+				this.borderOverrideColorLatch = true;
+			}
+		}
+
+		if (this.overrides.wannaShowDebug !== this.wannaShowDebug) {
+			this.wannaShowDebug = !!this.overrides.wannaShowDebug;
+			this.borderOverrideColorLatch = true;
+		}
+
 		let newWidth = this.defaultWidth;
 		let newHeight = this.defaultHeight;
 
@@ -208,44 +227,25 @@ export class AppleVideo implements Video {
 		this.textRenderer.tick();
 
 		const tbColor = this.registers.getUint8(REG_TBCOLOR_OFFSET);
+		const bgIdx = this.overrides.textBgColor >= 0 ? this.overrides.textBgColor : tbColor & 0x0f;
+		const fgIdx = this.overrides.textFgColor >= 0 ? this.overrides.textFgColor : tbColor >> 4;
 
-		let bgIdx = tbColor & 0x0f;
-		let fgIdx = (tbColor >> 4) & 0x0f;
-
-		if (this.overrides.textBgColor >= 0) bgIdx = this.overrides.textBgColor;
-		if (this.overrides.textFgColor >= 0) fgIdx = this.overrides.textFgColor;
-
-		const borderIdx = this.registers.getUint8(REG_BORDERCOLOR_OFFSET) & 0x0f;
-		const dbgColor = this.overrides.borderColor;
 		let newBorderColor = -1;
+		const borderIdx = this.registers.getUint8(REG_BORDERCOLOR_OFFSET) & 0x0f;
 
-		// 1. Check for Debug Override Change
-		if (dbgColor !== this.borderColorDbgIdx) {
-			this.borderColorDbgIdx = dbgColor;
-			if (dbgColor >= 0) newBorderColor = dbgColor;
-			else {
-				// Override removed. Revert to register if initialized.
-				if (this.borderColorIdx >= 0) newBorderColor = this.borderColorIdx;
-			}
+		if (this.borderColorIdx !== borderIdx) {
+			newBorderColor = borderIdx;
+			this.borderColorIdx = borderIdx;
 		}
 
-		// 2. Handle Register Logic (with delay)
-		if (this.borderColorIdx < 0) {
-			this.borderColorIdx++;
-			if (this.borderColorIdx === 0) {
-				// Initialization complete
-				this.borderColorIdx = borderIdx;
-				// Apply register color only if no debug override is active
-				if (this.borderColorDbgIdx < 0) newBorderColor = borderIdx;
-			}
-		} else if (borderIdx !== this.borderColorIdx) {
-			// Register changed by software -> Always wins
+		if (this.borderOverrideColorLatch) {
+			this.borderOverrideColorLatch = false;
+			newBorderColor = this.borderOverrideColorIdx;
 			this.borderColorIdx = borderIdx;
-			newBorderColor = borderIdx;
 		}
 
 		if (newBorderColor >= 0) {
-			const top = 12;
+			const top = this.overrides.wannaShowDebug ? 12 : 0;
 			this.debugText.drawRect(0, top, this.targetWidth, 48, newBorderColor);
 			this.debugText.drawRect(0, this.targetHeight - 48, this.targetWidth, 48, newBorderColor);
 			this.debugText.drawRect(0, top, 40, this.targetHeight, newBorderColor);
@@ -295,9 +295,12 @@ export class AppleVideo implements Video {
 			}
 		}
 
-		this.debugText.drawRect(0, 0, this.targetWidth, 11, 15);
-		const debugStr = `${isText ? "TEXT" : isHgr ? " HGR" : "  GR"} ${is80Col ? "80" : "40"} ${isMixed ? "MIXED" : " FULL"} ${isPage2 ? "P2" : "P1"} ${isDblRes ? "DBL" : ""}`;
-		this.debugText.drawCenteredString(2, debugStr, 0);
+		if (this.overrides.wannaShowDebug) {
+			this.debugText.drawRect(0, 0, this.targetWidth, 11, this.overrides.dbgTextBgColor ?? 15);
+			const debugStr = `${isText ? "TEXT" : isHgr ? " HGR" : "  GR"} ${is80Col ? "80" : "40"} ${isMixed ? "MIXED" : " FULL"} ${isPage2 ? "P2" : "P1"} ${isDblRes ? "DBL" : ""}`;
+			this.debugText.drawCenteredString(2, debugStr, this.overrides.dbgTextFgColor ?? 0);
+		}
+
 		// if ((globalThis as any).DEBUG_VIDEO) this.handleDebugVideo();
 	}
 	/*
