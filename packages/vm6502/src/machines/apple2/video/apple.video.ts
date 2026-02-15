@@ -278,27 +278,30 @@ export class AppleVideo implements Video {
 			this.overrides.mouseChars === "ON" ||
 			(this.overrides.mouseChars === "OFF" ? false : (stateByte2 & APPLE_ALTCHAR_MASK) !== 0);
 
+		if (this.overrides.wannaShowDebug) {
+			this.debugText.drawRect(0, 0, this.targetWidth, 11, this.overrides.dbgTextBgColor ?? 15);
+			const debugStr = `${isText ? "TEXT" : isHgr ? " HGR" : "  GR"} ${is80Col ? "80" : "40"} ${isMixed ? "MIXED" : " FULL"} ${isPage2 ? "P2" : "P1"} ${isDblRes ? "DBL" : ""}`;
+			this.debugText.drawCenteredString(2, debugStr, this.overrides.dbgTextFgColor ?? 0);
+		}
+
 		if (isText) {
 			if (is80Col) this.renderText80(0, bgIdx, fgIdx, isAltCharset);
 			else this.renderText40(0, isPage2, bgIdx, fgIdx, isAltCharset);
-		} else if (isHgr) {
+			return;
+		}
+
+		if (isHgr) {
 			this.hgrRenderer.render(isMixed, isPage2, isDblRes && is80Col, this.overrides.isMonochrome, video7Register);
 			if (isMixed) {
 				if (is80Col) this.renderText80(20, bgIdx, fgIdx, isAltCharset);
 				else this.renderText40(20, isPage2, bgIdx, fgIdx, isAltCharset);
 			}
-		} else {
-			this.lowGrRenderer.render(isMixed, isPage2, isDblRes);
-			if (isMixed) {
-				if (is80Col) this.renderText80(20, bgIdx, fgIdx, isAltCharset);
-				else this.renderText40(20, isPage2, bgIdx, fgIdx, isAltCharset);
-			}
+			return;
 		}
-
-		if (this.overrides.wannaShowDebug) {
-			this.debugText.drawRect(0, 0, this.targetWidth, 11, this.overrides.dbgTextBgColor ?? 15);
-			const debugStr = `${isText ? "TEXT" : isHgr ? " HGR" : "  GR"} ${is80Col ? "80" : "40"} ${isMixed ? "MIXED" : " FULL"} ${isPage2 ? "P2" : "P1"} ${isDblRes ? "DBL" : ""}`;
-			this.debugText.drawCenteredString(2, debugStr, this.overrides.dbgTextFgColor ?? 0);
+		this.lowGrRenderer.render(isMixed, isPage2, isDblRes);
+		if (isMixed) {
+			if (is80Col) this.renderText80(20, bgIdx, fgIdx, isAltCharset);
+			else this.renderText40(20, isPage2, bgIdx, fgIdx, isAltCharset);
 		}
 
 		// if ((globalThis as any).DEBUG_VIDEO) this.handleDebugVideo();
