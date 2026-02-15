@@ -220,7 +220,7 @@ import VideoControl from "./machine/VideoControl.vue";
 				case 'isRunning':
 					// Update the local isRunning ref based on the worker's state
 					isRunning.value = event.data.isRunning;
-					if (!isRunning.value) targetVm.refreshVideo();
+					// if (!isRunning.value) targetVm.refreshVideo();
 
 					break;
 				case 'break': {
