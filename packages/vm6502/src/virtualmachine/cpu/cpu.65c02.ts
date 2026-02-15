@@ -43,7 +43,7 @@ let lastPerfTime = 0;
 let cyclesSinceLastPerf = 0;
 let lastRunTime = 0;
 let cycleAccumulator = 0;
-let lastVideoTickTime = 0;
+const lastVideoTickTime = 0;
 const VIDEO_INTERVAL_MS = 1000 / 60;
 
 // --- Trace State ---
@@ -130,6 +130,7 @@ export function setRunning(running: boolean) {
 		lastRunTime = performance.now();
 		cycleAccumulator = 0;
 		run();
+		vblrun();
 	}
 }
 
@@ -261,6 +262,12 @@ export function resetCPU() {
 	if (stepBPAddress !== null) cleanStepBP();
 }
 
+function vblrun() {
+	video?.tick();
+	bus?.syncState?.();
+	if (isRunning) requestAnimationFrame(vblrun);
+}
+
 // --- Main Execution Loop ---
 function run() {
 	if (!isRunning || !registersView || !bus) return;
@@ -291,11 +298,11 @@ function run() {
 		if (!isRunning) break;
 	}
 
-	if (!isRunning || (video && now - lastVideoTickTime >= VIDEO_INTERVAL_MS)) {
-		video?.tick();
-		bus?.syncState?.();
-		lastVideoTickTime = now;
-	}
+	// if (!isRunning || (video && now - lastVideoTickTime >= VIDEO_INTERVAL_MS)) {
+	// 	video?.tick();
+	// 	bus?.syncState?.();
+	// 	lastVideoTickTime = now;
+	// }
 
 	const executed = initialCycles - cyclesThisSlice;
 	cyclesSinceLastPerf += executed;
@@ -442,8 +449,6 @@ function executeInstruction(): number {
 	if (isRunning && breakpointMap[pc]! & BP_PC) {
 		const bank = bus.getBank?.(pc) ?? 0;
 		const physicalPC = (bank << 16) | pc;
-
-		console.log("BREAKPOINT", physicalPC.toString(16).padStart(4, "0").toUpperCase());
 
 		// Potential hit, do detailed check
 		// biome-ignore lint/style/noNonNullAssertion: <expected>
