@@ -56,7 +56,7 @@
 					<DebuggerControls :isRunning="isRunning" />
 				</div>
 
-				<div class="grid grid-cols-[300px_1fr] gap-4 min-h-0">
+				<div class="grid grid-cols-[300px_300px_1fr] gap-4 min-h-0">
 
 					<!-- Registers and Flags stacked vertically in the first column -->
 					<div class="grid grid-col gap-2">
@@ -64,12 +64,11 @@
 						<StatusFlagsView :registers="emulatorState.registers" />
 					</div>
 
+					<StackView :stackData="vm.sharedMemory" :registers="emulatorState.registers" />
+
 					<!-- Stack View takes the remaining space -->
-					<Tabs default-value="stack" class="h-full flex flex-col min-h-0">
+					<Tabs default-value="breakpoints" class="h-full flex flex-col min-h-0">
 						<TabsList class="bg-gray-900/80 p-1 shrink-0">
-							<TabsTrigger value="stack" class="data-[state=active]:bg-gray-700 data-[state=active]:text-cyan-300 text-gray-400">
-								Stack
-							</TabsTrigger>
 							<TabsTrigger value="stack_trace" class="data-[state=active]:bg-gray-700 data-[state=active]:text-cyan-300 text-gray-400">
 								Stack Trace
 							</TabsTrigger>
@@ -80,14 +79,11 @@
 								Machine State
 							</TabsTrigger>
 						</TabsList>
-						<TabsContent value="stack" class="flex-1 min-h-0">
-							<StackView :stackData="vm.sharedMemory" :registers="emulatorState.registers" />
+						<TabsContent value="breakpoints" class="flex-1 min-h-0">
+							<BreakpointsList />
 						</TabsContent>
 						<TabsContent value="stack_trace" class="flex-1 min-h-0">
 							<TraceView />
-						</TabsContent>
-						<TabsContent value="breakpoints" class="flex-1 min-h-0">
-							<BreakpointsList />
 						</TabsContent>
 						<TabsContent value="state" class="flex-1 min-h-0">
 							<MachineStateView />
