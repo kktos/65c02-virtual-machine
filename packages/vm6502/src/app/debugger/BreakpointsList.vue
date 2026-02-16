@@ -14,7 +14,7 @@
 						{{ bp.type }}
 					</span>
 				</span>
-				<div class="flex-1 flex justify-between items-center pl-3 pr-2 py-1">
+				<div class="flex-1 flex justify-between items-center pl-3 pr-2">
 					<div class="flex items-center space-x-3">
 					<input
 						type="checkbox"
