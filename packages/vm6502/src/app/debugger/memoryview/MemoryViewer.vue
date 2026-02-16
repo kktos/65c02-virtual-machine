@@ -101,7 +101,7 @@
 								@focus="handleHexFocus((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1), $event)"
 								@blur="handleBlur"
 								maxlength="2"
-								:class="['w-full text-center focus:bg-gray-600 focus:outline-none focus:ring-1 focus:ring-cyan-500 rounded-none tabular-nums text-xs', isHighlighted((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1)) ? 'bg-yellow-600/50 text-white font-bold' : 'bg-transparent', getBreakpointClass((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1))]"
+								:class="['w-full text-center focus:bg-gray-600 focus:outline-none focus:ring-1 focus:ring-cyan-500 rounded-none tabular-nums text-xs', isHighlighted((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1)) ? 'bg-yellow-600/50 text-white font-bold' : (isContextMenuTarget((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1)) ? 'bg-gray-600 ring-1 ring-cyan-500' : 'bg-transparent'), getBreakpointClass((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1))]"
 							/>
 						</td>
 
@@ -125,20 +125,28 @@
 			</table>
 		</div>
 
-		<div v-if="contextMenu.isOpen" class="fixed z-50 w-48 rounded-md border border-gray-700 bg-gray-800 p-1 shadow-md text-gray-200 text-xs" :style="{ top: contextMenu.y + 'px', left: contextMenu.x + 'px' }" @click.stop>
-			<div class="px-2 py-1.5 text-xs font-semibold text-gray-400 border-b border-gray-700 mb-1">
-				Address: {{ formatAddress(contextMenu.address) }}
-			</div>
-			<button @click="addBp('read')" class="w-full text-left px-2 py-1.5 hover:bg-gray-700 rounded flex items-center">
-				Break on Read
-			</button>
-			<button @click="addBp('write')" class="w-full text-left px-2 py-1.5 hover:bg-gray-700 rounded flex items-center">
-				Break on Write
-			</button>
-			<button @click="addBp('access')" class="w-full text-left px-2 py-1.5 hover:bg-gray-700 rounded flex items-center">
-				Break on Access
-			</button>
-		</div>
+		<Popover :open="contextMenu.isOpen" @update:open="(val) => contextMenu.isOpen = val" :key="`${contextMenu.x}-${contextMenu.y}`">
+			<PopoverTrigger as-child>
+				<div class="fixed w-0 h-0 invisible" :style="{ top: contextMenu.y + 'px', left: contextMenu.x + 'px' }"></div>
+			</PopoverTrigger>
+			<PopoverContent class="w-48 p-1 bg-gray-800 border-gray-700 text-gray-200 text-xs" align="start" side="bottom" :side-offset="10">
+				<div class="px-2 py-1.5 text-xs font-semibold text-gray-400 border-b border-gray-700 mb-1">
+					Address: {{ formatAddress(contextMenu.address) }}
+				</div>
+				<button @click="disassembleHere" class="w-full text-left px-2 py-1.5 hover:bg-gray-700 rounded flex items-center">
+					Disassemble Here
+				</button>
+				<button @click="addBp('read')" class="w-full text-left px-2 py-1.5 hover:bg-gray-700 rounded flex items-center">
+					Break on Read
+				</button>
+				<button @click="addBp('write')" class="w-full text-left px-2 py-1.5 hover:bg-gray-700 rounded flex items-center">
+					Break on Write
+				</button>
+				<button @click="addBp('access')" class="w-full text-left px-2 py-1.5 hover:bg-gray-700 rounded flex items-center">
+					Break on Access
+				</button>
+			</PopoverContent>
+		</Popover>
 	</div>
 </template>
 
@@ -153,6 +161,7 @@ import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useBreakpoints } from "@/composables/useBreakpoints";
 import { useDebuggerNav } from "@/composables/useDebuggerNav";
+import { useDisassembly } from "@/composables/useDisassembly";
 import type { DebugGroup } from "@/types/machine.interface";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import BinaryLoader from "./BinaryLoader.vue";
@@ -183,7 +192,8 @@ import BinaryLoader from "./BinaryLoader.vue";
 	const ROW_HEIGHT_ESTIMATE = 22; // Estimated height of a row in pixels
 	let resizeObserver: ResizeObserver | null = null;
 
-	const { memoryViewAddress } = useDebuggerNav();
+	const { memoryViewAddress, setActiveTab } = useDebuggerNav();
+	const { requestJump } = useDisassembly();
 	watch(memoryViewAddress, (newAddress) => {
 		if ((props.listenToNav ?? true) && newAddress !== null) startAddress.value = newAddress;
 	});
@@ -310,6 +320,10 @@ import BinaryLoader from "./BinaryLoader.vue";
 		address: 0
 	});
 
+	const isContextMenuTarget = (index: number) => {
+		return contextMenu.value.isOpen && contextMenu.value.address === (startAddress.value + index);
+	};
+
 	const handleContextMenu = (index: number, event: MouseEvent) => {
 		contextMenu.value = {
 			isOpen: true,
@@ -321,6 +335,12 @@ import BinaryLoader from "./BinaryLoader.vue";
 
 	const closeContextMenu = () => {
 		contextMenu.value.isOpen = false;
+	};
+
+	const disassembleHere = () => {
+		requestJump(contextMenu.value.address);
+		setActiveTab('disassembly');
+		closeContextMenu();
 	};
 
 	const { addBreakpoint, breakpoints } = useBreakpoints();
@@ -405,11 +425,9 @@ import BinaryLoader from "./BinaryLoader.vue";
 		subscribeToUiUpdates?.(() => {
 			tick.value++;
 		});
-
-		document.addEventListener('click', closeContextMenu);
 	});
 
-	onUnmounted(() => { resizeObserver?.disconnect(); document.removeEventListener('click', closeContextMenu); });
+	onUnmounted(() => { resizeObserver?.disconnect(); });
 
 	const formatAddress = (addr: number) => {
 		const bank = ((addr >> 16) & 0xFF).toString(16).toUpperCase().padStart(2, '0');
