@@ -23,6 +23,72 @@ export function useSymbols() {
 		buildNamespacesFromSymbols(symbols);
 	};
 
+	const addSymbol = (address: number, label: string, namespace = "user") => {
+		if (!vm?.value?.machineConfig) return;
+		if (!vm.value.machineConfig.symbols) vm.value.machineConfig.symbols = {};
+
+		const symbols = vm.value.machineConfig.symbols;
+		if (!symbols[address]) symbols[address] = {};
+
+		symbols[address][namespace] = { label, scope: "main" };
+
+		if (!activeNamespaces.value.has(namespace)) {
+			activeNamespaces.value.set(namespace, true);
+		}
+	};
+
+	const removeSymbol = (address: number, namespace = "user") => {
+		if (!vm?.value?.machineConfig?.symbols) return;
+		const symbols = vm.value.machineConfig.symbols;
+		if (symbols[address]?.[namespace]) {
+			delete symbols[address][namespace];
+		}
+	};
+
+	const getUserSymbols = (): SymbolDict => {
+		const allSymbols = vm?.value?.machineConfig?.symbols;
+		if (!allSymbols) return {};
+
+		const userSymbols: SymbolDict = {};
+
+		for (const [addrStr, namespaces] of Object.entries(allSymbols)) {
+			if (namespaces.user) {
+				const addr = Number(addrStr);
+				userSymbols[addr] = { user: namespaces.user };
+			}
+		}
+		return userSymbols;
+	};
+
+	const clearUserSymbols = () => {
+		const allSymbols = vm?.value?.machineConfig?.symbols;
+		if (!allSymbols) return;
+
+		for (const namespaces of Object.values(allSymbols)) {
+			if (namespaces.user) {
+				delete namespaces.user;
+			}
+		}
+	};
+
+	const generateSymFileContent = (symbols: SymbolDict, namespace: string): string => {
+		if (!symbols) return "";
+		let content = `'${namespace}':\n`;
+		const sortedAddresses = Object.keys(symbols)
+			.map(Number)
+			.sort((a, b) => a - b);
+
+		for (const address of sortedAddresses) {
+			const nsData = symbols[address];
+			if (nsData && nsData[namespace]) {
+				const label = nsData[namespace].label;
+				const addressHex = address.toString(16).toUpperCase().padStart(4, "0");
+				content += `${label}: number = $${addressHex}\n`;
+			}
+		}
+		return content;
+	};
+
 	const buildNamespacesFromSymbols = (symbols: SymbolDict) => {
 		for (const namespaces of Object.values(symbols)) {
 			Object.keys(namespaces).forEach((ns) => {
@@ -230,6 +296,11 @@ export function useSymbols() {
 		getNamespaceList,
 		toggleNamespace,
 		addSymbols,
+		addSymbol,
+		removeSymbol,
+		getUserSymbols,
+		clearUserSymbols,
+		generateSymFileContent,
 		buildNamespacesFromSymbols,
 		searchSymbols,
 	};

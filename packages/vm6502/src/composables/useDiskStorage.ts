@@ -1,3 +1,5 @@
+import type { SymbolDict } from "@/types/machine.interface";
+
 export type DiskInfo = {
 	key: IDBValidKey;
 	name: string;
@@ -30,7 +32,7 @@ export function useDiskStorage() {
 		return new Promise<void>((resolve, reject) => {
 			const transaction = db.transaction(STORE_NAME, "readwrite");
 			const store = transaction.objectStore(STORE_NAME);
-			const request = store.put({ type: "physical", name, path, size: data.byteLength, data }, key);
+			const request = store.put({ type: "physical", name, path, size: data.byteLength, data, symbols: {} }, key);
 			request.onsuccess = () => resolve();
 			request.onerror = () => reject(request.error);
 		});
@@ -41,15 +43,15 @@ export function useDiskStorage() {
 		return new Promise<void>((resolve, reject) => {
 			const transaction = db.transaction(STORE_NAME, "readwrite");
 			const store = transaction.objectStore(STORE_NAME);
-			const request = store.put({ type: "url", name, path, size: 0 }, key);
+			const request = store.put({ type: "url", name, path, size: 0, symbols: {} }, key);
 			request.onsuccess = () => resolve();
 			request.onerror = () => reject(request.error);
 		});
 	};
 
 	type StoredDisk =
-		| { name: string; path: string; size: number; type: "physical"; data: ArrayBuffer }
-		| { name: string; path: string; size: number; type: "url" };
+		| { name: string; path: string; size: number; type: "physical"; data: ArrayBuffer; symbols?: SymbolDict }
+		| { name: string; path: string; size: number; type: "url"; symbols?: SymbolDict };
 
 	const loadDisk = async (key: IDBValidKey): Promise<StoredDisk | undefined> => {
 		const db = await getDb();
@@ -57,7 +59,18 @@ export function useDiskStorage() {
 			const transaction = db.transaction(STORE_NAME, "readonly");
 			const store = transaction.objectStore(STORE_NAME);
 			const request = store.get(key);
-			request.onsuccess = () => resolve(request.result as StoredDisk);
+			request.onsuccess = () => {
+				const result = request.result;
+				if (result) {
+					// data migration for old records
+					if (!result.type) result.type = "physical";
+					if (!result.path) {
+						if (result.type === "url") result.path = result.url;
+						else result.path = result.filepath || result.name;
+					}
+				}
+				resolve(result as StoredDisk);
+			};
 			request.onerror = () => reject(request.error);
 		});
 	};
@@ -125,5 +138,26 @@ export function useDiskStorage() {
 		});
 	};
 
-	return { saveDisk, saveUrlDisk, loadDisk, getAllDisks, deleteDisk, renameDisk };
+	const updateDiskSymbols = async (key: IDBValidKey, symbols: SymbolDict) => {
+		const db = await getDb();
+		return new Promise<void>((resolve, reject) => {
+			const transaction = db.transaction(STORE_NAME, "readwrite");
+			const store = transaction.objectStore(STORE_NAME);
+			const request = store.get(key);
+			request.onsuccess = () => {
+				const data = request.result;
+				if (data) {
+					data.symbols = JSON.parse(JSON.stringify(symbols));
+					const updateRequest = store.put(data, key);
+					updateRequest.onsuccess = () => resolve();
+					updateRequest.onerror = () => reject(updateRequest.error);
+				} else {
+					reject(new Error("Disk not found for updating symbols"));
+				}
+			};
+			request.onerror = () => reject(request.error);
+		});
+	};
+
+	return { saveDisk, saveUrlDisk, loadDisk, getAllDisks, deleteDisk, renameDisk, updateDiskSymbols };
 }

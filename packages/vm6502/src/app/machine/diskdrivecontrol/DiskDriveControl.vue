@@ -50,6 +50,9 @@
 							<button v-if="editingId !== disk.key" @click.stop="startRename(disk)" class="p-1 mr-1 text-gray-500 hover:bg-gray-700 hover:text-cyan-400 rounded transition-all opacity-0 group-hover:opacity-100" title="Rename">
 								<Pencil class="h-4 w-4" />
 							</button>
+							<button v-if="editingId !== disk.key" @click.stop="exportSymbols(disk)" class="p-1 mr-1 text-gray-500 hover:bg-gray-700 hover:text-cyan-400 rounded transition-all opacity-0 group-hover:opacity-100" title="Export Symbols">
+								<Download class="h-4 w-4" />
+							</button>
 							<button @click="handleLoadFromLibrary(disk.key)" class="p-1 mr-2 text-green-400 hover:bg-gray-700 hover:text-green-300 rounded transition-colors" title="Load">
 								<CirclePlay class="h-5 w-5"/>
 							</button>
@@ -144,7 +147,8 @@
 </template>
 
 <script lang="ts" setup>
-import { CirclePlay, FileText, Link, Pencil, Save, Upload } from "lucide-vue-next";
+import { useDebounceFn } from "@vueuse/core";
+import { CirclePlay, Download, FileText, Link, Pencil, Save, Upload } from "lucide-vue-next";
 import { computed, inject, type Ref, ref, watch } from 'vue';
 
 import {
@@ -164,11 +168,11 @@ const ACTIVE_DISK_URL_KEY = "vm6502_active_disk_url";
 
 const vm = inject<Ref<VirtualMachine>>('vm');
 
-const { parseSymbolsFromText, addSymbols } = useSymbols();
+const { parseSymbolsFromText, addSymbols, getUserSymbols, clearUserSymbols, generateSymFileContent } = useSymbols();
 const diskConfig = computed(() => vm?.value?.machineConfig?.disk);
 const fileName = ref('');
 const fileSize = ref(0);
-const { saveDisk, saveUrlDisk, loadDisk, getAllDisks, deleteDisk, renameDisk } = useDiskStorage();
+const { saveDisk, saveUrlDisk, loadDisk, getAllDisks, deleteDisk, renameDisk, updateDiskSymbols } = useDiskStorage();
 const savedDisks = ref<DiskInfo[]>([]);
 const isLibraryOpen = ref(false);
 const isLogSheetOpen = ref(false);
@@ -177,6 +181,23 @@ const urlInput = ref('');
 const isLoading = ref(false);
 const urlError = ref<string | null>(null);
 const loggingEnabled = ref(false);
+
+const activeDiskKey = ref<IDBValidKey | null>(null);
+
+const saveSymbolsToDb = useDebounceFn(async () => {
+	if (activeDiskKey.value && vm?.value) {
+		const userSymbols = getUserSymbols();
+		await updateDiskSymbols(activeDiskKey.value, userSymbols);
+	}
+}, 1000);
+
+watch(() => vm?.value?.machineConfig.symbols, () => {
+
+	console.log("saveSymbolsToDb");
+
+	saveSymbolsToDb();
+}, { deep: true });
+
 
 const editingId = ref<IDBValidKey | null>(null);
 const editingName = ref('');
@@ -218,6 +239,15 @@ const formatSize = (bytes: number) => {
 	if (bytes < 1024) return `${bytes} B`;
 	if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
 	return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+};
+
+const setActiveDisk = async (key: IDBValidKey) => {
+	activeDiskKey.value = key;
+	clearUserSymbols();
+	const diskData = await loadDisk(key);
+	if (diskData?.symbols) {
+		addSymbols(diskData.symbols);
+	}
 };
 
 const refreshLibrary = async () => {
@@ -279,6 +309,7 @@ const handleFileSelect = async (event: Event) => {
 		// Load to VM
 		await loadDiskToVM(file.name, buffer);
 		localStorage.setItem(ACTIVE_DISK_KEY, file.name);
+		await setActiveDisk(file.name);
 		localStorage.removeItem(ACTIVE_DISK_URL_KEY);
 
 		// Reset input
@@ -304,6 +335,7 @@ const handleUrlLoad = async () => {
 		await refreshLibrary();
 
 		localStorage.setItem(ACTIVE_DISK_URL_KEY, url);
+		await setActiveDisk(url);
 		localStorage.removeItem(ACTIVE_DISK_KEY);
 		urlInput.value = '';
 		isLibraryOpen.value = false;
@@ -318,6 +350,11 @@ const handleUrlLoad = async () => {
 const handleLoadFromLibrary = async (key: IDBValidKey) => {
 	const disk = await loadDisk(key);
 	if (disk) {
+		clearUserSymbols();
+		if (disk.symbols) {
+			addSymbols(disk.symbols);
+		}
+
 		if (disk.type === 'url') {
 			isLoading.value = true;
 			try {
@@ -325,6 +362,7 @@ const handleLoadFromLibrary = async (key: IDBValidKey) => {
 				localStorage.setItem(ACTIVE_DISK_URL_KEY, disk.path);
 				localStorage.removeItem(ACTIVE_DISK_KEY);
 				isLibraryOpen.value = false;
+				await setActiveDisk(key);
 			} catch (e) {
 				console.error(e);
 				alert('Failed to load from URL. Check console for details.');
@@ -335,6 +373,7 @@ const handleLoadFromLibrary = async (key: IDBValidKey) => {
 			await loadDiskToVM(disk.name, disk.data);
 			localStorage.setItem(ACTIVE_DISK_KEY, String(key));
 			localStorage.removeItem(ACTIVE_DISK_URL_KEY);
+			await setActiveDisk(key);
 			isLibraryOpen.value = false;
 		}
 	}
@@ -345,6 +384,26 @@ const handleDelete = async (key: IDBValidKey) => {
 		await deleteDisk(key);
 		await refreshLibrary();
 	}
+};
+
+const exportSymbols = async (disk: DiskInfo) => {
+	const fullDisk = await loadDisk(disk.key);
+	if (!fullDisk?.symbols || Object.keys(fullDisk.symbols).length === 0) {
+		alert("No user symbols found for this disk.");
+		return;
+	}
+
+	const content = generateSymFileContent(fullDisk.symbols, 'user');
+	const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+	const url = URL.createObjectURL(blob);
+	const a = document.createElement('a');
+	a.href = url;
+	const name = disk.name.split('.').slice(0, -1).join('.') || disk.name;
+	a.download = `${name}.sym`;
+	document.body.appendChild(a);
+	a.click();
+	document.body.removeChild(a);
+	URL.revokeObjectURL(url);
 };
 
 const openLogs = () => {
@@ -364,6 +423,7 @@ watch(
 				isLoading.value = true;
 				try {
 					await loadFromUrl(lastUrl);
+					await setActiveDisk(lastUrl);
 				} catch (e) {
 					console.error("Failed to load last URL:", e);
 				} finally {
@@ -374,13 +434,17 @@ watch(
 				const lastDiskName = localStorage.getItem(ACTIVE_DISK_KEY);
 				if (lastDiskName) {
 					const saved = await loadDisk(lastDiskName);
-					if (saved?.type === "physical") await loadDiskToVM(saved.name, saved.data);
+					if (saved?.type === "physical") {
+						await loadDiskToVM(saved.name, saved.data);
+						await setActiveDisk(lastDiskName);
+					}
 				} else {
 					// Fallback to legacy slot 5 if exists
 					const legacy = await loadDisk(5);
 					if (legacy?.type === "physical") {
 						await loadDiskToVM(legacy.name, legacy.data);
 						// Migrate to new system
+						await deleteDisk(5);
 						await saveDisk(legacy.name, legacy.name, legacy.name, legacy.data);
 						localStorage.setItem(ACTIVE_DISK_KEY, legacy.name);
 					}
