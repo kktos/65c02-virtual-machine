@@ -247,6 +247,7 @@ watch(() => vm?.value, async (newVm) => {
 watch(debugOverrides, (newVal) => {
 	if (props.updateVmGlobally) {
 		vm?.value?.setDebugOverrides(props.category, newVal);
+		vm?.value?.refreshVideo();
 		saveOptions();
 	}
 }, { deep: true });
