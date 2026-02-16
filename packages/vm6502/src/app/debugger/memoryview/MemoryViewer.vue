@@ -173,8 +173,10 @@ import BinaryLoader from "./BinaryLoader.vue";
 		(e: 'update:address', address: number): void;
 	}>();
 
-	const startAddress = ref(props.initialAddress ?? 0x0000);
+	const banks = vm?.value.machineConfig.memory.banks || 1;
+	const totalMemory = banks * 0x10000;
 	const BYTES_PER_LINE = 16;
+	const startAddress = ref(props.initialAddress ?? 0x0000);
 
 	const scrollContainer = ref<HTMLElement | null>(null);
 	const containerHeight = ref(0);
@@ -197,7 +199,7 @@ import BinaryLoader from "./BinaryLoader.vue";
 
 	const highBitEnabled = ref(false);
 
-	const handleGoto = (addr: number) => (startAddress.value = addr);
+	const handleGoto = (addr: number) => { if(addr<totalMemory ) startAddress.value = addr; }
 
 	// --- Search Functionality ---
 	const isSearchOpen = ref(false);
@@ -244,8 +246,6 @@ import BinaryLoader from "./BinaryLoader.vue";
 
 		const bankBase = startAddress.value & 0xFF0000;
 		const currentOffset = startAddress.value & 0xFFFF;
-		const banks = vm.value.machineConfig.memory.banks || 1;
-		const totalMemory = banks * 0x10000;
 		const maxSearch = searchAllBanks.value ? totalMemory : 0x10000;
 
 		let foundAddr = -1;

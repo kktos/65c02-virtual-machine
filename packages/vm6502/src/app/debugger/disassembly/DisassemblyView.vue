@@ -74,6 +74,8 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 	const { settings } = useSettings();
 	const availableScopes: Ref<string[]>= ref([]);
 	const getRandomColor = () => `#${Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0')}`;
+	const banks = vm?.value.machineConfig.memory.banks || 1;
+	const totalMemory = banks * 0x10000;
 
 	watch(() => vm?.value, async (newVm) => {
 		if (newVm) {
@@ -172,6 +174,7 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 	const isFollowingPc = ref(true);
 
 	const onGotoAddress = (addr: number) => {
+		if(addr>=totalMemory) return;
 		disassemblyStartAddress.value = addr;
 		isFollowingPc.value = false;
 	};
