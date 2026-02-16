@@ -88,16 +88,19 @@
 					placeholder="Label name..."
 					ref="labelInputRef"
 				/>
-				<button @click="saveLabel" class="px-2 py-1 bg-cyan-600 hover:bg-cyan-500 text-white rounded text-xs">Save</button>
-			</div>
-			<div class="mt-2 flex justify-between" v-if="contextMenu.hasExisting">
-				<button @click="deleteLabel" class="text-[10px] text-red-400 hover:text-red-300">Delete Label</button>
+				<button @click="saveLabel" class="px-2 py-1 bg-cyan-600 hover:bg-cyan-500 text-white rounded text-xs">
+					<Save class="h-4 w-4"/>
+				</button>
+				<button @click="deleteLabel" v-if="contextMenu.hasExisting" class="text-[10px] text-red-400 hover:text-red-300">
+					<Trash2 class="h-4 w-4"/>
+				</button>
 			</div>
 		</PopoverContent>
 	</Popover>
 </template>
 
 <script lang="ts" setup>
+import { Save, Trash2 } from "lucide-vue-next";
 import { inject, nextTick, type Ref, ref } from "vue";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useSettings } from "@/composables/useSettings";
