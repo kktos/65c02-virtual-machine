@@ -1,6 +1,10 @@
-export type DiskInfo =
-	| { key: IDBValidKey; name: string; size: number; type: "physical" }
-	| { key: IDBValidKey; name: string; size: number; type: "url"; url: string };
+export type DiskInfo = {
+	key: IDBValidKey;
+	name: string;
+	path: string;
+	size: number;
+	type: "physical" | "url";
+};
 
 export function useDiskStorage() {
 	const DB_NAME = "vm6502_storage";
@@ -21,31 +25,31 @@ export function useDiskStorage() {
 		});
 	};
 
-	const saveDisk = async (key: IDBValidKey, name: string, data: ArrayBuffer) => {
+	const saveDisk = async (key: IDBValidKey, name: string, path: string, data: ArrayBuffer) => {
 		const db = await getDb();
 		return new Promise<void>((resolve, reject) => {
 			const transaction = db.transaction(STORE_NAME, "readwrite");
 			const store = transaction.objectStore(STORE_NAME);
-			const request = store.put({ type: "physical", name, size: data.byteLength, data }, key);
+			const request = store.put({ type: "physical", name, path, size: data.byteLength, data }, key);
 			request.onsuccess = () => resolve();
 			request.onerror = () => reject(request.error);
 		});
 	};
 
-	const saveUrlDisk = async (key: IDBValidKey, name: string, url: string) => {
+	const saveUrlDisk = async (key: IDBValidKey, name: string, path: string) => {
 		const db = await getDb();
 		return new Promise<void>((resolve, reject) => {
 			const transaction = db.transaction(STORE_NAME, "readwrite");
 			const store = transaction.objectStore(STORE_NAME);
-			const request = store.put({ type: "url", name, url, size: 0 }, key);
+			const request = store.put({ type: "url", name, path, size: 0 }, key);
 			request.onsuccess = () => resolve();
 			request.onerror = () => reject(request.error);
 		});
 	};
 
 	type StoredDisk =
-		| { name: string; size: number; data: ArrayBuffer; type: "physical" }
-		| { name: string; size: number; url: string; type: "url" };
+		| { name: string; path: string; size: number; type: "physical"; data: ArrayBuffer }
+		| { name: string; path: string; size: number; type: "url" };
 
 	const loadDisk = async (key: IDBValidKey): Promise<StoredDisk | undefined> => {
 		const db = await getDb();
@@ -53,14 +57,7 @@ export function useDiskStorage() {
 			const transaction = db.transaction(STORE_NAME, "readonly");
 			const store = transaction.objectStore(STORE_NAME);
 			const request = store.get(key);
-			request.onsuccess = () => {
-				const result = request.result;
-				if (result && !result.type) {
-					// backward compatibility for old physical disks
-					result.type = "physical";
-				}
-				resolve(result as StoredDisk);
-			};
+			request.onsuccess = () => resolve(request.result as StoredDisk);
 			request.onerror = () => reject(request.error);
 		});
 	};
@@ -78,11 +75,15 @@ export function useDiskStorage() {
 				if (cursor) {
 					const value = cursor.value;
 					const base = { key: cursor.key, name: value.name, size: value.size };
-					if (value.type === "url") {
-						results.push({ ...base, type: "url", url: value.url });
-					} else {
-						results.push({ ...base, type: "physical" });
+					let path = value.path;
+					const type = value.type || "physical";
+
+					if (!path) {
+						if (type === "url") path = value.url;
+						else path = value.filepath || value.name;
 					}
+
+					results.push({ ...base, type, path });
 					cursor.continue();
 				} else {
 					resolve(results);
@@ -103,5 +104,26 @@ export function useDiskStorage() {
 		});
 	};
 
-	return { saveDisk, saveUrlDisk, loadDisk, getAllDisks, deleteDisk };
+	const renameDisk = async (key: IDBValidKey, newName: string) => {
+		const db = await getDb();
+		return new Promise<void>((resolve, reject) => {
+			const transaction = db.transaction(STORE_NAME, "readwrite");
+			const store = transaction.objectStore(STORE_NAME);
+			const request = store.get(key);
+			request.onsuccess = () => {
+				const data = request.result;
+				if (data) {
+					data.name = newName;
+					const updateRequest = store.put(data, key);
+					updateRequest.onsuccess = () => resolve();
+					updateRequest.onerror = () => reject(updateRequest.error);
+				} else {
+					reject(new Error("Disk not found"));
+				}
+			};
+			request.onerror = () => reject(request.error);
+		});
+	};
+
+	return { saveDisk, saveUrlDisk, loadDisk, getAllDisks, deleteDisk, renameDisk };
 }

@@ -30,12 +30,26 @@
 									<Link v-if="disk.type === 'url'" class="h-6 w-6 text-cyan-400" />
 									<Save v-else class="h-6 w-6 text-cyan-400" />
 								</div>
-								<div class="flex-1 overflow-hidden">
-									<div class="font-medium truncate text-sm text-gray-200" :title="disk.name">{{ disk.name }}</div>
-									<div v-if="disk.type === 'url'" class="text-[10px] text-gray-500 truncate" :title="disk.url">{{ disk.url }}</div>
-									<div v-else class="text-[10px] text-gray-500">{{ formatSize(disk.size) }}</div>
+								<div class="flex-1 overflow-hidden mr-1">
+									<div v-if="editingId === disk.key" class="flex items-center gap-1">
+										<input
+											ref="renameInputRef"
+											v-model="editingName"
+											class="w-full bg-gray-900 text-xs text-gray-200 border border-gray-600 rounded px-1 py-0.5 focus:border-cyan-500 focus:outline-none"
+											@keydown.enter="finishRename"
+											@keydown.esc="cancelRename"
+											@click.stop
+											@blur="finishRename"
+										/>
+									</div>
+									<div v-else class="font-medium truncate text-sm text-gray-200" :title="disk.name">{{ disk.name }}</div>
+									<div v-if="disk.type === 'url'" class="text-[10px] text-gray-500 truncate" :title="disk.path">{{ disk.path }}</div>
+									<div v-else class="text-[10px] text-gray-500 flex items-center gap-1"><span>{{ formatSize(disk.size) }}</span><span v-if="disk.path && disk.path !== disk.name" class="truncate text-gray-600 max-w-[100px]" :title="disk.path">({{ disk.path }})</span></div>
 								</div>
 							</div>
+							<button v-if="editingId !== disk.key" @click.stop="startRename(disk)" class="p-1 mr-1 text-gray-500 hover:bg-gray-700 hover:text-cyan-400 rounded transition-all opacity-0 group-hover:opacity-100" title="Rename">
+								<Pencil class="h-4 w-4" />
+							</button>
 							<button @click="handleLoadFromLibrary(disk.key)" class="p-1 mr-2 text-green-400 hover:bg-gray-700 hover:text-green-300 rounded transition-colors" title="Load">
 								<CirclePlay class="h-5 w-5"/>
 							</button>
@@ -130,7 +144,7 @@
 </template>
 
 <script lang="ts" setup>
-import { CirclePlay, FileText, Link, Save, Upload } from "lucide-vue-next";
+import { CirclePlay, FileText, Link, Pencil, Save, Upload } from "lucide-vue-next";
 import { computed, inject, type Ref, ref, watch } from 'vue';
 
 import {
@@ -154,7 +168,7 @@ const { parseSymbolsFromText, addSymbols } = useSymbols();
 const diskConfig = computed(() => vm?.value?.machineConfig?.disk);
 const fileName = ref('');
 const fileSize = ref(0);
-const { saveDisk, saveUrlDisk, loadDisk, getAllDisks, deleteDisk } = useDiskStorage();
+const { saveDisk, saveUrlDisk, loadDisk, getAllDisks, deleteDisk, renameDisk } = useDiskStorage();
 const savedDisks = ref<DiskInfo[]>([]);
 const isLibraryOpen = ref(false);
 const isLogSheetOpen = ref(false);
@@ -163,6 +177,29 @@ const urlInput = ref('');
 const isLoading = ref(false);
 const urlError = ref<string | null>(null);
 const loggingEnabled = ref(false);
+
+const editingId = ref<IDBValidKey | null>(null);
+const editingName = ref('');
+const renameInputRef = ref<HTMLInputElement | null>(null);
+
+const startRename = (disk: DiskInfo) => {
+	editingId.value = disk.key;
+	editingName.value = disk.name;
+	setTimeout(() => renameInputRef.value?.focus(), 0);
+};
+
+const cancelRename = () => {
+	editingId.value = null;
+	editingName.value = '';
+};
+
+const finishRename = async () => {
+	if (editingId.value !== null && editingName.value.trim()) {
+		await renameDisk(editingId.value, editingName.value.trim());
+		await refreshLibrary();
+		editingId.value = null;
+	}
+};
 
 const isValidUrl = computed(() => {
 	if (!urlInput.value) return false;
@@ -236,7 +273,7 @@ const handleFileSelect = async (event: Event) => {
 		const buffer = await file.arrayBuffer();
 
 		// Save to Library
-		await saveDisk(file.name, file.name, buffer);
+		await saveDisk(file.name, file.name, file.name, buffer);
 		await refreshLibrary();
 
 		// Load to VM
@@ -284,8 +321,8 @@ const handleLoadFromLibrary = async (key: IDBValidKey) => {
 		if (disk.type === 'url') {
 			isLoading.value = true;
 			try {
-				await loadFromUrl(disk.url);
-				localStorage.setItem(ACTIVE_DISK_URL_KEY, disk.url);
+				await loadFromUrl(disk.path);
+				localStorage.setItem(ACTIVE_DISK_URL_KEY, disk.path);
 				localStorage.removeItem(ACTIVE_DISK_KEY);
 				isLibraryOpen.value = false;
 			} catch (e) {
@@ -296,7 +333,7 @@ const handleLoadFromLibrary = async (key: IDBValidKey) => {
 			}
 		} else { // physical disk
 			await loadDiskToVM(disk.name, disk.data);
-			localStorage.setItem(ACTIVE_DISK_KEY, disk.name);
+			localStorage.setItem(ACTIVE_DISK_KEY, String(key));
 			localStorage.removeItem(ACTIVE_DISK_URL_KEY);
 			isLibraryOpen.value = false;
 		}
@@ -344,7 +381,7 @@ watch(
 					if (legacy?.type === "physical") {
 						await loadDiskToVM(legacy.name, legacy.data);
 						// Migrate to new system
-						await saveDisk(legacy.name, legacy.name, legacy.data);
+						await saveDisk(legacy.name, legacy.name, legacy.name, legacy.data);
 						localStorage.setItem(ACTIVE_DISK_KEY, legacy.name);
 					}
 				}
