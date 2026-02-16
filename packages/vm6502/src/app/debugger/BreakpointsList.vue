@@ -7,33 +7,31 @@
 			<li
 				v-for="(bp, index) in breakpoints"
 				:key="bp.address + bp.type + index"
-				:class="['flex justify-between items-center p-2 bg-gray-700 rounded-md hover:bg-gray-600 transition duration-100 font-mono border-l-4', getTypeStyles(bp.type).border]"
+				:class="['flex items-stretch bg-gray-800 rounded-md hover:bg-gray-700/80 transition duration-100 font-mono overflow-hidden', !bp.enabled ? 'opacity-60' : '']"
 			>
-				<div class="flex items-center space-x-3">
+				<span :class="['flex items-center justify-center w-15 text-xs font-bold text-white', getTypeStyles(bp.type).bg]" :title="bp.type">
+					<span class="tracking-wider uppercase">
+						{{ bp.type }}
+					</span>
+				</span>
+				<div class="flex-1 flex justify-between items-center pl-3 pr-2 py-1">
+					<div class="flex items-center space-x-3">
 					<input
 						type="checkbox"
 						:checked="bp.enabled"
 						@change="handleToggleEnable(bp)"
-						class="form-checkbox h-4 w-4 text-indigo-600 transition duration-150 ease-in-out bg-gray-600 border-gray-500 rounded focus:ring-offset-gray-800 cursor-pointer"
+						class="form-checkbox h-4 w-4 text-cyan-600 transition duration-150 ease-in-out bg-gray-700 border-gray-500 rounded focus:ring-offset-gray-900 cursor-pointer focus:ring-cyan-500"
 						title="Enable/Disable Breakpoint"
 					/>
-					<span :class="['px-2 py-0.5 text-xs font-semibold rounded-full min-w-[70px] text-center text-white', getTypeStyles(bp.type).bg, !bp.enabled ? 'opacity-50' : '']">
-						{{ bp.type }}
-					</span>
-					<span :class="['text-indigo-300', !bp.enabled ? 'opacity-50' : '']">
+						<span class="text-indigo-300">
 						{{ '$' + bp.address.toString(16).toUpperCase().padStart(4, '0') }}
 						<span v-if="bp.endAddress && bp.endAddress !== bp.address">
 							- {{ '$' + bp.endAddress.toString(16).toUpperCase().padStart(4, '0') }}
 						</span>
 					</span>
+					</div>
+					<button @click="handleRemoveBreakpoint(bp)" class="text-red-500 hover:text-red-400 text-lg p-1" title="Remove Breakpoint">&times;</button>
 				</div>
-				<button
-					@click="handleRemoveBreakpoint(bp)"
-					class="text-red-400 hover:text-red-300 text-lg p-1"
-					title="Remove Breakpoint"
-				>
-					&times;
-				</button>
 			</li>
 		</ul>
 	</ScrollArea>
@@ -62,11 +60,11 @@ import BreakpointAddControl from './BreakpointAddControl.vue';
 
 	const getTypeStyles = (type: Breakpoint['type']) => {
 		switch (type) {
-			case 'pc': return { bg: 'bg-indigo-600', border: 'border-indigo-400' };
-			case 'write': return { bg: 'bg-red-600', border: 'border-red-400' };
-			case 'read': return { bg: 'bg-yellow-600', border: 'border-yellow-400' };
-			case 'access': return { bg: 'bg-green-600', border: 'border-green-400' };
-			default: return { bg: 'bg-gray-600', border: 'border-gray-500' };
+			case 'pc': return { bg: 'bg-indigo-700' };
+			case 'write': return { bg: 'bg-red-700' };
+			case 'read': return { bg: 'bg-yellow-700' };
+			case 'access': return { bg: 'bg-green-700' };
+			default: return { bg: 'bg-gray-700' };
 		}
 	};
 </script>
