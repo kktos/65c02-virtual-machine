@@ -72,37 +72,19 @@
 		</tbody>
 	</table>
 
-	<Popover :open="contextMenu.isOpen" @update:open="(val) => contextMenu.isOpen = val" :key="`${contextMenu.x}-${contextMenu.y}`">
-		<PopoverTrigger as-child>
-			<div class="fixed w-0 h-0 invisible" :style="{ top: contextMenu.y + 'px', left: contextMenu.x + 'px' }"></div>
-		</PopoverTrigger>
-		<PopoverContent class="w-64 p-3 bg-gray-800 border-gray-700 text-gray-200" align="start" side="bottom" :side-offset="5">
-			<div class="text-xs font-semibold text-gray-400 mb-2">
-				Edit Label for {{ formatAddress(contextMenu.address) }}
-			</div>
-			<div class="flex gap-2">
-				<input
-					v-model="contextMenu.label"
-					@keydown.enter="saveLabel"
-					class="flex-1 bg-gray-900 border border-gray-600 rounded px-2 py-1 text-xs focus:border-cyan-500 focus:outline-none text-gray-200"
-					placeholder="Label name..."
-					ref="labelInputRef"
-				/>
-				<button @click="saveLabel" class="px-2 py-1 bg-cyan-600 hover:bg-cyan-500 text-white rounded text-xs">
-					<Save class="h-4 w-4"/>
-				</button>
-				<button @click="deleteLabel" v-if="contextMenu.hasExisting" class="text-[10px] text-red-400 hover:text-red-300">
-					<Trash2 class="h-4 w-4"/>
-				</button>
-			</div>
-		</PopoverContent>
-	</Popover>
+	<AddSymbolPopover
+		:is-open="contextMenu.isOpen"
+		@update:is-open="(val) => contextMenu.isOpen = val"
+		:x="contextMenu.x"
+		:y="contextMenu.y"
+		:address="contextMenu.address"
+		:key="`${contextMenu.x}-${contextMenu.y}`"
+	/>
 </template>
 
 <script lang="ts" setup>
-import { Save, Trash2 } from "lucide-vue-next";
-import { inject, nextTick, type Ref, ref } from "vue";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { inject, type Ref, ref } from "vue";
+import AddSymbolPopover from "@/components/AddSymbolPopover.vue";
 import { useSettings } from "@/composables/useSettings";
 import { useSymbols } from "@/composables/useSymbols";
 import type { DisassemblyLine } from "@/types/disassemblyline.interface";
@@ -124,7 +106,7 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 		(e: "opcodeClick", line: DisassemblyLine): void;
 	}>();
 
-	const { getLabeledInstruction, getLabelForAddress, getSymbolSource, getNamespaceForAddress, addSymbol, removeSymbol } = useSymbols();
+	const { getLabeledInstruction, getLabelForAddress, getSymbolSource, getNamespaceForAddress } = useSymbols();
 	const { settings } = useSettings();
 
 	const getBranchPrediction = (opcode: string) => {
@@ -213,38 +195,16 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 		isOpen: false,
 		x: 0,
 		y: 0,
-		address: 0,
-		label: '',
-		hasExisting: false
+		address: 0
 	});
 
-	const labelInputRef = ref<HTMLInputElement | null>(null);
-
 	const handleContextMenu = (event: MouseEvent, line: DisassemblyLine) => {
-		const existingLabel = getLabelForAddress(line.address);
 		contextMenu.value = {
 			isOpen: true,
 			x: event.clientX,
 			y: event.clientY,
-			address: line.address,
-			label: existingLabel || '',
-			hasExisting: !!existingLabel
+			address: line.address
 		};
-		nextTick(() => {
-			labelInputRef.value?.focus();
-		});
-	};
-
-	const saveLabel = () => {
-		if (contextMenu.value.label.trim()) {
-			addSymbol(contextMenu.value.address, contextMenu.value.label.trim());
-		}
-		contextMenu.value.isOpen = false;
-	};
-
-	const deleteLabel = () => {
-		removeSymbol(contextMenu.value.address);
-		contextMenu.value.isOpen = false;
 	};
 
 </script>
