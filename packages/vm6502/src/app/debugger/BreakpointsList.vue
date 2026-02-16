@@ -1,9 +1,9 @@
 <template>
 	<div class="flex flex-col h-full gap-2">
 		<BreakpointAddControl />
-		<ScrollArea class="flex-grow w-full">
-			<ul class="flex-grow min-h-0 space-y-2 overflow-y-auto text-sm text-gray-300 p-2 bg-gray-900 rounded-md h-full">
-			<li v-if="breakpoints.length === 0" class="text-gray-500 italic p-2">No active breakpoints.</li>
+		<ScrollArea class="flex-1 min-h-0 w-full" type="always">
+			<ul class="space-y-2 text-sm text-gray-300 p-2 bg-gray-900 rounded-md min-h-full">
+			<li v-if="breakpoints.length === 0" class="text-gray-500 italic p-2 text-center">No active breakpoints.</li>
 			<li
 				v-for="(bp, index) in breakpoints"
 				:key="bp.address + bp.type + index"
@@ -46,7 +46,7 @@ import { useBreakpoints } from "@/composables/useBreakpoints";
 import type { Breakpoint } from "@/types/breakpoint.interface";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import { ScrollArea } from '../../components/ui/scroll-area';
-import BreakpointAddControl from "./BreakpointAddControl.vue";
+import BreakpointAddControl from './BreakpointAddControl.vue';
 
 	/** biome-ignore-all lint/correctness/noUnusedVariables: vue */
 
