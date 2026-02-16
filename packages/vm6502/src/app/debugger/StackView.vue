@@ -1,5 +1,7 @@
 <template>
-	<div ref="scrollContainer" class="p-4 bg-gray-800 rounded-lg shadow-xl flex flex-col h-full">
+<div class="p-4 bg-gray-800 rounded-lg shadow-xl flex flex-col h-full">
+	<DebuggerPanelTitle title="Stack" />
+	<div ref="scrollContainer" class="flex flex-col h-full">
 		<!-- <DebuggerPanelTitle title="Stack ($0100 - $01FF)" /> -->
 		<div
 			class="font-mono text-xs overflow-y-auto flex-grow min-h-0 bg-gray-900 p-2 rounded-md"
@@ -9,7 +11,7 @@
 			<table class="w-full">
 				<thead>
 					<tr class="text-gray-400 sticky top-0 bg-gray-900 border-b border-gray-700 shadow-md">
-						<th class="py-1 text-left px-2 w-1/4">Addr</th>
+						<th class="py-1 text-left px-2 w-[4.5rem]">Addr</th>
 						<th class="py-1 text-left">Value</th>
 					</tr>
 				</thead>
@@ -34,7 +36,7 @@
 									:value="item.value?.toString(16).toUpperCase().padStart(2, '0')"
 									@input="handleByteChange(item.address, $event)"
 									maxlength="2"
-									class="flex-grow text-left bg-transparent focus:bg-gray-600 focus:outline-none focus:ring-1 focus:ring-cyan-500 rounded-none tabular-nums px-2"
+									class="w-8 text-center bg-transparent focus:bg-gray-600 focus:outline-none focus:ring-1 focus:ring-cyan-500 rounded-none tabular-nums"
 								/>
 								<div v-if="item.isLowByteForReturn" class="flex items-center text-xs text-emerald-400/80 px-2 whitespace-nowrap tabular-nums shrink-0">
 									<span
@@ -60,6 +62,7 @@
 			</table>
 		</div>
 	</div>
+</div>
 </template>
 
 <script lang="ts" setup>
@@ -69,6 +72,7 @@ import { computed, inject, onMounted, onUnmounted, type Ref, ref, watch } from "
 import { useDebuggerNav } from "@/composables/useDebuggerNav";
 import type { EmulatorState } from "@/types/emulatorstate.interface";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
+import DebuggerPanelTitle from './DebuggerPanelTitle.vue';
 
 	const stackBase = 0x0100;
 

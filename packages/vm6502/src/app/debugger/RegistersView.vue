@@ -1,6 +1,6 @@
 <template>
 	<div class="p-4 bg-gray-800 rounded-lg shadow-lg">
-		<DebuggerPanelTitle title="CPU Registers" />
+		<DebuggerPanelTitle title="Registers" />
 		<div class="grid grid-cols-3 gap-x-5 gap-y-2 font-mono text-sm">
 			<div v-for="reg in registerOrder" :key="reg" class="flex items-center justify-left">
 				<span class="font-bold text-gray-300">{{ reg }}:</span>
