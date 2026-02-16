@@ -101,7 +101,7 @@
 								@focus="handleHexFocus((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1), $event)"
 								@blur="handleBlur"
 								maxlength="2"
-								:class="['w-full text-center focus:bg-gray-600 focus:outline-none focus:ring-1 focus:ring-cyan-500 rounded-none tabular-nums text-xs', isHighlighted((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1)) ? 'bg-yellow-600/50 text-white font-bold' : (isContextMenuTarget((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1)) ? 'bg-gray-600 ring-1 ring-cyan-500' : 'bg-transparent'), getBreakpointClass((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1))]"
+								:class="['w-full text-center focus:bg-gray-600 focus:outline-none focus:ring-1 focus:ring-cyan-500 rounded-none tabular-nums text-xs', editingIndex === ((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1)) ? 'bg-yellow-600' : (isHighlighted((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1)) ? 'bg-yellow-600/50 text-white font-bold' : (isContextMenuTarget((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1)) ? 'bg-gray-600 ring-1 ring-cyan-500' : 'bg-transparent')), getBreakpointClass((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1))]"
 							/>
 						</td>
 
@@ -117,7 +117,7 @@
 								@focus="handleAsciiFocus((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1), $event)"
 								@blur="handleBlur"
 								maxlength="1"
-								:class="['w-[1.2ch] text-center focus:bg-gray-600 focus:outline-none focus:ring-1 focus:ring-cyan-500 rounded-none tabular-nums text-xs p-0 border-none font-bold', getAsciiClass(currentMemorySlice[(lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1)], isHighlighted((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1))), getBreakpointClass((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1))]"
+								:class="['w-[1.2ch] text-center focus:bg-gray-600 focus:outline-none focus:ring-1 focus:ring-cyan-500 rounded-none tabular-nums text-xs p-0 border-none font-bold', getAsciiClass(currentMemorySlice[(lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1)], isHighlighted((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1)), editingIndex === ((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1))), getBreakpointClass((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1))]"
 							/>
 						</td>
 					</tr>
@@ -557,7 +557,8 @@ import BinaryLoader from "./BinaryLoader.vue";
 		return '·';
 	};
 
-	const getAsciiClass = (byte: number | undefined, highlighted = false) => {
+	const getAsciiClass = (byte: number | undefined, highlighted = false, selected = false) => {
+		if (selected) return 'bg-yellow-600 text-white';
 		if (highlighted) return 'bg-yellow-600 text-white';
 		if (byte === undefined) return 'text-gray-500';
 		const val = byte & 0x7F;
