@@ -17,6 +17,7 @@
 						colspan="6"
 						class="py-0.5 px-2 text-yellow-500 font-bold font-mono text-xs border-l-4 border-transparent"
 						:style="getLabelStyle(line.address)"
+						@contextmenu.prevent="handleContextMenu($event, line)"
 						:title="getSymbolSource(line.address)"
 					>
 						{{ getLabelForAddress(line.address) }}:

@@ -31,7 +31,7 @@
 						>
 							<option value="code">Instruction</option>
 							<option value="byte">Byte</option>
-							<option value="word">Word</option>
+							<option value="word" :disabled="isWordTypeDisabled">Word</option>
 							<option value="string">String</option>
 						</select>
 						<input
@@ -70,7 +70,7 @@
 
 <script lang="ts" setup>
 import { Save } from "lucide-vue-next";
-import { nextTick, ref, watch } from "vue";
+import { computed, nextTick, ref, watch } from "vue";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { type DataType, useFormatting } from "@/composables/useFormatting";
 import { useSymbols } from "@/composables/useSymbols";
@@ -96,18 +96,32 @@ const inputRef = ref<HTMLInputElement | null>(null);
 const selectedType = ref<DataType>('code');
 const dataLength = ref(1);
 
+const isWordTypeDisabled = computed(() => {
+	return dataLength.value < 2 || dataLength.value % 2 !== 0;
+});
+
+watch(dataLength, () => {
+	if (isWordTypeDisabled.value && selectedType.value === 'word') {
+		selectedType.value = 'byte';
+	}
+});
+
 const formatAddress = (addr: number) => {
 	const bank = ((addr >> 16) & 0xFF).toString(16).toUpperCase().padStart(2, '0');
 	const offset = (addr & 0xFFFF).toString(16).toUpperCase().padStart(4, '0');
 	return `$${bank}:${offset}`;
 };
 
-watch(() => props.isOpen, (val) => {
-	if (val) {
+localLabel.value = getLabelForAddress(props.address) || "";
+hasExisting.value = !!localLabel.value;
+
+watch([() => props.isOpen], () => {
+
+	if (props.isOpen) {
 		// Load Label
-		const existing = getLabelForAddress(props.address);
-		localLabel.value = existing || "";
-		hasExisting.value = !!existing;
+		// const existing = getLabelForAddress(props.address);
+		// localLabel.value = existing || "";
+		// hasExisting.value = !!existing;
 
 		// Load Format
 		const format = getFormat(props.address);

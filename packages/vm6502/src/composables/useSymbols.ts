@@ -73,17 +73,17 @@ export function useSymbols() {
 
 	const generateSymFileContent = (symbols: SymbolDict, namespace: string): string => {
 		if (!symbols) return "";
-		let content = `'${namespace}':\n`;
+		let content = `${namespace}:\n`;
 		const sortedAddresses = Object.keys(symbols)
 			.map(Number)
 			.sort((a, b) => a - b);
 
 		for (const address of sortedAddresses) {
 			const nsData = symbols[address];
-			if (nsData && nsData[namespace]) {
+			if (nsData?.[namespace]) {
 				const label = nsData[namespace].label;
 				const addressHex = address.toString(16).toUpperCase().padStart(4, "0");
-				content += `${label}: number = $${addressHex}\n`;
+				content += `  ${label}: number = $${addressHex}\n`;
 			}
 		}
 		return content;

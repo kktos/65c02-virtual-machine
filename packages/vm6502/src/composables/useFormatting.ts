@@ -36,6 +36,25 @@ export function useFormatting() {
 		return Object.fromEntries(formattingRules.value);
 	};
 
+	const generateDataSymFileContent = (rules: Record<string, DataBlock>): string => {
+		let content = `'%%DATA_FORMATTING%%':\n`;
+		const sortedAddresses = Object.keys(rules)
+			.map(Number)
+			.sort((a, b) => a - b);
+		for (const address of sortedAddresses) {
+			const rule = rules[address] as DataBlock;
+			const addressHex = address.toString(16).toUpperCase().padStart(4, "0");
+			let len = rule.length;
+			switch (rule?.type) {
+				case "word":
+					len = len / 2;
+					break;
+			}
+			content += `  ${addressHex}: ${rule.type}[${len}]\n`;
+		}
+		return content;
+	};
+
 	return {
 		formattingRules,
 		addFormat,
@@ -43,5 +62,6 @@ export function useFormatting() {
 		getFormat,
 		setFormatting,
 		getFormatting,
+		generateDataSymFileContent,
 	};
 }

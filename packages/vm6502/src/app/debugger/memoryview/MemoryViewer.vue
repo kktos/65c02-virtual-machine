@@ -3,8 +3,14 @@
 		<div class="mb-3 mt-1 flex flex-wrap items-center gap-4 shrink-0">
 			<div class="flex flex-1 items-center gap-2" >
 				<AddressNavigator @goto="handleGoto" />
-				<div v-if="selectedRange && selectedRange.size > 1" class="text-gray-400 text-xs font-mono">
-					(Size: {{ selectedRange.size }})
+				<div v-if="selectedRange && selectedRange.size > 0" class="flex items-center gap-2 pl-2 border-l border-gray-700">
+					<div class="text-gray-400 text-xs font-mono">{{ selectedRange.size }}</div>
+					<Button size="sm" variant="ghost"
+						class="h-6 px-2 text-xs border-gray-600 text-gray-300 hover:bg-gray-700 hover:text-gray-200"
+						@click="formatAs('byte')">Byte</Button>
+					<Button size="sm" variant="ghost"
+						class="h-6 px-2 text-xs border-gray-600 text-gray-300 hover:bg-gray-700 hover:text-gray-200"
+						@click="formatAs('string')">String</Button>
 				</div>
 			</div>
 
@@ -209,7 +215,7 @@ import BinaryLoader from "./BinaryLoader.vue";
 
 	const vm= inject<Ref<VirtualMachine>>("vm");
 	const subscribeToUiUpdates= inject<(callback: () => void) => void>("subscribeToUiUpdates");
-	const { formattingRules } = useFormatting();
+	const { formattingRules, addFormat } = useFormatting();
 
 	const props = defineProps<{
 		canClose?: boolean;
@@ -561,6 +567,13 @@ import BinaryLoader from "./BinaryLoader.vue";
 		const start = Math.min(selectionAnchor.value, selectionHead.value);
 		const end = Math.max(selectionAnchor.value, selectionHead.value);
 		return addr >= start && addr <= end;
+	};
+
+	const formatAs = (type: 'byte' | 'string') => {
+		if (!selectedRange.value) return;
+		addFormat(selectedRange.value.start, type, selectedRange.value.size);
+		selectionAnchor.value = null;
+		selectionHead.value = null;
 	};
 
 	const editingIndex = ref<number | null>(null);
