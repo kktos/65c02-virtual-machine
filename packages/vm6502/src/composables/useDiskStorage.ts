@@ -6,6 +6,7 @@ export type DiskInfo = {
 	path: string;
 	size: number;
 	type: "physical" | "url";
+	symbols?: SymbolDict;
 };
 
 export function useDiskStorage() {
@@ -117,7 +118,7 @@ export function useDiskStorage() {
 		});
 	};
 
-	const renameDisk = async (key: IDBValidKey, newName: string) => {
+	const updateDisk = async (key: IDBValidKey, newdata: Partial<DiskInfo>) => {
 		const db = await getDb();
 		return new Promise<void>((resolve, reject) => {
 			const transaction = db.transaction(STORE_NAME, "readwrite");
@@ -126,7 +127,9 @@ export function useDiskStorage() {
 			request.onsuccess = () => {
 				const data = request.result;
 				if (data) {
-					data.name = newName;
+					for (const key in newdata) {
+						data[key] = (newdata as Record<string, unknown>)[key];
+					}
 					const updateRequest = store.put(data, key);
 					updateRequest.onsuccess = () => resolve();
 					updateRequest.onerror = () => reject(updateRequest.error);
@@ -138,25 +141,50 @@ export function useDiskStorage() {
 		});
 	};
 
+	const renameDisk = async (key: IDBValidKey, newName: string) => {
+		return updateDisk(key, { name: newName });
+
+		// const db = await getDb();
+		// return new Promise<void>((resolve, reject) => {
+		// 	const transaction = db.transaction(STORE_NAME, "readwrite");
+		// 	const store = transaction.objectStore(STORE_NAME);
+		// 	const request = store.get(key);
+		// 	request.onsuccess = () => {
+		// 		const data = request.result;
+		// 		if (data) {
+		// 			data.name = newName;
+		// 			const updateRequest = store.put(data, key);
+		// 			updateRequest.onsuccess = () => resolve();
+		// 			updateRequest.onerror = () => reject(updateRequest.error);
+		// 		} else {
+		// 			reject(new Error("Disk not found"));
+		// 		}
+		// 	};
+		// 	request.onerror = () => reject(request.error);
+		// });
+	};
+
 	const updateDiskSymbols = async (key: IDBValidKey, symbols: SymbolDict) => {
-		const db = await getDb();
-		return new Promise<void>((resolve, reject) => {
-			const transaction = db.transaction(STORE_NAME, "readwrite");
-			const store = transaction.objectStore(STORE_NAME);
-			const request = store.get(key);
-			request.onsuccess = () => {
-				const data = request.result;
-				if (data) {
-					data.symbols = JSON.parse(JSON.stringify(symbols));
-					const updateRequest = store.put(data, key);
-					updateRequest.onsuccess = () => resolve();
-					updateRequest.onerror = () => reject(updateRequest.error);
-				} else {
-					reject(new Error("Disk not found for updating symbols"));
-				}
-			};
-			request.onerror = () => reject(request.error);
-		});
+		return updateDisk(key, { symbols });
+
+		// const db = await getDb();
+		// return new Promise<void>((resolve, reject) => {
+		// 	const transaction = db.transaction(STORE_NAME, "readwrite");
+		// 	const store = transaction.objectStore(STORE_NAME);
+		// 	const request = store.get(key);
+		// 	request.onsuccess = () => {
+		// 		const data = request.result;
+		// 		if (data) {
+		// 			data.symbols = JSON.parse(JSON.stringify(symbols));
+		// 			const updateRequest = store.put(data, key);
+		// 			updateRequest.onsuccess = () => resolve();
+		// 			updateRequest.onerror = () => reject(updateRequest.error);
+		// 		} else {
+		// 			reject(new Error("Disk not found for updating symbols"));
+		// 		}
+		// 	};
+		// 	request.onerror = () => reject(request.error);
+		// });
 	};
 
 	return { saveDisk, saveUrlDisk, loadDisk, getAllDisks, deleteDisk, renameDisk, updateDiskSymbols };
