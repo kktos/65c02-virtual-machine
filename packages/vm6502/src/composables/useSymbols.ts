@@ -23,14 +23,14 @@ export function useSymbols() {
 		buildNamespacesFromSymbols(symbols);
 	};
 
-	const addSymbol = (address: number, label: string, namespace = "user") => {
+	const addSymbol = (address: number, label: string, namespace = "user", scope = "main") => {
 		if (!vm?.value?.machineConfig) return;
 		if (!vm.value.machineConfig.symbols) vm.value.machineConfig.symbols = {};
 
 		const symbols = vm.value.machineConfig.symbols;
 		if (!symbols[address]) symbols[address] = {};
 
-		symbols[address][namespace] = { label, scope: "main" };
+		symbols[address][namespace] = { label, scope };
 
 		if (!activeNamespaces.value.has(namespace)) {
 			activeNamespaces.value.set(namespace, true);

@@ -6,6 +6,7 @@
 			:is-loading="isLoading"
 			:has-disassembly="!!(disassembly && disassembly.length > 0)"
 			:available-scopes="availableScopes"
+			@open-symbol-manager="isSymbolManagerOpen = true"
 			@sync-to-pc="syncToPc"
 			@explain="handleExplain"
 			@goto-address="onGotoAddress"
@@ -37,6 +38,11 @@
 				@opcode-click="handleOpcodeClick"
 			/>
 		</div>
+		<SymbolManager
+			:is-open="isSymbolManagerOpen"
+			@update:is-open="(val) => isSymbolManagerOpen = val"
+			@goto-address="onGotoAddress"
+		/>
 	</div>
 </template>
 
@@ -44,9 +50,11 @@
 
 	/** biome-ignore-all lint/correctness/noUnusedVariables: vue */
 
+
 import { computed, inject, type Ref, ref, watch } from "vue";
 import DisassemblyTable from "@/app/debugger/disassembly/DisassemblyTable.vue";
 import DisassemblyToolbar from "@/app/debugger/disassembly/DisassemblyToolbar.vue";
+import SymbolManager from "@/app/debugger/disassembly/SymbolManager.vue";
 import { useBreakpoints } from "@/composables/useBreakpoints";
 import { useDebuggerNav } from "@/composables/useDebuggerNav";
 import { useDisassembly } from "@/composables/useDisassembly";
@@ -68,6 +76,8 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 		registers: EmulatorState['registers'];
 	}
 	const { address, memory, registers} = defineProps<Props>();
+
+	const isSymbolManagerOpen = ref(false);
 
 	const { pcBreakpoints, toggleBreakpoint } = useBreakpoints();
 	const { jumpEvent } = useDisassembly();

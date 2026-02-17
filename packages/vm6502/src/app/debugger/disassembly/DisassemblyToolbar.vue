@@ -13,6 +13,13 @@
 			>
 				<Paperclip class="h-4 w-4"/>
 			</button>
+			<button
+				@click="$emit('openSymbolManager')"
+				title="Symbol Manager"
+				class="p-1 rounded text-gray-500 transition-colors hover:text-gray-300 hover:bg-gray-700"
+			>
+				<Tags class="h-4 w-4" />
+			</button>
 		</div>
 
 		<div class="flex items-center space-x-2">
@@ -73,7 +80,7 @@
 </template>
 
 <script lang="ts" setup>
-import { Paperclip, Settings2 } from "lucide-vue-next";
+import { Paperclip, Settings2, Tags } from "lucide-vue-next";
 import AddressNavigator from "@/app/debugger/AddressNavigator.vue";
 import { Button } from '@/components/ui/button';
 import { Checkbox } from "@/components/ui/checkbox";
@@ -92,6 +99,7 @@ import { useSymbols } from "@/composables/useSymbols";
 		(e: 'syncToPc'): void;
 		(e: 'explain'): void;
 		(e: 'gotoAddress', address: number): void;
+		(e: 'openSymbolManager'): void;
 	}>();
 
 	const { getNamespaceList, toggleNamespace } = useSymbols();
