@@ -1,7 +1,10 @@
+import { useFormatting } from "@/composables/useFormatting";
 import type { DisassemblyLine } from "@/types/disassemblyline.interface";
 import type { EmulatorState } from "@/types/emulatorstate.interface";
 import { runHypercall, toHex } from "./hypercalls.lib";
 import { opcodeMap } from "./opcodes";
+
+const { getFormat } = useFormatting();
 
 export function disassemble(
 	readByte: (address: number, debug?: boolean) => number,
@@ -14,6 +17,68 @@ export function disassemble(
 	let pc = fromAddress;
 
 	while (disassembly.length < lineCount) {
+		// Safety check to prevent infinite loops if PC goes out of bounds
+		if (pc > 0xffffff) break;
+
+		// Check for Custom Formatting (Data Directives)
+
+		const format = getFormat(pc);
+		if (format) {
+			let byteCount = format.length;
+			if (format.type === "word") byteCount *= 2;
+
+			const bytes: number[] = [];
+			for (let i = 0; i < byteCount; i++) bytes.push(readByte(pc + i));
+
+			let opcode = "";
+			const comment = "";
+			let rawBytesStr = "";
+
+			// Format Raw Bytes (limit to ~8 for display)
+			const displayBytes = bytes.slice(0, 8);
+			rawBytesStr = displayBytes.map((b) => toHex(b, 2)).join(" ");
+			if (bytes.length > 8) rawBytesStr += "...";
+
+			switch (format.type) {
+				case "string": {
+					const text = bytes
+						.map((b) => {
+							const c = b & 0x7f;
+							return c >= 32 && c <= 126 ? String.fromCharCode(c) : ".";
+						})
+						.join("");
+					opcode = `.STR "${text}"`;
+					break;
+				}
+				case "word": {
+					const words: string[] = [];
+					for (let i = 0; i < format.length; i++) {
+						const lo = bytes[i * 2];
+						const hi = bytes[i * 2 + 1];
+						if (lo !== undefined && hi !== undefined) {
+							const val = (hi << 8) | lo;
+							words.push(`$${toHex(val, 4)}`);
+						}
+					}
+					opcode = `.WORD ${words.join(", ")}`;
+					break;
+				}
+				default:
+					opcode = `.BYTE ${bytes.map((b) => `$${toHex(b, 2)}`).join(", ")}`;
+			}
+
+			disassembly.push({
+				address: pc,
+				opcode,
+				rawBytes: rawBytesStr,
+				comment,
+				cycles: 0,
+			});
+
+			pc += byteCount;
+			continue;
+		}
+
 		const address = pc;
 		const opcodeByte = readByte(pc);
 

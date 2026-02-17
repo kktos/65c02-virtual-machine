@@ -5,7 +5,7 @@
 				<th class="py-1 text-center w-8"></th>
 				<th class="py-1 text-left px-2 w-20">Addr</th>
 				<th class="py-1 text-left w-20"></th>
-				<th class="py-1 text-left w-36">Opcode</th>
+				<th class="py-1 text-left w-60">Opcode</th>
 				<th class="py-1 text-left flex-grow">Comment</th>
 				<th v-if="settings.disassembly.showCycles" class="py-1 text-right w-12">Cycles</th>
 			</tr>
