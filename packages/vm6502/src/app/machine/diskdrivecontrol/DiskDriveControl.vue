@@ -158,7 +158,8 @@ import {
 } from '@/components/ui/popover';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { type DiskInfo, useDiskStorage } from '@/composables/useDiskStorage';
+import { type StoredDisk, useDiskStorage } from '@/composables/useDiskStorage';
+import { useFormatting } from "@/composables/useFormatting";
 import { useSymbols } from "@/composables/useSymbols";
 import type { VirtualMachine } from '@/virtualmachine/virtualmachine.class';
 import DiskDriveLogs from './DiskDriveLogs.vue';
@@ -169,11 +170,12 @@ const ACTIVE_DISK_URL_KEY = "vm6502_active_disk_url";
 const vm = inject<Ref<VirtualMachine>>('vm');
 
 const { parseSymbolsFromText, addSymbols, getUserSymbols, clearUserSymbols, generateSymFileContent } = useSymbols();
+const { formattingRules, setFormatting, getFormatting } = useFormatting();
 const diskConfig = computed(() => vm?.value?.machineConfig?.disk);
 const fileName = ref('');
 const fileSize = ref(0);
-const { saveDisk, saveUrlDisk, loadDisk, getAllDisks, deleteDisk, renameDisk, updateDiskSymbols } = useDiskStorage();
-const savedDisks = ref<DiskInfo[]>([]);
+const { saveDisk, saveUrlDisk, loadDisk, getAllDisks, deleteDisk, renameDisk, updateDiskSymbols, updateDiskFormatting } = useDiskStorage();
+const savedDisks = ref<StoredDisk[]>([]);
 const isLibraryOpen = ref(false);
 const isLogSheetOpen = ref(false);
 
@@ -191,11 +193,19 @@ const saveSymbolsToDb = useDebounceFn(async () => {
 	}
 }, 1000);
 
+const saveFormattingToDb = useDebounceFn(async () => {
+	if (activeDiskKey.value) {
+		const fmt = getFormatting();
+		await updateDiskFormatting(activeDiskKey.value, fmt);
+	}
+}, 1000);
+
 watch(() => vm?.value?.machineConfig.symbols, () => {
-
-	console.log("saveSymbolsToDb");
-
 	saveSymbolsToDb();
+}, { deep: true });
+
+watch(formattingRules, () => {
+	saveFormattingToDb();
 }, { deep: true });
 
 
@@ -203,7 +213,7 @@ const editingId = ref<IDBValidKey | null>(null);
 const editingName = ref('');
 const renameInputRef = ref<HTMLInputElement | null>(null);
 
-const startRename = (disk: DiskInfo) => {
+const startRename = (disk: StoredDisk) => {
 	editingId.value = disk.key;
 	editingName.value = disk.name;
 	setTimeout(() => renameInputRef.value?.focus(), 0);
@@ -245,9 +255,8 @@ const setActiveDisk = async (key: IDBValidKey) => {
 	activeDiskKey.value = key;
 	clearUserSymbols();
 	const diskData = await loadDisk(key);
-	if (diskData?.symbols) {
-		addSymbols(diskData.symbols);
-	}
+	if (diskData?.symbols) addSymbols(diskData.symbols);
+	setFormatting(diskData?.formatting);
 };
 
 const refreshLibrary = async () => {
@@ -350,11 +359,6 @@ const handleUrlLoad = async () => {
 const handleLoadFromLibrary = async (key: IDBValidKey) => {
 	const disk = await loadDisk(key);
 	if (disk) {
-		clearUserSymbols();
-		if (disk.symbols) {
-			addSymbols(disk.symbols);
-		}
-
 		if (disk.type === 'url') {
 			isLoading.value = true;
 			try {
@@ -386,7 +390,7 @@ const handleDelete = async (key: IDBValidKey) => {
 	}
 };
 
-const exportSymbols = async (disk: DiskInfo) => {
+const exportSymbols = async (disk: StoredDisk) => {
 	const fullDisk = await loadDisk(disk.key);
 	if (!fullDisk?.symbols || Object.keys(fullDisk.symbols).length === 0) {
 		alert("No user symbols found for this disk.");

@@ -1,13 +1,26 @@
+import type { DataBlock } from "@/composables/useFormatting";
 import type { SymbolDict } from "@/types/machine.interface";
 
-export type DiskInfo = {
-	key: IDBValidKey;
-	name: string;
-	path: string;
-	size: number;
-	type: "physical" | "url";
-	symbols?: SymbolDict;
-};
+export type StoredDisk =
+	| {
+			type: "physical";
+			key: IDBValidKey;
+			name: string;
+			path: string;
+			size: number;
+			data: ArrayBuffer;
+			symbols?: SymbolDict;
+			formatting?: Record<string, DataBlock>;
+	  }
+	| {
+			type: "url";
+			key: IDBValidKey;
+			name: string;
+			path: string;
+			size: number;
+			symbols?: SymbolDict;
+			formatting?: Record<string, DataBlock>;
+	  };
 
 export function useDiskStorage() {
 	const DB_NAME = "vm6502_storage";
@@ -33,7 +46,10 @@ export function useDiskStorage() {
 		return new Promise<void>((resolve, reject) => {
 			const transaction = db.transaction(STORE_NAME, "readwrite");
 			const store = transaction.objectStore(STORE_NAME);
-			const request = store.put({ type: "physical", name, path, size: data.byteLength, data, symbols: {} }, key);
+			const request = store.put(
+				{ type: "physical", name, path, size: data.byteLength, data, symbols: {}, formatting: {} },
+				key,
+			);
 			request.onsuccess = () => resolve();
 			request.onerror = () => reject(request.error);
 		});
@@ -44,15 +60,11 @@ export function useDiskStorage() {
 		return new Promise<void>((resolve, reject) => {
 			const transaction = db.transaction(STORE_NAME, "readwrite");
 			const store = transaction.objectStore(STORE_NAME);
-			const request = store.put({ type: "url", name, path, size: 0, symbols: {} }, key);
+			const request = store.put({ type: "url", name, path, size: 0, symbols: {}, formatting: {} }, key);
 			request.onsuccess = () => resolve();
 			request.onerror = () => reject(request.error);
 		});
 	};
-
-	type StoredDisk =
-		| { name: string; path: string; size: number; type: "physical"; data: ArrayBuffer; symbols?: SymbolDict }
-		| { name: string; path: string; size: number; type: "url"; symbols?: SymbolDict };
 
 	const loadDisk = async (key: IDBValidKey): Promise<StoredDisk | undefined> => {
 		const db = await getDb();
@@ -78,11 +90,11 @@ export function useDiskStorage() {
 
 	const getAllDisks = async () => {
 		const db = await getDb();
-		return new Promise<DiskInfo[]>((resolve, reject) => {
+		return new Promise<StoredDisk[]>((resolve, reject) => {
 			const transaction = db.transaction(STORE_NAME, "readonly");
 			const store = transaction.objectStore(STORE_NAME);
 			const request = store.openCursor();
-			const results: DiskInfo[] = [];
+			const results: StoredDisk[] = [];
 
 			request.onsuccess = (event) => {
 				const cursor = (event.target as IDBRequest).result as IDBCursorWithValue;
@@ -118,7 +130,7 @@ export function useDiskStorage() {
 		});
 	};
 
-	const updateDisk = async (key: IDBValidKey, newdata: Partial<DiskInfo>) => {
+	const updateDisk = async (key: IDBValidKey, newdata: Partial<StoredDisk>) => {
 		const db = await getDb();
 		return new Promise<void>((resolve, reject) => {
 			const transaction = db.transaction(STORE_NAME, "readwrite");
@@ -127,12 +139,28 @@ export function useDiskStorage() {
 			request.onsuccess = () => {
 				const data = request.result;
 				if (data) {
-					for (const key in newdata) {
-						data[key] = (newdata as Record<string, unknown>)[key];
+					for (const prop in newdata) {
+						const value = (newdata as Record<string, unknown>)[prop];
+						if (
+							typeof value === "object" &&
+							value !== null &&
+							!(value instanceof ArrayBuffer) &&
+							!ArrayBuffer.isView(value)
+						) {
+							// Deep clone to strip Vue Proxies, ensuring a plain object is stored
+							data[prop] = JSON.parse(JSON.stringify(value));
+						} else {
+							data[prop] = value;
+						}
 					}
-					const updateRequest = store.put(data, key);
-					updateRequest.onsuccess = () => resolve();
-					updateRequest.onerror = () => reject(updateRequest.error);
+					try {
+						const updateRequest = store.put(data, key);
+						updateRequest.onsuccess = () => resolve();
+						updateRequest.onerror = () => reject(updateRequest.error);
+					} catch (e) {
+						console.error("Failed to update disk", key, newdata);
+						console.error(e);
+					}
 				} else {
 					reject(new Error("Disk not found"));
 				}
@@ -143,49 +171,24 @@ export function useDiskStorage() {
 
 	const renameDisk = async (key: IDBValidKey, newName: string) => {
 		return updateDisk(key, { name: newName });
-
-		// const db = await getDb();
-		// return new Promise<void>((resolve, reject) => {
-		// 	const transaction = db.transaction(STORE_NAME, "readwrite");
-		// 	const store = transaction.objectStore(STORE_NAME);
-		// 	const request = store.get(key);
-		// 	request.onsuccess = () => {
-		// 		const data = request.result;
-		// 		if (data) {
-		// 			data.name = newName;
-		// 			const updateRequest = store.put(data, key);
-		// 			updateRequest.onsuccess = () => resolve();
-		// 			updateRequest.onerror = () => reject(updateRequest.error);
-		// 		} else {
-		// 			reject(new Error("Disk not found"));
-		// 		}
-		// 	};
-		// 	request.onerror = () => reject(request.error);
-		// });
 	};
 
 	const updateDiskSymbols = async (key: IDBValidKey, symbols: SymbolDict) => {
 		return updateDisk(key, { symbols });
-
-		// const db = await getDb();
-		// return new Promise<void>((resolve, reject) => {
-		// 	const transaction = db.transaction(STORE_NAME, "readwrite");
-		// 	const store = transaction.objectStore(STORE_NAME);
-		// 	const request = store.get(key);
-		// 	request.onsuccess = () => {
-		// 		const data = request.result;
-		// 		if (data) {
-		// 			data.symbols = JSON.parse(JSON.stringify(symbols));
-		// 			const updateRequest = store.put(data, key);
-		// 			updateRequest.onsuccess = () => resolve();
-		// 			updateRequest.onerror = () => reject(updateRequest.error);
-		// 		} else {
-		// 			reject(new Error("Disk not found for updating symbols"));
-		// 		}
-		// 	};
-		// 	request.onerror = () => reject(request.error);
-		// });
 	};
 
-	return { saveDisk, saveUrlDisk, loadDisk, getAllDisks, deleteDisk, renameDisk, updateDiskSymbols };
+	const updateDiskFormatting = async (key: IDBValidKey, formatting: Record<string, DataBlock>) => {
+		return updateDisk(key, { formatting });
+	};
+
+	return {
+		saveDisk,
+		saveUrlDisk,
+		loadDisk,
+		getAllDisks,
+		deleteDisk,
+		renameDisk,
+		updateDiskSymbols,
+		updateDiskFormatting,
+	};
 }

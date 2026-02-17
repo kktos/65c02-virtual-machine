@@ -24,10 +24,24 @@ export function useFormatting() {
 		return formattingRules.value.get(address);
 	};
 
+	const setFormatting = (rules: Record<string, DataBlock> | undefined) => {
+		formattingRules.value.clear();
+		if (!rules) return;
+		for (const [key, value] of Object.entries(rules)) {
+			formattingRules.value.set(Number(key), value);
+		}
+	};
+
+	const getFormatting = () => {
+		return Object.fromEntries(formattingRules.value);
+	};
+
 	return {
 		formattingRules,
 		addFormat,
 		removeFormat,
 		getFormat,
+		setFormatting,
+		getFormatting,
 	};
 }
