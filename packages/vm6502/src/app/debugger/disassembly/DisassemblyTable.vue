@@ -35,7 +35,7 @@
 						</button>
 					</td>
 					<td
-						class="py-0.5 px-2 tabular-nums text-indigo-300 font-mono cursor-pointer"
+						class="py-0.5 px-2 tabular-nums text-indigo-300 font-mono cursor-pointer align-baseline"
 						:style="getScopeStyle(line.address)"
 						:title="`Scope: ${getScopeDisplay(line.address)} | CTRL+Click to view in Memory Viewer`"
 						@click.ctrl.prevent="$emit('addressClick', line.address)"
@@ -61,7 +61,7 @@
 							{{ getBranchPrediction(line.opcode)?.char }}
 						</span>
 					</td>
-					<td class="py-0.5 text-left text-gray-500 italic">
+					<td class="py-0.5 text-left text-gray-500 align-baseline">
 						{{ line.comment || (getLabeledInstruction(line.opcode).labelComment ? "; " + getLabeledInstruction(line.opcode).labelComment : "") }}
 					</td>
 					<td v-if="settings.disassembly.showCycles" class="py-0.5 text-center text-gray-400">

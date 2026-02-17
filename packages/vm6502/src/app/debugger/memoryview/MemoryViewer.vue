@@ -3,6 +3,9 @@
 		<div class="mb-3 mt-1 flex flex-wrap items-center gap-4 shrink-0">
 			<div class="flex flex-1 items-center gap-2" >
 				<AddressNavigator @goto="handleGoto" />
+				<div v-if="selectedRange && selectedRange.size > 1" class="text-gray-400 text-xs font-mono">
+					(Size: {{ selectedRange.size }})
+				</div>
 			</div>
 
 			<!-- Search Popover -->
@@ -62,6 +65,8 @@
 		<div
 			class="font-mono text-xs overflow-y-hidden flex-grow min-h-0 bg-gray-900 p-2 rounded-md"
 			@wheel="handleWheel"
+			@mouseup="endSelection"
+			@mouseleave="endSelection"
 		>
 			<table class="w-full table-fixed">
 				<thead>
@@ -91,34 +96,56 @@
 						</td>
 
 						<td v-for="byteIndex in BYTES_PER_LINE" :key="byteIndex" class="p-0">
-							<input
-								type="text"
-								:value="editingIndex === ((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1)) && editingMode === 'hex' ? editingValue : currentMemorySlice[(lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1)]?.toString(16).toUpperCase().padStart(2, '0')"
-								:ref="(el) => setHexInputRef(el, (lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1))"
-								@keydown="handleKeyDown((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1), $event, 'hex')"
-								@contextmenu.prevent="handleContextMenu((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1), $event)"
-								@input="handleHexChange((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1), $event)"
-								@focus="handleHexFocus((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1), $event)"
-								@blur="handleBlur"
-								maxlength="2"
-								:class="['w-full text-center focus:bg-gray-600 focus:outline-none focus:ring-1 focus:ring-cyan-500 rounded-none tabular-nums text-xs', editingIndex === ((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1)) ? 'bg-yellow-600' : (isHighlighted((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1)) ? 'bg-yellow-600/50 text-white font-bold' : (isContextMenuTarget((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1)) ? 'bg-gray-600 ring-1 ring-cyan-500' : 'bg-transparent')), getBreakpointClass((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1))]"
-							/>
+							<template v-if="editingIndex === ((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1)) && editingMode === 'hex'">
+								<input
+									type="text"
+									:value="editingValue"
+									:ref="(el) => setHexInputRef(el, (lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1))"
+									@keydown="handleKeyDown((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1), $event, 'hex')"
+									@input="handleHexChange((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1), $event)"
+									@blur="handleBlur"
+									maxlength="2"
+									class="w-full text-center bg-yellow-600 focus:bg-gray-600 focus:outline-none focus:ring-1 focus:ring-cyan-500 rounded-none tabular-nums text-xs"
+								/>
+							</template>
+							<template v-else>
+								<div
+									@dblclick="startEditing((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1), 'hex')"
+									@mousedown="startSelection((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1), $event)"
+									@mouseenter="updateSelection((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1))"
+									@contextmenu.prevent="handleContextMenu((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1), $event)"
+									:class="['w-full text-center tabular-nums text-xs py-0.5 cursor-text select-none', isCellSelected((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1)) ? 'bg-blue-700 text-white' : (isHighlighted((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1)) ? 'bg-yellow-600/50 text-white font-bold' : (isContextMenuTarget((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1)) ? 'bg-gray-600 ring-1 ring-cyan-500' : getDataBlockClass((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1)))), getBreakpointClass((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1))]"
+								>
+									{{ currentMemorySlice[(lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1)]?.toString(16).toUpperCase().padStart(2, '0') ?? '  ' }}
+								</div>
+							</template>
 						</td>
 
 						<td class="py-0.5 pl-4 whitespace-nowrap flex">
-							<input
-								v-for="byteIndex in BYTES_PER_LINE"
-								:key="byteIndex"
-								type="text"
-								:value="getAsciiChar(currentMemorySlice[(lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1)])"
-								:ref="(el) => setAsciiInputRef(el, (lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1))"
-								@keydown="handleKeyDown((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1), $event, 'ascii')"
-								@input="handleAsciiChange((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1), $event)"
-								@focus="handleAsciiFocus((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1), $event)"
-								@blur="handleBlur"
-								maxlength="1"
-								:class="['w-[1.2ch] text-center focus:bg-gray-600 focus:outline-none focus:ring-1 focus:ring-cyan-500 rounded-none tabular-nums text-xs p-0 border-none font-bold', getAsciiClass(currentMemorySlice[(lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1)], isHighlighted((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1)), editingIndex === ((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1))), getBreakpointClass((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1))]"
-							/>
+							<template v-for="byteIndex in BYTES_PER_LINE" :key="byteIndex">
+								<template v-if="editingIndex === ((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1)) && editingMode === 'ascii'">
+									<input
+										type="text"
+										:value="editingValue"
+										:ref="(el) => setAsciiInputRef(el, (lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1))"
+										@keydown="handleKeyDown((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1), $event, 'ascii')"
+										@input="handleAsciiChange((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1), $event)"
+										@blur="handleBlur"
+										maxlength="1"
+										class="w-[1.2ch] text-center bg-yellow-600 focus:bg-gray-600 focus:outline-none focus:ring-1 focus:ring-cyan-500 rounded-none tabular-nums text-xs p-0 border-none font-bold"
+									/>
+								</template>
+								<template v-else>
+									<div
+										@dblclick="startEditing((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1), 'ascii')"
+										@mousedown="startSelection((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1), $event)"
+										@mouseenter="updateSelection((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1))"
+										:class="['w-[1.2ch] text-center tabular-nums text-xs p-0 font-bold cursor-text select-none', getAsciiClass(currentMemorySlice[(lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1)], isHighlighted((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1)), isCellSelected((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1))), getBreakpointClass((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1)), isCellSelected((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1)) ? '' : getDataBlockClass((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1))]"
+									>
+										{{ getAsciiChar(currentMemorySlice[(lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1)]) }}
+									</div>
+								</template>
+							</template>
 						</td>
 					</tr>
 				</tbody>
@@ -136,6 +163,9 @@
 				<button @click="disassembleHere" class="w-full text-left px-2 py-1.5 hover:bg-gray-700 rounded flex items-center">
 					Disassemble Here
 				</button>
+				<button @click="openAddSymbol" class="w-full text-left px-2 py-1.5 hover:bg-gray-700 rounded flex items-center">
+					Add/Edit Label
+				</button>
 				<button @click="addBp('read')" class="w-full text-left px-2 py-1.5 hover:bg-gray-700 rounded flex items-center">
 					Break on Read
 				</button>
@@ -147,6 +177,15 @@
 				</button>
 			</PopoverContent>
 		</Popover>
+
+		<AddSymbolPopover
+			:is-open="symbolPopover.isOpen"
+			@update:is-open="(val) => symbolPopover.isOpen = val"
+			:x="symbolPopover.x"
+			:y="symbolPopover.y"
+			:address="symbolPopover.address"
+			:initial-length="symbolPopover.initialLength"
+		/>
 	</div>
 </template>
 
@@ -156,18 +195,21 @@
 	import { Search, Split, X } from "lucide-vue-next";
 import { computed, inject, nextTick, onMounted, onUnmounted, type Ref, ref, watch } from "vue";
 import AddressNavigator from "@/app/debugger/AddressNavigator.vue";
+import AddSymbolPopover from "@/components/AddSymbolPopover.vue";
 import DebugOptionsPopover from "@/components/DebugOptionsPopover.vue";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useBreakpoints } from "@/composables/useBreakpoints";
 import { useDebuggerNav } from "@/composables/useDebuggerNav";
 import { useDisassembly } from "@/composables/useDisassembly";
+import { useFormatting } from "@/composables/useFormatting";
 import type { DebugGroup } from "@/types/machine.interface";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import BinaryLoader from "./BinaryLoader.vue";
 
 	const vm= inject<Ref<VirtualMachine>>("vm");
 	const subscribeToUiUpdates= inject<(callback: () => void) => void>("subscribeToUiUpdates");
+	const { formattingRules } = useFormatting();
 
 	const props = defineProps<{
 		canClose?: boolean;
@@ -337,6 +379,37 @@ import BinaryLoader from "./BinaryLoader.vue";
 		contextMenu.value.isOpen = false;
 	};
 
+	const symbolPopover = ref({
+		isOpen: false,
+		x: 0,
+		y: 0,
+		address: 0,
+		initialLength: 1
+	});
+
+	const openAddSymbol = () => {
+		const range = selectedRange.value;
+		const contextAddr = contextMenu.value.address;
+
+		let symbolAddr = contextAddr;
+		let symbolSize = 1;
+
+		// Check if a multi-cell range is selected and the context click was inside it
+		if (range && range.size > 1 && contextAddr >= range.start && contextAddr <= range.end) {
+			symbolAddr = range.start;
+			symbolSize = range.size;
+		}
+
+		symbolPopover.value = {
+			isOpen: true,
+			x: contextMenu.value.x,
+			y: contextMenu.value.y,
+			address: symbolAddr,
+			initialLength: symbolSize,
+		};
+		closeContextMenu();
+	};
+
 	const disassembleHere = () => {
 		requestJump(contextMenu.value.address);
 		setActiveTab('disassembly');
@@ -361,6 +434,16 @@ import BinaryLoader from "./BinaryLoader.vue";
 		if (bps.some(b => b.type === 'write')) return 'ring-2 ring-inset ring-red-500/80';
 		if (bps.some(b => b.type === 'read')) return 'ring-2 ring-inset ring-yellow-500/80';
 		if (bps.some(b => b.type === 'pc')) return 'ring-2 ring-inset ring-indigo-500/80';
+		return '';
+	};
+
+	const getDataBlockClass = (index: number) => {
+		const addr = startAddress.value + index;
+		for (const block of formattingRules.value.values()) {
+			let len = block.length;
+			if (block.type === 'word') len *= 2;
+			if (addr >= block.address && addr < block.address + len) return 'bg-indigo-900/30 text-indigo-200';
+		}
 		return '';
 	};
 
@@ -435,6 +518,51 @@ import BinaryLoader from "./BinaryLoader.vue";
 		return `$${bank}:${offset}`;
 	};
 
+	// --- Selection Logic ---
+	const selectionAnchor = ref<number | null>(null);
+	const selectionHead = ref<number | null>(null);
+	const isSelecting = ref(false);
+
+	const selectedRange = computed(() => {
+		if (selectionAnchor.value === null || selectionHead.value === null) return null;
+		const start = Math.min(selectionAnchor.value, selectionHead.value);
+		const end = Math.max(selectionAnchor.value, selectionHead.value);
+		return { start, end, size: end - start + 1 };
+	});
+
+	const startSelection = (index: number, event: MouseEvent) => {
+		if (event.button !== 0) return; // Left click only
+		const addr = startAddress.value + index;
+
+		if (editingIndex.value !== null) handleBlur();
+
+		isSelecting.value = true;
+		if (event.shiftKey && selectionAnchor.value !== null) {
+			selectionHead.value = addr;
+		} else {
+			selectionAnchor.value = addr;
+			selectionHead.value = addr;
+		}
+	};
+
+	const updateSelection = (index: number) => {
+		if (isSelecting.value) {
+			selectionHead.value = startAddress.value + index;
+		}
+	};
+
+	const endSelection = () => {
+		isSelecting.value = false;
+	};
+
+	const isCellSelected = (index: number) => {
+		if (selectionAnchor.value === null || selectionHead.value === null) return false;
+		const addr = startAddress.value + index;
+		const start = Math.min(selectionAnchor.value, selectionHead.value);
+		const end = Math.max(selectionAnchor.value, selectionHead.value);
+		return addr >= start && addr <= end;
+	};
+
 	const editingIndex = ref<number | null>(null);
 	const editingMode = ref<'hex' | 'ascii' | null>(null);
 	const editingValue = ref("");
@@ -457,24 +585,32 @@ import BinaryLoader from "./BinaryLoader.vue";
 		}
 	};
 
-	const handleHexFocus = (index: number, event: FocusEvent) => {
-		editingIndex.value = index;
-		editingMode.value = 'hex';
-		const target = event.target as HTMLInputElement;
-		editingValue.value = target.value;
-		target.select();
-	};
-
-	const handleAsciiFocus = (index: number, event: FocusEvent) => {
-		editingIndex.value = index;
-		editingMode.value = 'ascii';
-		const target = event.target as HTMLInputElement;
-		target.select();
-	};
-
 	const handleBlur = () => {
 		editingIndex.value = null;
 		editingMode.value = null;
+	};
+
+	const startEditing = async (index: number, mode: 'hex' | 'ascii') => {
+		if (editingIndex.value === index && editingMode.value === mode) return;
+
+		editingIndex.value = index;
+		editingMode.value = mode;
+
+		if (mode === 'hex') {
+			const byte = currentMemorySlice.value[index];
+			editingValue.value = byte?.toString(16).toUpperCase().padStart(2, '0') ?? '';
+		} else {
+			editingValue.value = getAsciiChar(currentMemorySlice.value[index]);
+		}
+
+		await nextTick();
+
+		const refs = mode === 'hex' ? hexInputRefs.value : asciiInputRefs.value;
+		const inputEl = refs.get(index);
+		if (inputEl) {
+			inputEl.focus();
+			inputEl.select();
+		}
 	};
 
 	const handleKeyDown = (index: number, event: KeyboardEvent, mode: 'hex' | 'ascii') => {
@@ -504,8 +640,7 @@ import BinaryLoader from "./BinaryLoader.vue";
 
 		if (targetAbs >= startAddress.value && targetAbs < endAddress) {
 			const targetIndex = targetAbs - startAddress.value;
-			const refs = mode === 'hex' ? hexInputRefs.value : asciiInputRefs.value;
-			refs.get(targetIndex)?.focus();
+			startEditing(targetIndex, mode);
 		} else {
 			if (targetAbs < startAddress.value) {
 				startAddress.value = Math.max(0, startAddress.value - BYTES_PER_LINE);
@@ -516,8 +651,7 @@ import BinaryLoader from "./BinaryLoader.vue";
 			nextTick(() => {
 				const newTargetIndex = targetAbs - startAddress.value;
 				if (newTargetIndex >= 0 && newTargetIndex < visibleBytes) {
-					const refs = mode === 'hex' ? hexInputRefs.value : asciiInputRefs.value;
-					refs.get(newTargetIndex)?.focus();
+					startEditing(newTargetIndex, mode);
 				}
 			});
 		}
@@ -530,22 +664,32 @@ import BinaryLoader from "./BinaryLoader.vue";
 		if (!Number.isNaN(value) && value >= 0 && value <= 0xFF && debugOverrides.value) {
 			vm?.value.writeDebug(startAddress.value + index, value, debugOverrides.value);
 		}
+
+		if (target.value.length === 2) {
+			const nextIndex = index + 1;
+			const visibleBytes = visibleRowCount.value * BYTES_PER_LINE;
+			if (nextIndex < visibleBytes) {
+				startEditing(nextIndex, 'hex');
+			} else {
+				(event.target as HTMLElement).blur();
+			}
+		}
 	};
 
 	const handleAsciiChange = (index: number, event: Event) => {
 		const target = event.target as HTMLInputElement;
+		if (editingIndex.value === index && editingMode.value === 'ascii') editingValue.value = target.value;
 		const val = target.value;
 		if (val.length > 0) {
 			let code = val.charCodeAt(0);
 			if (highBitEnabled.value) code |= 0x80;
 			if(debugOverrides.value) vm?.value.writeDebug(startAddress.value + index, code, debugOverrides.value);
 			const nextIndex = index + 1;
-			if (nextIndex < visibleRowCount.value * BYTES_PER_LINE) {
-				nextTick(() => {
-					asciiInputRefs.value.get(nextIndex)?.focus();
-				});
+			const visibleBytes = visibleRowCount.value * BYTES_PER_LINE;
+			if (nextIndex < visibleBytes) {
+				startEditing(nextIndex, 'ascii');
 			} else {
-				target.select();
+				(event.target as HTMLElement).blur();
 			}
 		}
 	};
@@ -558,14 +702,14 @@ import BinaryLoader from "./BinaryLoader.vue";
 	};
 
 	const getAsciiClass = (byte: number | undefined, highlighted = false, selected = false) => {
-		if (selected) return 'bg-yellow-600 text-white';
+		if (selected) return 'bg-blue-700 text-white';
 		if (highlighted) return 'bg-yellow-600 text-white';
 		if (byte === undefined) return 'text-gray-500';
 		const val = byte & 0x7F;
 		if (val < 0x20) return 'text-gray-500';
 		// bit7=0 -> Inverse (Black on White)
 		// bit7=1 -> Normal (Green on Transparent)
-		return (byte & 0x80) ? 'bg-transparent text-green-300' : 'bg-gray-100 text-black';
+		return (byte & 0x80) ? 'bg-transparent text-green-300' : 'bg-green-300 text-black';
 	};
 
 	const handleWheel = (event: WheelEvent) => {

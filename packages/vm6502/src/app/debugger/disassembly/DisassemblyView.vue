@@ -51,6 +51,7 @@ import { useBreakpoints } from "@/composables/useBreakpoints";
 import { useDebuggerNav } from "@/composables/useDebuggerNav";
 import { useDisassembly } from "@/composables/useDisassembly";
 import { useDisassemblyScroll } from "@/composables/useDisassemblyScroll";
+import { useFormatting } from "@/composables/useFormatting";
 import { useSettings } from "@/composables/useSettings";
 import { useSymbols } from "@/composables/useSymbols";
 import { disassemble } from "@/lib/disassembler";
@@ -73,6 +74,7 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 	const { setMemoryViewAddress, setActiveTab, addJumpHistory, historyIndex, historyNavigationEvent, clearHistory } = useDebuggerNav();
 	const { settings } = useSettings();
 	const availableScopes: Ref<string[]>= ref([]);
+	const { getFormat, formattingRules } = useFormatting();
 	const getRandomColor = () => `#${Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0')}`;
 	const banks = vm?.value.machineConfig.memory.banks || 1;
 	const totalMemory = banks * 0x10000;
@@ -246,15 +248,87 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 	};
 
 	watch( // Re-disassemble when the start address or memory changes
-		// () => [disassemblyStartAddress.value, memory, visibleRowCount.value, busState.value, registers, vm?.value?.symbolsVersion.value],
-		() => [disassemblyStartAddress.value, memory, visibleRowCount.value, busState.value, registers],
+		() => [disassemblyStartAddress.value, memory, visibleRowCount.value, busState.value, registers, formattingRules.value],
 		() => {
 			if (memory) {
 
 				vm?.value?.syncBusState();
 
-				// Disassemble enough lines to fill the view (e.g., 50 lines)
-				disassembly.value = disassemble(readByte, disassemblyStartAddress.value, visibleRowCount.value, registers);
+				const lines: DisassemblyLine[] = [];
+				let currentAddress = disassemblyStartAddress.value;
+				const maxLines = visibleRowCount.value;
+				let safetyCounter = 0;
+
+				while (lines.length < maxLines && safetyCounter < maxLines * 2) {
+					safetyCounter++;
+					const format = getFormat(currentAddress);
+
+					if (format) {
+						// Handle Data Block
+						let byteCount = format.length;
+						if (format.type === 'word') byteCount *= 2;
+
+						const bytes: number[] = [];
+						for (let i = 0; i < byteCount; i++) {
+							bytes.push(readByte(currentAddress + i));
+						}
+
+						let opcode = '';
+						let comment = '';
+						let rawBytesStr = '';
+
+						// Format Raw Bytes (limit to ~8 for display)
+						const displayBytes = bytes.slice(0, 8);
+						rawBytesStr = displayBytes.map(b => b.toString(16).toUpperCase().padStart(2, '0')).join(' ');
+						if (bytes.length > 8) rawBytesStr += '...';
+
+						if (format.type === 'string') {
+							opcode = '.ASC';
+							const text = bytes.map(b => {
+								const c = b & 0x7F;
+								return (c >= 32 && c <= 126) ? String.fromCharCode(c) : '.';
+							}).join('');
+							comment = `"${text}"`;
+						} else if (format.type === 'word') {
+							opcode = '.WORD';
+							const words: string[] = [];
+							for (let i = 0; i < format.length; i++) {
+								const lo = bytes[i * 2];
+								const hi = bytes[i * 2 + 1];
+								if (lo !== undefined && hi !== undefined) {
+									const val = (hi << 8) | lo;
+									words.push('$' + val.toString(16).toUpperCase().padStart(4, '0'));
+								}
+							}
+							comment = words.join(', ');
+						} else {
+							opcode = '.BYTE';
+							comment = bytes.map(b => '$' + b.toString(16).toUpperCase().padStart(2, '0')).join(', ');
+						}
+
+						lines.push({
+							address: currentAddress,
+							opcode: opcode,
+							rawBytes: rawBytesStr,
+							comment: comment,
+							cycles: 0
+						});
+
+						currentAddress += byteCount;
+					} else {
+						// Handle Instruction
+						const result = disassemble(readByte, currentAddress, 1, registers);
+						if (result.length > 0) {
+							const line = result[0];
+							lines.push(line);
+							const len = line.rawBytes.trim().split(/\s+/).length;
+							currentAddress += len;
+						} else {
+							currentAddress++;
+						}
+					}
+				}
+				disassembly.value = lines;
 			}
 		},
 		{ immediate: true, deep: true },
