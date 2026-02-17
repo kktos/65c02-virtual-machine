@@ -203,7 +203,7 @@ const allSymbols = computed(() => {
 
 const uniqueNamespaces = computed(() => {
 	const namespaces = new Set<string>();
-	allSymbols.value.forEach((s) => namespaces.add(s.namespace));
+	allSymbols.value.forEach((s) => { namespaces.add(s.namespace); });
 	return Array.from(namespaces).sort();
 });
 

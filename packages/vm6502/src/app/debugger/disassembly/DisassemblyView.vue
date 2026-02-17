@@ -307,13 +307,13 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 								const hi = bytes[i * 2 + 1];
 								if (lo !== undefined && hi !== undefined) {
 									const val = (hi << 8) | lo;
-									words.push('$' + val.toString(16).toUpperCase().padStart(4, '0'));
+									words.push(`$${val.toString(16).toUpperCase().padStart(4, '0')}`);
 								}
 							}
 							comment = words.join(', ');
 						} else {
 							opcode = '.BYTE';
-							comment = bytes.map(b => '$' + b.toString(16).toUpperCase().padStart(2, '0')).join(', ');
+							comment = bytes.map(b => `$${b.toString(16).toUpperCase().padStart(2, '0')}`).join(', ');
 						}
 
 						lines.push({
