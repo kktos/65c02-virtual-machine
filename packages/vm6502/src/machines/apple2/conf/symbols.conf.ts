@@ -88,6 +88,10 @@ const symbols = `
 	f948 PRBLNK
 	fa40 IRQ
 	fa62 RESET
+	fa9b FIXSEV
+	fafc PWRCON
+	fb01 DSKID0
+	fb02 DSKID
 	fb1e PREAD
 	fb2f INIT
 	fb40 SETGR

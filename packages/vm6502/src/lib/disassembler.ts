@@ -1,13 +1,22 @@
 import { useFormatting } from "@/composables/useFormatting";
+import { useSymbols } from "@/composables/useSymbols";
 import type { DisassemblyLine } from "@/types/disassemblyline.interface";
 import type { EmulatorState } from "@/types/emulatorstate.interface";
 import { runHypercall, toHex } from "./hypercalls.lib";
 import { opcodeMap } from "./opcodes";
 
 const { getFormat } = useFormatting();
+const { getSymbolForAddress, getLabelForAddress } = useSymbols();
+
+const formatAddress = (addr: number) => {
+	const bank = ((addr >> 16) & 0xff).toString(16).toUpperCase().padStart(2, "0");
+	const offset = (addr & 0xffff).toString(16).toUpperCase().padStart(4, "0");
+	return `$${bank}:${offset}`;
+};
 
 export function disassemble(
 	readByte: (address: number, debug?: boolean) => number,
+	scope: string,
 	fromAddress: number,
 	lineCount: number,
 	registers?: EmulatorState["registers"],
@@ -68,9 +77,15 @@ export function disassemble(
 			}
 
 			disassembly.push({
-				address: pc,
-				opcode,
-				rawBytes: rawBytesStr,
+				label: "",
+				src: "",
+				addr: pc,
+				faddr: formatAddress(pc),
+				mode: "IMP",
+				opc: opcode,
+				opr: "",
+				oprn: 0,
+				bytes: rawBytesStr,
 				comment,
 				cycles: 0,
 			});
@@ -97,9 +112,15 @@ export function disassemble(
 		// Check for unknown opcode or if the instruction would read beyond memory bounds
 		if (!opcodeInfo) {
 			disassembly.push({
-				address,
-				opcode: "???",
-				rawBytes: toHex(opcodeByte, 2),
+				label: "",
+				src: "",
+				addr: address,
+				faddr: formatAddress(address),
+				mode: "IMP",
+				opc: "???",
+				opr: "",
+				oprn: 0,
+				bytes: toHex(opcodeByte, 2),
 				comment: "",
 				cycles: 1,
 			});
@@ -108,13 +129,29 @@ export function disassemble(
 		}
 
 		const { name, bytes, cycles, mode } = opcodeInfo;
-		const line: DisassemblyLine = { address, opcode: name, rawBytes: "", comment: "", cycles };
+
+		const symbol = getSymbolForAddress(address, scope);
+		const line: DisassemblyLine = {
+			label: symbol?.label ?? "",
+			src: symbol?.source ?? "",
+			addr: address,
+			faddr: formatAddress(address),
+
+			mode,
+			opc: name,
+			opr: "",
+			oprn: 0,
+
+			bytes: "",
+			comment: "",
+			cycles,
+		};
 
 		const operandBytes: [number, number] = [readByte(pc + 1), readByte(pc + 2)] as const;
 
 		const actualOperands = operandBytes.slice(0, bytes - 1);
 		const allBytes = [opcodeByte, ...actualOperands];
-		line.rawBytes = allBytes.map((b) => toHex(b, 2)).join(" ");
+		line.bytes = allBytes.map((b) => toHex(b, 2)).join(" ");
 
 		let effectiveAddress: number | null = null;
 
@@ -124,54 +161,78 @@ export function disassemble(
 				// No operand to format
 				break;
 			case "IMM":
-				line.opcode = `${name} #${toHex(operandBytes[0], 2)}`;
+				line.opr = `#${toHex(operandBytes[0], 2)}`;
 				break;
-			case "ZP":
-				line.opcode = `${name} $${toHex(operandBytes[0], 2)}`;
+			case "ZP": {
+				effectiveAddress = operandBytes[0] ?? 0;
+				const label = getLabelForAddress(effectiveAddress, scope);
+				line.opr = label ?? `$${toHex(effectiveAddress, 2)}`;
+				line.oprn = effectiveAddress;
 				break;
-			case "ZPX":
-				line.opcode = `${name} $${toHex(operandBytes[0], 2)},X`;
-				if (registers) effectiveAddress = (operandBytes[0] + registers.X) & 0xff;
+			}
+			case "ZPX": {
+				effectiveAddress = operandBytes[0] ?? 0;
+				const label = getLabelForAddress(effectiveAddress, scope);
+				line.opr = `${label ?? `$${toHex(effectiveAddress, 2)}`},X`;
+				line.oprn = effectiveAddress;
+				if (registers) effectiveAddress = (effectiveAddress + registers.X) & 0xff;
 				break;
-			case "ZPY":
-				line.opcode = `${name} $${toHex(operandBytes[0], 2)},Y`;
-				if (registers) effectiveAddress = (operandBytes[0] + registers.Y) & 0xff;
+			}
+			case "ZPY": {
+				effectiveAddress = operandBytes[0] ?? 0;
+				const label = getLabelForAddress(effectiveAddress, scope);
+				line.opr = `${label ?? `$${toHex(effectiveAddress, 2)}`},Y`;
+				line.oprn = effectiveAddress;
+				if (registers) effectiveAddress = (effectiveAddress + registers.Y) & 0xff;
 				break;
-			case "ABS":
-				line.opcode = `${name} $${toHex(((operandBytes[1] ?? 0) << 8) | (operandBytes[0] ?? 0), 4)}`;
+			}
+			case "ABS": {
+				effectiveAddress = ((operandBytes[1] ?? 0) << 8) | (operandBytes[0] ?? 0);
+				const label = getLabelForAddress(effectiveAddress, scope);
+				line.opr = label ?? `$${toHex(effectiveAddress, 4)}`;
+				line.oprn = effectiveAddress;
 				break;
+			}
 			case "ABX": {
-				const absX = ((operandBytes[1] ?? 0) << 8) | (operandBytes[0] ?? 0);
-				line.opcode = `${name} $${toHex(absX, 4)},X`;
-				if (registers) effectiveAddress = (absX + registers.X) & 0xffff;
+				effectiveAddress = ((operandBytes[1] ?? 0) << 8) | (operandBytes[0] ?? 0);
+				const label = getLabelForAddress(effectiveAddress, scope);
+				line.opr = `${label ?? `$${toHex(effectiveAddress, 4)}`},X`;
+				line.oprn = effectiveAddress;
+				if (registers) effectiveAddress = (effectiveAddress + registers.X) & 0xffff;
 				break;
 			}
 			case "ABY": {
-				const absY = ((operandBytes[1] ?? 0) << 8) | (operandBytes[0] ?? 0);
-				line.opcode = `${name} $${toHex(absY, 4)},Y`;
-				if (registers) effectiveAddress = (absY + registers.Y) & 0xffff;
+				effectiveAddress = ((operandBytes[1] ?? 0) << 8) | (operandBytes[0] ?? 0);
+				const label = getLabelForAddress(effectiveAddress, scope);
+				line.opr = `${label ?? `$${toHex(effectiveAddress, 4)}`},Y`;
+				line.oprn = effectiveAddress;
+				if (registers) effectiveAddress = (effectiveAddress + registers.Y) & 0xffff;
 				break;
 			}
 			case "REL": {
 				const offset = operandBytes[0] ?? 0;
-				const target = pc + 2 + (offset < 0x80 ? offset : offset - 0x100);
-				line.opcode = `${name} $${toHex(target, 4)}`;
+				effectiveAddress = pc + 2 + (offset < 0x80 ? offset : offset - 0x100);
+				const label = getLabelForAddress(effectiveAddress, scope);
+				line.opr = `${label ?? `$${toHex(effectiveAddress, 4)}`}`;
+				line.oprn = effectiveAddress;
 				break;
 			}
 			case "IND": {
 				const ind = ((operandBytes[1] ?? 0) << 8) | (operandBytes[0] ?? 0);
-				line.opcode = `${name} ($${toHex(ind, 4)})`;
-				if (registers) {
-					const lo = readByte(ind, false);
-					const hi = readByte((ind + 1) & 0xffff, false);
-					effectiveAddress = (hi << 8) | lo;
-				}
+				const label = getLabelForAddress(ind, scope);
+				line.opr = `(${label ?? `$${toHex(ind, 4)}`})`;
+				line.oprn = ind;
+				const lo = readByte(ind, false);
+				const hi = readByte((ind + 1) & 0xffff, false);
+				effectiveAddress = (hi << 8) | lo;
 				break;
 			}
 			case "IAX": {
 				// (Absolute, X)
 				const iax = ((operandBytes[1] ?? 0) << 8) | (operandBytes[0] ?? 0);
-				line.opcode = `${name} ($${toHex(iax, 4)},X)`;
+				const label = getLabelForAddress(iax, scope);
+				line.opr = `(${label ?? `$${toHex(iax, 4)}`},X)`;
+				line.oprn = iax;
 				if (registers) {
 					const ptr = (iax + registers.X) & 0xffff;
 					const lo = readByte(ptr, false);
@@ -180,8 +241,12 @@ export function disassemble(
 				}
 				break;
 			}
-			case "IDX": // (Zero Page, X)
-				line.opcode = `${name} ($${toHex(operandBytes[0], 2)},X)`;
+			case "IDX": {
+				// (Zero Page, X)
+				const addr = operandBytes[0] ?? 0;
+				const label = getLabelForAddress(addr, scope);
+				line.opr = `(${label ?? `$${toHex(addr, 2)}`},X)`;
+				line.oprn = addr;
 				if (registers) {
 					const ptr = (operandBytes[0] + registers.X) & 0xff;
 					const lo = readByte(ptr, false);
@@ -189,8 +254,13 @@ export function disassemble(
 					effectiveAddress = (hi << 8) | lo;
 				}
 				break;
-			case "IDY": // (Zero Page), Y
-				line.opcode = `${name} ($${toHex(operandBytes[0], 2)}),Y`;
+			}
+			case "IDY": {
+				// (Zero Page), Y
+				const addr = operandBytes[0] ?? 0;
+				const label = getLabelForAddress(addr, scope);
+				line.opr = `(${label ?? `$${toHex(addr, 2)}`}),Y`;
+				line.oprn = addr;
 				if (registers) {
 					const ptr = operandBytes[0];
 					const lo = readByte(ptr, false);
@@ -199,8 +269,13 @@ export function disassemble(
 					effectiveAddress = (base + registers.Y) & 0xffff;
 				}
 				break;
-			case "ZPI": // (Zero Page)
-				line.opcode = `${name} ($${toHex(operandBytes[0], 2)})`;
+			}
+			case "ZPI": {
+				// (Zero Page)
+				const addr = operandBytes[0] ?? 0;
+				const label = getLabelForAddress(addr, scope);
+				line.opr = `(${label ?? `$${toHex(addr, 2)}`})`;
+				line.oprn = addr;
 				if (registers) {
 					const ptr = operandBytes[0];
 					const lo = readByte(ptr, false);
@@ -208,8 +283,9 @@ export function disassemble(
 					effectiveAddress = (hi << 8) | lo;
 				}
 				break;
+			}
 			default:
-				line.opcode = `${name} ${operandBytes.map((b) => toHex(b, 2)).join(" ")}`;
+				line.opr = `${operandBytes.map((b) => toHex(b, 2)).join(" ")}`;
 				break;
 		}
 
@@ -225,6 +301,8 @@ export function disassemble(
 		disassembly.push(line);
 		pc += bytes;
 	}
+
+	console.log("Disassembly:", toHex(fromAddress, 4), lineCount, disassembly);
 
 	return disassembly;
 }

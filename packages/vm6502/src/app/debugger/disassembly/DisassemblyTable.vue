@@ -11,59 +11,59 @@
 			</tr>
 		</thead>
 		<tbody>
-			<template v-for="line in disassembly" :key="line.address">
-				<tr v-if="getLabelForAddress(line.address)">
+			<template v-for="line in disassembly" :key="line.addr">
+				<tr v-if="line.label">
 					<td
 						colspan="6"
 						class="py-0.5 px-2 text-yellow-500 font-bold font-mono text-xs border-l-4 border-transparent"
-						:style="getLabelStyle(line.address)"
+						:style="{ color: getScopeColor(line.addr) }"
 						@contextmenu.prevent="handleContextMenu($event, line)"
-						:title="getSymbolSource(line.address)"
+						:title="line.src"
 					>
-						{{ getLabelForAddress(line.address) }}:
+						{{ line.label }}:
 					</td>
 				</tr>
 				<tr
 					:class="[
 						'hover:bg-gray-700 transition duration-100 border-l-4',
-						line.address === address ? 'bg-yellow-800/70 text-yellow-100 font-bold border-yellow-400' : 'border-transparent text-gray-300',
-						contextMenu.isOpen && contextMenu.address === line.address ? 'bg-gray-700' : ''
+						line.addr === address ? 'bg-yellow-800/70 text-yellow-100 font-bold border-yellow-400' : 'border-transparent text-gray-300',
+						contextMenu.isOpen && contextMenu.address === line.addr ? 'bg-gray-700' : ''
 					]"
 				>
 					<td class="py-0.5 text-center">
-						<button @click="$emit('toggleBreakpoint', line.address)" class="w-full h-full flex items-center justify-center cursor-pointer group">
-							<span class="w-2 h-2 rounded-full transition-colors" :class="getBreakpointClass(line.address)"></span>
+						<button @click="$emit('toggleBreakpoint', line.addr)" class="w-full h-full flex items-center justify-center cursor-pointer group">
+							<span class="w-2 h-2 rounded-full transition-colors" :class="getBreakpointClass(line.addr)"></span>
 						</button>
 					</td>
 					<td
 						class="py-0.5 px-2 tabular-nums text-indigo-300 font-mono cursor-pointer align-baseline"
-						:style="getScopeStyle(line.address)"
-						:title="`Scope: ${getScopeDisplay(line.address)} | CTRL+Click to view in Memory Viewer`"
-						@click.ctrl.prevent="$emit('addressClick', line.address)"
+						:style="{ 'background-color': getScopeColor(line.addr)+'1A' }"
+						:title="`Scope: ${getScopeForAddr(line.addr)} | CTRL+Click to view in Memory Viewer`"
+						@click.ctrl.prevent="$emit('addressClick', line.addr)"
 					>
-						{{ formatAddress(line.address) }}
+						{{ line.faddr }}
 					</td>
 					<td class="py-0.5 tabular-nums text-gray-400">
-						{{ line.rawBytes }}
+						{{ line.bytes }}
 					</td>
 					<td
 						class="py-0.5 text-left flex items-center"
 						:class="{ 'cursor-pointer': isOpcodeClickable(line) }"
-						:title="getOpcodeTitle(line)"
+						:title="getOpcodeTitle(line.opc)"
 						@click.ctrl.prevent="$emit('opcodeClick', line)"
 						@contextmenu.prevent="handleContextMenu($event, line)"
 					>
-						<span>{{ getLabeledInstruction(line.opcode).labeledOpcode }}</span>
+						<span>{{ line.opc }} {{ line.opr }}</span>
 						<span
-							v-if="line.address === address && getBranchPrediction(line.opcode)"
-							:class="['ml-2', getBranchPrediction(line.opcode)?.color]"
-							:title="getBranchPrediction(line.opcode)?.title"
+							v-if="line.addr === address && getBranchPrediction(line.opc)"
+							:class="['ml-2', getBranchPrediction(line.opc)?.color]"
+							:title="getBranchPrediction(line.opc)?.title"
 						>
-							{{ getBranchPrediction(line.opcode)?.char }}
+							{{ getBranchPrediction(line.opc)?.char }}
 						</span>
 					</td>
 					<td class="py-0.5 text-left text-gray-500 align-baseline">
-						{{ line.comment || (getLabeledInstruction(line.opcode).labelComment ? "; " + getLabeledInstruction(line.opcode).labelComment : "") }}
+						{{ line.comment }}
 					</td>
 					<td v-if="settings.disassembly.showCycles" class="py-0.5 text-center text-gray-400">
 						{{ line.cycles }}
@@ -87,7 +87,6 @@
 import { inject, type Ref, ref } from "vue";
 import AddSymbolPopover from "@/components/AddSymbolPopover.vue";
 import { useSettings } from "@/composables/useSettings";
-import { useSymbols } from "@/composables/useSymbols";
 import type { DisassemblyLine } from "@/types/disassemblyline.interface";
 import type { EmulatorState } from "@/types/emulatorstate.interface";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
@@ -107,7 +106,6 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 		(e: "opcodeClick", line: DisassemblyLine): void;
 	}>();
 
-	const { getLabeledInstruction, getLabelForAddress, getSymbolSource, getNamespaceForAddress } = useSymbols();
 	const { settings } = useSettings();
 
 	const getBranchPrediction = (opcode: string) => {
@@ -116,79 +114,78 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 
 		const { N, Z, C, V } = registers;
 		let isTaken = false;
+		let isBranchOpcode = false;
 
-		if (opcode.startsWith('BNE')) isTaken = !Z;
-		else if (opcode.startsWith('BEQ')) isTaken = Z;
-		else if (opcode.startsWith('BPL')) isTaken = !N;
-		else if (opcode.startsWith('BMI')) isTaken = N;
-		else if (opcode.startsWith('BCC')) isTaken = !C;
-		else if (opcode.startsWith('BCS')) isTaken = C;
-		else if (opcode.startsWith('BVC')) isTaken = !V;
-		else if (opcode.startsWith('BVS')) isTaken = V;
-
-		if (opcode.startsWith('B') && !['BRK', 'BIT'].includes(opcode)) {
-			if (isTaken) {
-				return { char: '→', title: 'Branch Taken', color: 'text-green-400' };
-			} else {
-				return { char: '↓', title: 'Branch Not Taken', color: 'text-red-400' };
-			}
+		switch (opcode) {
+			case 'BNE':
+				isTaken = !Z;
+				isBranchOpcode = true;
+				break;
+			case 'BEQ':
+				isTaken = Z;
+				isBranchOpcode = true;
+				break;
+			case 'BPL':
+				isTaken = !N;
+				isBranchOpcode = true;
+				break;
+			case 'BMI':
+				isTaken = N;
+				isBranchOpcode = true;
+				break;
+			case 'BCC':
+				isTaken = !C;
+				isBranchOpcode = true;
+				break;
+			case 'BCS':
+				isTaken = C;
+				isBranchOpcode = true;
+			break;
+			case 'BVC':
+				isTaken = !V;
+				isBranchOpcode = true;
+				break;
+			case 'BVS':
+				isTaken = V;
+				isBranchOpcode = true;
+				break;
 		}
-		return null;
+
+		if (!isBranchOpcode) return null;
+
+		return isTaken ?
+			{ char: '→', title: 'Branch Taken', color: 'text-green-400' }
+			:
+			{ char: '↓', title: 'Branch Not Taken', color: 'text-red-400' };
+
 	};
 
 	const pcOpcodes= new Set(['JMP', 'JSR', 'BCC', 'BCS', 'BEQ', 'BMI', 'BNE', 'BPL', 'BVC', 'BVS']);
 
 	const isOpcodeClickable = (line: DisassemblyLine) => {
-		const mnemonic = line.opcode.substring(0, 3);
+		const mnemonic = line.opc;
 		if (pcOpcodes.has(mnemonic)) return true;
-		const operand = line.opcode.split(' ')[1] || '';
+		const operand = line.opr;
 		return operand.includes('$'); // Simple check for an address operand
 	};
 
-	const getOpcodeTitle = (line: DisassemblyLine) => {
-		if (!isOpcodeClickable(line)) return '';
-		const mnemonic = line.opcode.substring(0, 3);
-		if (pcOpcodes.has(mnemonic)) return 'CTRL+Click to follow jump/branch';
+	const getOpcodeTitle = (opc: string) => {
+		if (pcOpcodes.has(opc)) return 'CTRL+Click to follow jump/branch';
 		return 'CTRL+Click to view effective address in Memory Viewer';
 	};
 
-	const getScopeDisplay = (addr: number) => {
+	const getScopeForAddr = (addr: number) => {
 		const scope = vm?.value?.getScope(addr & 0xFFFF);
 		return scope ?? "";
 	};
 
-	const getScopeStyle = (addr: number) => {
+	const getScopeColor = (addr: number) => {
 		const scope = vm?.value?.getScope(addr & 0xFFFF);
-		if (!scope) return {};
-
+		if (!scope) return "";
 		const color = settings.disassembly.scopeColors[scope];
-
-		// Don't apply style for black/transparent or if not defined
-		if (!color || color === '#000000' || color === '#00000000') return {};
-
-		const opacity = "1A";
-
-		return {
-			backgroundColor: `${color}${opacity}`,
-		};
-	};
-
-	const getLabelStyle = (addr: number) => {
-		const ns = getNamespaceForAddress(addr);
-		if (!ns) return {};
-
-		const color = settings.disassembly.scopeColors[ns];
-
-		// If color is black or transparent, use default class (yellow-500)
-		if (!color || color === '#000000' || color === '#00000000') return {};
-
-		return { color };
-	};
-
-	const formatAddress = (addr: number) => {
-		const bank = ((addr >> 16) & 0xFF).toString(16).toUpperCase().padStart(2, '0');
-		const offset = (addr & 0xFFFF).toString(16).toUpperCase().padStart(4, '0');
-		return `$${bank}:${offset}`;
+		// If color is black or transparent, use default class
+		if (!color || color === '#000000' || color === '#00000000') return "";
+		return color;
 	};
 
 	// --- Context Menu & Label Editing ---
@@ -204,7 +201,7 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 			isOpen: true,
 			x: event.clientX,
 			y: event.clientY,
-			address: line.address
+			address: line.addr
 		};
 	};
 

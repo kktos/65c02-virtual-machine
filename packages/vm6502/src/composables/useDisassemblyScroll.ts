@@ -39,7 +39,7 @@ export function useDisassemblyScroll(
 		const tempDisassembly = disassemble(readByte, searchStart, lookbehind);
 
 		// The last instruction in this temp block whose address is less than startAddr is our target.
-		for (const line of tempDisassembly.reverse()) if (line.address < startAddr) return line.address;
+		for (const line of tempDisassembly.reverse()) if (line.addr < startAddr) return line.addr;
 
 		// Fallback if something goes wrong
 		return Math.max(0, startAddr - 1);
@@ -57,7 +57,7 @@ export function useDisassemblyScroll(
 		} else {
 			// Scroll Down
 			// The new start address is the address of the second line
-			const newStartAddress = disassembly.value[1]?.address ?? 0;
+			const newStartAddress = disassembly.value[1]?.addr ?? 0;
 			disassemblyStartAddress.value = newStartAddress;
 		}
 	};

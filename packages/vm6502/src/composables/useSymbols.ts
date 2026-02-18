@@ -1,19 +1,19 @@
-import { inject, type Ref, ref } from "vue";
+import { ref } from "vue";
 import type { SymbolDict } from "@/types/machine.interface";
-import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 
 // Shared state for active namespaces across components
 const activeNamespaces = ref<Map<string, boolean>>(new Map());
+const symbolDict = ref<SymbolDict>({});
 
 export function useSymbols() {
-	const vm = inject<Ref<VirtualMachine>>("vm");
+	const initSymbols = (newSymbols?: SymbolDict) => {
+		symbolDict.value = newSymbols ?? {};
+		activeNamespaces.value.clear();
+		if (newSymbols) buildNamespacesFromSymbols(newSymbols);
+	};
 
 	const addSymbols = (newSymbols: SymbolDict) => {
-		if (!vm?.value?.machineConfig) return;
-		if (!vm.value.machineConfig.symbols) vm.value.machineConfig.symbols = {};
-
-		const symbols = vm.value.machineConfig.symbols;
-
+		const symbols = symbolDict.value;
 		for (const [addrStr, namespaces] of Object.entries(newSymbols)) {
 			const addr = Number(addrStr);
 			if (!symbols[addr]) symbols[addr] = {};
@@ -24,13 +24,11 @@ export function useSymbols() {
 	};
 
 	const addSymbol = (address: number, label: string, namespace = "user", scope = "main") => {
-		if (!vm?.value?.machineConfig) return;
-		if (!vm.value.machineConfig.symbols) vm.value.machineConfig.symbols = {};
+		const symbols = symbolDict.value;
 
-		const symbols = vm.value.machineConfig.symbols;
 		if (!symbols[address]) symbols[address] = {};
 
-		symbols[address][namespace] = { label, scope };
+		symbols[address][namespace] = { label, scope, source: "" };
 
 		if (!activeNamespaces.value.has(namespace)) {
 			activeNamespaces.value.set(namespace, true);
@@ -38,16 +36,12 @@ export function useSymbols() {
 	};
 
 	const removeSymbol = (address: number, namespace = "user") => {
-		if (!vm?.value?.machineConfig?.symbols) return;
-		const symbols = vm.value.machineConfig.symbols;
-		if (symbols[address]?.[namespace]) {
-			delete symbols[address][namespace];
-		}
+		const symbols = symbolDict.value;
+		if (symbols[address]?.[namespace]) delete symbols[address][namespace];
 	};
 
 	const getUserSymbols = (): SymbolDict => {
-		const allSymbols = vm?.value?.machineConfig?.symbols;
-		if (!allSymbols) return {};
+		const allSymbols = symbolDict.value;
 
 		const userSymbols: SymbolDict = {};
 
@@ -61,13 +55,9 @@ export function useSymbols() {
 	};
 
 	const clearUserSymbols = () => {
-		const allSymbols = vm?.value?.machineConfig?.symbols;
-		if (!allSymbols) return;
-
+		const allSymbols = symbolDict.value;
 		for (const namespaces of Object.values(allSymbols)) {
-			if (namespaces.user) {
-				delete namespaces.user;
-			}
+			if (namespaces.user) delete namespaces.user;
 		}
 	};
 
@@ -99,11 +89,12 @@ export function useSymbols() {
 		}
 	};
 
-	const resolveActiveNamespace = (address: number): string | undefined => {
-		const map = vm?.value?.machineConfig?.symbols?.[address];
+	const resolveActiveNamespace = (address: number, scope = "main"): string | undefined => {
+		const allSymbols = symbolDict.value;
+		const map = allSymbols[address];
 		if (!map) return undefined;
 
-		const currentMemoryScope = vm?.value?.getScope(address) ?? "main";
+		// const currentMemoryScope = vm?.value?.getScope(address) ?? "main";
 
 		// Look for an active namespace that has a symbol for this address AND matches the memory scope
 		for (const [ns, isActive] of activeNamespaces.value) {
@@ -113,17 +104,15 @@ export function useSymbols() {
 				// Check if the symbol's scope matches the VM's current memory scope
 				// We handle legacy entries that might not have a scope property by defaulting to 'main'
 				const entryScope = entry.scope;
-				if (entryScope === currentMemoryScope) {
-					return ns;
-				}
+				if (entryScope === scope) return ns;
 			}
 		}
 		return undefined;
 	};
 
 	const getLabeledInstruction = (opcode: string) => {
-		const labels = vm?.value?.machineConfig?.symbols;
-		if (!labels) return { labeledOpcode: opcode, labelComment: null };
+		const allSymbols = symbolDict.value;
+		// if (!labels) return { labeledOpcode: opcode, labelComment: null };
 
 		const addressMatch = opcode.match(/\$([0-9A-Fa-f]{2,4}[\w,()]?)/);
 
@@ -139,8 +128,8 @@ export function useSymbols() {
 
 				// Determine scope for the target address
 				const ns = resolveActiveNamespace(address);
-				if (ns && labels[address]?.[ns]) {
-					const entry = labels[address][ns];
+				if (ns && allSymbols[address]?.[ns]) {
+					const entry = allSymbols[address][ns];
 					const label = entry.label;
 					// Replace the address part with the label, keeping the addressing mode suffix
 					const suffix = fullAddressExpression.substring(addressHexMatch[0].length + 1);
@@ -199,24 +188,38 @@ export function useSymbols() {
 		return symbols;
 	};
 
-	const getLabelForAddress = (address: number) => {
-		const ns = resolveActiveNamespace(address);
-		if (!ns) return undefined;
-		const entry = vm?.value?.machineConfig?.symbols?.[address]?.[ns];
-		return typeof entry === "string" ? entry : entry?.label;
+	const getLabelForAddress = (address: number, scope?: string) => {
+		const map = symbolDict.value[address];
+		if (!map) return undefined;
+		const nsList = Object.keys(map);
+		for (const ns of nsList) {
+			if (activeNamespaces.value.get(ns) && (map[ns]?.scope === scope || map[ns]?.scope === "main"))
+				return map[ns]?.label;
+		}
+		console.warn("getLabelForAddress", address.toString(16).padStart(4, "0"), scope, map);
+		return undefined;
+	};
+
+	const getSymbolForAddress = (address: number, scope?: string) => {
+		const map = symbolDict.value[address];
+		if (!map) return undefined;
+		const nsList = Object.keys(map);
+		for (const ns of nsList) {
+			if (activeNamespaces.value.get(ns) && (map[ns]?.scope === scope || map[ns]?.scope === "main")) return map[ns];
+		}
+		console.warn("getSymbolForAddress", address.toString(16).padStart(4, "0"), scope, map);
+		return undefined;
 	};
 
 	const getAddressForSymbol = (symbol: string): number | undefined => {
-		const symbolMap = vm?.value?.machineConfig?.symbols;
-		if (!symbolMap) return undefined;
-
+		const allSymbols = symbolDict.value;
 		const upperSymbol = symbol.toUpperCase();
 
 		// This is not performant for large symbol tables, but it's simple.
 		// We can optimize this later by creating a reverse map if needed.
-		for (const addressStr in symbolMap) {
+		for (const addressStr in allSymbols) {
 			const address = parseInt(addressStr, 10);
-			const namespaces = symbolMap[address];
+			const namespaces = allSymbols[address];
 			if (namespaces) {
 				for (const ns in namespaces) {
 					if (!activeNamespaces.value.get(ns)) continue;
@@ -230,13 +233,6 @@ export function useSymbols() {
 		return undefined;
 	};
 
-	const getSymbolSource = (address: number) => {
-		const ns = resolveActiveNamespace(address);
-		if (!ns) return undefined;
-		const entry = vm?.value?.machineConfig?.symbols?.[address]?.[ns];
-		return typeof entry === "string" ? undefined : entry?.source;
-	};
-
 	const getNamespaceForAddress = (address: number) => resolveActiveNamespace(address);
 	const getNamespaceList = () => Array.from(activeNamespaces.value.entries());
 
@@ -246,7 +242,7 @@ export function useSymbols() {
 	};
 
 	const searchSymbols = (query: string, limit = 20): { label: string; address: number; scope?: string }[] => {
-		const symbolMap = vm?.value?.machineConfig?.symbols;
+		const symbolMap = symbolDict.value;
 		if (!symbolMap || !query || query.trim().length === 0) return [];
 
 		const upperQuery = query.trim().toUpperCase();
@@ -287,11 +283,12 @@ export function useSymbols() {
 	};
 
 	return {
+		initSymbols,
 		getLabeledInstruction,
 		parseSymbolsFromText,
 		getLabelForAddress,
+		getSymbolForAddress,
 		getAddressForSymbol,
-		getSymbolSource,
 		getNamespaceForAddress,
 		getNamespaceList,
 		toggleNamespace,

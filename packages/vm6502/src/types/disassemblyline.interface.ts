@@ -1,7 +1,15 @@
+import type { AddressingMode } from "@/lib/opcodes";
+
 export interface DisassemblyLine {
-	address: number;
-	opcode: string;
+	label: string;
+	src: string;
+	addr: number;
+	faddr: string;
+	mode: AddressingMode;
+	opc: string;
+	opr: string;
+	oprn: number;
 	cycles: number;
-	rawBytes: string;
+	bytes: string;
 	comment: string;
 }

@@ -316,10 +316,11 @@ import VideoControl from "./machine/VideoControl.vue";
 
 	const loadMachine = (newMachine: MachineConfig) => {
 		console.log(`Main: Loading machine ${newMachine.name}`);
-		selectedMachine.value = newMachine;
 
 		vm.value?.terminate();
 		isRunning.value = false;
+
+		selectedMachine.value = newMachine;
 
 		const newVm = new VirtualMachine(newMachine);
 		vm.value = markRaw(newVm);
@@ -330,8 +331,8 @@ import VideoControl from "./machine/VideoControl.vue";
 			newVm.initAudio();
 		});
 
-		const {  buildNamespacesFromSymbols } = useSymbols();
-		if(newMachine.symbols) buildNamespacesFromSymbols(newMachine.symbols);
+		const {  initSymbols } = useSymbols();
+		if(newMachine.symbols) initSymbols(newMachine.symbols);
 	};
 
 	const handleMachineSelected = (newMachine: MachineConfig) => {

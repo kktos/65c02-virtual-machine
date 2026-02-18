@@ -34,9 +34,9 @@ export function runHypercall(readByte: (address: number) => number, pc: number) 
 			const args = getHypercallArgs(readByte, strAddr);
 			bytesConsumed = 4 + args;
 			hypercallLine = {
-				address,
-				opcode: "!!LOG_STRING",
-				rawBytes: "",
+				addr: address,
+				op: "!!LOG_STRING",
+				bytes: "",
 				comment: `String @ $${toHex(strAddr, 4)}`,
 				cycles: 7,
 			};
@@ -46,9 +46,9 @@ export function runHypercall(readByte: (address: number) => number, pc: number) 
 			// LOG_REGS
 			bytesConsumed = 2;
 			hypercallLine = {
-				address,
-				opcode: "!!LOG_REGS",
-				rawBytes: "",
+				addr: address,
+				op: "!!LOG_REGS",
+				bytes: "",
 				comment: "",
 				cycles: 7,
 			};
@@ -60,9 +60,9 @@ export function runHypercall(readByte: (address: number) => number, pc: number) 
 			const start = readByte(pc + 2) | (readByte(pc + 3) << 8);
 			const size = readByte(pc + 4) | (readByte(pc + 5) << 8);
 			hypercallLine = {
-				address,
-				opcode: "!!ADD_REGION",
-				rawBytes: "",
+				addr: address,
+				op: "!!ADD_REGION",
+				bytes: "",
 				comment: `Start: $${toHex(start, 4)}, Size: $${toHex(size, 4)}`,
 				cycles: 7,
 			};
@@ -79,9 +79,9 @@ export function runHypercall(readByte: (address: number) => number, pc: number) 
 				names.push(readString(readByte, namePtr));
 			}
 			hypercallLine = {
-				address,
-				opcode: "!!REMOVE_REGIONS",
-				rawBytes: "",
+				addr: address,
+				op: "!!REMOVE_REGIONS",
+				bytes: "",
 				comment: `Count: ${count} (${names.join(", ")})`,
 				cycles: 7,
 			};
@@ -93,7 +93,7 @@ export function runHypercall(readByte: (address: number) => number, pc: number) 
 		const raw = [];
 		const displayBytes = Math.min(bytesConsumed, 8);
 		for (let i = 0; i < displayBytes; i++) raw.push(readByte(pc + i));
-		hypercallLine.rawBytes = raw.map((b) => toHex(b, 2)).join(" ") + (bytesConsumed > 8 ? " ..." : "");
+		hypercallLine.bytes = raw.map((b) => toHex(b, 2)).join(" ") + (bytesConsumed > 8 ? " ..." : "");
 		pc += bytesConsumed;
 		return { line: hypercallLine, pc };
 	}

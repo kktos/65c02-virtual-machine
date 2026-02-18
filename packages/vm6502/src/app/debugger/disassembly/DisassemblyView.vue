@@ -61,7 +61,6 @@ import { useDisassembly } from "@/composables/useDisassembly";
 import { useDisassemblyScroll } from "@/composables/useDisassemblyScroll";
 import { useFormatting } from "@/composables/useFormatting";
 import { useSettings } from "@/composables/useSettings";
-import { useSymbols } from "@/composables/useSymbols";
 import { disassemble } from "@/lib/disassembler";
 import { handleExplainCode } from "@/lib/gemini.utils";
 import type { DisassemblyLine } from "@/types/disassemblyline.interface";
@@ -108,50 +107,58 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 	};
 
 	const getEffectiveAddress = (line: DisassemblyLine): number | null => {
-		const operand = line.opcode.split(' ').slice(1).join(' ');
-		if (!operand) return null;
+		if (!vm?.value) return null;
 
-		// Regex for different addressing modes
-		const indirectX = operand.match(/\(\$([0-9A-F]{2}),X\)/i) as [string, string] | null;
-		if (indirectX && vm?.value) {
-			const zpAddr = parseInt(indirectX[1], 16);
-			const pointerAddr = (zpAddr + registers.X) & 0xFF;
-			const lo = vm.value.readDebug(pointerAddr);
-			const hi = vm.value.readDebug((pointerAddr + 1) & 0xFF);
-			return (hi << 8) | lo;
+		switch(line.mode) {
+			case "IDX": {
+				const zpAddr = line.oprn;
+				const pointerAddr = (zpAddr + registers.X) & 0xFF;
+				const lo = vm.value.readDebug(pointerAddr);
+				const hi = vm.value.readDebug((pointerAddr + 1) & 0xFF);
+				return (hi << 8) | lo;
+			}
+
+			case "IDY": {
+				const zpAddr = line.oprn;
+				const lo = vm.value.readDebug(zpAddr);
+				const hi = vm.value.readDebug((zpAddr + 1) & 0xFF);
+				const baseAddr = (hi << 8) | lo;
+				return (baseAddr + registers.Y) & 0xFFFF;
+			}
+			case "ABX":{
+				const base = line.oprn;
+				const offset = registers.X;
+				return (base + offset) & 0xFFFF;
+			}
+
+			case "ABY": {
+				const base = line.oprn;
+				const offset = registers.Y;
+				return (base + offset) & 0xFFFF;
+			}
+
+			case "ZPX": {
+				const base = line.oprn;
+				const offset = registers.X;
+				return (base + offset) & 0xFF;
+			}
+
+			case "ZPY": {
+				const base = line.oprn;
+				const offset = registers.Y;
+				return (base + offset) & 0xFF;
+			}
+
+			case "ABS": {
+				return line.oprn;
+			}
+
+			default: {
+				return null;
+			}
 		}
 
-		const indirectY = operand.match(/\(\$([0-9A-F]{2})\),Y/i) as [string, string] | null;
-		if (indirectY && vm?.value) {
-			const zpAddr = parseInt(indirectY[1], 16);
-			const lo = vm.value.readDebug(zpAddr);
-			const hi = vm.value.readDebug((zpAddr + 1) & 0xFF);
-			const baseAddr = (hi << 8) | lo;
-			return (baseAddr + registers.Y) & 0xFFFF;
-		}
 
-		const absoluteIndexed = operand.match(/\$([0-9A-F]{4}),([XY])/i) as [string, string, string] | null;
-		if (absoluteIndexed) {
-			const base = parseInt(absoluteIndexed[1], 16);
-			const indexReg = absoluteIndexed[2].toUpperCase() as 'X' | 'Y';
-			const offset = registers[indexReg];
-			return (base + offset) & 0xFFFF;
-		}
-
-		const zpIndexed = operand.match(/\$([0-9A-F]{2}),([XY])/i) as [string, string, string] | null;
-		if (zpIndexed) {
-			const base = parseInt(zpIndexed[1], 16);
-			const indexReg = zpIndexed[2].toUpperCase() as 'X' | 'Y';
-			const offset = registers[indexReg];
-			return (base + offset) & 0xFF;
-		}
-
-		const absolute = operand.match(/\$([0-9A-F]{2,4})/) as [string, string] | null;
-		if (absolute) {
-			return parseInt(absolute[1], 16);
-		}
-
-		return null;
 	}
 
 	watch(historyNavigationEvent, (event) => {
@@ -196,7 +203,7 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 			isFollowingPc.value = false;
 		} else {
 			isFollowingPc.value = true;
-			const pcIsVisible = disassembly.value.some((line) => line.address === fullPcAddress.value);
+			const pcIsVisible = disassembly.value.some((line) => line.addr === fullPcAddress.value);
 			if (!pcIsVisible) {
 				disassemblyStartAddress.value = fullPcAddress.value;
 			}
@@ -215,7 +222,6 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 
 	const explanation = ref(null);
 	const isLoading = ref(false);
-	const { getLabeledInstruction } = useSymbols();
 
 	watch(
 		() => fullPcAddress.value,
@@ -225,7 +231,7 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 			if(historyIndex.value===-1) addJumpHistory(newAddress);
 
 			// Try to keep the PC at the same visual row index as before.
-			const oldIndex = disassembly.value.findIndex((line) => line.address === oldAddress);
+			const oldIndex = disassembly.value.findIndex((line) => line.addr === oldAddress);
 
 			if (oldIndex === -1) {
 				// If old PC wasn't visible, just snap to the new PC (default behavior)
@@ -233,13 +239,13 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 				return;
 			}
 
-			const newIndexInOldView = disassembly.value.findIndex((line) => line.address === newAddress);
+			const newIndexInOldView = disassembly.value.findIndex((line) => line.addr === newAddress);
 
 			// Optimization: If moving forward within the current view, we can just shift the start address
 			if (newIndexInOldView !== -1 && newIndexInOldView >= oldIndex) {
 				const offset = newIndexInOldView - oldIndex;
 				if (offset < disassembly.value.length) {
-					disassemblyStartAddress.value = disassembly.value[offset]?.address ?? 0;
+					disassemblyStartAddress.value = disassembly.value[offset]?.addr ?? 0;
 				}
 			} else {
 				// Fallback: Calculate backwards from newAddress to find the start address
@@ -264,6 +270,8 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 				vm?.value?.syncBusState();
 				disassembly.value = disassemble(
 					readByte,
+					// biome-ignore lint/style/noNonNullAssertion: <itsok>
+					vm!.value.getScope(disassemblyStartAddress.value),
 					disassemblyStartAddress.value,
 					visibleRowCount.value,
 					registers
@@ -281,35 +289,27 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 		}
 	});
 
+	const BRANCH_OPCODES = new Set(['JMP', 'JSR', 'BCC', 'BCS', 'BEQ', 'BMI', 'BNE', 'BPL', 'BVC', 'BVS']);
+
 	const handleOpcodeClick = (line: DisassemblyLine) => {
-		const mnemonic = line.opcode.substring(0, 3);
-		const operandStr = line.opcode.substring(4);
+		if (BRANCH_OPCODES.has(line.opc)) {
+			const currentBank = line.addr & 0xFF0000;
+			const newAddress = currentBank | line.oprn;
+			addJumpHistory(newAddress);
+			isFollowingPc.value = false;
+			disassemblyStartAddress.value = newAddress;
+			return;
+		}
 
-		const isPcAffecting = ['JMP', 'JSR', 'BCC', 'BCS', 'BEQ', 'BMI', 'BNE', 'BPL', 'BVC', 'BVS'].includes(mnemonic);
-
-		if (isPcAffecting) {
-			const targetMatch = operandStr.match(/\$([0-9A-F]+)/) as [string, string] | null;
-			if (targetMatch) {
-				const targetAddr = parseInt(targetMatch[1], 16);
-				if (!Number.isNaN(targetAddr)) {
-					const currentBank = line.address & 0xFF0000;
-					const newAddress = currentBank | targetAddr;
-					addJumpHistory(newAddress);
-					isFollowingPc.value = false;
-					disassemblyStartAddress.value = newAddress;
-				}
+		const effectiveAddress = getEffectiveAddress(line);
+		if (effectiveAddress !== null) {
+			let bank = 0;
+			if (vm?.value?.getScope(effectiveAddress) === 'aux') {
+				bank = 0x01;
 			}
-		} else {
-			const effectiveAddress = getEffectiveAddress(line);
-			if (effectiveAddress !== null) {
-				let bank = 0;
-				if (vm?.value?.getScope(effectiveAddress) === 'aux') {
-					bank = 0x01;
-				}
 
-				setMemoryViewAddress((bank << 16) | effectiveAddress);
-				setActiveTab('memory');
-			}
+			setMemoryViewAddress((bank << 16) | effectiveAddress);
+			setActiveTab('memory');
 		}
 	};
 
@@ -321,11 +321,12 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 		const codeArray = disassembly.value;
 
 		const codeBlock = codeArray.map(line => {
-			const { labeledOpcode, labelComment } = getLabeledInstruction(line.opcode);
+			const labeledOpcode = line.opc;
+			const labelComment  = line.comment;
 			const finalComment = line.comment || (labelComment ? `; ${labelComment}` : '');
 
-			const addr = `$${line.address.toString(16).toUpperCase().padStart(4, '0')}`;
-			const bytes = line.rawBytes.padEnd(6, ' ');
+			const addr = `$${line.addr.toString(16).toUpperCase().padStart(4, '0')}`;
+			const bytes = line.bytes.padEnd(6, ' ');
 			const op = labeledOpcode.padEnd(20, ' ');
 
 			return `${addr} ${bytes} ${op} ${finalComment}`;
