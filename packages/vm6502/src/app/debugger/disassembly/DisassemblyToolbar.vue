@@ -25,7 +25,7 @@
 				title="Formatting Manager"
 				class="p-1 rounded text-gray-500 transition-colors hover:text-gray-300 hover:bg-gray-700"
 			>
-				<Tags class="h-4 w-4" />
+				<Binary class="h-4 w-4" />
 			</button>
 		</div>
 
@@ -96,7 +96,7 @@
 </template>
 
 <script lang="ts" setup>
-import { Paperclip, Settings2, Tags } from "lucide-vue-next";
+import { Binary, Paperclip, Settings2, Tags } from "lucide-vue-next";
 import AddressNavigator from "@/app/debugger/AddressNavigator.vue";
 import { Button } from '@/components/ui/button';
 import { Checkbox } from "@/components/ui/checkbox";

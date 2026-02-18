@@ -2,7 +2,7 @@
 	<Dialog :open="isOpen" @update:open="(val) => emit('update:isOpen', val)">
 		<DialogContent class="sm:max-w-3xl bg-gray-800 border-gray-700 text-gray-200">
 			<DialogHeader>
-				<DialogTitle class="text-gray-100">Symbol Manager</DialogTitle>
+				<DialogTitle class="text-gray-100"><Tags class="h-8 w-8 inline-block mr-2 align-middle"/>Symbol Manager</DialogTitle>
 				<DialogDescription class="text-gray-400">
 					Browse, search, and manage symbols across all namespaces. Click a symbol to navigate.
 				</DialogDescription>
@@ -136,7 +136,7 @@
 </template>
 
 <script setup lang="ts">
-import { ArrowDown, ArrowUp, Check, OctagonPause, Pencil, Trash2, X } from "lucide-vue-next";
+import { ArrowDown, ArrowUp, Check, OctagonPause, Pencil, Tags, Trash2, X } from "lucide-vue-next";
 import { computed, inject, type Ref, ref } from "vue";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";

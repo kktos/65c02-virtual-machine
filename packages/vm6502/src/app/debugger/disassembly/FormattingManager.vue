@@ -2,7 +2,7 @@
 	<Dialog :open="isOpen" @update:open="(val) => emit('update:isOpen', val)">
 		<DialogContent class="sm:max-w-4xl bg-gray-800 border-gray-700 text-gray-200">
 			<DialogHeader>
-				<DialogTitle class="text-gray-100">Formatting Rules</DialogTitle>
+				<DialogTitle class="text-gray-100"><Binary class="h-8 w-8 inline-block mr-2 align-middle"/>Formatting Rules</DialogTitle>
 				<DialogDescription class="text-gray-400">
 					Manage data formatting rules across all groups.
 				</DialogDescription>
@@ -148,7 +148,7 @@
 </template>
 
 <script setup lang="ts">
-import { ArrowDown, ArrowUp, Check, Pencil, PlusCircle, Trash2, X } from "lucide-vue-next";
+import { ArrowDown, ArrowUp, Binary, Check, Pencil, PlusCircle, Trash2, X } from "lucide-vue-next";
 import { computed, ref } from "vue";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
