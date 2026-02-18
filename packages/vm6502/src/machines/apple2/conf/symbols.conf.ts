@@ -1,5 +1,5 @@
 /** biome-ignore-all lint/complexity/useSimpleNumberKeys: Firmware addr in hex */
-import type { MachineConfig, SymbolDict } from "@/types/machine.interface";
+import type { SymbolDict } from "@/composables/useSymbols";
 
 const symbols = `
 	0200 INPUTBUF
@@ -160,7 +160,7 @@ const symbols = `
 	fce2 INIT_SYSTEM
 `;
 
-function parseSymbols(input: string): MachineConfig["symbols"] {
+function parseSymbols(input: string): SymbolDict {
 	const result: SymbolDict = {};
 	let currentScope = "main";
 
@@ -185,4 +185,4 @@ function parseSymbols(input: string): MachineConfig["symbols"] {
 	return result;
 }
 
-export const symbolsConfig: MachineConfig["symbols"] = parseSymbols(symbols);
+export const symbolsConfig: SymbolDict = parseSymbols(symbols);

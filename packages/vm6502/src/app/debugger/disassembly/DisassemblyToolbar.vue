@@ -20,6 +20,13 @@
 			>
 				<Tags class="h-4 w-4" />
 			</button>
+			<button
+				@click="$emit('openFormattingManager')"
+				title="Formatting Manager"
+				class="p-1 rounded text-gray-500 transition-colors hover:text-gray-300 hover:bg-gray-700"
+			>
+				<Tags class="h-4 w-4" />
+			</button>
 		</div>
 
 		<div class="flex items-center space-x-2">
@@ -71,6 +78,15 @@
 									</div>
 								</div>
 							</div>
+							<div>
+								<div class="text-sm font-bold text-gray-200 capitalize mb-4">Formatting Groups</div>
+								<div class="grid gap-2 max-h-48 overflow-y-auto pr-2">
+									<div v-for="[group, isActive] in getFormattingGroups()" :key="group" class="flex items-center space-x-2">
+										<Checkbox :id="`fmt-${group}`" :model-value="isActive" @update:model-value="toggleFormattingGroup(group)" />
+										<label :for="`fmt-${group}`" class="text-xs font-medium leading-none cursor-pointer select-none truncate" :title="group">{{ group }}</label>
+									</div>
+								</div>
+							</div>
 						</div>
 					</div>
 				</PopoverContent>
@@ -85,6 +101,7 @@ import AddressNavigator from "@/app/debugger/AddressNavigator.vue";
 import { Button } from '@/components/ui/button';
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { useFormatting } from "@/composables/useFormatting";
 import { useSettings } from "@/composables/useSettings";
 import { useSymbols } from "@/composables/useSymbols";
 
@@ -100,9 +117,11 @@ import { useSymbols } from "@/composables/useSymbols";
 		(e: 'explain'): void;
 		(e: 'gotoAddress', address: number): void;
 		(e: 'openSymbolManager'): void;
+		(e: 'openFormattingManager'): void;
 	}>();
 
 	const { getNamespaceList, toggleNamespace } = useSymbols();
+	const { getFormattingGroups, toggleFormattingGroup } = useFormatting();
 	const { settings } = useSettings();
 
 

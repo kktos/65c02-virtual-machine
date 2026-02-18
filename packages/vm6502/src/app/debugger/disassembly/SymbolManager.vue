@@ -143,6 +143,7 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useBreakpoints } from "@/composables/useBreakpoints";
 import { useSymbols } from "@/composables/useSymbols";
+import { formatAddress } from "@/lib/hex.utils";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 
 const props = defineProps<{
@@ -236,12 +237,6 @@ const filteredSymbols = computed(() => {
 	}
 	return sortedSymbols;
 });
-
-const formatAddress = (addr: number) => {
-	const bank = ((addr >> 16) & 0xff).toString(16).toUpperCase().padStart(2, "0");
-	const offset = (addr & 0xffff).toString(16).toUpperCase().padStart(4, "0");
-	return `$${bank}:${offset}`;
-};
 
 const gotoSymbol = (symbol: { address: number }) => {
 	if (editingId.value) return; // Prevent navigation while editing

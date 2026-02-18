@@ -7,6 +7,7 @@
 			:has-disassembly="!!(disassembly && disassembly.length > 0)"
 			:available-scopes="availableScopes"
 			@open-symbol-manager="isSymbolManagerOpen = true"
+			@open-formatting-manager="isFormattingManagerOpen = true"
 			@sync-to-pc="syncToPc"
 			@explain="handleExplain"
 			@goto-address="onGotoAddress"
@@ -43,6 +44,10 @@
 			@update:is-open="(val) => isSymbolManagerOpen = val"
 			@goto-address="onGotoAddress"
 		/>
+		<FormattingManager
+			:is-open="isFormattingManagerOpen"
+			@update:is-open="(val) => isFormattingManagerOpen = val"
+		/>
 	</div>
 </template>
 
@@ -54,6 +59,7 @@
 import { computed, inject, type Ref, ref, watch } from "vue";
 import DisassemblyTable from "@/app/debugger/disassembly/DisassemblyTable.vue";
 import DisassemblyToolbar from "@/app/debugger/disassembly/DisassemblyToolbar.vue";
+import FormattingManager from "@/app/debugger/disassembly/FormattingManager.vue";
 import SymbolManager from "@/app/debugger/disassembly/SymbolManager.vue";
 import { useBreakpoints } from "@/composables/useBreakpoints";
 import { useDebuggerNav } from "@/composables/useDebuggerNav";
@@ -77,6 +83,7 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 	const { address, memory, registers} = defineProps<Props>();
 
 	const isSymbolManagerOpen = ref(false);
+	const isFormattingManagerOpen = ref(false);
 
 	const { pcBreakpoints, toggleBreakpoint } = useBreakpoints();
 	const { jumpEvent } = useDisassembly();

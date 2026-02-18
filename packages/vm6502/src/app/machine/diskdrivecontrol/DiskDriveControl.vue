@@ -171,7 +171,7 @@ const ACTIVE_DISK_URL_KEY = "vm6502_active_disk_url";
 const vm = inject<Ref<VirtualMachine>>('vm');
 
 const { parseSymbolsFromText, addSymbols, getUserSymbols, clearUserSymbols, generateSymFileContent, symbolDict } = useSymbols();
-const { formattingRules, setFormatting, getFormatting, generateDataSymFileContent } = useFormatting();
+const { formattingRules, setFormatting, getFormatting, generateDataSymFileContent, parseFormattingFromText, addFormatting } = useFormatting();
 const diskConfig = computed(() => vm?.value?.machineConfig?.disk);
 const fileName = ref('');
 const fileSize = ref(0);
@@ -296,6 +296,9 @@ const loadFromUrl = async (url: string) => {
 			try {
 				const symData = parseSymbolsFromText(symText);
 				addSymbols(symData);
+
+				const fmtData = parseFormattingFromText(symText);
+				addFormatting(fmtData);
 				console.log(`Loaded symbols from ${symUrl}`);
 			} catch {
 				console.warn(`Failed to parse symbols from ${symUrl} as JSON.`);
