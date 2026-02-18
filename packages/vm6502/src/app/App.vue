@@ -332,7 +332,7 @@ import VideoControl from "./machine/VideoControl.vue";
 		});
 
 		const {  initSymbols } = useSymbols();
-		if(newMachine.symbols) initSymbols(newMachine.symbols);
+		if(newMachine.debug?.symbols) initSymbols(newMachine.debug.symbols);
 	};
 
 	const handleMachineSelected = (newMachine: MachineConfig) => {

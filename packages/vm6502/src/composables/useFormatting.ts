@@ -37,7 +37,7 @@ export function useFormatting() {
 	};
 
 	const generateDataSymFileContent = (rules: Record<string, DataBlock>): string => {
-		let content = `'%%DATA_FORMATTING%%':\n`;
+		let content = `'%% DATA REGIONS %%':\n`;
 		const sortedAddresses = Object.keys(rules)
 			.map(Number)
 			.sort((a, b) => a - b);

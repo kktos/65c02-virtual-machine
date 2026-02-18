@@ -552,7 +552,7 @@ export class VirtualMachine {
 	}
 
 	public getDebugOptions() {
-		return this.machineConfig.debugOptions ?? [];
+		return this.machineConfig.debug?.options ?? [];
 	}
 
 	public getMachineStateSpecs(): MachineStateSpec[] {

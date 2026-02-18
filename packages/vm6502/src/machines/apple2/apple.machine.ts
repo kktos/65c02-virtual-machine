@@ -18,8 +18,10 @@ export const apple2e: MachineConfig = {
 		hasTests: true,
 	},
 	disk: { enabled: true, name: "SPDisk" },
-	debugOptions: debugConfig,
-	symbols: symbolsConfig,
+	debug: {
+		options: debugConfig,
+		symbols: symbolsConfig,
+	},
 	regions: regionsConfig,
 	inputs: [
 		{

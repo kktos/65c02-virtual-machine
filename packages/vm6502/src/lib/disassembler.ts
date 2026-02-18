@@ -302,7 +302,7 @@ export function disassemble(
 		pc += bytes;
 	}
 
-	console.log("Disassembly:", toHex(fromAddress, 4), lineCount, disassembly);
+	// console.log("Disassembly:", toHex(fromAddress, 4), lineCount, disassembly);
 
 	return disassembly;
 }

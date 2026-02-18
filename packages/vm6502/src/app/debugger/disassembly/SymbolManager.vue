@@ -155,7 +155,7 @@ const emit = defineEmits<{
 }>();
 
 const vm = inject<Ref<VirtualMachine>>("vm");
-const { addSymbol, removeSymbol } = useSymbols();
+const { addSymbol, removeSymbol, symbolDict } = useSymbols();
 const { pcBreakpoints, toggleBreakpoint } = useBreakpoints();
 
 const searchTerm = ref("");
@@ -177,7 +177,7 @@ const handleSort = (key: SortKey) => {
 };
 
 const allSymbols = computed(() => {
-	const symbols = vm?.value?.machineConfig?.symbols;
+	const symbols = symbolDict.value;
 	if (!symbols) return [];
 
 	const flatList: { label: string; address: number; namespace: string; scope: string }[] = [];

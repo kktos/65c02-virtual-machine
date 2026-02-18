@@ -1,5 +1,6 @@
 import { ref } from "vue";
-import type { SymbolDict } from "@/types/machine.interface";
+
+export type SymbolDict = Record<number, Record<string, { label: string; source: string; scope: string }>>;
 
 // Shared state for active namespaces across components
 const activeNamespaces = ref<Map<string, boolean>>(new Map());
@@ -19,7 +20,6 @@ export function useSymbols() {
 			if (!symbols[addr]) symbols[addr] = {};
 			Object.assign(symbols[addr], namespaces);
 		}
-
 		buildNamespacesFromSymbols(symbols);
 	};
 
@@ -300,5 +300,6 @@ export function useSymbols() {
 		generateSymFileContent,
 		buildNamespacesFromSymbols,
 		searchSymbols,
+		symbolDict,
 	};
 }

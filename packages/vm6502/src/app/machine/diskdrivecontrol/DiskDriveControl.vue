@@ -170,7 +170,7 @@ const ACTIVE_DISK_URL_KEY = "vm6502_active_disk_url";
 
 const vm = inject<Ref<VirtualMachine>>('vm');
 
-const { parseSymbolsFromText, addSymbols, getUserSymbols, clearUserSymbols, generateSymFileContent } = useSymbols();
+const { parseSymbolsFromText, addSymbols, getUserSymbols, clearUserSymbols, generateSymFileContent, symbolDict } = useSymbols();
 const { formattingRules, setFormatting, getFormatting, generateDataSymFileContent } = useFormatting();
 const diskConfig = computed(() => vm?.value?.machineConfig?.disk);
 const fileName = ref('');
@@ -201,7 +201,7 @@ const saveFormattingToDb = useDebounceFn(async () => {
 	}
 }, 1000);
 
-watch(() => vm?.value?.machineConfig.symbols, () => {
+watch(() => symbolDict, () => {
 	saveSymbolsToDb();
 }, { deep: true });
 

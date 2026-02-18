@@ -1,4 +1,5 @@
-export type SymbolDict = Record<number, Record<string, { label: string; source: string; scope: string }>>;
+import type { DataBlock } from "@/composables/useFormatting";
+import type { SymbolDict } from "@/composables/useSymbols";
 
 export interface DebugOption {
 	id: string;
@@ -90,8 +91,11 @@ export interface MachineConfig {
 	video?: VideoConfig;
 	disk?: DiskConfig;
 	css?: string[];
-	debugOptions?: DebugGroup[];
-	symbols?: SymbolDict;
 	inputs?: MachineInputDevice[];
 	speeds?: MachineSpeed[];
+	debug?: {
+		symbols?: SymbolDict;
+		options?: DebugGroup[];
+		dataBlocks?: Record<number, DataBlock>;
+	};
 }
