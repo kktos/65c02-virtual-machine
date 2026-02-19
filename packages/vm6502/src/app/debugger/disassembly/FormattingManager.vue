@@ -55,7 +55,7 @@
 					</TableHeader>
 					<TableBody>
 						<!-- New/Editing Rule Row -->
-						<TableRow v-if="editingRule" class="bg-gray-700/50 hover:bg-black/50">
+						<TableRow v-if="editingRule" class="bg-gray-700/50 hover:bg-gray-700/50">
 							<TableCell class="align-top">
 								<div>
 									<Input
@@ -137,7 +137,7 @@
 							</TableCell>
 						</TableRow>
 
-						<TableRow v-if="filteredRules.length === 0 && !editingRule">
+						<TableRow v-if="filteredRules.length === 0 && !editingRule" class="hover:bg-transparent">
 							<TableCell colspan="5" class="text-center text-gray-500 py-8">No formatting rules found.</TableCell>
 						</TableRow>
 					</TableBody>
