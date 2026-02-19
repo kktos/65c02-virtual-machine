@@ -12,6 +12,15 @@
 						class="h-6 px-2 text-xs border-gray-600 text-gray-300 hover:bg-gray-700 hover:text-gray-200"
 						@click="formatAs('string')">String</Button>
 				</div>
+				<div class="flex items-center space-x-2 pl-2 border-l border-gray-700">
+					<input
+						type="checkbox"
+						id="live-update"
+						v-model="isLive"
+						class="rounded bg-gray-700 border-gray-600 text-cyan-500 focus:ring-cyan-500 h-3 w-3"
+					/>
+					<label for="live-update" class="text-xs cursor-pointer select-none text-gray-400 hover:text-gray-200">Live Update</label>
+				</div>
 			</div>
 
 			<!-- Search Popover -->
@@ -209,12 +218,13 @@ import { useBreakpoints } from "@/composables/useBreakpoints";
 import { useDebuggerNav } from "@/composables/useDebuggerNav";
 import { useDisassembly } from "@/composables/useDisassembly";
 import { useFormatting } from "@/composables/useFormatting";
+import { formatAddress } from "@/lib/hex.utils";
 import type { DebugGroup } from "@/types/machine.interface";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import BinaryLoader from "./BinaryLoader.vue";
 
 	const vm= inject<Ref<VirtualMachine>>("vm");
-	const subscribeToUiUpdates= inject<(callback: () => void) => void>("subscribeToUiUpdates");
+	// const subscribeToUiUpdates= inject<(callback: () => void) => void>("subscribeToUiUpdates");
 	const { formattingRules, addFormat } = useFormatting();
 
 	const props = defineProps<{
@@ -454,7 +464,7 @@ import BinaryLoader from "./BinaryLoader.vue";
 	};
 
 	// This will be our reactive trigger to update the view
-	const tick = ref(0);
+	// const tick = ref(0);
 
 	const debugOptionsPopover = ref<InstanceType<typeof DebugOptionsPopover> | null>(null);
 	const debugOverrides = computed(() => debugOptionsPopover.value?.debugOverrides || {});
@@ -511,18 +521,12 @@ import BinaryLoader from "./BinaryLoader.vue";
 		}
 
 		// Subscribe to the UI update loop from App.vue
-		subscribeToUiUpdates?.(() => {
-			tick.value++;
-		});
+		// subscribeToUiUpdates?.(() => {
+		// 	tick.value++;
+		// });
 	});
 
 	onUnmounted(() => { resizeObserver?.disconnect(); });
-
-	const formatAddress = (addr: number) => {
-		const bank = ((addr >> 16) & 0xFF).toString(16).toUpperCase().padStart(2, '0');
-		const offset = (addr & 0xFFFF).toString(16).toUpperCase().padStart(4, '0');
-		return `$${bank}:${offset}`;
-	};
 
 	// --- Selection Logic ---
 	const selectionAnchor = ref<number | null>(null);
@@ -530,6 +534,7 @@ import BinaryLoader from "./BinaryLoader.vue";
 	const isSelecting = ref(false);
 
 	const selectedRange = computed(() => {
+		if (editingIndex.value !== null) return null;
 		if (selectionAnchor.value === null || selectionHead.value === null) return null;
 		const start = Math.min(selectionAnchor.value, selectionHead.value);
 		const end = Math.max(selectionAnchor.value, selectionHead.value);
@@ -742,18 +747,28 @@ import BinaryLoader from "./BinaryLoader.vue";
 
 	const currentMemorySlice = ref<Uint8Array>(new Uint8Array());
 
-	// Watch for changes in startAddress or the tick, and update the slice
-	watch([startAddress, tick, visibleRowCount, debugOverrides], () => {
+	const isLive = ref(false);
+	let pollInterval: number | undefined;
+
+	const refreshMemory = () => {
 		const start = startAddress.value;
 		const length = visibleRowCount.value * BYTES_PER_LINE;
-		const slice = new Uint8Array(length);
 
-		if (vm?.value && debugOverrides.value) {
-			for (let i = 0; i < length; i++) {
-				slice[i] = vm.value.readDebug(start + i, debugOverrides.value);
-			}
+		if (vm?.value) currentMemorySlice.value = vm.value.readDebugRange(start, length, debugOverrides.value);
+		else currentMemorySlice.value = new Uint8Array(length);
+	};
+
+	watch(isLive, (active) => {
+		clearInterval(pollInterval);
+		if (active) {
+			refreshMemory();
+			pollInterval = window.setInterval(refreshMemory, 250); // 4 FPS
 		}
-		currentMemorySlice.value = slice;
+	});
+
+	// Watch for changes in startAddress or the tick, and update the slice
+	watch([startAddress, visibleRowCount, debugOverrides], () => {
+		if (!isLive.value) refreshMemory();
 	}, { immediate: true, deep: true });
 
 </script>

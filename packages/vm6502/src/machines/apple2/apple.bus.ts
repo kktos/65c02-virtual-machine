@@ -655,6 +655,83 @@ export class AppleBus implements IBus {
 		return 0;
 	}
 
+	public readDebugRange(address: number, length: number, overrides?: Record<string, unknown>): Uint8Array {
+		const result = new Uint8Array(length);
+		let resultOffset = 0;
+		let currentAddress = address;
+
+		while (resultOffset < length) {
+			const addr16 = currentAddress & 0xffff;
+			const remainingInRequest = length - resultOffset;
+
+			// 1. Determine the end of the current contiguous block based on memory map boundaries
+			let blockEnd = currentAddress + remainingInRequest;
+			if (addr16 < 0xc000) {
+				blockEnd = Math.min(blockEnd, (currentAddress & 0xffff0000) | 0xc000);
+			} else if (addr16 < 0xd000) {
+				blockEnd = Math.min(blockEnd, (currentAddress & 0xffff0000) | 0xd000);
+			} else {
+				// >= 0xd000
+				const lcView = overrides?.lcView;
+				const isLcBank2 = lcView ? lcView === "BANK2" : this.lcBank2;
+				if (isLcBank2 && addr16 < 0xe000) {
+					blockEnd = Math.min(blockEnd, (currentAddress & 0xffff0000) | 0xe000);
+				}
+			}
+
+			const chunkLength = blockEnd - currentAddress;
+
+			// 2. Read the chunk
+			let isSimple = false;
+			let sourceArray: Uint8Array | null = null;
+			let sourceOffset = 0;
+
+			if (addr16 < 0xc000) {
+				isSimple = true;
+				sourceArray = this.memory;
+				sourceOffset = RAM_OFFSET + (currentAddress & 0xff0000); // Bank is part of the 24-bit address
+			} else if (addr16 >= 0xd000) {
+				const lcView = overrides?.lcView;
+				const readLcRom = lcView ? lcView === "ROM" : !this.lcReadRam;
+				if (readLcRom) {
+					isSimple = true;
+					sourceArray = this.rom;
+					sourceOffset = -0xd000;
+				} else {
+					const isLcBank2 = lcView ? lcView === "BANK2" : this.lcBank2;
+					if (isLcBank2 && addr16 < 0xe000) {
+						isSimple = true;
+						sourceArray = currentAddress >> 16 ? this.auxbank2 : this.bank2;
+						sourceOffset = -0xd000;
+					} else {
+						// Bank 1 RAM
+						isSimple = true;
+						sourceArray = this.memory;
+						sourceOffset = RAM_OFFSET + (currentAddress & 0xff0000);
+					}
+				}
+			}
+			// For C000-CFFF, isSimple remains false, forcing byte-by-byte read.
+
+			if (isSimple && sourceArray) {
+				const start = (currentAddress & 0xffff) + sourceOffset;
+				const chunk = sourceArray.subarray(start, start + chunkLength);
+				result.set(chunk, resultOffset);
+			} else {
+				// Fallback for complex regions (I/O, slots)
+				for (let i = 0; i < chunkLength; i++) {
+					result[resultOffset + i] = this.readDebug(currentAddress + i, overrides);
+				}
+			}
+
+			// 3. Advance to the next block
+			resultOffset += chunkLength;
+			currentAddress += chunkLength;
+		}
+
+		return result;
+	}
+
 	writeDebug(address: number, value: number, overrides?: Record<string, unknown>): void {
 		const bank = address >> 16;
 		const addr16 = address & 0xffff;

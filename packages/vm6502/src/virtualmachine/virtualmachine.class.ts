@@ -469,6 +469,17 @@ export class VirtualMachine {
 		return this.bus?.readDebug ? this.bus.readDebug(address, overrides) : this.read(address);
 	}
 
+	public readDebugRange(address: number, length: number, overrides?: Dict): Uint8Array {
+		if (this.bus?.readDebugRange) return this.bus.readDebugRange(address, length, overrides);
+
+		// Fallback if bus doesn't implement it
+		const data = new Uint8Array(length);
+		for (let i = 0; i < length; i++) {
+			data[i] = this.readDebug(address + i, overrides);
+		}
+		return data;
+	}
+
 	public writeDebug(address: number, value: number, overrides?: Dict) {
 		if (this.bus?.writeDebug) this.bus.writeDebug(address, value, overrides);
 		else this.updateMemory(address, value);

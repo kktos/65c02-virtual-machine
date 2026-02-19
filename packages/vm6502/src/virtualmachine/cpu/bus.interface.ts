@@ -38,6 +38,9 @@ export interface IBus {
 	/** Reads memory with optional overrides for debugging/inspection. */
 	readDebug?(address: number, overrides?: Dict): number;
 
+	/** Reads a range of memory with optional overrides for debugging/inspection. */
+	readDebugRange?(address: number, length: number, overrides?: Dict): Uint8Array;
+
 	/** Writes memory with optional overrides, bypassing side effects if possible. */
 	writeDebug?(address: number, value: number, overrides?: Dict): void;
 
