@@ -11,7 +11,7 @@
 			<div class="flex justify-between items-center my-4 gap-4">
 				<Input
 					v-model="searchTerm"
-					placeholder="Search by label..."
+					placeholder="Search by label or address..."
 					class="flex-1 bg-gray-700 border-gray-600 text-gray-200 placeholder:text-gray-400"
 				/>
 				<select
@@ -33,6 +33,13 @@
 				<Table>
 					<TableHeader class="sticky top-0 bg-gray-800">
 						<TableRow class="border-gray-700 hover:bg-gray-700/50">
+							<TableHead @click="handleSort('namespace')" class="cursor-pointer hover:bg-gray-700/50">
+								<div class="flex items-center gap-2 text-gray-300">
+									Namespace
+									<ArrowUp v-if="sortKey === 'namespace' && sortDirection === 'asc'" class="h-4 w-4" />
+									<ArrowDown v-if="sortKey === 'namespace' && sortDirection === 'desc'" class="h-4 w-4" />
+								</div>
+							</TableHead>
 							<TableHead @click="handleSort('label')" class="cursor-pointer hover:bg-gray-700/50">
 								<div class="flex items-center gap-2 text-gray-300">
 									Label
@@ -45,13 +52,6 @@
 									Address
 									<ArrowUp v-if="sortKey === 'address' && sortDirection === 'asc'" class="h-4 w-4" />
 									<ArrowDown v-if="sortKey === 'address' && sortDirection === 'desc'" class="h-4 w-4" />
-								</div>
-							</TableHead>
-							<TableHead @click="handleSort('namespace')" class="cursor-pointer hover:bg-gray-700/50">
-								<div class="flex items-center gap-2 text-gray-300">
-									Namespace
-									<ArrowUp v-if="sortKey === 'namespace' && sortDirection === 'asc'" class="h-4 w-4" />
-									<ArrowDown v-if="sortKey === 'namespace' && sortDirection === 'desc'" class="h-4 w-4" />
 								</div>
 							</TableHead>
 							<TableHead @click="handleSort('scope')" class="cursor-pointer hover:bg-gray-700/50">
@@ -67,6 +67,9 @@
 					<TableBody>
 						<!-- New Symbol Row (Add Mode) -->
 						<TableRow v-if="editingSymbol && editingSymbol.isNew" class="bg-gray-700/50 hover:bg-gray-700/50">
+							<TableCell class="align-top">
+								<Input v-model="editingSymbol.namespace" placeholder="user" class="h-8 bg-gray-900 border-gray-600" />
+							</TableCell>
 							<TableCell class="align-top">
 								<div>
 									<Input
@@ -94,9 +97,6 @@
 								</div>
 							</TableCell>
 							<TableCell class="align-top">
-								<Input v-model="editingSymbol.namespace" placeholder="user" class="h-8 bg-gray-900 border-gray-600" />
-							</TableCell>
-							<TableCell class="align-top">
 								<select v-model="editingSymbol.scope" class="h-8 w-full rounded-md border border-gray-600 bg-gray-900 px-2 py-1 text-sm text-gray-200 focus:outline-none">
 									<option v-for="scope in availableScopes" :key="scope" :value="scope">
 										{{ scope }}
@@ -122,6 +122,9 @@
 								v-if="editingSymbol && !editingSymbol.isNew && editingSymbol.originalAddress === symbol.address && editingSymbol.originalNamespace === symbol.namespace"
 								class="bg-gray-700/50 hover:bg-gray-700/50"
 							>
+								<TableCell class="align-top px-0 w-[130px]">
+									<Input v-model="editingSymbol.namespace" placeholder="user" class="h-8 bg-gray-900 border-gray-600" />
+								</TableCell>
 								<TableCell class="align-top px-0">
 									<!-- <div> -->
 										<Input
@@ -148,9 +151,6 @@
 										</p>
 									</div>
 								</TableCell>
-								<TableCell class="align-top px-0 w-[130px]">
-									<Input v-model="editingSymbol.namespace" placeholder="user" class="h-8 bg-gray-900 border-gray-600" />
-								</TableCell>
 								<TableCell class="align-top px-0 w-[78px]">
 									<select v-model="editingSymbol.scope" class="h-8 w-full rounded-md border border-gray-600 bg-gray-900 px-2 py-1 text-sm text-gray-200 focus:outline-none">
 										<option v-for="scope in availableScopes" :key="scope" :value="scope">
@@ -176,9 +176,16 @@
 								@click="gotoSymbol(symbol)"
 								class="cursor-pointer border-gray-700 hover:bg-gray-700"
 							>
-								<TableCell class="font-semibold text-yellow-400">{{ symbol.label }}</TableCell>
-								<TableCell class="font-mono text-indigo-300">{{ formatAddress(symbol.address) }}</TableCell>
 								<TableCell class="truncate" :title="symbol.namespace">{{ symbol.namespace }}</TableCell>
+								<TableCell class="font-semibold text-yellow-400">
+									<div class="flex items-center gap-2">
+										<span>{{ symbol.label }}</span>
+										<div v-if="symbol.source" :title="symbol.source">
+											<FileText class="h-3 w-3 text-gray-500 hover:text-gray-300" />
+										</div>
+									</div>
+								</TableCell>
+								<TableCell class="font-mono text-indigo-300">{{ formatAddress(symbol.address) }}</TableCell>
 								<TableCell>{{ symbol.scope }}</TableCell>
 								<TableCell>
 									<div class="flex items-center justify-end gap-1" @click.stop>
@@ -211,7 +218,7 @@
 </template>
 
 <script setup lang="ts">
-import { ArrowDown, ArrowUp, Check, OctagonPause, Pencil, PlusCircle, Tags, Trash2, X } from "lucide-vue-next";
+import { ArrowDown, ArrowUp, Check, FileText, OctagonPause, Pencil, PlusCircle, Tags, Trash2, X } from "lucide-vue-next";
 import { computed, inject, type Ref, ref } from "vue";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -219,7 +226,7 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useBreakpoints } from "@/composables/useBreakpoints";
 import { useSymbols } from "@/composables/useSymbols";
-import { formatAddress } from "@/lib/hex.utils";
+import { formatAddress, toHex } from "@/lib/hex.utils";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 
 const props = defineProps<{
@@ -232,7 +239,7 @@ const emit = defineEmits<{
 }>();
 
 const vm = inject<Ref<VirtualMachine>>("vm");
-const { addSymbol, removeSymbol, symbolDict } = useSymbols();
+const { addSymbol, removeSymbol, updateSymbol, getSymbolForNSLabel, symbolDict } = useSymbols();
 const { pcBreakpoints, toggleBreakpoint } = useBreakpoints();
 
 const searchTerm = ref("");
@@ -251,6 +258,7 @@ type EditableSymbol = {
 	address: string | number; // string during input
 	namespace: string;
 	scope: string;
+	source?: string;
 	isNew?: boolean;
 	originalAddress?: number;
 	originalNamespace?: string;
@@ -276,7 +284,7 @@ const allSymbols = computed(() => {
 	const symbols = symbolDict.value;
 	if (!symbols) return [];
 
-	const flatList: { label: string; address: number; namespace: string; scope: string }[] = [];
+	const flatList: { label: string; address: number; namespace: string; scope: string; source?: string }[] = [];
 	for (const addrStr in symbols) {
 		const address = parseInt(addrStr, 10);
 		const namespaces = symbols[address];
@@ -289,6 +297,7 @@ const allSymbols = computed(() => {
 						address,
 						namespace: ns,
 						scope: symbolData.scope ?? "main",
+						source: symbolData.source,
 					});
 				}
 			}
@@ -312,7 +321,8 @@ const filteredSymbols = computed(() => {
 
 	if (searchTerm.value) {
 		const lowerQuery = searchTerm.value.toLowerCase();
-		symbols = symbols.filter((s) => s.label.toLowerCase().includes(lowerQuery));
+		const addressQuery= parseInt(searchTerm.value,16);
+		symbols = symbols.filter((s) => s.address === addressQuery || s.label.toLowerCase().includes(lowerQuery));
 	}
 
 	// Sorting - create a mutable copy
@@ -347,15 +357,13 @@ const beginAddSymbol = () => {
 		scope: "main",
 		isNew: true,
 	};
-	if (tableContainerRef.value) {
-		tableContainerRef.value.scrollTop = 0;
-	}
+	if (tableContainerRef.value) tableContainerRef.value.scrollTop = 0;
 };
 
 const beginEdit = (symbol: { label: string; address: number; namespace: string; scope: string }) => {
 	editingSymbol.value = {
 		...JSON.parse(JSON.stringify(symbol)), // deep copy
-		address: formatAddress(symbol.address), // show hex string in input
+		address: toHex(symbol.address,6), // show hex string in input
 		isNew: false,
 		originalAddress: symbol.address,
 		originalNamespace: symbol.namespace,
@@ -371,6 +379,7 @@ const saveEdit = () => {
 	const symbol = editingSymbol.value;
 	const addressHex = String(symbol.address).replace('$', '');
 	const address = parseInt(addressHex, 16);
+	const namespace = symbol.namespace?.trim() || "user";
 
 	if (Number.isNaN(address) || address < 0 || address > 0xffffff) {
 		validationErrors.value.address = "Invalid hex address (e.g., C000).";
@@ -383,17 +392,36 @@ const saveEdit = () => {
 		hasErrors = true;
 	}
 
+	const existingSymbol= getSymbolForNSLabel(namespace, label);
+	if (symbol.originalNamespace!==namespace && existingSymbol) {
+		validationErrors.value.label = "Duplicate label.";
+		hasErrors = true;
+	}
+
 	if (hasErrors) return;
 
-	const namespace = symbol.namespace?.trim() || "user";
 	const scope = symbol.scope?.trim() || "main";
 
+	if(symbol.isNew) {
+		addSymbol(address, label, namespace, scope);
+	} else {
+		// biome-ignore lint/style/noNonNullAssertion: <update so value are set>
+		updateSymbol(symbol.originalAddress!, symbol.originalNamespace!, {
+			scope,
+			namespace,
+			address,
+			label
+		});
+	}
+
+	/*
 	// If it's an edit and the primary key (address/namespace) has changed, remove the old one.
 	if (!symbol.isNew && symbol.originalAddress !== undefined && symbol.originalNamespace !== undefined && (symbol.originalAddress !== address || symbol.originalNamespace !== namespace)) {
 		removeSymbol(symbol.originalAddress, symbol.originalNamespace);
 	}
 
 	addSymbol(address, label, namespace, scope);
+	*/
 
 	editingSymbol.value = null;
 };
