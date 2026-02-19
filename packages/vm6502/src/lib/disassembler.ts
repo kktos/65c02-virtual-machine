@@ -2,18 +2,12 @@ import { useFormatting } from "@/composables/useFormatting";
 import { useSymbols } from "@/composables/useSymbols";
 import type { DisassemblyLine } from "@/types/disassemblyline.interface";
 import type { EmulatorState } from "@/types/emulatorstate.interface";
-import { toHex } from "./hex.utils";
+import { formatAddress, toHex } from "./hex.utils";
 import { runHypercall } from "./hypercalls.lib";
 import { opcodeMap } from "./opcodes";
 
 const { getFormat } = useFormatting();
 const { getSymbolForAddress, getLabelForAddress } = useSymbols();
-
-const formatAddress = (addr: number) => {
-	const bank = ((addr >> 16) & 0xff).toString(16).toUpperCase().padStart(2, "0");
-	const offset = (addr & 0xffff).toString(16).toUpperCase().padStart(4, "0");
-	return `$${bank}:${offset}`;
-};
 
 export function disassemble(
 	readByte: (address: number, debug?: boolean) => number,
@@ -163,6 +157,7 @@ export function disassemble(
 				break;
 			case "IMM":
 				line.opr = `#${toHex(operandBytes[0], 2)}`;
+				if (line.opc === "CMP") line.comment = `'${String.fromCharCode(operandBytes[0] & 0x7f)}'`;
 				break;
 			case "ZP": {
 				effectiveAddress = operandBytes[0] ?? 0;
