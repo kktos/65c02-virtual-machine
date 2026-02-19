@@ -8,7 +8,7 @@
 				</DialogDescription>
 			</DialogHeader>
 
-			<div class="flex gap-4 my-4">
+			<div class="flex justify-between items-center my-4 gap-4">
 				<Input
 					v-model="searchTerm"
 					placeholder="Search by label..."
@@ -23,6 +23,10 @@
 						{{ ns }}
 					</option>
 				</select>
+				<Button @click="beginAddSymbol" class="h-10 bg-blue-600 hover:bg-blue-500 text-white shrink-0">
+					<PlusCircle class="h-4 w-4 mr-2" />
+					Add Symbol
+				</Button>
 			</div>
 
 			<div class="overflow-y-auto max-h-[60vh] border border-gray-700 rounded-md">
@@ -61,73 +65,136 @@
 						</TableRow>
 					</TableHeader>
 					<TableBody>
-						<template v-if="filteredSymbols.length > 0">
+						<!-- New Symbol Row (Add Mode) -->
+						<TableRow v-if="editingSymbol && editingSymbol.isNew" class="bg-gray-700/50 hover:bg-gray-700/50">
+							<TableCell class="align-top">
+								<div>
+									<Input
+										v-model="editingSymbol.label"
+										placeholder="LABEL_NAME"
+										class="h-8 bg-gray-900 border-gray-600"
+										:class="{ 'border-red-500': validationErrors.label }"
+									/>
+									<p class="text-red-400 text-xs mt-1 h-4" :class="{ 'invisible': !validationErrors.label }">
+										{{ validationErrors.label || 'Error' }}
+									</p>
+								</div>
+							</TableCell>
+							<TableCell class="align-top">
+								<div>
+									<Input
+										v-model="editingSymbol.address"
+										placeholder="$C000"
+										class="h-8 bg-gray-900 border-gray-600 font-mono w-20"
+										:class="{ 'border-red-500': validationErrors.address }"
+									/>
+									<p class="text-red-400 text-xs mt-1 h-4" :class="{ 'invisible': !validationErrors.address }">
+										{{ validationErrors.address || 'Error' }}
+									</p>
+								</div>
+							</TableCell>
+							<TableCell class="align-top">
+								<Input v-model="editingSymbol.namespace" placeholder="user" class="h-8 bg-gray-900 border-gray-600" />
+							</TableCell>
+							<TableCell class="align-top">
+								<Input v-model="editingSymbol.scope" placeholder="main" class="h-8 bg-gray-900 border-gray-600" />
+							</TableCell>
+							<TableCell class="text-right align-top">
+								<div class="flex items-center justify-end gap-1 mt-1">
+									<button @click="saveEdit" class="p-1 text-green-400 hover:bg-gray-600 rounded" title="Save">
+										<Check class="h-4 w-4" />
+									</button>
+									<button @click="cancelEdit" class="p-1 text-red-400 hover:bg-gray-600 rounded" title="Cancel">
+										<X class="h-4 w-4" />
+									</button>
+								</div>
+							</TableCell>
+						</TableRow>
+
+						<!-- Symbol Rows -->
+						<template v-for="symbol in filteredSymbols" :key="`${symbol.address}-${symbol.namespace}`">
+							<!-- Inline Edit Row -->
 							<TableRow
-								v-for="symbol in filteredSymbols"
-								:key="`${symbol.address}-${symbol.namespace}`"
+								v-if="editingSymbol && !editingSymbol.isNew && editingSymbol.originalAddress === symbol.address && editingSymbol.originalNamespace === symbol.namespace"
+								class="bg-gray-700/50 hover:bg-gray-700/50"
+							>
+								<TableCell class="align-top px-0">
+									<!-- <div> -->
+										<Input
+											v-model="editingSymbol.label"
+											placeholder="LABEL_NAME"
+											class="h-8 bg-gray-900 border-gray-600 w-[258px]"
+											:class="{ 'border-red-500': validationErrors.label }"
+										/>
+										<p class="text-red-400 text-xs mt-1 h-4 pl-2" :class="{ 'invisible': !validationErrors.label }">
+											{{ validationErrors.label || 'Error' }}
+										</p>
+									<!-- </div> -->
+								</TableCell>
+								<TableCell class="align-top px-0 w-[131px]">
+									<div>
+										<Input
+											v-model="editingSymbol.address"
+											placeholder="$C000"
+											class="h-8 bg-gray-900 border-gray-600 font-mono"
+											:class="{ 'border-red-500': validationErrors.address }"
+										/>
+										<p class="text-red-400 text-xs mt-1 h-4" :class="{ 'invisible': !validationErrors.address }">
+											{{ validationErrors.address || 'Error' }}
+										</p>
+									</div>
+								</TableCell>
+								<TableCell class="align-top px-0 w-[130px]">
+									<Input v-model="editingSymbol.namespace" placeholder="user" class="h-8 bg-gray-900 border-gray-600" />
+								</TableCell>
+								<TableCell class="align-top px-0 w-[78px]">
+									<Input v-model="editingSymbol.scope" placeholder="main" class="h-8 bg-gray-900 border-gray-600" />
+								</TableCell>
+								<TableCell class="align-top px-0">
+									<div class="flex items-center justify-end gap-1 mt-1 mr-2">
+										<button @click="saveEdit" class="p-1 text-green-400 hover:bg-gray-600 rounded" title="Save">
+											<Check class="h-4 w-4" />
+										</button>
+										<button @click="cancelEdit" class="p-1 text-red-400 hover:bg-gray-600 rounded" title="Cancel">
+											<X class="h-4 w-4" />
+										</button>
+									</div>
+								</TableCell>
+							</TableRow>
+
+							<!-- Display Row -->
+							<TableRow
+								v-else
 								@click="gotoSymbol(symbol)"
 								class="cursor-pointer border-gray-700 hover:bg-gray-700"
-								:class="{ 'bg-gray-700/50': editingId === `${symbol.address}-${symbol.namespace}` }"
 							>
-								<TableCell class="font-semibold text-yellow-400">
-									<div v-if="editingId === `${symbol.address}-${symbol.namespace}`" @click.stop>
-										<Input
-											v-model="editLabelModel"
-											class="h-7 bg-gray-900 border-gray-600 text-yellow-400"
-											@keydown.enter="saveEdit(symbol)"
-											@keydown.esc="cancelEdit"
-											autoFocus
-										/>
-									</div>
-									<span v-else>{{ symbol.label }}</span>
-								</TableCell>
+								<TableCell class="font-semibold text-yellow-400">{{ symbol.label }}</TableCell>
 								<TableCell class="font-mono text-indigo-300">{{ formatAddress(symbol.address) }}</TableCell>
 								<TableCell class="truncate" :title="symbol.namespace">{{ symbol.namespace }}</TableCell>
 								<TableCell>{{ symbol.scope }}</TableCell>
 								<TableCell>
-									<div class="flex items-center gap-1" @click.stop>
-										<template v-if="editingId === `${symbol.address}-${symbol.namespace}`">
-											<!-- Placeholder to keep alignment during edit -->
-											<div class="w-6"></div>
-											<button
-												@click="saveEdit(symbol)"
-												class="p-1 text-green-400 hover:bg-gray-600 rounded"
-												title="Save"
-											>
-												<Check class="h-4 w-4" />
-											</button>
-											<button
-												@click="cancelEdit"
-												class="p-1 text-red-400 hover:bg-gray-600 rounded"
-												title="Cancel"
-											>
-												<X class="h-4 w-4" />
-											</button>
-										</template>
-										<template v-else>
-											<button
-												@click="toggleSymbolBreakpoint(symbol)"
-												class="p-1 hover:bg-gray-600 rounded"
-												:title="isBreakpointActive(symbol.address) ? 'Remove Breakpoint' : 'Add Breakpoint'"
-											>
-												<OctagonPause class="h-4 w-4" :class="isBreakpointActive(symbol.address) ? 'fill-red-500 text-red-500' : 'text-gray-400'" />
-											</button>
-											<button @click="startEdit(symbol)" class="p-1 text-gray-400 hover:text-blue-400 hover:bg-gray-600 rounded" title="Edit">
-												<Pencil class="h-4 w-4" />
-											</button>
-											<button @click="handleDelete(symbol)" class="p-1 text-gray-400 hover:text-red-400 hover:bg-gray-600 rounded" title="Delete">
-												<Trash2 class="h-4 w-4" />
-											</button>
-										</template>
+									<div class="flex items-center justify-end gap-1" @click.stop>
+										<button
+											@click="toggleSymbolBreakpoint(symbol)"
+											class="p-1 hover:bg-gray-600 rounded"
+											:title="isBreakpointActive(symbol.address) ? 'Remove Breakpoint' : 'Add Breakpoint'"
+										>
+											<OctagonPause class="h-4 w-4" :class="isBreakpointActive(symbol.address) ? 'fill-red-500 text-red-500' : 'text-gray-400'" />
+										</button>
+										<button @click="beginEdit(symbol)" class="p-1 text-gray-400 hover:text-blue-400 hover:bg-gray-600 rounded" title="Edit">
+											<Pencil class="h-4 w-4" />
+										</button>
+										<button @click="handleDelete(symbol)" class="p-1 text-gray-400 hover:text-red-400 hover:bg-gray-600 rounded" title="Delete">
+											<Trash2 class="h-4 w-4" />
+										</button>
 									</div>
 								</TableCell>
 							</TableRow>
 						</template>
-						<template v-else>
-							<TableRow>
-								<TableCell colspan="4" class="text-center text-gray-500 py-8"> No symbols found. </TableCell>
-							</TableRow>
-						</template>
+
+						<TableRow v-if="filteredSymbols.length === 0 && !editingSymbol">
+							<TableCell colspan="5" class="text-center text-gray-500 py-8"> No symbols found. </TableCell>
+						</TableRow>
 					</TableBody>
 				</Table>
 			</div>
@@ -136,8 +203,9 @@
 </template>
 
 <script setup lang="ts">
-import { ArrowDown, ArrowUp, Check, OctagonPause, Pencil, Tags, Trash2, X } from "lucide-vue-next";
+import { ArrowDown, ArrowUp, Check, OctagonPause, Pencil, PlusCircle, Tags, Trash2, X } from "lucide-vue-next";
 import { computed, inject, type Ref, ref } from "vue";
+import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -161,12 +229,26 @@ const { pcBreakpoints, toggleBreakpoint } = useBreakpoints();
 
 const searchTerm = ref("");
 const selectedNamespace = ref("");
-const editingId = ref<string | null>(null);
-const editLabelModel = ref("");
 
 type SortKey = 'label' | 'address' | 'namespace' | 'scope';
 const sortKey = ref<SortKey>('address');
 const sortDirection = ref<'asc' | 'desc'>('asc');
+
+type EditableSymbol = {
+	label: string;
+	address: string | number; // string during input
+	namespace: string;
+	scope: string;
+	isNew?: boolean;
+	originalAddress?: number;
+	originalNamespace?: string;
+};
+const editingSymbol = ref<EditableSymbol | null>(null);
+
+const validationErrors = ref({
+	address: "",
+	label: "",
+});
 
 const handleSort = (key: SortKey) => {
 	if (sortKey.value === key) {
@@ -239,25 +321,70 @@ const filteredSymbols = computed(() => {
 });
 
 const gotoSymbol = (symbol: { address: number }) => {
-	if (editingId.value) return; // Prevent navigation while editing
+	if (editingSymbol.value) return; // Prevent navigation while editing
 	emit("gotoAddress", symbol.address);
 	emit("update:isOpen", false);
 };
 
-const startEdit = (symbol: { label: string; address: number; namespace: string }) => {
-	editingId.value = `${symbol.address}-${symbol.namespace}`;
-	editLabelModel.value = symbol.label;
+const beginAddSymbol = () => {
+	editingSymbol.value = {
+		label: "",
+		address: "", // Start with empty string for input
+		namespace: "user",
+		scope: "main",
+		isNew: true,
+	};
 };
 
-const saveEdit = (symbol: { address: number; namespace: string; scope: string }) => {
-	if (editLabelModel.value.trim()) {
-		addSymbol(symbol.address, editLabelModel.value, symbol.namespace, symbol.scope);
+const beginEdit = (symbol: { label: string; address: number; namespace: string; scope: string }) => {
+	editingSymbol.value = {
+		...JSON.parse(JSON.stringify(symbol)), // deep copy
+		address: formatAddress(symbol.address), // show hex string in input
+		isNew: false,
+		originalAddress: symbol.address,
+		originalNamespace: symbol.namespace,
+	};
+};
+
+const saveEdit = () => {
+	if (!editingSymbol.value) return;
+
+	validationErrors.value = { address: "", label: "" };
+	let hasErrors = false;
+
+	const symbol = editingSymbol.value;
+	const addressHex = String(symbol.address).replace('$', '');
+	const address = parseInt(addressHex, 16);
+
+	if (Number.isNaN(address) || address < 0 || address > 0xffffff) {
+		validationErrors.value.address = "Invalid hex address (e.g., C000).";
+		hasErrors = true;
 	}
-	editingId.value = null;
+
+	const label = symbol.label.trim();
+	if (!label) {
+		validationErrors.value.label = "Label cannot be empty.";
+		hasErrors = true;
+	}
+
+	if (hasErrors) return;
+
+	const namespace = symbol.namespace?.trim() || "user";
+	const scope = symbol.scope?.trim() || "main";
+
+	// If it's an edit and the primary key (address/namespace) has changed, remove the old one.
+	if (!symbol.isNew && symbol.originalAddress !== undefined && symbol.originalNamespace !== undefined && (symbol.originalAddress !== address || symbol.originalNamespace !== namespace)) {
+		removeSymbol(symbol.originalAddress, symbol.originalNamespace);
+	}
+
+	addSymbol(address, label, namespace, scope);
+
+	editingSymbol.value = null;
 };
 
 const cancelEdit = () => {
-	editingId.value = null;
+	editingSymbol.value = null;
+	validationErrors.value = { address: "", label: "" };
 };
 
 const handleDelete = (symbol: { label: string; address: number; namespace: string }) => {
