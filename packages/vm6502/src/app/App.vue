@@ -126,6 +126,7 @@ import { computed, markRaw, nextTick, onMounted, onUnmounted, provide, reactive,
 import { Toaster, toast } from "vue-sonner";
 import 'vue-sonner/style.css';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useFormatting } from "@/composables/useFormatting";
 import { useSymbols } from "@/composables/useSymbols";
 import TogglableDisplay from '../components/TogglableDisplay.vue';
 import ResizableHandle from '../components/ui/resizable/ResizableHandle.vue';
@@ -331,8 +332,11 @@ import VideoControl from "./machine/VideoControl.vue";
 			newVm.initAudio();
 		});
 
-		const {  initSymbols } = useSymbols();
+		const { initSymbols } = useSymbols();
 		if(newMachine.debug?.symbols) initSymbols(newMachine.debug.symbols);
+
+		const { initFormats } = useFormatting();
+		if(newMachine.debug?.dataBlocks) initFormats(newMachine.debug.dataBlocks);
 	};
 
 	const handleMachineSelected = (newMachine: MachineConfig) => {

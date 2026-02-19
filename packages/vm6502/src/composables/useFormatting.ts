@@ -17,6 +17,17 @@ const formattingRules = ref<Map<number, Map<string, DataBlock>>>(new Map());
 const activeFormattingGroups = ref<Map<string, boolean>>(new Map());
 
 export function useFormatting() {
+	const initFormats = (newFormats?: FormattingDict) => {
+		formattingRules.value.clear();
+		activeFormattingGroups.value.clear();
+		if (newFormats) {
+			for (const [addrStr, groups] of Object.entries(newFormats)) {
+				const address = Number(addrStr);
+				for (const [group, block] of Object.entries(groups)) addFormat(address, block.type, block.length, group);
+			}
+		}
+	};
+
 	const activateGroup = (group: string) => {
 		if (!activeFormattingGroups.value.has(group)) activeFormattingGroups.value.set(group, true);
 	};
@@ -152,6 +163,7 @@ export function useFormatting() {
 	return {
 		formattingRules,
 		activeFormattingGroups,
+		initFormats,
 		addFormat,
 		addFormatting,
 		removeFormat,
