@@ -74,7 +74,7 @@ import { computed, nextTick, ref, watch } from "vue";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { type DataType, useFormatting } from "@/composables/useFormatting";
 import { useSymbols } from "@/composables/useSymbols";
-import { formatAddress } from "@/lib/hex.utils";
+import { formatAddress, toHex } from "@/lib/hex.utils";
 
 const props = defineProps<{
 	isOpen: boolean;
@@ -107,7 +107,7 @@ watch(dataLength, () => {
 	}
 });
 
-localLabel.value = getLabelForAddress(props.address) || "";
+localLabel.value = getLabelForAddress(props.address) || `L${toHex(props.address, 4)}`;
 hasExisting.value = !!localLabel.value;
 
 watch([() => props.isOpen], () => {
