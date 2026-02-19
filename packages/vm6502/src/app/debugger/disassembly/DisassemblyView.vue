@@ -67,6 +67,7 @@ import { useDisassembly } from "@/composables/useDisassembly";
 import { useDisassemblyScroll } from "@/composables/useDisassemblyScroll";
 import { useFormatting } from "@/composables/useFormatting";
 import { useSettings } from "@/composables/useSettings";
+import { useSymbols } from "@/composables/useSymbols";
 import { disassemble } from "@/lib/disassembler";
 import { handleExplainCode } from "@/lib/gemini.utils";
 import type { DisassemblyLine } from "@/types/disassemblyline.interface";
@@ -89,8 +90,10 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 	const { jumpEvent } = useDisassembly();
 	const { setMemoryViewAddress, setActiveTab, addJumpHistory, historyIndex, historyNavigationEvent, clearHistory } = useDebuggerNav();
 	const { settings } = useSettings();
-	const availableScopes: Ref<string[]>= ref([]);
 	const { formattingRules } = useFormatting();
+	const { symbolDict } = useSymbols();
+
+	const availableScopes: Ref<string[]>= ref([]);
 	const getRandomColor = () => `#${Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0')}`;
 	const banks = vm?.value.machineConfig.memory.banks || 1;
 	const totalMemory = banks * 0x10000;
@@ -218,7 +221,7 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 	};
 
 	const { scrollContainer, visibleRowCount, handleScroll, findPreviousInstructionAddress } = useDisassemblyScroll(
-		vm,
+		vm as Ref<VirtualMachine>,
 		disassembly,
 		disassemblyStartAddress,
 		ref(false)
@@ -259,6 +262,7 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 				// that puts newAddress at oldIndex.
 				let targetStart = newAddress;
 				for (let i = 0; i < oldIndex; i++) {
+					// biome-ignore lint/style/noNonNullAssertion: <itsok>
 					targetStart = findPreviousInstructionAddress(targetStart);
 				}
 				disassemblyStartAddress.value = targetStart;
@@ -271,7 +275,7 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 	};
 
 	watch( // Re-disassemble when the start address or memory changes
-		() => [disassemblyStartAddress.value, memory, visibleRowCount.value, busState.value, registers, formattingRules.value],
+		() => [disassemblyStartAddress.value, memory, visibleRowCount.value, busState.value, registers, formattingRules.value, symbolDict.value],
 		() => {
 			if (memory) {
 				vm?.value?.syncBusState();

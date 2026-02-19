@@ -4,7 +4,7 @@ import type { DisassemblyLine } from "@/types/disassemblyline.interface";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 
 export function useDisassemblyScroll(
-	vm: Ref<VirtualMachine> | undefined,
+	vm: Ref<VirtualMachine>,
 	disassembly: Ref<DisassemblyLine[]>,
 	disassemblyStartAddress: Ref<number>,
 	isFollowingPc: Ref<boolean>,
@@ -28,15 +28,15 @@ export function useDisassemblyScroll(
 	});
 
 	const readByte = (address: number) => {
-		return vm?.value.readDebug(address) ?? 0;
+		return vm.value.readDebug(address) ?? 0;
 	};
 
 	const findPreviousInstructionAddress = (startAddr: number): number => {
 		if (startAddr <= 0) return 0;
 		// Go back a few bytes (max instruction length is 3) and disassemble
-		const lookbehind = 4;
+		const lookbehind = 3 * 4;
 		const searchStart = Math.max(0, startAddr - lookbehind);
-		const tempDisassembly = disassemble(readByte, searchStart, lookbehind);
+		const tempDisassembly = disassemble(readByte, vm.value.getScope(searchStart), searchStart, lookbehind);
 
 		// The last instruction in this temp block whose address is less than startAddr is our target.
 		for (const line of tempDisassembly.reverse()) if (line.addr < startAddr) return line.addr;
