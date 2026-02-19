@@ -87,7 +87,8 @@
 </template>
 
 <script lang="ts" setup>
-import { inject, onMounted, onUnmounted, type Ref, ref } from "vue";
+import { useKeyModifier } from '@vueuse/core';
+import { inject, type Ref, ref } from "vue";
 import AddSymbolPopover from "@/components/AddSymbolPopover.vue";
 import { useSettings } from "@/composables/useSettings";
 import type { DisassemblyLine } from "@/types/disassemblyline.interface";
@@ -110,22 +111,7 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 	}>();
 
 	const { settings } = useSettings();
-
-	const isCtrlPressed = ref(false);
-
-	const updateCtrlState = (e: KeyboardEvent) => {
-		isCtrlPressed.value = e.ctrlKey;
-	};
-
-	onMounted(() => {
-		window.addEventListener("keydown", updateCtrlState);
-		window.addEventListener("keyup", updateCtrlState);
-	});
-
-	onUnmounted(() => {
-		window.removeEventListener("keydown", updateCtrlState);
-		window.removeEventListener("keyup", updateCtrlState);
-	});
+	const isCtrlPressed= useKeyModifier("Control");
 
 	const getBranchPrediction = (opcode: string) => {
 		// Defensive check for props.registers (already added in last iteration, keeping it)
