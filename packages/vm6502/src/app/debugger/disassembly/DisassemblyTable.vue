@@ -48,12 +48,15 @@
 					</td>
 					<td
 						class="py-0.5 text-left flex items-center"
-						:class="{ 'cursor-pointer': isOpcodeClickable(line) }"
+						:class="{ 'cursor-pointer': isCtrlPressed && isOpcodeClickable(line) }"
 						:title="getOpcodeTitle(line.opc)"
 						@click.ctrl.prevent="$emit('opcodeClick', line)"
 						@contextmenu.prevent="handleContextMenu($event, line)"
 					>
-						<span>{{ line.opc }} {{ line.opr }}</span>
+						<span :class="{ 'hover:underline': isCtrlPressed && isOpcodeClickable(line) }">
+							<span :class="{ 'text-blue-400': line.opc.startsWith('.') }">{{ line.opc }}</span>
+							{{ line.opr ? ' ' + line.opr : '' }}
+						</span>
 						<span
 							v-if="line.addr === address && getBranchPrediction(line.opc)"
 							:class="['ml-2', getBranchPrediction(line.opc)?.color]"
@@ -84,7 +87,7 @@
 </template>
 
 <script lang="ts" setup>
-import { inject, type Ref, ref } from "vue";
+import { inject, onMounted, onUnmounted, type Ref, ref } from "vue";
 import AddSymbolPopover from "@/components/AddSymbolPopover.vue";
 import { useSettings } from "@/composables/useSettings";
 import type { DisassemblyLine } from "@/types/disassemblyline.interface";
@@ -107,6 +110,22 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 	}>();
 
 	const { settings } = useSettings();
+
+	const isCtrlPressed = ref(false);
+
+	const updateCtrlState = (e: KeyboardEvent) => {
+		isCtrlPressed.value = e.ctrlKey;
+	};
+
+	onMounted(() => {
+		window.addEventListener("keydown", updateCtrlState);
+		window.addEventListener("keyup", updateCtrlState);
+	});
+
+	onUnmounted(() => {
+		window.removeEventListener("keydown", updateCtrlState);
+		window.removeEventListener("keyup", updateCtrlState);
+	});
 
 	const getBranchPrediction = (opcode: string) => {
 		// Defensive check for props.registers (already added in last iteration, keeping it)
