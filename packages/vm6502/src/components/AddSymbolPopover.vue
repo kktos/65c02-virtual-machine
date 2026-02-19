@@ -74,6 +74,7 @@ import { computed, nextTick, ref, watch } from "vue";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { type DataType, useFormatting } from "@/composables/useFormatting";
 import { useSymbols } from "@/composables/useSymbols";
+import { formatAddress } from "@/lib/hex.utils";
 
 const props = defineProps<{
 	isOpen: boolean;
@@ -105,12 +106,6 @@ watch(dataLength, () => {
 		selectedType.value = 'byte';
 	}
 });
-
-const formatAddress = (addr: number) => {
-	const bank = ((addr >> 16) & 0xFF).toString(16).toUpperCase().padStart(2, '0');
-	const offset = (addr & 0xFFFF).toString(16).toUpperCase().padStart(4, '0');
-	return `$${bank}:${offset}`;
-};
 
 localLabel.value = getLabelForAddress(props.address) || "";
 hasExisting.value = !!localLabel.value;

@@ -1,8 +1,5 @@
 import type { DisassemblyLine } from "@/types/disassemblyline.interface";
-
-export function toHex(v: number | undefined, pad: number) {
-	return (v ?? 0).toString(16).toUpperCase().padStart(pad, "0");
-}
+import { toHex } from "./hex.utils";
 
 export function getHypercallArgs(readByte: (address: number) => number, stringAddr: number): number {
 	let args = 0;
@@ -35,10 +32,16 @@ export function runHypercall(readByte: (address: number) => number, pc: number) 
 			bytesConsumed = 4 + args;
 			hypercallLine = {
 				addr: address,
-				op: "!!LOG_STRING",
+				opc: "!!LOG_STRING",
 				bytes: "",
 				comment: `String @ $${toHex(strAddr, 4)}`,
 				cycles: 7,
+				opr: "",
+				oprn: 0,
+				label: "",
+				src: "",
+				faddr: "",
+				mode: "IMP",
 			};
 			break;
 		}
@@ -47,10 +50,16 @@ export function runHypercall(readByte: (address: number) => number, pc: number) 
 			bytesConsumed = 2;
 			hypercallLine = {
 				addr: address,
-				op: "!!LOG_REGS",
+				opc: "!!LOG_REGS",
 				bytes: "",
 				comment: "",
 				cycles: 7,
+				opr: "",
+				oprn: 0,
+				label: "",
+				src: "",
+				faddr: "",
+				mode: "IMP",
 			};
 			break;
 		}
@@ -61,10 +70,16 @@ export function runHypercall(readByte: (address: number) => number, pc: number) 
 			const size = readByte(pc + 4) | (readByte(pc + 5) << 8);
 			hypercallLine = {
 				addr: address,
-				op: "!!ADD_REGION",
+				opc: "!!ADD_REGION",
 				bytes: "",
 				comment: `Start: $${toHex(start, 4)}, Size: $${toHex(size, 4)}`,
 				cycles: 7,
+				opr: "",
+				oprn: 0,
+				label: "",
+				src: "",
+				faddr: "",
+				mode: "IMP",
 			};
 			break;
 		}
@@ -80,10 +95,16 @@ export function runHypercall(readByte: (address: number) => number, pc: number) 
 			}
 			hypercallLine = {
 				addr: address,
-				op: "!!REMOVE_REGIONS",
+				opc: "!!REMOVE_REGIONS",
 				bytes: "",
 				comment: `Count: ${count} (${names.join(", ")})`,
 				cycles: 7,
+				opr: "",
+				oprn: 0,
+				label: "",
+				src: "",
+				faddr: "",
+				mode: "IMP",
 			};
 			break;
 		}

@@ -2,7 +2,8 @@ import { useFormatting } from "@/composables/useFormatting";
 import { useSymbols } from "@/composables/useSymbols";
 import type { DisassemblyLine } from "@/types/disassemblyline.interface";
 import type { EmulatorState } from "@/types/emulatorstate.interface";
-import { runHypercall, toHex } from "./hypercalls.lib";
+import { toHex } from "./hex.utils";
+import { runHypercall } from "./hypercalls.lib";
 import { opcodeMap } from "./opcodes";
 
 const { getFormat } = useFormatting();

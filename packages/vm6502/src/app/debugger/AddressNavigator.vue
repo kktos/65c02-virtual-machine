@@ -118,7 +118,7 @@ import { useSymbols } from "@/composables/useSymbols";
 
 	const emit = defineEmits<(e: 'goto', address: number) => void>();
 
-	const { getAddressForSymbol, getLabelForAddress, searchSymbols } = useSymbols();
+	const { getAddressForLabel, getLabelForAddress, searchSymbols } = useSymbols();
 	const inputValue = ref("");
 	const isHistoryOpen = ref(false);
 	const suggestions = ref<{ label: string; address: number; scope?: string }[]>([]);
@@ -191,7 +191,7 @@ const handleGoto = () => {
 	const val = inputValue.value.trim();
 	if (!val) return;
 
-	let addr = getAddressForSymbol(val);
+	let addr = getAddressForLabel(val);
 	if (addr === undefined) {
 		const hexVal = val.replace(/^\$/, '').replace(/^0x/i, '');
 		addr = parseInt(hexVal, 16);
