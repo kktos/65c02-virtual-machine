@@ -96,6 +96,6 @@ export interface MachineConfig {
 	debug?: {
 		symbols?: SymbolDict;
 		options?: DebugGroup[];
-		dataBlocks?: Record<number, DataBlock>;
+		dataBlocks?: Record<number, Record<string, DataBlock>>;
 	};
 }

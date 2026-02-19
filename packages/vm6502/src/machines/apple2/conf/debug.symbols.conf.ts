@@ -185,4 +185,4 @@ function parseSymbols(input: string): SymbolDict {
 	return result;
 }
 
-export const symbolsConfig: SymbolDict = parseSymbols(symbols);
+export const debugSymbolsConfig: SymbolDict = parseSymbols(symbols);

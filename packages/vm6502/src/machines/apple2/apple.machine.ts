@@ -1,9 +1,10 @@
 /** biome-ignore-all lint/complexity/useSimpleNumberKeys: Firmware addr in hex */
 import type { MachineConfig } from "@/types/machine.interface";
-import { debugConfig } from "./conf/debug.conf";
+import { debugDataConfig } from "./conf/debug.data.conf";
+import { debugOptionsConfig } from "./conf/debug.options.conf";
+import { debugSymbolsConfig } from "./conf/debug.symbols.conf";
 import { memoryConfig } from "./conf/memory.conf";
 import { regionsConfig } from "./conf/regions.conf";
-import { symbolsConfig } from "./conf/symbols.conf";
 
 export const apple2e: MachineConfig = {
 	name: "Apple //e",
@@ -19,8 +20,9 @@ export const apple2e: MachineConfig = {
 	},
 	disk: { enabled: true, name: "SPDisk" },
 	debug: {
-		options: debugConfig,
-		symbols: symbolsConfig,
+		options: debugOptionsConfig,
+		symbols: debugSymbolsConfig,
+		dataBlocks: debugDataConfig,
 	},
 	regions: regionsConfig,
 	inputs: [
