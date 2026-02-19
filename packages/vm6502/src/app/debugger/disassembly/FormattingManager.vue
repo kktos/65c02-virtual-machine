@@ -30,7 +30,7 @@
 				</Button>
 			</div>
 
-			<div class="overflow-y-auto max-h-[60vh] border border-gray-700 rounded-md">
+			<div ref="tableContainerRef" class="overflow-y-auto max-h-[60vh] border border-gray-700 rounded-md">
 				<Table>
 					<TableHeader class="sticky top-0 bg-gray-800">
 						<TableRow class="border-gray-700 hover:bg-gray-700/50">
@@ -54,8 +54,8 @@
 						</TableRow>
 					</TableHeader>
 					<TableBody>
-						<!-- New/Editing Rule Row -->
-						<TableRow v-if="editingRule" class="bg-gray-700/50 hover:bg-gray-700/50">
+						<!-- New Rule Row (Add Mode) -->
+						<TableRow v-if="editingRule && editingRule.isNew" class="bg-gray-700/50 hover:bg-gray-700/50">
 							<TableCell class="align-top">
 								<div>
 									<Input
@@ -63,7 +63,6 @@
 										placeholder="$C000"
 										class="h-8 bg-gray-900 border-gray-600 font-mono"
 										:class="{ 'border-red-500': validationErrors.address }"
-										:disabled="!editingRule.isNew"
 									/>
 									<p class="text-red-400 text-xs mt-1 h-4" :class="{ 'invisible': !validationErrors.address }">
 										{{ validationErrors.address || 'Error' }}
@@ -106,36 +105,91 @@
 							</TableCell>
 						</TableRow>
 
-						<!-- Display Rows -->
-						<TableRow
-							v-for="rule in filteredRules"
-							:key="`${rule.address}-${rule.group}`"
-							class="border-gray-700 hover:bg-gray-700/50"
-							:class="{ 'hidden': editingRule && !editingRule.isNew && editingRule.originalAddress === rule.address && editingRule.originalGroup === rule.group }"
-						>
-							<TableCell class="font-mono text-indigo-300">{{ formatAddress(rule.address) }}</TableCell>
-							<TableCell class="text-gray-200">{{ rule.type }}</TableCell>
-							<TableCell class="text-gray-400">{{ rule.length }}</TableCell>
-							<TableCell class="text-gray-200">{{ rule.group }}</TableCell>
-							<TableCell class="text-right">
-								<div class="flex items-center justify-end gap-1">
-									<button
-										@click="beginEdit(rule)"
-										class="p-1 text-gray-400 hover:text-blue-400 hover:bg-gray-600 rounded"
-										title="Edit"
-									>
-										<Pencil class="h-4 w-4" />
-									</button>
-									<button
-										@click="handleDelete(rule)"
-										class="p-1 text-gray-400 hover:text-red-400 hover:bg-gray-600 rounded"
-										title="Delete"
-									>
-										<Trash2 class="h-4 w-4" />
-									</button>
-								</div>
-							</TableCell>
-						</TableRow>
+						<!-- Rules Rows -->
+						<template v-for="rule in filteredRules" :key="`${rule.address}-${rule.group}`">
+							<!-- Inline Edit Row -->
+							<TableRow
+								v-if="editingRule && !editingRule.isNew && editingRule.originalAddress === rule.address && editingRule.originalGroup === rule.group"
+								class="bg-gray-700/50 hover:bg-gray-700/50"
+							>
+								<TableCell class="align-top">
+									<div>
+										<Input
+											v-model="editingRule.address"
+											placeholder="$C000"
+											class="h-8 bg-gray-900 border-gray-600 font-mono"
+											:class="{ 'border-red-500': validationErrors.address }"
+										/>
+										<p class="text-red-400 text-xs mt-1 h-4" :class="{ 'invisible': !validationErrors.address }">
+											{{ validationErrors.address || 'Error' }}
+										</p>
+									</div>
+								</TableCell>
+								<TableCell class="align-top">
+									<select v-model="editingRule.type" class="h-8 w-full rounded-md border border-gray-600 bg-gray-900 px-2 py-1 text-sm text-gray-200 focus:outline-none">
+										<option>byte</option>
+										<option>word</option>
+										<option>string</option>
+									</select>
+								</TableCell>
+								<TableCell class="align-top">
+									<div>
+										<Input
+											v-model.number="editingRule.length"
+											type="number"
+											min="1"
+											class="h-8 bg-gray-900 border-gray-600"
+											:class="{ 'border-red-500': validationErrors.length }"
+										/>
+										<p class="text-red-400 text-xs mt-1 h-4" :class="{ 'invisible': !validationErrors.length }">
+											{{ validationErrors.length || 'Error' }}
+										</p>
+									</div>
+								</TableCell>
+								<TableCell class="align-top">
+									<Input v-model="editingRule.group" placeholder="user" class="h-8 bg-gray-900 border-gray-600" />
+								</TableCell>
+								<TableCell class="text-right align-top">
+									<div class="flex items-center justify-end gap-1 mt-1">
+										<button @click="saveEdit" class="p-1 text-green-400 hover:bg-gray-600 rounded" title="Save">
+											<Check class="h-4 w-4" />
+										</button>
+										<button @click="cancelEdit" class="p-1 text-red-400 hover:bg-gray-600 rounded" title="Cancel">
+											<X class="h-4 w-4" />
+										</button>
+									</div>
+								</TableCell>
+							</TableRow>
+
+							<!-- Display Row -->
+							<TableRow
+								v-else
+								class="border-gray-700 hover:bg-gray-700/50"
+							>
+								<TableCell class="font-mono text-indigo-300">{{ formatAddress(rule.address) }}</TableCell>
+								<TableCell class="text-gray-200">{{ rule.type }}</TableCell>
+								<TableCell class="text-gray-400">{{ rule.length }}</TableCell>
+								<TableCell class="text-gray-200">{{ rule.group }}</TableCell>
+								<TableCell class="text-right">
+									<div class="flex items-center justify-end gap-1">
+										<button
+											@click="beginEdit(rule)"
+											class="p-1 text-gray-400 hover:text-blue-400 hover:bg-gray-600 rounded"
+											title="Edit"
+										>
+											<Pencil class="h-4 w-4" />
+										</button>
+										<button
+											@click="handleDelete(rule)"
+											class="p-1 text-gray-400 hover:text-red-400 hover:bg-gray-600 rounded"
+											title="Delete"
+										>
+											<Trash2 class="h-4 w-4" />
+										</button>
+									</div>
+								</TableCell>
+							</TableRow>
+						</template>
 
 						<TableRow v-if="filteredRules.length === 0 && !editingRule" class="hover:bg-transparent">
 							<TableCell colspan="5" class="text-center text-gray-500 py-8">No formatting rules found.</TableCell>
@@ -174,6 +228,7 @@ const sortDirection = ref<'asc' | 'desc'>('asc');
 
 const editingRule = ref<(DataBlock & { isNew?: boolean; originalAddress?: number; originalGroup?: string }) | null>(null);
 
+const tableContainerRef = ref<HTMLElement | null>(null);
 const validationErrors = ref({
 	address: "",
 	length: "",
@@ -187,6 +242,9 @@ const beginAddRule = () => {
 		group: "user",
 		isNew: true,
 	};
+	if (tableContainerRef.value) {
+		tableContainerRef.value.scrollTop = 0;
+	}
 };
 
 const beginEdit = (rule: DataBlock) => {
