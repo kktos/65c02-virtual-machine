@@ -55,14 +55,18 @@
 						@dblclick="startEdit(line)"
 					>
 						<template v-if="editingAddress === line.addr">
-							<input
-								:ref="(el) => { if(el) editInputRef = el as HTMLInputElement }"
-								v-model="editText"
-								class="bg-black text-white p-0 w-full font-mono focus:outline-none"
-								@keydown.enter="commitEdit"
-								@keydown.esc="cancelEdit"
-								@blur="cancelEdit"
-							/>
+							<div class="relative w-full">
+								<input
+									:ref="(el) => { if(el) editInputRef = el as HTMLInputElement }"
+									v-model="editText"
+									class="bg-black text-white p-0 w-full font-mono focus:outline-none"
+									@keydown.enter="commitEdit"
+									@keydown.esc="cancelEdit"
+									@blur="cancelEdit"
+									@input="asmError = ''"
+								/>
+								<div v-if="asmError" class="absolute top-full left-0 mt-1 bg-red-900 text-white text-xs px-2 py-1 rounded shadow-lg z-50 whitespace-nowrap border border-red-700">{{ asmError }}</div>
+							</div>
 						</template>
 						<template v-else>
 							<span :class="{ 'hover:underline': isCtrlPressed && isOpcodeClickable(line) }">
@@ -79,12 +83,7 @@
 						</template>
 					</td>
 					<td class="py-0.5 text-left text-gray-500 align-baseline">
-						<template v-if="editingAddress === line.addr">
-							<p class="text-red-400 text-xs ml-2">
-								{{ asmError }}
-							</p>
-						</template>
-						<template v-else>{{ line.comment }}</template>
+						{{ line.comment }}
 					</td>
 					<td v-if="settings.disassembly.showCycles" class="py-0.5 text-center text-gray-400">
 						{{ line.cycles }}
@@ -240,12 +239,14 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 	const startEdit = (line: DisassemblyLine) => {
 		editingAddress.value = line.addr;
 		editText.value = `${line.opc} ${line.opr}`.trim();
+		asmError.value = "";
 		nextTick(() => { editInputRef.value?.focus(); });
 	};
 
 	const cancelEdit = () => {
 		editingAddress.value = null;
 		editText.value = "";
+		asmError.value = "";
 	};
 
 	const commitEdit = () => {
