@@ -33,13 +33,30 @@ export function useDisassemblyScroll(
 
 	const findPreviousInstructionAddress = (startAddr: number): number => {
 		if (startAddr <= 0) return 0;
-		// Go back a few bytes (max instruction length is 3) and disassemble
-		const lookbehind = 3 * 4;
-		const searchStart = Math.max(0, startAddr - lookbehind);
-		const tempDisassembly = disassemble(readByte, vm.value.getScope(searchStart), searchStart, lookbehind);
 
-		// The last instruction in this temp block whose address is less than startAddr is our target.
-		for (const line of tempDisassembly.reverse()) if (line.addr < startAddr) return line.addr;
+		// Try to find a synchronization point by looking back.
+		// We iterate from a reasonable lookback distance down to 1.
+		// The first candidate start address that produces a disassembly stream
+		// aligning exactly with startAddr is chosen.
+		const maxLookback = 12;
+
+		for (let offset = maxLookback; offset >= 1; offset--) {
+			const candidateStart = startAddr - offset;
+			if (candidateStart < 0) continue;
+
+			const lines = disassemble(readByte, vm.value.getScope(candidateStart), candidateStart, offset + 4);
+
+			// If we hit an invalid opcode, this starting point is likely misaligned.
+			if (lines.some((line) => line.opc === "???")) continue;
+
+			let prevAddr = -1;
+
+			for (const line of lines) {
+				if (line.addr === startAddr) return prevAddr !== -1 ? prevAddr : candidateStart;
+				if (line.addr > startAddr) break;
+				prevAddr = line.addr;
+			}
+		}
 
 		// Fallback if something goes wrong
 		return Math.max(0, startAddr - 1);

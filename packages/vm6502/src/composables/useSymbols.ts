@@ -244,7 +244,7 @@ export function useSymbols() {
 			if (activeNamespaces.value.get(ns) && (!scope || map[ns]?.scope === scope || map[ns]?.scope === "main"))
 				return map[ns];
 		}
-		console.warn("getSymbolForAddress", address.toString(16).padStart(4, "0"), scope, map);
+		// console.warn("getSymbolForAddress", address.toString(16).padStart(4, "0"), scope, map);
 		return undefined;
 	};
 

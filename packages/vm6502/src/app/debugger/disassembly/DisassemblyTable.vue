@@ -52,21 +52,39 @@
 						:title="getOpcodeTitle(line.opc)"
 						@click.ctrl.prevent="$emit('opcodeClick', line)"
 						@contextmenu.prevent="handleContextMenu($event, line)"
+						@dblclick="startEdit(line)"
 					>
-						<span :class="{ 'hover:underline': isCtrlPressed && isOpcodeClickable(line) }">
-							<span :class="{ 'text-blue-400': line.opc.startsWith('.') }">{{ line.opc }}</span>
-							{{ line.opr ? ' ' + line.opr : '' }}
-						</span>
-						<span
-							v-if="line.addr === address && getBranchPrediction(line.opc)"
-							:class="['ml-2', getBranchPrediction(line.opc)?.color]"
-							:title="getBranchPrediction(line.opc)?.title"
-						>
-							{{ getBranchPrediction(line.opc)?.char }}
-						</span>
+						<template v-if="editingAddress === line.addr">
+							<input
+								:ref="(el) => { if(el) editInputRef = el as HTMLInputElement }"
+								v-model="editText"
+								class="bg-black text-white p-0 w-full font-mono focus:outline-none"
+								@keydown.enter="commitEdit"
+								@keydown.esc="cancelEdit"
+								@blur="cancelEdit"
+							/>
+						</template>
+						<template v-else>
+							<span :class="{ 'hover:underline': isCtrlPressed && isOpcodeClickable(line) }">
+								<span :class="{ 'text-blue-400': line.opc.startsWith('.') }">{{ line.opc }}</span>
+								{{ line.opr ? ' ' + line.opr : '' }}
+							</span>
+							<span
+								v-if="line.addr === address && getBranchPrediction(line.opc)"
+								:class="['ml-2', getBranchPrediction(line.opc)?.color]"
+								:title="getBranchPrediction(line.opc)?.title"
+							>
+								{{ getBranchPrediction(line.opc)?.char }}
+							</span>
+						</template>
 					</td>
 					<td class="py-0.5 text-left text-gray-500 align-baseline">
-						{{ line.comment }}
+						<template v-if="editingAddress === line.addr">
+							<p class="text-red-400 text-xs ml-2">
+								{{ asmError }}
+							</p>
+						</template>
+						<template v-else>{{ line.comment }}</template>
 					</td>
 					<td v-if="settings.disassembly.showCycles" class="py-0.5 text-center text-gray-400">
 						{{ line.cycles }}
@@ -88,9 +106,11 @@
 
 <script lang="ts" setup>
 import { useKeyModifier } from '@vueuse/core';
-import { inject, type Ref, ref } from "vue";
+import { inject, nextTick, type Ref, ref } from "vue";
 import AddSymbolPopover from "@/components/AddSymbolPopover.vue";
 import { useSettings } from "@/composables/useSettings";
+import { useSymbols } from "@/composables/useSymbols";
+import { assemble } from "@/lib/assembler";
 import type { DisassemblyLine } from "@/types/disassemblyline.interface";
 import type { EmulatorState } from "@/types/emulatorstate.interface";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
@@ -112,6 +132,7 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 
 	const { settings } = useSettings();
 	const isCtrlPressed= useKeyModifier("Control");
+	const { symbolDict } = useSymbols();
 
 	const getBranchPrediction = (opcode: string) => {
 		// Defensive check for props.registers (already added in last iteration, keeping it)
@@ -208,6 +229,55 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 			y: event.clientY,
 			address: line.addr
 		};
+	};
+
+	// --- Inline Assembler ---
+	const asmError = ref("");
+	const editingAddress = ref<number | null>(null);
+	const editText = ref("");
+	const editInputRef = ref<HTMLInputElement | null>(null);
+
+	const startEdit = (line: DisassemblyLine) => {
+		editingAddress.value = line.addr;
+		editText.value = `${line.opc} ${line.opr}`.trim();
+		nextTick(() => { editInputRef.value?.focus(); });
+	};
+
+	const cancelEdit = () => {
+		editingAddress.value = null;
+		editText.value = "";
+	};
+
+	const commitEdit = () => {
+		if (editingAddress.value === null) return;
+
+		const result = assemble(editingAddress.value, editText.value, (label) => {
+			const dict = symbolDict.value;
+			for (const addrStr in dict) {
+				const addr = parseInt(addrStr, 10);
+				const namespaces = dict[addr];
+				for (const ns in namespaces) {
+					if (namespaces[ns]?.label === label) return addr;
+				}
+			}
+			return undefined;
+		});
+
+		if (result.error) {
+			asmError.value = result.error;
+			return;
+		}
+
+		if (vm?.value && result.bytes.length > 0) {
+			for (let i = 0; i < result.bytes.length; i++) {
+				vm.value.writeDebug(editingAddress.value + i, result.bytes[i] as number);
+			}
+		}
+
+		// fake mod to trigger watch for disassembly update
+		registers.A++;
+
+		cancelEdit();
 	};
 
 </script>
