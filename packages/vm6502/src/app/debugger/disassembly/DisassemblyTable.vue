@@ -19,8 +19,25 @@
 						:style="{ color: getScopeColor(line.addr) }"
 						@contextmenu.prevent="handleContextMenu($event, line)"
 						:title="line.src"
+						@dblclick="startLabelEdit(line)"
 					>
-						{{ line.label }}:
+						<template v-if="editingLabelAddress === line.addr">
+							<div class="relative w-full inline-block">
+								<input
+									:ref="(el) => { if(el) editLabelInputRef = el as HTMLInputElement }"
+									v-model="editLabelText"
+									class="bg-black text-yellow-500 font-bold font-mono text-xs border border-blue-500 px-1 h-5 w-full focus:outline-none"
+									@keydown.enter="commitLabelEdit"
+									@keydown.esc="cancelLabelEdit"
+									@blur="cancelLabelEdit"
+									@input="labelError = ''"
+								/>
+								<div v-if="labelError" class="absolute top-full left-0 mt-1 bg-red-900 text-white text-xs px-2 py-1 rounded shadow-lg z-50 whitespace-nowrap border border-red-700">{{ labelError }}</div>
+							</div>
+						</template>
+						<template v-else>
+							{{ line.label }}:
+						</template>
 					</td>
 				</tr>
 				<tr
@@ -131,7 +148,7 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 
 	const { settings } = useSettings();
 	const isCtrlPressed= useKeyModifier("Control");
-	const { symbolDict } = useSymbols();
+	const { symbolDict, addSymbol, removeSymbol } = useSymbols();
 
 	const getBranchPrediction = (opcode: string) => {
 		// Defensive check for props.registers (already added in last iteration, keeping it)
@@ -279,6 +296,75 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 		registers.A++;
 
 		cancelEdit();
+	};
+
+	// --- Label Editing ---
+	const editingLabelAddress = ref<number | null>(null);
+	const editLabelText = ref("");
+	const originalLabel = ref("");
+	const labelError = ref("");
+	const editLabelInputRef = ref<HTMLInputElement | null>(null);
+
+	const startLabelEdit = (line: DisassemblyLine) => {
+		editingLabelAddress.value = line.addr;
+		editLabelText.value = line.label || "";
+		originalLabel.value = line.label || "";
+		labelError.value = "";
+		nextTick(() => { editLabelInputRef.value?.focus(); });
+	};
+
+	const cancelLabelEdit = () => {
+		editingLabelAddress.value = null;
+		editLabelText.value = "";
+		originalLabel.value = "";
+		labelError.value = "";
+	};
+
+	const commitLabelEdit = () => {
+		if (editingLabelAddress.value === null) return;
+		const addr = editingLabelAddress.value;
+		const newLabel = editLabelText.value.trim();
+		const oldLabel = originalLabel.value;
+
+		// Find namespace/scope of the old label
+		let namespace = 'user';
+		let scope = 'main';
+
+		const namespaces = symbolDict.value[addr];
+		if (namespaces) {
+			for (const ns in namespaces) {
+				if (namespaces[ns].label === oldLabel) {
+					namespace = ns;
+					scope = namespaces[ns].scope || 'main';
+					break;
+				}
+			}
+		}
+
+		if (!newLabel) {
+			removeSymbol(addr, namespace);
+			cancelLabelEdit();
+			return;
+		}
+
+		if (newLabel === oldLabel) {
+			cancelLabelEdit();
+			return;
+		}
+
+		// Check duplicate in the same namespace
+		for (const aStr in symbolDict.value) {
+			const a = parseInt(aStr, 10);
+			if (a === addr) continue;
+			const nsData = symbolDict.value[a];
+			if (nsData && nsData[namespace] && nsData[namespace].label === newLabel) {
+				labelError.value = `Label "${newLabel}" already exists in namespace "${namespace}"`;
+				return;
+			}
+		}
+
+		addSymbol(addr, newLabel, namespace, scope);
+		cancelLabelEdit();
 	};
 
 </script>
