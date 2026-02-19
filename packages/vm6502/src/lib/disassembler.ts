@@ -168,6 +168,7 @@ export function disassemble(
 				const label = getLabelForAddress(effectiveAddress, scope);
 				line.opr = label ?? `$${toHex(effectiveAddress, 2)}`;
 				line.oprn = effectiveAddress;
+				if (!label) effectiveAddress = null;
 				break;
 			}
 			case "ZPX": {
@@ -188,9 +189,11 @@ export function disassemble(
 			}
 			case "ABS": {
 				effectiveAddress = ((operandBytes[1] ?? 0) << 8) | (operandBytes[0] ?? 0);
-				const label = getLabelForAddress(effectiveAddress, scope);
-				line.opr = label ?? `$${toHex(effectiveAddress, 4)}`;
+				const symbol = getSymbolForAddress(effectiveAddress);
+				line.comment = symbol?.scope ? `= [${symbol?.scope}]` : "";
+				line.opr = symbol?.label ?? `$${toHex(effectiveAddress, 4)}`;
 				line.oprn = effectiveAddress;
+				if (!symbol) effectiveAddress = null;
 				break;
 			}
 			case "ABX": {
@@ -215,6 +218,7 @@ export function disassemble(
 				const label = getLabelForAddress(effectiveAddress, scope);
 				line.opr = `${label ?? `$${toHex(effectiveAddress, 4)}`}`;
 				line.oprn = effectiveAddress;
+				if (!label) effectiveAddress = null;
 				break;
 			}
 			case "IND": {
@@ -292,7 +296,7 @@ export function disassemble(
 		if (effectiveAddress !== null) {
 			const hexAddr = toHex(effectiveAddress, 4);
 			if (line.comment) {
-				line.comment += ` @ $${hexAddr}`;
+				line.comment += ` $${hexAddr}`;
 			} else {
 				line.comment = `= $${hexAddr}`;
 			}

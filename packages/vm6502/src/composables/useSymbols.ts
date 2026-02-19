@@ -193,7 +193,7 @@ export function useSymbols() {
 		if (!map) return undefined;
 		const nsList = Object.keys(map);
 		for (const ns of nsList) {
-			if (activeNamespaces.value.get(ns) && (map[ns]?.scope === scope || map[ns]?.scope === "main"))
+			if (activeNamespaces.value.get(ns) && (!scope || map[ns]?.scope === scope || map[ns]?.scope === "main"))
 				return map[ns]?.label;
 		}
 		console.warn("getLabelForAddress", address.toString(16).padStart(4, "0"), scope, map);
@@ -205,7 +205,8 @@ export function useSymbols() {
 		if (!map) return undefined;
 		const nsList = Object.keys(map);
 		for (const ns of nsList) {
-			if (activeNamespaces.value.get(ns) && (map[ns]?.scope === scope || map[ns]?.scope === "main")) return map[ns];
+			if (activeNamespaces.value.get(ns) && (!scope || map[ns]?.scope === scope || map[ns]?.scope === "main"))
+				return map[ns];
 		}
 		console.warn("getSymbolForAddress", address.toString(16).padStart(4, "0"), scope, map);
 		return undefined;
