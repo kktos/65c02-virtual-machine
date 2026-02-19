@@ -1,6 +1,8 @@
 import { ref } from "vue";
+import { formatAddress } from "@/lib/hex.utils";
 
-export type SymbolDict = Record<number, Record<string, { label: string; source: string; scope: string }>>;
+export type SymbolEntry = { label: string; source: string; scope: string };
+export type SymbolDict = Record<number, Record<string, SymbolEntry>>;
 
 // Shared state for active namespaces across components
 const activeNamespaces = ref<Map<string, boolean>>(new Map());
@@ -25,14 +27,60 @@ export function useSymbols() {
 
 	const addSymbol = (address: number, label: string, namespace = "user", scope = "main") => {
 		const symbols = symbolDict.value;
-
 		if (!symbols[address]) symbols[address] = {};
-
 		symbols[address][namespace] = { label, scope, source: "" };
+		if (!activeNamespaces.value.has(namespace)) activeNamespaces.value.set(namespace, true);
+	};
 
-		if (!activeNamespaces.value.has(namespace)) {
-			activeNamespaces.value.set(namespace, true);
+	const updateSymbol = (
+		address: number,
+		namespace: string,
+		updateData: Partial<SymbolEntry> & { address?: number; namespace?: string },
+	) => {
+		const symbols = symbolDict.value;
+
+		const symbol = symbols[address];
+		if (!symbol) throw new Error(`Address ${formatAddress(address)} not found in symbolDict`);
+
+		let symbolNS = symbol[namespace];
+		if (!symbolNS)
+			throw new Error(`Namespace ${namespace} - Address ${formatAddress(address)} not found in symbolDict`);
+
+		let newAddress = address;
+		let newNamespace = namespace;
+
+		let hasToClean = false;
+		let updatedSymbol = symbol;
+
+		if (updateData.address && updateData.address !== address) {
+			newAddress = updateData.address;
+			hasToClean = true;
 		}
+
+		if (updateData.namespace && updateData.namespace !== namespace) {
+			if (updatedSymbol[updateData.namespace])
+				throw new Error(
+					`There is already a symbol in the namespace ${updateData.namespace} for Address ${formatAddress(newAddress)}`,
+				);
+
+			newNamespace = updateData.namespace;
+			hasToClean = true;
+		}
+
+		updatedSymbol = symbols[newAddress] ?? {};
+		if (!updatedSymbol[newNamespace]) updatedSymbol[newNamespace] = symbolNS;
+		symbolNS = updatedSymbol[newNamespace] as SymbolEntry;
+
+		if (hasToClean) {
+			if (Object.keys(symbol).length === 1) delete symbols[address];
+			else delete symbol[namespace];
+		}
+
+		if (updateData.scope) symbolNS.scope = updateData.scope;
+		if (updateData.label) symbolNS.label = updateData.label;
+		if (updateData.source) symbolNS.source = updateData.source;
+
+		if (!activeNamespaces.value.has(newNamespace)) activeNamespaces.value.set(newNamespace, true);
 	};
 
 	const removeSymbol = (address: number, namespace = "user") => {
@@ -188,18 +236,6 @@ export function useSymbols() {
 		return symbols;
 	};
 
-	const getLabelForAddress = (address: number, scope?: string) => {
-		const map = symbolDict.value[address];
-		if (!map) return undefined;
-		const nsList = Object.keys(map);
-		for (const ns of nsList) {
-			if (activeNamespaces.value.get(ns) && (!scope || map[ns]?.scope === scope || map[ns]?.scope === "main"))
-				return map[ns]?.label;
-		}
-		console.warn("getLabelForAddress", address.toString(16).padStart(4, "0"), scope, map);
-		return undefined;
-	};
-
 	const getSymbolForAddress = (address: number, scope?: string) => {
 		const map = symbolDict.value[address];
 		if (!map) return undefined;
@@ -212,10 +248,34 @@ export function useSymbols() {
 		return undefined;
 	};
 
-	const getAddressForSymbol = (symbol: string): number | undefined => {
-		const allSymbols = symbolDict.value;
-		const upperSymbol = symbol.toUpperCase();
+	const getLabelForAddress = (address: number, scope?: string) => {
+		const symbol = getSymbolForAddress(address, scope);
+		return symbol?.label;
+	};
 
+	const getSymbolForNSLabel = (namespace: string, label: string) => {
+		const allSymbols = symbolDict.value;
+		const upperSymbol = label.toUpperCase();
+		// This is not performant for large symbol tables, but it's simple.
+		// We can optimize this later by creating a reverse map if needed.
+		for (const addressStr in allSymbols) {
+			const address = parseInt(addressStr, 10);
+			const namespaces = allSymbols[address];
+			if (namespaces) {
+				for (const ns in namespaces) {
+					if (ns !== namespace) continue;
+					const entry = namespaces[ns];
+					const label = entry?.label;
+					if (label?.toUpperCase() === upperSymbol) return { ...entry, address };
+				}
+			}
+		}
+		return undefined;
+	};
+
+	const getAddressForLabel = (label: string) => {
+		const allSymbols = symbolDict.value;
+		const upperSymbol = label.toUpperCase();
 		// This is not performant for large symbol tables, but it's simple.
 		// We can optimize this later by creating a reverse map if needed.
 		for (const addressStr in allSymbols) {
@@ -230,7 +290,6 @@ export function useSymbols() {
 				}
 			}
 		}
-
 		return undefined;
 	};
 
@@ -287,15 +346,19 @@ export function useSymbols() {
 		initSymbols,
 		getLabeledInstruction,
 		parseSymbolsFromText,
+
 		getLabelForAddress,
 		getSymbolForAddress,
-		getAddressForSymbol,
+		getSymbolForNSLabel,
+		getAddressForLabel,
+
 		getNamespaceForAddress,
 		getNamespaceList,
 		toggleNamespace,
 		addSymbols,
 		addSymbol,
 		removeSymbol,
+		updateSymbol,
 		getUserSymbols,
 		clearUserSymbols,
 		generateSymFileContent,
