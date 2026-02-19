@@ -29,7 +29,7 @@
 				</Button>
 			</div>
 
-			<div class="overflow-y-auto max-h-[60vh] border border-gray-700 rounded-md">
+			<div ref="tableContainerRef" class="overflow-y-auto max-h-[60vh] border border-gray-700 rounded-md">
 				<Table>
 					<TableHeader class="sticky top-0 bg-gray-800">
 						<TableRow class="border-gray-700 hover:bg-gray-700/50">
@@ -97,7 +97,11 @@
 								<Input v-model="editingSymbol.namespace" placeholder="user" class="h-8 bg-gray-900 border-gray-600" />
 							</TableCell>
 							<TableCell class="align-top">
-								<Input v-model="editingSymbol.scope" placeholder="main" class="h-8 bg-gray-900 border-gray-600" />
+								<select v-model="editingSymbol.scope" class="h-8 w-full rounded-md border border-gray-600 bg-gray-900 px-2 py-1 text-sm text-gray-200 focus:outline-none">
+									<option v-for="scope in availableScopes" :key="scope" :value="scope">
+										{{ scope }}
+									</option>
+								</select>
 							</TableCell>
 							<TableCell class="text-right align-top">
 								<div class="flex items-center justify-end gap-1 mt-1">
@@ -148,7 +152,11 @@
 									<Input v-model="editingSymbol.namespace" placeholder="user" class="h-8 bg-gray-900 border-gray-600" />
 								</TableCell>
 								<TableCell class="align-top px-0 w-[78px]">
-									<Input v-model="editingSymbol.scope" placeholder="main" class="h-8 bg-gray-900 border-gray-600" />
+									<select v-model="editingSymbol.scope" class="h-8 w-full rounded-md border border-gray-600 bg-gray-900 px-2 py-1 text-sm text-gray-200 focus:outline-none">
+										<option v-for="scope in availableScopes" :key="scope" :value="scope">
+											{{ scope }}
+										</option>
+									</select>
 								</TableCell>
 								<TableCell class="align-top px-0">
 									<div class="flex items-center justify-end gap-1 mt-1 mr-2">
@@ -230,6 +238,10 @@ const { pcBreakpoints, toggleBreakpoint } = useBreakpoints();
 const searchTerm = ref("");
 const selectedNamespace = ref("");
 
+const availableScopes = computed(() => {
+	return vm?.value?.getScopes() ?? ["main"];
+});
+
 type SortKey = 'label' | 'address' | 'namespace' | 'scope';
 const sortKey = ref<SortKey>('address');
 const sortDirection = ref<'asc' | 'desc'>('asc');
@@ -244,6 +256,7 @@ type EditableSymbol = {
 	originalNamespace?: string;
 };
 const editingSymbol = ref<EditableSymbol | null>(null);
+const tableContainerRef = ref<HTMLElement | null>(null);
 
 const validationErrors = ref({
 	address: "",
@@ -334,6 +347,9 @@ const beginAddSymbol = () => {
 		scope: "main",
 		isNew: true,
 	};
+	if (tableContainerRef.value) {
+		tableContainerRef.value.scrollTop = 0;
+	}
 };
 
 const beginEdit = (symbol: { label: string; address: number; namespace: string; scope: string }) => {
