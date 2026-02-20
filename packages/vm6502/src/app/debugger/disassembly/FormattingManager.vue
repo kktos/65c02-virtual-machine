@@ -43,6 +43,7 @@
 							</TableHead>
 							<TableHead class="text-gray-300">Type</TableHead>
 							<TableHead class="text-gray-300">Length</TableHead>
+							<TableHead class="text-gray-300">Preview</TableHead>
 							<TableHead @click="handleSort('group')" class="cursor-pointer hover:bg-gray-700/50">
 								<div class="flex items-center gap-2 text-gray-300">
 									Group
@@ -89,6 +90,9 @@
 										{{ validationErrors.length || 'Error' }}
 									</p>
 								</div>
+							</TableCell>
+							<TableCell class="align-top pt-3">
+								<div class="font-mono text-xs text-gray-400 truncate max-w-[150px]">{{ editingRule.address ? getPreview(editingRule) : '' }}</div>
 							</TableCell>
 							<TableCell class="align-top">
 								<Input v-model="editingRule.group" placeholder="user" class="h-8 bg-gray-900 border-gray-600" />
@@ -146,6 +150,9 @@
 										</p>
 									</div>
 								</TableCell>
+								<TableCell class="align-top pt-3">
+									<div class="font-mono text-xs text-gray-400 truncate max-w-[150px]">{{ getPreview(editingRule) }}</div>
+								</TableCell>
 								<TableCell class="align-top">
 									<Input v-model="editingRule.group" placeholder="user" class="h-8 bg-gray-900 border-gray-600" />
 								</TableCell>
@@ -164,14 +171,16 @@
 							<!-- Display Row -->
 							<TableRow
 								v-else
-								class="border-gray-700 hover:bg-gray-700/50"
+								@click="gotoRule(rule)"
+								class="cursor-pointer border-gray-700 hover:bg-gray-700"
 							>
 								<TableCell class="font-mono text-indigo-300">{{ formatAddress(rule.address) }}</TableCell>
 								<TableCell class="text-gray-200">{{ rule.type }}</TableCell>
 								<TableCell class="text-gray-400">{{ rule.length }}</TableCell>
+								<TableCell class="font-mono text-xs text-gray-400 truncate max-w-[150px]" :title="getPreview(rule)">{{ getPreview(rule) }}</TableCell>
 								<TableCell class="text-gray-200">{{ rule.group }}</TableCell>
 								<TableCell class="text-right">
-									<div class="flex items-center justify-end gap-1">
+									<div class="flex items-center justify-end gap-1" @click.stop>
 										<button
 											@click="beginEdit(rule)"
 											class="p-1 text-gray-400 hover:text-blue-400 hover:bg-gray-600 rounded"
@@ -192,7 +201,7 @@
 						</template>
 
 						<TableRow v-if="filteredRules.length === 0 && !editingRule" class="hover:bg-transparent">
-							<TableCell colspan="5" class="text-center text-gray-500 py-8">No formatting rules found.</TableCell>
+							<TableCell colspan="6" class="text-center text-gray-500 py-8">No formatting rules found.</TableCell>
 						</TableRow>
 					</TableBody>
 				</Table>
@@ -203,20 +212,25 @@
 
 <script setup lang="ts">
 import { ArrowDown, ArrowUp, Binary, Check, Pencil, PlusCircle, Trash2, X } from "lucide-vue-next";
-import { computed, ref } from "vue";
+import { computed, inject, type Ref, ref } from "vue";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { type DataBlock, useFormatting } from "@/composables/useFormatting";
-import { formatAddress } from "@/lib/hex.utils";
+import { formatAddress, toHex } from "@/lib/hex.utils";
+import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 
 defineProps<{
 	isOpen: boolean;
 }>();
 
-const emit = defineEmits<(e: "update:isOpen", value: boolean) => void>();
+const emit = defineEmits<{
+	(e: "update:isOpen", value: boolean): void;
+	(e: "gotoAddress", address: number): void;
+}>();
 
+const vm = inject<Ref<VirtualMachine>>("vm");
 const { formattingRules, removeFormat, addFormat } = useFormatting();
 
 const searchTerm = ref("");
@@ -254,6 +268,61 @@ const beginEdit = (rule: DataBlock) => {
 		originalAddress: rule.address,
 		originalGroup: rule.group,
 	};
+};
+
+const getPreview = (rule: { address: number | string; length: number | string; type: string }) => {
+	if (!vm?.value) return "";
+
+	let addr = Number(rule.address);
+	if (typeof rule.address === "string") {
+		const clean = rule.address.replace("$", "");
+		addr = parseInt(clean, 16);
+	}
+	if (Number.isNaN(addr)) return "";
+
+	const len = Number(rule.length) || 1;
+	const maxLen = Math.min(len, 25);
+	let result = "";
+
+	switch (rule.type) {
+		case "byte": {
+			const bytes: string[] = [];
+			for (let i = 0; i < maxLen; i++) {
+				const byte = vm.value.readDebug(addr + i) ?? 0;
+				bytes.push(`$${toHex(byte,2)}`);
+			}
+			result = bytes.join(" ");
+			break;
+		}
+		case "word": {
+			const bytes: string[] = [];
+			for (let i = 0; i < maxLen; i++) {
+				const byte1 = vm.value.readDebug(addr + i++) ?? 0;
+				const byte2 = vm.value.readDebug(addr + i) ?? 0;
+				bytes.push(`$${toHex(byte2 << 8 | byte1, 4)}`);
+			}
+			result = bytes.join(" ");
+			break;
+		}
+		case "string": {
+			let str = "";
+			for (let i = 0; i < maxLen; i++) {
+				const byte = vm.value.readDebug(addr + i) ?? 0;
+				str += byte >= 32 ? String.fromCharCode(byte&0x7f) : ".";
+			}
+			result = `"${str}"`;
+			break;
+		}
+	}
+
+	if (len > maxLen) result += "...";
+	return result;
+};
+
+const gotoRule = (rule: { address: number }) => {
+	if (editingRule.value) return;
+	emit("gotoAddress", rule.address);
+	emit("update:isOpen", false);
 };
 
 const cancelEdit = () => {

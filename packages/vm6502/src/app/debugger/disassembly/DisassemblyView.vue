@@ -47,6 +47,7 @@
 		<FormattingManager
 			:is-open="isFormattingManagerOpen"
 			@update:is-open="(val) => isFormattingManagerOpen = val"
+			@goto-address="onGotoAddress"
 		/>
 	</div>
 </template>
