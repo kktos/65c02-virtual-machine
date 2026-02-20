@@ -1,11 +1,5 @@
 import type { IBus } from "@/virtualmachine/cpu/bus.interface";
-import {
-	FLAG_C_MASK,
-	INPUT_ANALOG_0_OFFSET,
-	INPUT_DIGITAL_OFFSET,
-	REG_A_OFFSET,
-	REG_STATUS_OFFSET,
-} from "@/virtualmachine/cpu/shared-memory";
+import { FLAG_C_MASK, INPUT_ANALOG_0_OFFSET, INPUT_DIGITAL_OFFSET, REG_A_OFFSET, REG_STATUS_OFFSET } from "@/virtualmachine/cpu/shared-memory";
 import type { ISlotCard } from "./slotcard.interface";
 
 // AppleMouse II User Manual

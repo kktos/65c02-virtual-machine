@@ -1,12 +1,5 @@
 import type { IBus } from "@/virtualmachine/cpu/bus.interface";
-import {
-	FLAG_C_MASK,
-	REG_A_OFFSET,
-	REG_SP_OFFSET,
-	REG_STATUS_OFFSET,
-	REG_X_OFFSET,
-	REG_Y_OFFSET,
-} from "@/virtualmachine/cpu/shared-memory";
+import { FLAG_C_MASK, REG_A_OFFSET, REG_SP_OFFSET, REG_STATUS_OFFSET, REG_X_OFFSET, REG_Y_OFFSET } from "@/virtualmachine/cpu/shared-memory";
 import type { ISlotCard } from "./slotcard.interface";
 
 export class SmartPortCard implements ISlotCard {

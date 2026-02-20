@@ -4,9 +4,12 @@
 			<PopoverTrigger as-child>
 				<slot>
 					<!-- Default trigger -->
-					<Button variant="outline" size="sm"
+					<Button
+						variant="outline"
+						size="sm"
 						class="h-[30px] px-2 text-xs bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600 hover:text-white"
-						title="Options">
+						title="Options"
+					>
 						<Settings2 class="h-3 w-3" />
 					</Button>
 				</slot>
@@ -15,7 +18,13 @@
 				<div class="flex items-center justify-between mb-2 -mt-1">
 					<span class="text-sm font-bold text-gray-200 capitalize">{{ category }} Settings</span>
 					<div class="flex items-center -mr-2">
-						<Button @click="tearOff" variant="ghost" size="icon" class="w-6 h-6 text-gray-400 hover:bg-gray-700 hover:text-cyan-300" title="Tear-off into floating window">
+						<Button
+							@click="tearOff"
+							variant="ghost"
+							size="icon"
+							class="w-6 h-6 text-gray-400 hover:bg-gray-700 hover:text-cyan-300"
+							title="Tear-off into floating window"
+						>
 							<PanelTopClose class="h-4 w-4" />
 						</Button>
 					</div>
@@ -43,17 +52,37 @@
 		</div>
 
 		<Teleport to="body">
-			<div v-if="isTornOff" ref="floatingWindow" :style="floatingWindowStyle" class="fixed flex flex-col bg-black/80 backdrop-blur-sm border border-gray-700 rounded-lg shadow-2xl z-50">
-				<div ref="dragHandle" @mousedown="startDrag" class="flex items-center justify-between px-3 py-1 bg-gray-900/70 rounded-t-lg cursor-move border-b border-gray-700">
+			<div
+				v-if="isTornOff"
+				ref="floatingWindow"
+				:style="floatingWindowStyle"
+				class="fixed flex flex-col bg-black/80 backdrop-blur-sm border border-gray-700 rounded-lg shadow-2xl z-50"
+			>
+				<div
+					ref="dragHandle"
+					@mousedown="startDrag"
+					class="flex items-center justify-between px-3 py-1 bg-gray-900/70 rounded-t-lg cursor-move border-b border-gray-700"
+				>
 					<span class="text-xs font-bold text-gray-200 capitalize -ml-1">{{ category }} Settings</span>
 					<div class="flex items-center -mr-2">
-						<Button @click="dock" variant="ghost" size="icon" class="w-6 h-6 text-gray-400 hover:bg-gray-700 hover:text-cyan-300" title="Dock back to popover">
+						<Button
+							@click="dock"
+							variant="ghost"
+							size="icon"
+							class="w-6 h-6 text-gray-400 hover:bg-gray-700 hover:text-cyan-300"
+							title="Dock back to popover"
+						>
 							<X class="h-4 w-4" />
 						</Button>
 					</div>
 				</div>
 				<div class="p-4 w-80">
-					<DebugOptionList v-model="debugOverrides" :debug-options="debugOptions" id-suffix="-torn-off" :storage-key="`debug-accordion-${category}`" />
+					<DebugOptionList
+						v-model="debugOverrides"
+						:debug-options="debugOptions"
+						id-suffix="-torn-off"
+						:storage-key="`debug-accordion-${category}`"
+					/>
 					<div v-if="$slots['extra-content']" class="mt-3 pt-3 border-t border-gray-700/50">
 						<slot name="extra-content" />
 					</div>
@@ -72,16 +101,19 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import type { DebugGroup } from "@/types/machine.interface";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 
-const props = withDefaults(defineProps<{
-	category: string;
-	updateVmGlobally?: boolean;
-	align?: "start" | "center" | "end";
-	contentClass?: string;
-}>(), {
-	updateVmGlobally: false,
-	align: "end",
-	contentClass: "w-80 p-4 bg-gray-800 border-gray-700 text-gray-100",
-});
+const props = withDefaults(
+	defineProps<{
+		category: string;
+		updateVmGlobally?: boolean;
+		align?: "start" | "center" | "end";
+		contentClass?: string;
+	}>(),
+	{
+		updateVmGlobally: false,
+		align: "end",
+		contentClass: "w-80 p-4 bg-gray-800 border-gray-700 text-gray-100",
+	},
+);
 
 const slots = useSlots();
 const vm = inject<Ref<VirtualMachine>>("vm");
@@ -128,7 +160,9 @@ const loadUIState = async () => {
 				await nextTick();
 				clampToViewport();
 			}
-		} catch (e) { /* ignore */ }
+		} catch (e) {
+			/* ignore */
+		}
 	}
 };
 
@@ -203,7 +237,11 @@ const tearOff = async (event?: MouseEvent) => {
 	if (rect) windowPos.value = { x: rect.left, y: rect.top };
 	else {
 		await nextTick();
-		if (floatingWindow.value) windowPos.value = { x: (window.innerWidth - floatingWindow.value.offsetWidth) / 2, y: (window.innerHeight - floatingWindow.value.offsetHeight) / 2 };
+		if (floatingWindow.value)
+			windowPos.value = {
+				x: (window.innerWidth - floatingWindow.value.offsetWidth) / 2,
+				y: (window.innerHeight - floatingWindow.value.offsetHeight) / 2,
+			};
 	}
 	clampToViewport();
 	saveUIState();
@@ -214,47 +252,59 @@ const dock = () => {
 	saveUIState();
 };
 
-const hasOptions = computed(() => debugOptions.value.length > 0 || !!slots['extra-content']);
+const hasOptions = computed(() => debugOptions.value.length > 0 || !!slots["extra-content"]);
 
-watch(() => vm?.value, async (newVm) => {
-	if (newVm) {
-		await newVm.ready;
-		debugOptions.value = newVm.getDebugOptions().filter((grp) => grp.category === props.category);
+watch(
+	() => vm?.value,
+	async (newVm) => {
+		if (newVm) {
+			await newVm.ready;
+			debugOptions.value = newVm.getDebugOptions().filter((grp) => grp.category === props.category);
 
-		const defaults: Record<string, unknown> = {};
-		debugOptions.value.forEach((grp) => {
-			grp.rows.forEach((row) => {
-				row.forEach((opt) => {
-					if (opt.defaultValue !== undefined) {
-						defaults[opt.id] = opt.defaultValue;
-					} else if (opt.type === "select" && opt.options?.length) {
-						defaults[opt.id] = opt.options[0]?.value;
-					} else if (opt.type === "boolean") {
-						defaults[opt.id] = false;
-					} else if (opt.type === "number") {
-						defaults[opt.id] = undefined;
-					}
+			const defaults: Record<string, unknown> = {};
+			debugOptions.value.forEach((grp) => {
+				grp.rows.forEach((row) => {
+					row.forEach((opt) => {
+						if (opt.defaultValue !== undefined) {
+							defaults[opt.id] = opt.defaultValue;
+						} else if (opt.type === "select" && opt.options?.length) {
+							defaults[opt.id] = opt.options[0]?.value;
+						} else if (opt.type === "boolean") {
+							defaults[opt.id] = false;
+						} else if (opt.type === "number") {
+							defaults[opt.id] = undefined;
+						}
+					});
 				});
 			});
-		});
-		debugOverrides.value = defaults;
+			debugOverrides.value = defaults;
 
-		// Load saved options on top of defaults
-		loadOptions();
-	}
-}, { immediate: true });
+			// Load saved options on top of defaults
+			loadOptions();
+		}
+	},
+	{ immediate: true },
+);
 
-watch(debugOverrides, (newVal) => {
-	if (props.updateVmGlobally) {
-		vm?.value?.setDebugOverrides(props.category, newVal);
-		vm?.value?.refreshVideo();
-		saveOptions();
-	}
-}, { deep: true });
+watch(
+	debugOverrides,
+	(newVal) => {
+		if (props.updateVmGlobally) {
+			vm?.value?.setDebugOverrides(props.category, newVal);
+			vm?.value?.refreshVideo();
+			saveOptions();
+		}
+	},
+	{ deep: true },
+);
 
-watch(() => props.category, () => {
-	loadUIState();
-}, { immediate: true });
+watch(
+	() => props.category,
+	() => {
+		loadUIState();
+	},
+	{ immediate: true },
+);
 
 watch(isTornOff, (val) => {
 	if (val) {
@@ -270,6 +320,6 @@ onUnmounted(() => {
 
 defineExpose({
 	debugOverrides,
-    debugOptions,
+	debugOptions,
 });
 </script>

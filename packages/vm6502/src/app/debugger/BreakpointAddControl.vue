@@ -14,12 +14,7 @@
 			class="bg-gray-700 text-white text-xs rounded p-1 border border-gray-600 focus:border-indigo-500 outline-none w-24 font-mono"
 			@keydown.enter="handleAddBreakpoint"
 		/>
-		<button
-			@click="handleAddBreakpoint"
-			class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs px-3 py-1 rounded transition-colors"
-		>
-			Add
-		</button>
+		<button @click="handleAddBreakpoint" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs px-3 py-1 rounded transition-colors">Add</button>
 	</div>
 </template>
 
@@ -32,8 +27,8 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 const vm = inject<Ref<VirtualMachine>>("vm");
 const { addBreakpoint } = useBreakpoints();
 
-const newBpType = ref<Breakpoint['type']>('pc');
-const newBpAddressStr = ref('');
+const newBpType = ref<Breakpoint["type"]>("pc");
+const newBpAddressStr = ref("");
 
 const handleAddBreakpoint = () => {
 	const parts = newBpAddressStr.value.split(/[-:]/) as [string, string];
@@ -52,6 +47,6 @@ const handleAddBreakpoint = () => {
 	if (endAddr !== addr) bp.endAddress = endAddr;
 
 	addBreakpoint(bp, vm?.value);
-	newBpAddressStr.value = '';
+	newBpAddressStr.value = "";
 };
 </script>

@@ -68,8 +68,7 @@ export class VideoOutput {
 			if (!shader) throw new Error("Error creating shader");
 			gl.shaderSource(shader, source);
 			gl.compileShader(shader);
-			if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS))
-				throw new Error(`Shader compile error: ${gl.getShaderInfoLog(shader)}`);
+			if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) throw new Error(`Shader compile error: ${gl.getShaderInfoLog(shader)}`);
 			return shader;
 		};
 
@@ -78,8 +77,7 @@ export class VideoOutput {
 		gl.attachShader(program, createShader(gl.VERTEX_SHADER, vsSource));
 		gl.attachShader(program, createShader(gl.FRAGMENT_SHADER, fsSource));
 		gl.linkProgram(program);
-		if (!gl.getProgramParameter(program, gl.LINK_STATUS))
-			throw new Error(`Program link error: ${gl.getProgramInfoLog(program)}`);
+		if (!gl.getProgramParameter(program, gl.LINK_STATUS)) throw new Error(`Program link error: ${gl.getProgramInfoLog(program)}`);
 		gl.useProgram(program);
 
 		// Full screen quad (Triangle Strip)

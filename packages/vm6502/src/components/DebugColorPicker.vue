@@ -23,7 +23,11 @@
 					:title="opt.label"
 				>
 					<span v-if="!opt.color" class="text-[10px] text-gray-400 font-mono">A</span>
-					<Check v-if="modelValue === opt.value" class="w-3 h-3 text-white drop-shadow-md absolute inset-0 m-auto" :class="isLight(opt.color) ? 'text-black' : 'text-white'" />
+					<Check
+						v-if="modelValue === opt.value"
+						class="w-3 h-3 text-white drop-shadow-md absolute inset-0 m-auto"
+						:class="isLight(opt.color) ? 'text-black' : 'text-white'"
+					/>
 				</button>
 			</div>
 		</PopoverContent>

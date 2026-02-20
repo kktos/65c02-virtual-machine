@@ -7,10 +7,23 @@
 			<AccordionContent class="pb-3 pt-1">
 				<div class="space-y-3">
 					<div v-for="(row, rIdx) in group.rows" :key="rIdx" class="flex items-center gap-4 min-h-[24px]">
-						<div v-for="opt in row" :key="opt.id" class="flex-1 flex items-center justify-between min-w-0" :class="{ 'opacity-50': isDisabled(opt) }">
-							<label :for="`${opt.id}${idSuffix}`" class="text-xs text-gray-300 select-none flex-grow flex items-center whitespace-nowrap" :class="isDisabled(opt) ? 'cursor-not-allowed' : 'cursor-pointer'">
+						<div
+							v-for="opt in row"
+							:key="opt.id"
+							class="flex-1 flex items-center justify-between min-w-0"
+							:class="{ 'opacity-50': isDisabled(opt) }"
+						>
+							<label
+								:for="`${opt.id}${idSuffix}`"
+								class="text-xs text-gray-300 select-none flex-grow flex items-center whitespace-nowrap"
+								:class="isDisabled(opt) ? 'cursor-not-allowed' : 'cursor-pointer'"
+							>
 								<span>{{ opt.label }}</span>
-								<Save v-if="opt.savable" class="inline-block h-3 w-3 ml-1.5 text-gray-500 flex-shrink-0" title="This setting is saved locally" />
+								<Save
+									v-if="opt.savable"
+									class="inline-block h-3 w-3 ml-1.5 text-gray-500 flex-shrink-0"
+									title="This setting is saved locally"
+								/>
 							</label>
 							<input
 								v-if="opt.type === 'boolean'"
@@ -29,7 +42,9 @@
 								@change="updateValue(opt.id, ($event.target as HTMLSelectElement).value)"
 								class="bg-gray-700 text-yellow-300 font-mono text-xs rounded-md px-2 py-0.5 border border-gray-600 focus:ring-2 focus:ring-cyan-500 outline-none ml-2 max-w-[120px] flex-shrink-0 disabled:cursor-not-allowed"
 							>
-								<option v-for="option in opt.options" :key="option.value" :value="option.value">{{ option.label }}</option>
+								<option v-for="option in opt.options" :key="option.value" :value="option.value">
+									{{ option.label }}
+								</option>
 							</select>
 							<input
 								v-if="opt.type === 'number'"

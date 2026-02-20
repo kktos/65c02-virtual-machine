@@ -32,19 +32,14 @@ export function useSymbols() {
 		if (!activeNamespaces.value.has(namespace)) activeNamespaces.value.set(namespace, true);
 	};
 
-	const updateSymbol = (
-		address: number,
-		namespace: string,
-		updateData: Partial<SymbolEntry> & { address?: number; namespace?: string },
-	) => {
+	const updateSymbol = (address: number, namespace: string, updateData: Partial<SymbolEntry> & { address?: number; namespace?: string }) => {
 		const symbols = symbolDict.value;
 
 		const symbol = symbols[address];
 		if (!symbol) throw new Error(`Address ${formatAddress(address)} not found in symbolDict`);
 
 		let symbolNS = symbol[namespace];
-		if (!symbolNS)
-			throw new Error(`Namespace ${namespace} - Address ${formatAddress(address)} not found in symbolDict`);
+		if (!symbolNS) throw new Error(`Namespace ${namespace} - Address ${formatAddress(address)} not found in symbolDict`);
 
 		let newAddress = address;
 		let newNamespace = namespace;
@@ -59,9 +54,7 @@ export function useSymbols() {
 
 		if (updateData.namespace && updateData.namespace !== namespace) {
 			if (updatedSymbol[updateData.namespace])
-				throw new Error(
-					`There is already a symbol in the namespace ${updateData.namespace} for Address ${formatAddress(newAddress)}`,
-				);
+				throw new Error(`There is already a symbol in the namespace ${updateData.namespace} for Address ${formatAddress(newAddress)}`);
 
 			newNamespace = updateData.namespace;
 			hasToClean = true;
@@ -241,8 +234,7 @@ export function useSymbols() {
 		if (!map) return undefined;
 		const nsList = Object.keys(map);
 		for (const ns of nsList) {
-			if (activeNamespaces.value.get(ns) && (!scope || map[ns]?.scope === scope || map[ns]?.scope === "main"))
-				return map[ns];
+			if (activeNamespaces.value.get(ns) && (!scope || map[ns]?.scope === scope || map[ns]?.scope === "main")) return map[ns];
 		}
 		// console.warn("getSymbolForAddress", address.toString(16).padStart(4, "0"), scope, map);
 		return undefined;

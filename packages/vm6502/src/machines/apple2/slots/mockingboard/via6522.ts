@@ -68,15 +68,9 @@ export class VIA6522 {
 	public read(offset: number): number {
 		switch (offset) {
 			case 0x00: // ORB / IRB
-				return (
-					((this.handlers.readPortB ? this.handlers.readPortB() : this.regs[0x00]) & ~this.regs[0x02]) |
-					(this.regs[0x00] & this.regs[0x02])
-				);
+				return ((this.handlers.readPortB ? this.handlers.readPortB() : this.regs[0x00]) & ~this.regs[0x02]) | (this.regs[0x00] & this.regs[0x02]);
 			case 0x01: // ORA / IRA
-				return (
-					((this.handlers.readPortA ? this.handlers.readPortA() : this.regs[0x01]) & ~this.regs[0x03]) |
-					(this.regs[0x01] & this.regs[0x03])
-				);
+				return ((this.handlers.readPortA ? this.handlers.readPortA() : this.regs[0x01]) & ~this.regs[0x03]) | (this.regs[0x01] & this.regs[0x03]);
 			case 0x04: // T1C-L
 				this.ifr &= ~0x40; // Clear T1 Interrupt
 				this.updateIrq();

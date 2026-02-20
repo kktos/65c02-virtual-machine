@@ -20,18 +20,18 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
-import ResizableHandle from '@/components/ui/resizable/ResizableHandle.vue';
-import ResizablePanel from '@/components/ui/resizable/ResizablePanel.vue';
-import ResizablePanelGroup from '@/components/ui/resizable/ResizablePanelGroup.vue';
-import MemoryViewer from './MemoryViewer.vue';
+import { onMounted, ref } from "vue";
+import ResizableHandle from "@/components/ui/resizable/ResizableHandle.vue";
+import ResizablePanel from "@/components/ui/resizable/ResizablePanel.vue";
+import ResizablePanelGroup from "@/components/ui/resizable/ResizablePanelGroup.vue";
+import MemoryViewer from "./MemoryViewer.vue";
 
 interface Viewer {
 	id: number;
 	address?: number;
 }
 
-const STORAGE_KEY = 'memory-viewers-layout';
+const STORAGE_KEY = "memory-viewers-layout";
 const nextId = ref(1);
 const viewers = ref<Viewer[]>([{ id: 0 }]);
 const activeViewerId = ref(0);
@@ -50,7 +50,7 @@ const updateViewerAddress = (index: number, address: number) => {
 const addViewer = (index: number, currentAddress?: number) => {
 	viewers.value.splice(index + 1, 0, {
 		id: nextId.value++,
-		address: currentAddress
+		address: currentAddress,
 	});
 	saveLayout();
 };
@@ -78,7 +78,7 @@ onMounted(() => {
 				}
 			}
 		} catch (e) {
-			console.error('Failed to load memory viewers layout', e);
+			console.error("Failed to load memory viewers layout", e);
 		}
 	}
 });

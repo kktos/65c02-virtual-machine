@@ -623,8 +623,7 @@ export class AppleBus implements IBus {
 					return this.memory[RAM_OFFSET + address] ?? 0;
 			}
 			if (!this.lcReadRam) return this.rom[addr16 - 0xd000] ?? 0;
-			if (this.lcBank2 && addr16 < 0xe000)
-				return (bank ? this.auxbank2[addr16 - 0xd000] : this.bank2[addr16 - 0xd000]) ?? 0;
+			if (this.lcBank2 && addr16 < 0xe000) return (bank ? this.auxbank2[addr16 - 0xd000] : this.bank2[addr16 - 0xd000]) ?? 0;
 			return this.memory[RAM_OFFSET + address] ?? 0;
 		}
 

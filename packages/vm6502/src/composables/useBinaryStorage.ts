@@ -50,7 +50,11 @@ export function useBinaryStorage() {
 			request.onsuccess = (event) => {
 				const cursor = (event.target as IDBRequest).result as IDBCursorWithValue;
 				if (cursor) {
-					results.push({ key: cursor.key, name: cursor.value.name, size: cursor.value.size });
+					results.push({
+						key: cursor.key,
+						name: cursor.value.name,
+						size: cursor.value.size,
+					});
 					cursor.continue();
 				} else {
 					resolve(results);

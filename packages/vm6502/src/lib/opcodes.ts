@@ -7,22 +7,7 @@ export interface Opcode {
 	mode: AddressingMode;
 }
 
-export type AddressingMode =
-	| "IMP"
-	| "ACC"
-	| "IMM"
-	| "ZP"
-	| "ZPX"
-	| "ZPY"
-	| "REL"
-	| "ABS"
-	| "ABX"
-	| "ABY"
-	| "IND"
-	| "IDX"
-	| "IDY"
-	| "ZPI"
-	| "IAX";
+export type AddressingMode = "IMP" | "ACC" | "IMM" | "ZP" | "ZPX" | "ZPY" | "REL" | "ABS" | "ABX" | "ABY" | "IND" | "IDX" | "IDY" | "ZPI" | "IAX";
 
 export const opcodeMap: { [key: number]: Opcode } = {
 	0x00: { name: "BRK", bytes: 1, cycles: 7, mode: "IMP" },

@@ -47,7 +47,15 @@ export function useDiskStorage() {
 			const transaction = db.transaction(STORE_NAME, "readwrite");
 			const store = transaction.objectStore(STORE_NAME);
 			const request = store.put(
-				{ type: "physical", name, path, size: data.byteLength, data, symbols: {}, formatting: {} },
+				{
+					type: "physical",
+					name,
+					path,
+					size: data.byteLength,
+					data,
+					symbols: {},
+					formatting: {},
+				},
 				key,
 			);
 			request.onsuccess = () => resolve();
@@ -141,12 +149,7 @@ export function useDiskStorage() {
 				if (data) {
 					for (const prop in newdata) {
 						const value = (newdata as Record<string, unknown>)[prop];
-						if (
-							typeof value === "object" &&
-							value !== null &&
-							!(value instanceof ArrayBuffer) &&
-							!ArrayBuffer.isView(value)
-						) {
+						if (typeof value === "object" && value !== null && !(value instanceof ArrayBuffer) && !ArrayBuffer.isView(value)) {
 							// Deep clone to strip Vue Proxies, ensuring a plain object is stored
 							data[prop] = JSON.parse(JSON.stringify(value));
 						} else {

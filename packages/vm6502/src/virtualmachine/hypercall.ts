@@ -93,11 +93,7 @@ function readString(vm: VirtualMachine, address: number): string {
 	return message;
 }
 
-function readFormattedString(
-	vm: VirtualMachine,
-	stringAddr: number,
-	argPtr: number,
-): { message: string; argsConsumed: number } {
+function readFormattedString(vm: VirtualMachine, stringAddr: number, argPtr: number): { message: string; argsConsumed: number } {
 	let message = "";
 	let charAddr = stringAddr;
 	let argsConsumed = 0;

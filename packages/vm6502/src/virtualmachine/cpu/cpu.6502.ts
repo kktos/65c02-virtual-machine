@@ -1,14 +1,5 @@
 import type { IBus } from "./bus.interface";
-import {
-	FLAG_N_MASK,
-	FLAG_Z_MASK,
-	REG_A_OFFSET,
-	REG_PC_OFFSET,
-	REG_SP_OFFSET,
-	REG_STATUS_OFFSET,
-	REG_X_OFFSET,
-	REG_Y_OFFSET,
-} from "./shared-memory";
+import { FLAG_N_MASK, FLAG_Z_MASK, REG_A_OFFSET, REG_PC_OFFSET, REG_SP_OFFSET, REG_STATUS_OFFSET, REG_X_OFFSET, REG_Y_OFFSET } from "./shared-memory";
 
 const STACK_PAGE_HI = 0x0100;
 
@@ -482,9 +473,7 @@ const run = () => {
 			}
 
 			default:
-				console.error(
-					`Emulator: Unimplemented opcode ${opcode.toString(16).toUpperCase()} at address $${(pc - 1).toString(16).toUpperCase()}`,
-				);
+				console.error(`Emulator: Unimplemented opcode ${opcode.toString(16).toUpperCase()} at address $${(pc - 1).toString(16).toUpperCase()}`);
 				isRunning = false; // Stop on unimplemented opcode
 				break;
 		}

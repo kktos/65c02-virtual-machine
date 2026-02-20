@@ -44,9 +44,7 @@ export function installSoftSwitches(bus: AppleBus) {
 				return 0;
 			});
 			onWrite(address, (val: number) =>
-				console.warn(
-					`I/O WRITE: ${name} $${address.toString(16).padStart(4, "0")}: ${val.toString(16).padStart(2, "0")}`,
-				),
+				console.warn(`I/O WRITE: ${name} $${address.toString(16).padStart(4, "0")}: ${val.toString(16).padStart(2, "0")}`),
 			);
 		}
 	};

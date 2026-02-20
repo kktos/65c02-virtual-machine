@@ -21,7 +21,12 @@
 						</svg>
 					</button>
 				</div>
-				<select v-else :value="targetSpeed" @change="onSelectChange" class="bg-gray-700 text-gray-200 text-xs rounded border border-gray-600 focus:ring-1 focus:ring-cyan-500 outline-none px-1 py-0.5">
+				<select
+					v-else
+					:value="targetSpeed"
+					@change="onSelectChange"
+					class="bg-gray-700 text-gray-200 text-xs rounded border border-gray-600 focus:ring-1 focus:ring-cyan-500 outline-none px-1 py-0.5"
+				>
 					<option v-for="speed in speeds" :key="speed.value" :value="speed.value">
 						{{ speed.label }}
 					</option>
@@ -69,23 +74,33 @@ const switchToPresets = () => {
 	}
 };
 
-watch([targetSpeed, speeds], ([newSpeed, newSpeeds]) => {
-	if (newSpeeds && newSpeeds.length > 0) {
-		const isPreset = newSpeeds.some((s) => s.value === newSpeed);
-		if (!isPreset) {
-			isManual.value = true;
+watch(
+	[targetSpeed, speeds],
+	([newSpeed, newSpeeds]) => {
+		if (newSpeeds && newSpeeds.length > 0) {
+			const isPreset = newSpeeds.some((s) => s.value === newSpeed);
+			if (!isPreset) {
+				isManual.value = true;
+			}
 		}
-	}
-}, { immediate: true });
+	},
+	{ immediate: true },
+);
 
-watch(() => vm?.value, async (newVm) => {
-	if (newVm) {
-		await newVm.ready;
-		newVm.setSpeed(targetSpeed.value);
-	}
-}, { immediate: true });
+watch(
+	() => vm?.value,
+	async (newVm) => {
+		if (newVm) {
+			await newVm.ready;
+			newVm.setSpeed(targetSpeed.value);
+		}
+	},
+	{ immediate: true },
+);
 
 onMounted(() => {
-	subscribeToUiUpdates?.(() => {speedMhz.value = vm?.value.getSpeed() ?? 0});
+	subscribeToUiUpdates?.(() => {
+		speedMhz.value = vm?.value.getSpeed() ?? 0;
+	});
 });
 </script>

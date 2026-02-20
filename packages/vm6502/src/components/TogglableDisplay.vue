@@ -6,7 +6,7 @@
 				class="px-2 py-0.5 text-xs rounded-md bg-gray-700 hover:bg-gray-600 text-gray-300 transition-colors"
 				title="Toggle between tabbed and split view"
 			>
-				{{ displayMode === 'tabs' ? 'Split' : 'Tabs' }}
+				{{ displayMode === "tabs" ? "Split" : "Tabs" }}
 			</button>
 		</div>
 
@@ -44,25 +44,25 @@
 </template>
 
 <script setup lang="ts">
-	import { onMounted, ref } from 'vue';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import ResizableHandle from './ui/resizable/ResizableHandle.vue';
-import ResizablePanel from './ui/resizable/ResizablePanel.vue';
-import ResizablePanelGroup from './ui/resizable/ResizablePanelGroup.vue';
+import { onMounted, ref } from "vue";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import ResizableHandle from "./ui/resizable/ResizableHandle.vue";
+import ResizablePanel from "./ui/resizable/ResizablePanel.vue";
+import ResizablePanelGroup from "./ui/resizable/ResizablePanelGroup.vue";
 
-	const props = defineProps<{ id: string }>();
+const props = defineProps<{ id: string }>();
 
-	const displayMode = ref<'tabs' | 'split'>('tabs');
+const displayMode = ref<"tabs" | "split">("tabs");
 
-	const MODE_STORAGE_KEY = `togglable-display-mode-${props.id}`;
+const MODE_STORAGE_KEY = `togglable-display-mode-${props.id}`;
 
-	const toggleMode = () => {
-		displayMode.value = displayMode.value === 'tabs' ? 'split' : 'tabs';
-		localStorage.setItem(MODE_STORAGE_KEY, displayMode.value);
-	};
+const toggleMode = () => {
+	displayMode.value = displayMode.value === "tabs" ? "split" : "tabs";
+	localStorage.setItem(MODE_STORAGE_KEY, displayMode.value);
+};
 
-	onMounted(() => {
-		const savedMode = localStorage.getItem(MODE_STORAGE_KEY) as 'tabs' | 'split';
-		if (savedMode) displayMode.value = savedMode;
-	});
+onMounted(() => {
+	const savedMode = localStorage.getItem(MODE_STORAGE_KEY) as "tabs" | "split";
+	if (savedMode) displayMode.value = savedMode;
+});
 </script>

@@ -16,7 +16,7 @@ import { Volume2, VolumeX } from "lucide-vue-next";
 import { inject, onMounted, type Ref, ref, watch } from "vue";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 
-const vm = inject<Ref<VirtualMachine>>('vm');
+const vm = inject<Ref<VirtualMachine>>("vm");
 const isEnabled = ref(true);
 const STORAGE_KEY = "vm6502_sound_enabled";
 
@@ -37,7 +37,11 @@ onMounted(() => {
 	if (saved !== null) isEnabled.value = saved === "true";
 });
 
-watch(() => vm?.value, (newVm) => {
-	if (newVm) newVm.ready.then(applySoundState);
-}, { immediate: true });
+watch(
+	() => vm?.value,
+	(newVm) => {
+		if (newVm) newVm.ready.then(applySoundState);
+	},
+	{ immediate: true },
+);
 </script>

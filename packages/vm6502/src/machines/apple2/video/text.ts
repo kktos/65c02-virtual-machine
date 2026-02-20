@@ -202,15 +202,7 @@ export class TextRenderer {
 		}
 	}
 
-	private drawChar(
-		charmap: ImageBitmap | null,
-		metrics: CharMetrics | null,
-		charCode: number,
-		x: number,
-		y: number,
-		width: number,
-		height: number,
-	) {
+	private drawChar(charmap: ImageBitmap | null, metrics: CharMetrics | null, charCode: number, x: number, y: number, width: number, height: number) {
 		if (!charmap || !metrics) return;
 
 		// Calculate source position in atlas (simple math, very fast)
@@ -234,7 +226,7 @@ export class TextRenderer {
 		);
 	}
 
-	public render40Bitmap(startRow: number, isPage2: boolean, bgIdx: number, fgIdx: number, isAltCharset: boolean) {
+	public render40Bitmap(startRow: number, isPage2: boolean, _bgIdx: number, _fgIdx: number, _isAltCharset: boolean) {
 		const pageOffset = isPage2 ? 0x400 : 0;
 		for (let y = startRow; y < TEXT_ROWS; y++) {
 			const lineBase = (textScreenLineOffsets[y] ?? 0) + pageOffset;
@@ -249,7 +241,7 @@ export class TextRenderer {
 		}
 	}
 
-	public render80Bitmap(startRow: number, bgIdx: number, fgIdx: number, isAltCharset: boolean) {
+	public render80Bitmap(startRow: number, _bgIdx: number, _fgIdx: number, _isAltCharset: boolean) {
 		const charWidth80 = this.charWidth / 2;
 		for (let y = startRow; y < TEXT_ROWS; y++) {
 			const lineBase = textScreenLineOffsets[y] ?? 0;

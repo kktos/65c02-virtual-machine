@@ -4,16 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { IBus } from "../bus.interface";
 import { initCPU, stepInstruction } from "../cpu.65c02";
 import { setRunning } from "../cpu.6502";
-import {
-	FLAG_C_MASK,
-	FLAG_D_MASK,
-	FLAG_N_MASK,
-	FLAG_V_MASK,
-	FLAG_Z_MASK,
-	REG_A_OFFSET,
-	REG_PC_OFFSET,
-	REG_STATUS_OFFSET,
-} from "../shared-memory";
+import { FLAG_C_MASK, FLAG_D_MASK, FLAG_N_MASK, FLAG_V_MASK, FLAG_Z_MASK, REG_A_OFFSET, REG_PC_OFFSET, REG_STATUS_OFFSET } from "../shared-memory";
 
 describe("CPU 65C02 - ADC Instruction", () => {
 	let bus: IBus;

@@ -2,10 +2,8 @@
 	<Dialog :open="isOpen" @update:open="(val) => emit('update:isOpen', val)">
 		<DialogContent class="sm:max-w-4xl bg-gray-800 border-gray-700 text-gray-200">
 			<DialogHeader>
-				<DialogTitle class="text-gray-100"><Binary class="h-8 w-8 inline-block mr-2 align-middle"/>Formatting Rules</DialogTitle>
-				<DialogDescription class="text-gray-400">
-					Manage data formatting rules across all groups.
-				</DialogDescription>
+				<DialogTitle class="text-gray-100"><Binary class="h-8 w-8 inline-block mr-2 align-middle" />Formatting Rules</DialogTitle>
+				<DialogDescription class="text-gray-400"> Manage data formatting rules across all groups. </DialogDescription>
 			</DialogHeader>
 
 			<!-- Search and Filter -->
@@ -65,13 +63,16 @@
 										class="h-8 bg-gray-900 border-gray-600 font-mono"
 										:class="{ 'border-red-500': validationErrors.address }"
 									/>
-									<p class="text-red-400 text-xs mt-1 h-4" :class="{ 'invisible': !validationErrors.address }">
-										{{ validationErrors.address || 'Error' }}
+									<p class="text-red-400 text-xs mt-1 h-4" :class="{ invisible: !validationErrors.address }">
+										{{ validationErrors.address || "Error" }}
 									</p>
 								</div>
 							</TableCell>
 							<TableCell class="align-top">
-								<select v-model="editingRule.type" class="h-8 w-full rounded-md border border-gray-600 bg-gray-900 px-2 py-1 text-sm text-gray-200 focus:outline-none">
+								<select
+									v-model="editingRule.type"
+									class="h-8 w-full rounded-md border border-gray-600 bg-gray-900 px-2 py-1 text-sm text-gray-200 focus:outline-none"
+								>
 									<option>byte</option>
 									<option>word</option>
 									<option>string</option>
@@ -86,13 +87,15 @@
 										class="h-8 bg-gray-900 border-gray-600"
 										:class="{ 'border-red-500': validationErrors.length }"
 									/>
-									<p class="text-red-400 text-xs mt-1 h-4" :class="{ 'invisible': !validationErrors.length }">
-										{{ validationErrors.length || 'Error' }}
+									<p class="text-red-400 text-xs mt-1 h-4" :class="{ invisible: !validationErrors.length }">
+										{{ validationErrors.length || "Error" }}
 									</p>
 								</div>
 							</TableCell>
 							<TableCell class="align-top pt-3">
-								<div class="font-mono text-xs text-gray-400 truncate max-w-[150px]">{{ editingRule.address ? getPreview(editingRule) : '' }}</div>
+								<div class="font-mono text-xs text-gray-400 truncate max-w-[150px]">
+									{{ editingRule.address ? getPreview(editingRule) : "" }}
+								</div>
 							</TableCell>
 							<TableCell class="align-top">
 								<Input v-model="editingRule.group" placeholder="user" class="h-8 bg-gray-900 border-gray-600" />
@@ -113,7 +116,12 @@
 						<template v-for="rule in filteredRules" :key="`${rule.address}-${rule.group}`">
 							<!-- Inline Edit Row -->
 							<TableRow
-								v-if="editingRule && !editingRule.isNew && editingRule.originalAddress === rule.address && editingRule.originalGroup === rule.group"
+								v-if="
+									editingRule &&
+									!editingRule.isNew &&
+									editingRule.originalAddress === rule.address &&
+									editingRule.originalGroup === rule.group
+								"
 								class="bg-gray-700/50 hover:bg-gray-700/50"
 							>
 								<TableCell class="align-top">
@@ -124,13 +132,16 @@
 											class="h-8 bg-gray-900 border-gray-600 font-mono"
 											:class="{ 'border-red-500': validationErrors.address }"
 										/>
-										<p class="text-red-400 text-xs mt-1 h-4" :class="{ 'invisible': !validationErrors.address }">
-											{{ validationErrors.address || 'Error' }}
+										<p class="text-red-400 text-xs mt-1 h-4" :class="{ invisible: !validationErrors.address }">
+											{{ validationErrors.address || "Error" }}
 										</p>
 									</div>
 								</TableCell>
 								<TableCell class="align-top">
-									<select v-model="editingRule.type" class="h-8 w-full rounded-md border border-gray-600 bg-gray-900 px-2 py-1 text-sm text-gray-200 focus:outline-none">
+									<select
+										v-model="editingRule.type"
+										class="h-8 w-full rounded-md border border-gray-600 bg-gray-900 px-2 py-1 text-sm text-gray-200 focus:outline-none"
+									>
 										<option>byte</option>
 										<option>word</option>
 										<option>string</option>
@@ -145,13 +156,15 @@
 											class="h-8 bg-gray-900 border-gray-600"
 											:class="{ 'border-red-500': validationErrors.length }"
 										/>
-										<p class="text-red-400 text-xs mt-1 h-4" :class="{ 'invisible': !validationErrors.length }">
-											{{ validationErrors.length || 'Error' }}
+										<p class="text-red-400 text-xs mt-1 h-4" :class="{ invisible: !validationErrors.length }">
+											{{ validationErrors.length || "Error" }}
 										</p>
 									</div>
 								</TableCell>
 								<TableCell class="align-top pt-3">
-									<div class="font-mono text-xs text-gray-400 truncate max-w-[150px]">{{ getPreview(editingRule) }}</div>
+									<div class="font-mono text-xs text-gray-400 truncate max-w-[150px]">
+										{{ getPreview(editingRule) }}
+									</div>
 								</TableCell>
 								<TableCell class="align-top">
 									<Input v-model="editingRule.group" placeholder="user" class="h-8 bg-gray-900 border-gray-600" />
@@ -169,23 +182,17 @@
 							</TableRow>
 
 							<!-- Display Row -->
-							<TableRow
-								v-else
-								@click="gotoRule(rule)"
-								class="cursor-pointer border-gray-700 hover:bg-gray-700"
-							>
+							<TableRow v-else @click="gotoRule(rule)" class="cursor-pointer border-gray-700 hover:bg-gray-700">
 								<TableCell class="font-mono text-indigo-300">{{ formatAddress(rule.address) }}</TableCell>
 								<TableCell class="text-gray-200">{{ rule.type }}</TableCell>
 								<TableCell class="text-gray-400">{{ rule.length }}</TableCell>
-								<TableCell class="font-mono text-xs text-gray-400 truncate max-w-[150px]" :title="getPreview(rule)">{{ getPreview(rule) }}</TableCell>
+								<TableCell class="font-mono text-xs text-gray-400 truncate max-w-[150px]" :title="getPreview(rule)">{{
+									getPreview(rule)
+								}}</TableCell>
 								<TableCell class="text-gray-200">{{ rule.group }}</TableCell>
 								<TableCell class="text-right">
 									<div class="flex items-center justify-end gap-1" @click.stop>
-										<button
-											@click="beginEdit(rule)"
-											class="p-1 text-gray-400 hover:text-blue-400 hover:bg-gray-600 rounded"
-											title="Edit"
-										>
+										<button @click="beginEdit(rule)" class="p-1 text-gray-400 hover:text-blue-400 hover:bg-gray-600 rounded" title="Edit">
 											<Pencil class="h-4 w-4" />
 										</button>
 										<button
@@ -236,9 +243,9 @@ const { formattingRules, removeFormat, addFormat } = useFormatting();
 const searchTerm = ref("");
 const selectedGroup = ref("");
 
-type SortKey = 'address' | 'group';
-const sortKey = ref<SortKey>('address');
-const sortDirection = ref<'asc' | 'desc'>('asc');
+type SortKey = "address" | "group";
+const sortKey = ref<SortKey>("address");
+const sortDirection = ref<"asc" | "desc">("asc");
 
 const editingRule = ref<(DataBlock & { isNew?: boolean; originalAddress?: number; originalGroup?: string }) | null>(null);
 
@@ -289,7 +296,7 @@ const getPreview = (rule: { address: number | string; length: number | string; t
 			const bytes: string[] = [];
 			for (let i = 0; i < maxLen; i++) {
 				const byte = vm.value.readDebug(addr + i) ?? 0;
-				bytes.push(`$${toHex(byte,2)}`);
+				bytes.push(`$${toHex(byte, 2)}`);
 			}
 			result = bytes.join(" ");
 			break;
@@ -299,7 +306,7 @@ const getPreview = (rule: { address: number | string; length: number | string; t
 			for (let i = 0; i < maxLen; i++) {
 				const byte1 = vm.value.readDebug(addr + i++) ?? 0;
 				const byte2 = vm.value.readDebug(addr + i) ?? 0;
-				bytes.push(`$${toHex(byte2 << 8 | byte1, 4)}`);
+				bytes.push(`$${toHex((byte2 << 8) | byte1, 4)}`);
 			}
 			result = bytes.join(" ");
 			break;
@@ -308,7 +315,7 @@ const getPreview = (rule: { address: number | string; length: number | string; t
 			let str = "";
 			for (let i = 0; i < maxLen; i++) {
 				const byte = vm.value.readDebug(addr + i) ?? 0;
-				str += byte >= 32 ? String.fromCharCode(byte&0x7f) : ".";
+				str += byte >= 32 ? String.fromCharCode(byte & 0x7f) : ".";
 			}
 			result = `"${str}"`;
 			break;
@@ -331,10 +338,10 @@ const cancelEdit = () => {
 };
 const handleSort = (key: SortKey) => {
 	if (sortKey.value === key) {
-		sortDirection.value = sortDirection.value === 'asc' ? 'desc' : 'asc';
+		sortDirection.value = sortDirection.value === "asc" ? "desc" : "asc";
 	} else {
 		sortKey.value = key;
-		sortDirection.value = 'asc';
+		sortDirection.value = "asc";
 	}
 };
 
@@ -350,7 +357,9 @@ const allRules = computed(() => {
 
 const uniqueGroups = computed(() => {
 	const groups = new Set<string>();
-	allRules.value.forEach((r) => { groups.add(r.group || "user"); });
+	allRules.value.forEach((r) => {
+		groups.add(r.group || "user");
+	});
 	return Array.from(groups).sort();
 });
 
@@ -367,9 +376,9 @@ const filteredRules = computed(() => {
 	}
 
 	return rules.sort((a, b) => {
-		const valA = sortKey.value === 'address' ? a.address : (a.group || '');
-		const valB = sortKey.value === 'address' ? b.address : (b.group || '');
-		const modifier = sortDirection.value === 'asc' ? 1 : -1;
+		const valA = sortKey.value === "address" ? a.address : a.group || "";
+		const valB = sortKey.value === "address" ? b.address : b.group || "";
+		const modifier = sortDirection.value === "asc" ? 1 : -1;
 		return valA > valB ? modifier : valA < valB ? -modifier : 0;
 	});
 });
@@ -387,7 +396,7 @@ const saveEdit = () => {
 	let hasErrors = false;
 
 	const rule = editingRule.value;
-	const addressHex = String(rule.address).replace('$', '');
+	const addressHex = String(rule.address).replace("$", "");
 	const address = parseInt(addressHex, 16);
 
 	if (Number.isNaN(address) || address < 0 || address > 0xffffff) {
@@ -419,5 +428,4 @@ const saveEdit = () => {
 
 	editingRule.value = null;
 };
-
 </script>

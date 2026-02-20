@@ -1,4 +1,3 @@
-
 -1-
 Can we add a feature to highlight bytes that have changed since the last update in the Memory Viewer?
 
@@ -19,13 +18,12 @@ DONE.... ?
 we need to have the ns inside the symbol so we can display it in the disasm
 
 from
-	$00:FCDA	20 ED FD 	JSR COUT				; [rom] $FDED
+$00:FCDA 20 ED FD JSR COUT ; [rom] $FDED
 to
-	$00:FCDA	20 ED FD 	JSR SYSTEM::COUT		; [rom] $FDED
+$00:FCDA 20 ED FD JSR SYSTEM::COUT ; [rom] $FDED
 
 -3-
 let's have a tiny assembler
 
 -4-
 do we store the mods into a patch list... associated with the disk... patch manager ?
-

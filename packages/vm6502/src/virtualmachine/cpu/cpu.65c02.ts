@@ -68,13 +68,7 @@ const isHyperCallActive = true;
 // Re-export breakpoint functions for external use
 export { addBreakpoint, removeBreakpoint, clearBreakpoints, setBreakOnBrk };
 
-export function initCPU(
-	systemBus: IBus,
-	regView: DataView,
-	videoSystem: Video | null,
-	memView: Uint8Array,
-	stackMetaView: Uint8Array,
-) {
+export function initCPU(systemBus: IBus, regView: DataView, videoSystem: Video | null, memView: Uint8Array, stackMetaView: Uint8Array) {
 	bus = systemBus;
 	registersView = regView;
 	video = videoSystem;
@@ -2607,7 +2601,11 @@ function executeInstruction(): number {
 		if (error instanceof BreakpointError) {
 			setRunning(false);
 			pc = startPC;
-			self.postMessage({ type: "breakpointHit", breakpointType: error.type, address: error.address });
+			self.postMessage({
+				type: "breakpointHit",
+				breakpointType: error.type,
+				address: error.address,
+			});
 			return 0;
 		}
 		throw error;

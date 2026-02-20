@@ -13,18 +13,24 @@
 			<DialogContent class="sm:max-w-[425px] bg-gray-900 border-gray-700 text-gray-100">
 				<DialogHeader>
 					<DialogTitle>Input Mapping</DialogTitle>
-					<div class="text-xs font-mono text-gray-300">{{  GamepadID }}</div>
+					<div class="text-xs font-mono text-gray-300">{{ GamepadID }}</div>
 				</DialogHeader>
 				<div v-if="inputs && inputs.length > 0">
 					<div v-for="device in inputs" :key="device.label" class="mb-4">
-						<h4 class="text-xs font-semibold text-gray-400 uppercase mb-2">{{ device.label }}</h4>
+						<h4 class="text-xs font-semibold text-gray-400 uppercase mb-2">
+							{{ device.label }}
+						</h4>
 						<div class="space-y-2">
 							<div v-for="control in device.controls" :key="control.id" class="flex items-center justify-between text-xs">
 								<span class="text-gray-300">{{ control.label }}</span>
 								<button
 									@click="startMapping(getUniqueControlId(device, control))"
 									class="px-2 py-1 rounded border transition-colors min-w-[80px] text-center"
-									:class="listeningFor === getUniqueControlId(device, control) ? 'bg-yellow-600 border-yellow-500 text-white animate-pulse' : 'bg-gray-800 border-gray-600 text-gray-400 hover:bg-gray-700'"
+									:class="
+										listeningFor === getUniqueControlId(device, control)
+											? 'bg-yellow-600 border-yellow-500 text-white animate-pulse'
+											: 'bg-gray-800 border-gray-600 text-gray-400 hover:bg-gray-700'
+									"
 								>
 									{{ getMappingLabel(getUniqueControlId(device, control)) }}
 								</button>
@@ -32,7 +38,9 @@
 						</div>
 					</div>
 					<div class="mt-2 flex justify-end">
-						<button @click="showMapping = false" class="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 rounded text-xs text-gray-300 transition-colors">Done</button>
+						<button @click="showMapping = false" class="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 rounded text-xs text-gray-300 transition-colors">
+							Done
+						</button>
 					</div>
 				</div>
 				<div v-else class="text-sm text-gray-400">No configurable inputs for this machine.</div>
@@ -49,23 +57,25 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import type { MachineInputControl, MachineInputDevice } from "@/types/machine.interface";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 
-	const vm = inject<Ref<VirtualMachine>>("vm");
-	const { gamepads, onConnected, onDisconnected } = useGamepad();
-	const hasGamepad= ref(false);
-	const GamepadID = ref("");
-	const activeGamepadIndex = ref<number | null>(null);
+const vm = inject<Ref<VirtualMachine>>("vm");
+const { gamepads, onConnected, onDisconnected } = useGamepad();
+const hasGamepad = ref(false);
+const GamepadID = ref("");
+const activeGamepadIndex = ref<number | null>(null);
 
-	const showMapping = ref(false);
-	const listeningFor = ref<string | null>(null);
+const showMapping = ref(false);
+const listeningFor = ref<string | null>(null);
 
-	interface MappingConfig {
-		type: 'button' | 'axis';
-		index: number;
-	}
-	const mappings = ref<Record<string, MappingConfig>>({});
+interface MappingConfig {
+	type: "button" | "axis";
+	index: number;
+}
+const mappings = ref<Record<string, MappingConfig>>({});
 
-	const inputs: Ref<MachineInputDevice[]> = ref([]) ;
-	watch(() => vm?.value, async (newVm) => {
+const inputs: Ref<MachineInputDevice[]> = ref([]);
+watch(
+	() => vm?.value,
+	async (newVm) => {
 		if (newVm) {
 			await newVm.ready;
 			if (newVm.machineConfig.inputs) {
@@ -75,7 +85,9 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 				if (saved) {
 					try {
 						mappings.value = JSON.parse(saved);
-					} catch (e) { console.error("Failed to load gamepad mappings", e); }
+					} catch (e) {
+						console.error("Failed to load gamepad mappings", e);
+					}
 				} else {
 					mappings.value = {};
 				}
@@ -84,99 +96,99 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 				mappings.value = {};
 			}
 		}
-	}, { immediate: true });
+	},
+	{ immediate: true },
+);
 
-	const saveMappings = () => {
-		if (vm?.value?.machineConfig.name) {
-			localStorage.setItem(`gamepad_map_${vm.value.machineConfig.name}`, JSON.stringify(mappings.value));
+const saveMappings = () => {
+	if (vm?.value?.machineConfig.name) {
+		localStorage.setItem(`gamepad_map_${vm.value.machineConfig.name}`, JSON.stringify(mappings.value));
+	}
+};
+
+onConnected((index) => {
+	console.log(`${gamepads.value[index]?.id} connected`);
+	hasGamepad.value = true;
+	activeGamepadIndex.value = index;
+	GamepadID.value = gamepads.value[index]?.id ?? "";
+});
+
+onDisconnected((index) => {
+	console.log(`${index} disconnected`);
+	if (activeGamepadIndex.value === index) {
+		hasGamepad.value = false;
+		activeGamepadIndex.value = null;
+	}
+});
+
+watch(showMapping, (isOpen) => {
+	if (!isOpen) listeningFor.value = null;
+});
+
+const getUniqueControlId = (device: MachineInputDevice, control: MachineInputControl) => `${device.label}::${control.id}`;
+
+const startMapping = (controlId: string) => {
+	listeningFor.value = controlId;
+};
+
+const getMappingLabel = (controlId: string) => {
+	if (listeningFor.value === controlId) return "Press...";
+	const map = mappings.value[controlId];
+	if (!map) return "None";
+	return `${map.type === "axis" ? "Axis" : "Btn"} ${map.index}`;
+};
+
+useRafFn(() => {
+	if (!listeningFor.value || activeGamepadIndex.value === null) return;
+
+	const gp = gamepads.value[activeGamepadIndex.value];
+	if (!gp) return;
+
+	// Check buttons
+	for (let i = 0; i < gp.buttons.length; i++) {
+		if (gp.buttons[i]?.pressed) {
+			mappings.value[listeningFor.value] = { type: "button", index: i };
+			listeningFor.value = null;
+			saveMappings();
+			return;
 		}
-	};
+	}
 
-	onConnected((index) => {
-		console.log(`${gamepads.value[index]?.id} connected`);
-		hasGamepad.value = true;
-		activeGamepadIndex.value = index;
-		GamepadID.value = gamepads.value[index]?.id??"";
-	})
-
-	onDisconnected((index) => {
-		console.log(`${index} disconnected`)
-		if (activeGamepadIndex.value === index) {
-			hasGamepad.value = false;
-			activeGamepadIndex.value = null;
+	// Check axes
+	for (let i = 0; i < gp.axes.length; i++) {
+		if (Math.abs(gp.axes[i] as number) > 0.5) {
+			mappings.value[listeningFor.value] = { type: "axis", index: i };
+			listeningFor.value = null;
+			saveMappings();
+			return;
 		}
-	})
+	}
+});
 
-	watch(showMapping, (isOpen) => {
-		if (!isOpen) listeningFor.value = null;
-	});
+useRafFn(() => {
+	if (activeGamepadIndex.value === null || !vm?.value) return;
 
-	const getUniqueControlId = (device: MachineInputDevice, control: MachineInputControl) => `${device.label}::${control.id}`;
+	const gp = gamepads.value[activeGamepadIndex.value];
+	if (!gp) return;
 
-	const startMapping = (controlId: string) => {
-		listeningFor.value = controlId;
-	};
+	if (!inputs.value) return;
 
-	const getMappingLabel = (controlId: string) => {
-		if (listeningFor.value === controlId) return "Press...";
-		const map = mappings.value[controlId];
-		if (!map) return "None";
-		return `${map.type === 'axis' ? 'Axis' : 'Btn'} ${map.index}`;
-	};
+	for (const device of inputs.value) {
+		for (const control of device.controls) {
+			if (control.index === undefined) continue;
 
-	useRafFn(() => {
-		if (!listeningFor.value || activeGamepadIndex.value === null) return;
+			const uniqueId = getUniqueControlId(device, control);
+			const mapping = mappings.value[uniqueId];
+			if (!mapping) continue;
 
-		const gp = gamepads.value[activeGamepadIndex.value];
-		if (!gp) return;
-
-		// Check buttons
-		for (let i = 0; i < gp.buttons.length; i++) {
-			if (gp.buttons[i]?.pressed) {
-				mappings.value[listeningFor.value] = { type: 'button', index: i };
-				listeningFor.value = null;
-				saveMappings();
-				return;
+			if (control.type === "axis" && mapping.type === "axis") {
+				const value = (gp.axes[mapping.index] as number) ?? 0;
+				vm.value.setAnalogInput(control.index, value);
+			} else if (control.type === "button" && mapping.type === "button") {
+				const pressed = gp.buttons[mapping.index]?.pressed ?? false;
+				vm.value.setInputButton(control.index, pressed);
 			}
 		}
-
-		// Check axes
-		for (let i = 0; i < gp.axes.length; i++) {
-			if (Math.abs(gp.axes[i] as number) > 0.5) {
-				mappings.value[listeningFor.value] = { type: 'axis', index: i };
-				listeningFor.value = null;
-				saveMappings();
-				return;
-			}
-		}
-	});
-
-	useRafFn(() => {
-		if (activeGamepadIndex.value === null || !vm?.value) return;
-
-		const gp = gamepads.value[activeGamepadIndex.value];
-		if (!gp) return;
-
-		if (!inputs.value) return;
-
-		for (const device of inputs.value) {
-			for (const control of device.controls) {
-				if (control.index === undefined) continue;
-
-				const uniqueId = getUniqueControlId(device, control);
-				const mapping = mappings.value[uniqueId];
-				if (!mapping) continue;
-
-				if (control.type === "axis" && mapping.type === "axis") {
-					const value = (gp.axes[mapping.index] as number) ?? 0;
-					vm.value.setAnalogInput(control.index, value);
-				} else if (control.type === "button" && mapping.type === "button") {
-					const pressed = gp.buttons[mapping.index]?.pressed ?? false;
-					vm.value.setInputButton(control.index, pressed);
-				}
-
-			}
-		}
-	});
-
+	}
+});
 </script>

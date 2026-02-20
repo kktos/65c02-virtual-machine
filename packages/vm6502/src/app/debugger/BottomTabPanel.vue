@@ -3,19 +3,28 @@
 		<div class="flex border-b border-gray-700 px-4 shrink-0 bg-gray-900 rounded-t-xl">
 			<button
 				@click="setActiveTab('disassembly')"
-				:class="['px-4 py-3 text-sm font-medium transition duration-150', activeTab === 'disassembly' ? 'text-cyan-400 border-b-2 border-cyan-400' : 'text-gray-400 hover:text-white hover:bg-gray-700/50']"
+				:class="[
+					'px-4 py-3 text-sm font-medium transition duration-150',
+					activeTab === 'disassembly' ? 'text-cyan-400 border-b-2 border-cyan-400' : 'text-gray-400 hover:text-white hover:bg-gray-700/50',
+				]"
 			>
 				Disassembly
 			</button>
 			<button
 				@click="setActiveTab('memory')"
-				:class="['px-4 py-3 text-sm font-medium transition duration-150', activeTab === 'memory' ? 'text-cyan-400 border-b-2 border-cyan-400' : 'text-gray-400 hover:text-white hover:bg-gray-700/50']"
+				:class="[
+					'px-4 py-3 text-sm font-medium transition duration-150',
+					activeTab === 'memory' ? 'text-cyan-400 border-b-2 border-cyan-400' : 'text-gray-400 hover:text-white hover:bg-gray-700/50',
+				]"
 			>
 				Memory Viewer
 			</button>
 			<button
 				@click="setActiveTab('breakpoints')"
-				:class="['px-4 py-3 text-sm font-medium transition duration-150', activeTab === 'breakpoints' ? 'text-cyan-400 border-b-2 border-cyan-400' : 'text-gray-400 hover:text-white hover:bg-gray-700/50']"
+				:class="[
+					'px-4 py-3 text-sm font-medium transition duration-150',
+					activeTab === 'breakpoints' ? 'text-cyan-400 border-b-2 border-cyan-400' : 'text-gray-400 hover:text-white hover:bg-gray-700/50',
+				]"
 			>
 				Breakpoints
 			</button>
@@ -35,6 +44,5 @@ interface Props {
 }
 const props = defineProps<Props>();
 
-const setActiveTab= (tab: string) => props.activeTab = tab;
-
+const setActiveTab = (tab: string) => (props.activeTab = tab);
 </script>

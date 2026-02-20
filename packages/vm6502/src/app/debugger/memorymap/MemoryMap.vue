@@ -13,13 +13,15 @@
 			v-if="isOpen"
 			ref="windowRef"
 			class="fixed z-50 flex flex-col bg-gray-900/95 border border-gray-700 rounded-lg shadow-2xl backdrop-blur-sm overflow-hidden resize min-w-[400px] min-h-[300px]"
-			:style="{ left: `${position.x}px`, top: `${position.y}px`, width: `${size.width}px`, height: `${size.height}px` }"
+			:style="{
+				left: `${position.x}px`,
+				top: `${position.y}px`,
+				width: `${size.width}px`,
+				height: `${size.height}px`,
+			}"
 		>
 			<!-- Header -->
-			<div
-				@mousedown="startDrag"
-				class="flex items-center justify-between px-4 py-2 bg-gray-800/80 border-b border-gray-700 cursor-move select-none"
-			>
+			<div @mousedown="startDrag" class="flex items-center justify-between px-4 py-2 bg-gray-800/80 border-b border-gray-700 cursor-move select-none">
 				<h3 class="text-sm font-bold text-gray-200">Memory Map</h3>
 				<button @click="isOpen = false" class="text-gray-400 hover:text-white transition-colors">
 					<X class="w-4 h-4" />

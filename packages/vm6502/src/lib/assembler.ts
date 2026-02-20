@@ -13,11 +13,7 @@ for (const [byteStr, info] of Object.entries(opcodeMap)) {
 const BYTE_MODES = new Set(["ZP", "ZPX", "ZPY", "IDX", "IDY", "ZPI"]);
 const WORD_MODES = new Set(["ABS", "ABX", "ABY", "IND", "IAX"]);
 
-export function assemble(
-	pc: number,
-	text: string,
-	resolveSymbol: (symbol: string) => number | undefined,
-): { bytes: number[]; error?: string } {
+export function assemble(pc: number, text: string, resolveSymbol: (symbol: string) => number | undefined): { bytes: number[]; error?: string } {
 	// Normalize spaces
 	const cleanText = text.trim().replace(/\s+/g, " ");
 	if (!cleanText) return { bytes: [] };

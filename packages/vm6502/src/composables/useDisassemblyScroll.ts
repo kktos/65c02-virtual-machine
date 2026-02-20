@@ -19,12 +19,7 @@ export function useDisassemblyScroll(
 
 	const visibleRowCount = computed(() => {
 		if (containerHeight.value === 0) return 10; // Default before mounted
-		return Math.max(
-			1,
-			Math.floor(
-				(containerHeight.value - TABLE_HEADER_HEIGHT - PANEL_TITLE_HEIGHT - PANEL_TITLE_MB_HEIGHT) / TABLE_ROW_HEIGHT,
-			),
-		);
+		return Math.max(1, Math.floor((containerHeight.value - TABLE_HEADER_HEIGHT - PANEL_TITLE_HEIGHT - PANEL_TITLE_MB_HEIGHT) / TABLE_ROW_HEIGHT));
 	});
 
 	const readByte = (address: number) => {

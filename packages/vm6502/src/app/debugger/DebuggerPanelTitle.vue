@@ -4,10 +4,10 @@
 	</h2>
 </template>
 <script lang="ts" setup>
-	/** biome-ignore-all lint/correctness/noUnusedVariables: vue */
+/** biome-ignore-all lint/correctness/noUnusedVariables: vue */
 
-	interface Props {
-		title: string;
-	}
-	const { title } = defineProps<Props>();
+interface Props {
+	title: string;
+}
+const { title } = defineProps<Props>();
 </script>

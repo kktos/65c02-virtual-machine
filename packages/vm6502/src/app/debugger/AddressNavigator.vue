@@ -1,5 +1,7 @@
 <template>
-	<div class="flex items-center flex-1 h-8 bg-gray-900 rounded-md border border-gray-700 shadow-sm focus-within:ring-1 focus-within:ring-cyan-500 focus-within:border-cyan-500 transition-all">
+	<div
+		class="flex items-center flex-1 h-8 bg-gray-900 rounded-md border border-gray-700 shadow-sm focus-within:ring-1 focus-within:ring-cyan-500 focus-within:border-cyan-500 transition-all"
+	>
 		<!-- Navigation Buttons -->
 		<div class="flex items-center gap-0.5 px-1 border-r border-gray-700 bg-gray-800/30 h-full rounded-l-md">
 			<Button
@@ -38,9 +40,11 @@
 				</PopoverTrigger>
 				<PopoverContent class="w-56 p-0 bg-gray-800 border-gray-700 max-h-80 overflow-y-auto" align="start">
 					<div class="p-2 border-b border-gray-700">
-						<button @click="handleClearHistory"
+						<button
+							@click="handleClearHistory"
 							class="w-full flex justify-end gap-2 text-xs text-gray-300 hover:text-red-400 transition-colors rounded-sm px-2 py-1 -m-1"
-							title="Clear History">
+							title="Clear History"
+						>
 							<Trash2 class="w-3.5 h-3.5" />
 						</button>
 					</div>
@@ -56,13 +60,11 @@
 								<span v-if="index === historyIndex" class="text-[10px]">●</span>
 							</div>
 							<span class="font-mono text-gray-400">$</span>
-							<span class="font-mono font-medium">{{ addr.toString(16).toUpperCase().padStart(4, '0') }}</span>
+							<span class="font-mono font-medium">{{ addr.toString(16).toUpperCase().padStart(4, "0") }}</span>
 							<span class="text-gray-500 truncate ml-auto max-w-[80px]">{{ getLabelForAddress(addr) }}</span>
 						</button>
 					</div>
-					<div v-else class="text-center text-xs text-gray-500 py-4">
-						History is empty.
-					</div>
+					<div v-else class="text-center text-xs text-gray-500 py-4">History is empty.</div>
 				</PopoverContent>
 			</Popover>
 		</div>
@@ -89,7 +91,10 @@
 			/>
 
 			<!-- Suggestions Dropdown -->
-			<div v-if="showSuggestions && suggestions.length" class="absolute top-full left-0 w-full mt-1 bg-gray-800 border border-gray-700 rounded-md shadow-lg z-50 max-h-60 overflow-y-auto">
+			<div
+				v-if="showSuggestions && suggestions.length"
+				class="absolute top-full left-0 w-full mt-1 bg-gray-800 border border-gray-700 rounded-md shadow-lg z-50 max-h-60 overflow-y-auto"
+			>
 				<button
 					v-for="(suggestion, index) in suggestions"
 					:key="suggestion.label + suggestion.address"
@@ -99,8 +104,14 @@
 				>
 					<span class="font-mono truncate">{{ suggestion.label }}</span>
 					<div class="flex justify-end items-baseline gap-2 min-w-0 flex-1">
-						<span v-if="suggestion.scope" class="text-[10px] text-gray-500 px-1.5 py-0.5 rounded bg-gray-700/50 border border-gray-600/50 shrink-0">{{ suggestion.scope }}</span>
-						<span class="text-gray-500 text-[10px] font-mono shrink-0 group-hover:text-gray-400">${{ suggestion.address.toString(16).toUpperCase().padStart(4, '0') }}</span>
+						<span
+							v-if="suggestion.scope"
+							class="text-[10px] text-gray-500 px-1.5 py-0.5 rounded bg-gray-700/50 border border-gray-600/50 shrink-0"
+							>{{ suggestion.scope }}</span
+						>
+						<span class="text-gray-500 text-[10px] font-mono shrink-0 group-hover:text-gray-400"
+							>${{ suggestion.address.toString(16).toUpperCase().padStart(4, "0") }}</span
+						>
 					</div>
 				</button>
 			</div>
@@ -111,76 +122,76 @@
 <script lang="ts" setup>
 import { ArrowLeft, ArrowRight, History, SearchIcon, Trash2 } from "lucide-vue-next";
 import { computed, ref } from "vue";
-import { Button } from '@/components/ui/button';
+import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useDebuggerNav } from "@/composables/useDebuggerNav";
 import { useSymbols } from "@/composables/useSymbols";
 
-	const emit = defineEmits<(e: 'goto', address: number) => void>();
+const emit = defineEmits<(e: "goto", address: number) => void>();
 
-	const { getAddressForLabel, getLabelForAddress, searchSymbols } = useSymbols();
-	const inputValue = ref("");
-	const isHistoryOpen = ref(false);
-	const suggestions = ref<{ label: string; address: number; scope?: string }[]>([]);
-	const showSuggestions = ref(false);
-	const selectedSuggestionIndex = ref(-1);
+const { getAddressForLabel, getLabelForAddress, searchSymbols } = useSymbols();
+const inputValue = ref("");
+const isHistoryOpen = ref(false);
+const suggestions = ref<{ label: string; address: number; scope?: string }[]>([]);
+const showSuggestions = ref(false);
+const selectedSuggestionIndex = ref(-1);
 
-	const { historyIndex, jumpHistory, addJumpHistory, navigateHistory, jumpToHistoryIndex, clearHistory } = useDebuggerNav();
+const { historyIndex, jumpHistory, addJumpHistory, navigateHistory, jumpToHistoryIndex, clearHistory } = useDebuggerNav();
 
-	const canNavigateBack = computed(() => historyIndex.value > 0);
-	const canNavigateForward = computed(() => historyIndex.value < jumpHistory.value.length - 1);
-	const navigateBack = () => navigateHistory('back');
-	const navigateForward = () => navigateHistory('forward');
+const canNavigateBack = computed(() => historyIndex.value > 0);
+const canNavigateForward = computed(() => historyIndex.value < jumpHistory.value.length - 1);
+const navigateBack = () => navigateHistory("back");
+const navigateForward = () => navigateHistory("forward");
 
-	const handleHistoryJump = (index: number) => {
-		jumpToHistoryIndex(index);
-		isHistoryOpen.value = false;
-	};
+const handleHistoryJump = (index: number) => {
+	jumpToHistoryIndex(index);
+	isHistoryOpen.value = false;
+};
 
-	const handleClearHistory = () => {
-		clearHistory();
-		isHistoryOpen.value = false;
-	};
+const handleClearHistory = () => {
+	clearHistory();
+	isHistoryOpen.value = false;
+};
 
-	const handleInput = () => {
-		if (!inputValue.value.trim()) {
-			suggestions.value = [];
-			showSuggestions.value = false;
-			return;
-		}
-		suggestions.value = searchSymbols(inputValue.value);
-		showSuggestions.value = suggestions.value.length > 0;
-		selectedSuggestionIndex.value = -1;
-	};
-
-	const closeSuggestions = () => {
+const handleInput = () => {
+	if (!inputValue.value.trim()) {
+		suggestions.value = [];
 		showSuggestions.value = false;
-		selectedSuggestionIndex.value = -1;
-	};
+		return;
+	}
+	suggestions.value = searchSymbols(inputValue.value);
+	showSuggestions.value = suggestions.value.length > 0;
+	selectedSuggestionIndex.value = -1;
+};
 
-	const handleBlur = () => {
-		setTimeout(() => {
-			closeSuggestions();
-		}, 150);
-	};
+const closeSuggestions = () => {
+	showSuggestions.value = false;
+	selectedSuggestionIndex.value = -1;
+};
 
-	const selectNextSuggestion = () => {
-		if (!showSuggestions.value || suggestions.value.length === 0) return;
-		selectedSuggestionIndex.value = (selectedSuggestionIndex.value + 1) % suggestions.value.length;
-	};
-
-	const selectPrevSuggestion = () => {
-		if (!showSuggestions.value || suggestions.value.length === 0) return;
-		if (selectedSuggestionIndex.value === -1) selectedSuggestionIndex.value = suggestions.value.length - 1;
-		else selectedSuggestionIndex.value = (selectedSuggestionIndex.value - 1 + suggestions.value.length) % suggestions.value.length;
-	};
-
-	const selectSuggestion = (suggestion: { label: string; address: number }) => {
-		inputValue.value = suggestion.label;
-		addJumpHistory(suggestion.address);
-		emit('goto', suggestion.address);
+const handleBlur = () => {
+	setTimeout(() => {
 		closeSuggestions();
-	};
+	}, 150);
+};
+
+const selectNextSuggestion = () => {
+	if (!showSuggestions.value || suggestions.value.length === 0) return;
+	selectedSuggestionIndex.value = (selectedSuggestionIndex.value + 1) % suggestions.value.length;
+};
+
+const selectPrevSuggestion = () => {
+	if (!showSuggestions.value || suggestions.value.length === 0) return;
+	if (selectedSuggestionIndex.value === -1) selectedSuggestionIndex.value = suggestions.value.length - 1;
+	else selectedSuggestionIndex.value = (selectedSuggestionIndex.value - 1 + suggestions.value.length) % suggestions.value.length;
+};
+
+const selectSuggestion = (suggestion: { label: string; address: number }) => {
+	inputValue.value = suggestion.label;
+	addJumpHistory(suggestion.address);
+	emit("goto", suggestion.address);
+	closeSuggestions();
+};
 
 const handleGoto = () => {
 	if (showSuggestions.value && selectedSuggestionIndex.value !== -1) {
@@ -193,13 +204,13 @@ const handleGoto = () => {
 
 	let addr = getAddressForLabel(val);
 	if (addr === undefined) {
-		const hexVal = val.replace(/^\$/, '').replace(/^0x/i, '');
+		const hexVal = val.replace(/^\$/, "").replace(/^0x/i, "");
 		addr = parseInt(hexVal, 16);
 	}
 
 	if (!Number.isNaN(addr)) {
 		addJumpHistory(addr);
-		emit('goto', addr);
+		emit("goto", addr);
 		inputValue.value = "";
 		closeSuggestions();
 	}

@@ -32,12 +32,16 @@ const hasMouse = computed(() => !!mouseConfig.value);
 const mouseX = ref(0);
 const mouseY = ref(0);
 
-watch(() => vm?.value, async (newVm) => {
-	if (newVm) {
-		await newVm.ready;
-		mouseConfig.value = newVm.machineConfig.inputs?.find((d) => d.type === "mouse") ?? null;
-	}
-}, { immediate: true });
+watch(
+	() => vm?.value,
+	async (newVm) => {
+		if (newVm) {
+			await newVm.ready;
+			mouseConfig.value = newVm.machineConfig.inputs?.find((d) => d.type === "mouse") ?? null;
+		}
+	},
+	{ immediate: true },
+);
 
 const toggleLock = (payload: PointerEvent) => {
 	if (element.value) {
@@ -58,12 +62,11 @@ useEventListener(document, "mousemove", (e: MouseEvent) => {
 
 	// Find axis controls and update VM
 	// We normalize 0-1023 to 0.0-1.0 float for the VM
-	const axisX = mouseConfig.value.controls.find(c => c.id === 'axis_x');
+	const axisX = mouseConfig.value.controls.find((c) => c.id === "axis_x");
 	if (axisX && axisX.index !== undefined) vm.value.setAnalogInput(axisX.index, mouseX.value / 1023);
 
-	const axisY = mouseConfig.value.controls.find(c => c.id === 'axis_y');
+	const axisY = mouseConfig.value.controls.find((c) => c.id === "axis_y");
 	if (axisY && axisY.index !== undefined) vm.value.setAnalogInput(axisY.index, mouseY.value / 1023);
-
 });
 
 const handleButton = (e: MouseEvent, pressed: boolean) => {
@@ -75,7 +78,7 @@ const handleButton = (e: MouseEvent, pressed: boolean) => {
 	else if (e.button === 2) btnId = "btn_1";
 	else return;
 
-	const btn = mouseConfig.value.controls.find(c => c.id === btnId);
+	const btn = mouseConfig.value.controls.find((c) => c.id === btnId);
 	if (btn && btn.index !== undefined) vm.value.setInputButton(btn.index, pressed);
 };
 
@@ -89,5 +92,4 @@ useEventListener(document, "contextmenu", (e: Event) => {
 		return false;
 	}
 });
-
 </script>

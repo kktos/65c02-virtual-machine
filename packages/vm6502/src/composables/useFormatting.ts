@@ -119,10 +119,7 @@ export function useFormatting() {
 		return result;
 	};
 
-	const generateDataSymFileContent = (
-		rules: Record<string, DataBlock> | Map<number, Map<string, DataBlock>>,
-		groupName = "user",
-	): string => {
+	const generateDataSymFileContent = (rules: Record<string, DataBlock> | Map<number, Map<string, DataBlock>>, groupName = "user"): string => {
 		let rulesToExport: Record<string, DataBlock> = {};
 
 		if (rules instanceof Map) {

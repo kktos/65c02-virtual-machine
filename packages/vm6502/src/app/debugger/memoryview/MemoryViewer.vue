@@ -1,16 +1,27 @@
 <template>
-	<div :class="['p-4 rounded-lg shadow-xl h-full flex flex-col transition-all duration-200', isActive ? 'bg-gray-800 ring-1 ring-cyan-500' : 'bg-gray-800/20']" ref="scrollContainer">
+	<div
+		:class="['p-4 rounded-lg shadow-xl h-full flex flex-col transition-all duration-200', isActive ? 'bg-gray-800 ring-1 ring-cyan-500' : 'bg-gray-800/20']"
+		ref="scrollContainer"
+	>
 		<div class="mb-3 mt-1 flex flex-wrap items-center gap-4 shrink-0">
-			<div class="flex flex-1 items-center gap-2" >
+			<div class="flex flex-1 items-center gap-2">
 				<AddressNavigator @goto="handleGoto" />
 				<div v-if="selectedRange && selectedRange.size > 0" class="flex items-center gap-2 pl-2 border-l border-gray-700">
 					<div class="text-gray-400 text-xs font-mono">{{ selectedRange.size }}</div>
-					<Button size="sm" variant="ghost"
+					<Button
+						size="sm"
+						variant="ghost"
 						class="h-6 px-2 text-xs border-gray-600 text-gray-300 hover:bg-gray-700 hover:text-gray-200"
-						@click="formatAs('byte')">Byte</Button>
-					<Button size="sm" variant="ghost"
+						@click="formatAs('byte')"
+						>Byte</Button
+					>
+					<Button
+						size="sm"
+						variant="ghost"
 						class="h-6 px-2 text-xs border-gray-600 text-gray-300 hover:bg-gray-700 hover:text-gray-200"
-						@click="formatAs('string')">String</Button>
+						@click="formatAs('string')"
+						>String</Button
+					>
 				</div>
 				<div class="flex items-center space-x-2 pl-2 border-l border-gray-700">
 					<input
@@ -33,19 +44,35 @@
 				<PopoverContent class="w-80 p-3 bg-gray-800 border-gray-700" align="end">
 					<div class="flex flex-col space-y-3">
 						<div class="flex items-center space-x-2">
-							<select v-model="searchMode" class="bg-gray-900 text-xs text-gray-200 border border-gray-600 rounded px-2 py-1 focus:outline-none focus:border-cyan-500">
+							<select
+								v-model="searchMode"
+								class="bg-gray-900 text-xs text-gray-200 border border-gray-600 rounded px-2 py-1 focus:outline-none focus:border-cyan-500"
+							>
 								<option value="hex">Hex</option>
 								<option value="text_lo">Text (bit7=0)</option>
 								<option value="text_hi">Text (bit7=1)</option>
 								<option value="text_any">Text (Any)</option>
 							</select>
-							<input v-model="searchQuery" @keydown.enter="performSearch(1)" type="text" class="flex-1 bg-gray-900 text-xs text-gray-200 border border-gray-600 rounded px-2 py-1 focus:outline-none focus:border-cyan-500" :placeholder="searchMode === 'hex' ? 'e.g. A9 00' : 'Text...'" />
+							<input
+								v-model="searchQuery"
+								@keydown.enter="performSearch(1)"
+								type="text"
+								class="flex-1 bg-gray-900 text-xs text-gray-200 border border-gray-600 rounded px-2 py-1 focus:outline-none focus:border-cyan-500"
+								:placeholder="searchMode === 'hex' ? 'e.g. A9 00' : 'Text...'"
+							/>
 						</div>
 						<div class="flex items-center space-x-2">
-							<input type="checkbox" id="searchAllBanks" v-model="searchAllBanks" class="rounded bg-gray-900 border-gray-600 text-cyan-500 focus:ring-cyan-500 h-3 w-3" />
+							<input
+								type="checkbox"
+								id="searchAllBanks"
+								v-model="searchAllBanks"
+								class="rounded bg-gray-900 border-gray-600 text-cyan-500 focus:ring-cyan-500 h-3 w-3"
+							/>
 							<label for="searchAllBanks" class="text-xs text-gray-300 cursor-pointer select-none">Search All Banks</label>
 						</div>
-						<div v-if="searchError" class="text-[10px] text-red-400">{{ searchError }}</div>
+						<div v-if="searchError" class="text-[10px] text-red-400">
+							{{ searchError }}
+						</div>
 						<div class="flex justify-end space-x-2">
 							<Button size="sm" variant="secondary" class="h-7 text-xs" @click="performSearch(-1)">Prev</Button>
 							<Button size="sm" class="h-7 text-xs bg-cyan-600 hover:bg-cyan-500 text-white" @click="performSearch(1)">Next</Button>
@@ -58,7 +85,11 @@
 
 			<!-- Active Debug Badges -->
 			<div v-if="activeDebugBadges.length > 0" class="flex items-center gap-2 ml-auto">
-				<div v-for="badge in activeDebugBadges" :key="badge.id" class="flex items-center px-2 py-0.5 rounded bg-cyan-900/40 border border-cyan-700/50 text-[10px] text-cyan-200 font-medium shadow-sm">
+				<div
+					v-for="badge in activeDebugBadges"
+					:key="badge.id"
+					class="flex items-center px-2 py-0.5 rounded bg-cyan-900/40 border border-cyan-700/50 text-[10px] text-cyan-200 font-medium shadow-sm"
+				>
 					<span class="uppercase tracking-wider">{{ badge.label }}</span>
 					<span v-if="badge.value" class="ml-1 text-cyan-100 font-bold">: {{ badge.value }}</span>
 				</div>
@@ -87,7 +118,9 @@
 				<thead>
 					<tr class="text-gray-400 sticky top-0 bg-gray-900 border-b border-gray-700 shadow-md">
 						<th class="py-1 text-left w-16">Addr</th>
-						<th v-for="i in BYTES_PER_LINE" :key="i" class="text-center w-[1.5rem]">{{ '+' + (i - 1).toString(16).toUpperCase() }}</th>
+						<th v-for="i in BYTES_PER_LINE" :key="i" class="text-center w-[1.5rem]">
+							{{ "+" + (i - 1).toString(16).toUpperCase() }}
+						</th>
 						<th class="py-1 text-left w-auto pl-4">
 							<div class="flex items-center justify-between pr-2">
 								<span>ASCII</span>
@@ -111,7 +144,7 @@
 						</td>
 
 						<td v-for="byteIndex in BYTES_PER_LINE" :key="byteIndex" class="p-0">
-							<template v-if="editingIndex === ((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1)) && editingMode === 'hex'">
+							<template v-if="editingIndex === (lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1) && editingMode === 'hex'">
 								<input
 									type="text"
 									:value="editingValue"
@@ -129,16 +162,29 @@
 									@mousedown="startSelection((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1), $event)"
 									@mouseenter="updateSelection((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1))"
 									@contextmenu.prevent="handleContextMenu((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1), $event)"
-									:class="['w-full text-center tabular-nums text-xs py-0.5 cursor-text select-none', isCellSelected((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1)) ? 'bg-blue-700 text-white' : (isHighlighted((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1)) ? 'bg-yellow-600/50 text-white font-bold' : (isContextMenuTarget((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1)) ? 'bg-gray-600 ring-1 ring-cyan-500' : getDataBlockClass((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1)))), getBreakpointClass((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1))]"
+									:class="[
+										'w-full text-center tabular-nums text-xs py-0.5 cursor-text select-none',
+										isCellSelected((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1))
+											? 'bg-blue-700 text-white'
+											: isHighlighted((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1))
+												? 'bg-yellow-600/50 text-white font-bold'
+												: isContextMenuTarget((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1))
+													? 'bg-gray-600 ring-1 ring-cyan-500'
+													: getDataBlockClass((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1)),
+										getBreakpointClass((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1)),
+									]"
 								>
-									{{ currentMemorySlice[(lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1)]?.toString(16).toUpperCase().padStart(2, '0') ?? '  ' }}
+									{{
+										currentMemorySlice[(lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1)]?.toString(16).toUpperCase().padStart(2, "0") ??
+										"  "
+									}}
 								</div>
 							</template>
 						</td>
 
 						<td class="py-0.5 pl-4 whitespace-nowrap flex">
 							<template v-for="byteIndex in BYTES_PER_LINE" :key="byteIndex">
-								<template v-if="editingIndex === ((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1)) && editingMode === 'ascii'">
+								<template v-if="editingIndex === (lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1) && editingMode === 'ascii'">
 									<input
 										type="text"
 										:value="editingValue"
@@ -155,7 +201,18 @@
 										@dblclick="startEditing((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1), 'ascii')"
 										@mousedown="startSelection((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1), $event)"
 										@mouseenter="updateSelection((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1))"
-										:class="['w-[1.2ch] text-center tabular-nums text-xs p-0 font-bold cursor-text select-none', getAsciiClass(currentMemorySlice[(lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1)], isHighlighted((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1)), isCellSelected((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1))), getBreakpointClass((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1)), isCellSelected((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1)) ? '' : getDataBlockClass((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1))]"
+										:class="[
+											'w-[1.2ch] text-center tabular-nums text-xs p-0 font-bold cursor-text select-none',
+											getAsciiClass(
+												currentMemorySlice[(lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1)],
+												isHighlighted((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1)),
+												isCellSelected((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1)),
+											),
+											getBreakpointClass((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1)),
+											isCellSelected((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1))
+												? ''
+												: getDataBlockClass((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1)),
+										]"
 									>
 										{{ getAsciiChar(currentMemorySlice[(lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1)]) }}
 									</div>
@@ -167,7 +224,7 @@
 			</table>
 		</div>
 
-		<Popover :open="contextMenu.isOpen" @update:open="(val) => contextMenu.isOpen = val" :key="`${contextMenu.x}-${contextMenu.y}`">
+		<Popover :open="contextMenu.isOpen" @update:open="(val) => (contextMenu.isOpen = val)" :key="`${contextMenu.x}-${contextMenu.y}`">
 			<PopoverTrigger as-child>
 				<div class="fixed w-0 h-0 invisible" :style="{ top: contextMenu.y + 'px', left: contextMenu.x + 'px' }"></div>
 			</PopoverTrigger>
@@ -175,27 +232,17 @@
 				<div class="px-2 py-1.5 text-xs font-semibold text-gray-400 border-b border-gray-700 mb-1">
 					Address: {{ formatAddress(contextMenu.address) }}
 				</div>
-				<button @click="disassembleHere" class="w-full text-left px-2 py-1.5 hover:bg-gray-700 rounded flex items-center">
-					Disassemble Here
-				</button>
-				<button @click="openAddSymbol" class="w-full text-left px-2 py-1.5 hover:bg-gray-700 rounded flex items-center">
-					Add/Edit Label
-				</button>
-				<button @click="addBp('read')" class="w-full text-left px-2 py-1.5 hover:bg-gray-700 rounded flex items-center">
-					Break on Read
-				</button>
-				<button @click="addBp('write')" class="w-full text-left px-2 py-1.5 hover:bg-gray-700 rounded flex items-center">
-					Break on Write
-				</button>
-				<button @click="addBp('access')" class="w-full text-left px-2 py-1.5 hover:bg-gray-700 rounded flex items-center">
-					Break on Access
-				</button>
+				<button @click="disassembleHere" class="w-full text-left px-2 py-1.5 hover:bg-gray-700 rounded flex items-center">Disassemble Here</button>
+				<button @click="openAddSymbol" class="w-full text-left px-2 py-1.5 hover:bg-gray-700 rounded flex items-center">Add/Edit Label</button>
+				<button @click="addBp('read')" class="w-full text-left px-2 py-1.5 hover:bg-gray-700 rounded flex items-center">Break on Read</button>
+				<button @click="addBp('write')" class="w-full text-left px-2 py-1.5 hover:bg-gray-700 rounded flex items-center">Break on Write</button>
+				<button @click="addBp('access')" class="w-full text-left px-2 py-1.5 hover:bg-gray-700 rounded flex items-center">Break on Access</button>
 			</PopoverContent>
 		</Popover>
 
 		<AddSymbolPopover
 			:is-open="symbolPopover.isOpen"
-			@update:is-open="(val) => symbolPopover.isOpen = val"
+			@update:is-open="(val) => (symbolPopover.isOpen = val)"
 			:x="symbolPopover.x"
 			:y="symbolPopover.y"
 			:address="symbolPopover.address"
@@ -205,9 +252,9 @@
 </template>
 
 <script lang="ts" setup>
-	/** biome-ignore-all lint/correctness/noUnusedVariables: vue */
+/** biome-ignore-all lint/correctness/noUnusedVariables: vue */
 
-	import { Search, Split, X } from "lucide-vue-next";
+import { Search, Split, X } from "lucide-vue-next";
 import { computed, inject, nextTick, onMounted, onUnmounted, type Ref, ref, watch } from "vue";
 import AddressNavigator from "@/app/debugger/AddressNavigator.vue";
 import AddSymbolPopover from "@/components/AddSymbolPopover.vue";
@@ -223,552 +270,558 @@ import type { DebugGroup } from "@/types/machine.interface";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import BinaryLoader from "./BinaryLoader.vue";
 
-	const vm= inject<Ref<VirtualMachine>>("vm");
-	// const subscribeToUiUpdates= inject<(callback: () => void) => void>("subscribeToUiUpdates");
-	const { formattingRules, addFormat } = useFormatting();
+const vm = inject<Ref<VirtualMachine>>("vm");
+// const subscribeToUiUpdates= inject<(callback: () => void) => void>("subscribeToUiUpdates");
+const { formattingRules, addFormat } = useFormatting();
 
-	const props = defineProps<{
-		canClose?: boolean;
-		initialAddress?: number;
-		listenToNav?: boolean;
-		isActive?: boolean;
-	}>();
+const props = defineProps<{
+	canClose?: boolean;
+	initialAddress?: number;
+	listenToNav?: boolean;
+	isActive?: boolean;
+}>();
 
-	const emit = defineEmits<{
-		(e: 'split', address: number): void;
-		(e: 'close'): void;
-		(e: 'update:address', address: number): void;
-	}>();
+const emit = defineEmits<{
+	(e: "split", address: number): void;
+	(e: "close"): void;
+	(e: "update:address", address: number): void;
+}>();
 
-	const banks = vm?.value.machineConfig.memory.banks || 1;
-	const totalMemory = banks * 0x10000;
-	const BYTES_PER_LINE = 16;
-	const startAddress = ref(props.initialAddress ?? 0x0000);
+const banks = vm?.value.machineConfig.memory.banks || 1;
+const totalMemory = banks * 0x10000;
+const BYTES_PER_LINE = 16;
+const startAddress = ref(props.initialAddress ?? 0x0000);
 
-	const scrollContainer = ref<HTMLElement | null>(null);
-	const containerHeight = ref(0);
-	const ROW_HEIGHT_ESTIMATE = 22; // Estimated height of a row in pixels
-	let resizeObserver: ResizeObserver | null = null;
+const scrollContainer = ref<HTMLElement | null>(null);
+const containerHeight = ref(0);
+const ROW_HEIGHT_ESTIMATE = 22; // Estimated height of a row in pixels
+let resizeObserver: ResizeObserver | null = null;
 
-	const { memoryViewAddress, setActiveTab } = useDebuggerNav();
-	const { requestJump } = useDisassembly();
-	watch(memoryViewAddress, (newAddress) => {
-		if ((props.listenToNav ?? true) && newAddress !== null) startAddress.value = newAddress;
-	});
+const { memoryViewAddress, setActiveTab } = useDebuggerNav();
+const { requestJump } = useDisassembly();
+watch(memoryViewAddress, (newAddress) => {
+	if ((props.listenToNav ?? true) && newAddress !== null) startAddress.value = newAddress;
+});
 
-	watch(startAddress, (newAddr) => {
-		emit('update:address', newAddr);
-	});
+watch(startAddress, (newAddr) => {
+	emit("update:address", newAddr);
+});
 
-	const visibleRowCount = computed(() => {
-		if (containerHeight.value === 0) return 10; // Default before mounted
-		return Math.max(1, Math.floor(containerHeight.value / ROW_HEIGHT_ESTIMATE));
-	});
+const visibleRowCount = computed(() => {
+	if (containerHeight.value === 0) return 10; // Default before mounted
+	return Math.max(1, Math.floor(containerHeight.value / ROW_HEIGHT_ESTIMATE));
+});
 
-	const highBitEnabled = ref(false);
+const highBitEnabled = ref(false);
 
-	const handleGoto = (addr: number) => { if(addr<totalMemory ) startAddress.value = addr; }
+const handleGoto = (addr: number) => {
+	if (addr < totalMemory) startAddress.value = addr;
+};
 
-	// --- Search Functionality ---
-	const isSearchOpen = ref(false);
-	const searchQuery = ref("");
-	const searchMode = ref<'hex' | 'text_lo' | 'text_hi' | 'text_any'>('hex');
-	const searchAllBanks = ref(false);
-	const searchError = ref("");
-	const highlightedRange = ref<{ start: number, length: number } | null>(null);
+// --- Search Functionality ---
+const isSearchOpen = ref(false);
+const searchQuery = ref("");
+const searchMode = ref<"hex" | "text_lo" | "text_hi" | "text_any">("hex");
+const searchAllBanks = ref(false);
+const searchError = ref("");
+const highlightedRange = ref<{ start: number; length: number } | null>(null);
 
-	const isHighlighted = (index: number) => {
-		if (!highlightedRange.value) return false;
-		const addr = startAddress.value + index;
-		return addr >= highlightedRange.value.start && addr < highlightedRange.value.start + highlightedRange.value.length;
-	};
+const isHighlighted = (index: number) => {
+	if (!highlightedRange.value) return false;
+	const addr = startAddress.value + index;
+	return addr >= highlightedRange.value.start && addr < highlightedRange.value.start + highlightedRange.value.length;
+};
 
-	const performSearch = (direction: 1 | -1) => {
-		searchError.value = "";
-		highlightedRange.value = null;
-		if (!searchQuery.value || !vm?.value) return;
+const performSearch = (direction: 1 | -1) => {
+	searchError.value = "";
+	highlightedRange.value = null;
+	if (!searchQuery.value || !vm?.value) return;
 
-		let searchBytes: number[] = [];
+	let searchBytes: number[] = [];
 
-		if (searchMode.value === 'hex') {
-			const clean = searchQuery.value.replace(/\s+/g, '');
-			if (!/^[0-9a-fA-F]+$/.test(clean) || clean.length % 2 !== 0) {
-				searchError.value = "Invalid Hex";
-				return;
-			}
-			for (let i = 0; i < clean.length; i += 2) {
-				searchBytes.push(parseInt(clean.substring(i, i + 2), 16));
-			}
-		} else {
-			for (let i = 0; i < searchQuery.value.length; i++) {
-				const charCode = searchQuery.value.charCodeAt(i) & 0x7F;
-				if (searchMode.value === 'text_hi') {
-					searchBytes.push(charCode | 0x80);
-				} else {
-					searchBytes.push(charCode);
-				}
+	if (searchMode.value === "hex") {
+		const clean = searchQuery.value.replace(/\s+/g, "");
+		if (!/^[0-9a-fA-F]+$/.test(clean) || clean.length % 2 !== 0) {
+			searchError.value = "Invalid Hex";
+			return;
+		}
+		for (let i = 0; i < clean.length; i += 2) {
+			searchBytes.push(parseInt(clean.substring(i, i + 2), 16));
+		}
+	} else {
+		for (let i = 0; i < searchQuery.value.length; i++) {
+			const charCode = searchQuery.value.charCodeAt(i) & 0x7f;
+			if (searchMode.value === "text_hi") {
+				searchBytes.push(charCode | 0x80);
+			} else {
+				searchBytes.push(charCode);
 			}
 		}
+	}
 
-		if (searchBytes.length === 0) return;
+	if (searchBytes.length === 0) return;
 
-		const bankBase = startAddress.value & 0xFF0000;
-		const currentOffset = startAddress.value & 0xFFFF;
-		const maxSearch = searchAllBanks.value ? totalMemory : 0x10000;
+	const bankBase = startAddress.value & 0xff0000;
+	const currentOffset = startAddress.value & 0xffff;
+	const maxSearch = searchAllBanks.value ? totalMemory : 0x10000;
 
-		let foundAddr = -1;
+	let foundAddr = -1;
 
-		for (let i = 1; i < maxSearch; i++) {
-			let checkAddr = 0;
+	for (let i = 1; i < maxSearch; i++) {
+		let checkAddr = 0;
 
+		if (searchAllBanks.value) {
+			let rawAddr = startAddress.value + direction * i;
+			while (rawAddr < 0) rawAddr += totalMemory;
+			while (rawAddr >= totalMemory) rawAddr -= totalMemory;
+			checkAddr = rawAddr;
+		} else {
+			const offsetToCheck = direction === 1 ? (currentOffset + i) & 0xffff : (currentOffset - i) & 0xffff;
+			checkAddr = bankBase | offsetToCheck;
+		}
+
+		let match = true;
+		for (let j = 0; j < searchBytes.length; j++) {
+			let addrToRead = 0;
 			if (searchAllBanks.value) {
-				let rawAddr = startAddress.value + (direction * i);
-				while (rawAddr < 0) rawAddr += totalMemory;
-				while (rawAddr >= totalMemory) rawAddr -= totalMemory;
-				checkAddr = rawAddr;
+				addrToRead = (checkAddr + j) % totalMemory;
 			} else {
-				const offsetToCheck = direction === 1 ? (currentOffset + i) & 0xFFFF : (currentOffset - i) & 0xFFFF;
-				checkAddr = bankBase | offsetToCheck;
+				addrToRead = bankBase | ((checkAddr + j) & 0xffff);
 			}
 
-			let match = true;
-			for (let j = 0; j < searchBytes.length; j++) {
-				let addrToRead = 0;
-				if (searchAllBanks.value) {
-					addrToRead = (checkAddr + j) % totalMemory;
-				} else {
-					addrToRead = bankBase | ((checkAddr + j) & 0xFFFF);
-				}
+			let val = vm.value.readDebug(addrToRead, debugOverrides.value);
 
-				let val = vm.value.readDebug(addrToRead, debugOverrides.value);
-
-				if (searchMode.value === 'text_any') {
-					val &= 0x7F;
-				}
-
-				if (val !== searchBytes[j]) {
-					match = false;
-					break;
-				}
+			if (searchMode.value === "text_any") {
+				val &= 0x7f;
 			}
 
-			if (match) {
-				foundAddr = checkAddr;
+			if (val !== searchBytes[j]) {
+				match = false;
 				break;
 			}
 		}
 
-		if (foundAddr !== -1) {
-			highlightedRange.value = { start: foundAddr, length: searchBytes.length };
-			// Center the found address in the view and align to row boundary
-			const foundRowStart = foundAddr & 0xFFFFFFF0;
-			const rowsBefore = Math.floor(visibleRowCount.value / 2);
-			let newStart = foundRowStart - (rowsBefore * BYTES_PER_LINE);
-			if (newStart < 0) newStart = 0;
-			startAddress.value = newStart;
+		if (match) {
+			foundAddr = checkAddr;
+			break;
 		}
-		else searchError.value = searchAllBanks.value ? "Not found in memory" : "Not found in current bank";
+	}
+
+	if (foundAddr !== -1) {
+		highlightedRange.value = { start: foundAddr, length: searchBytes.length };
+		// Center the found address in the view and align to row boundary
+		const foundRowStart = foundAddr & 0xfffffff0;
+		const rowsBefore = Math.floor(visibleRowCount.value / 2);
+		let newStart = foundRowStart - rowsBefore * BYTES_PER_LINE;
+		if (newStart < 0) newStart = 0;
+		startAddress.value = newStart;
+	} else searchError.value = searchAllBanks.value ? "Not found in memory" : "Not found in current bank";
+};
+
+// --- Context Menu ---
+const contextMenu = ref({
+	isOpen: false,
+	x: 0,
+	y: 0,
+	address: 0,
+});
+
+const isContextMenuTarget = (index: number) => {
+	return contextMenu.value.isOpen && contextMenu.value.address === startAddress.value + index;
+};
+
+const handleContextMenu = (index: number, event: MouseEvent) => {
+	contextMenu.value = {
+		isOpen: true,
+		x: event.clientX,
+		y: event.clientY,
+		address: startAddress.value + index,
 	};
+};
 
-	// --- Context Menu ---
-	const contextMenu = ref({
-		isOpen: false,
-		x: 0,
-		y: 0,
-		address: 0
-	});
+const closeContextMenu = () => {
+	contextMenu.value.isOpen = false;
+};
 
-	const isContextMenuTarget = (index: number) => {
-		return contextMenu.value.isOpen && contextMenu.value.address === (startAddress.value + index);
+const symbolPopover = ref({
+	isOpen: false,
+	x: 0,
+	y: 0,
+	address: 0,
+	initialLength: 1,
+});
+
+const openAddSymbol = () => {
+	const range = selectedRange.value;
+	const contextAddr = contextMenu.value.address;
+
+	let symbolAddr = contextAddr;
+	let symbolSize = 1;
+
+	// Check if a multi-cell range is selected and the context click was inside it
+	if (range && range.size > 1 && contextAddr >= range.start && contextAddr <= range.end) {
+		symbolAddr = range.start;
+		symbolSize = range.size;
+	}
+
+	symbolPopover.value = {
+		isOpen: true,
+		x: contextMenu.value.x,
+		y: contextMenu.value.y,
+		address: symbolAddr,
+		initialLength: symbolSize,
 	};
+	closeContextMenu();
+};
 
-	const handleContextMenu = (index: number, event: MouseEvent) => {
-		contextMenu.value = {
-			isOpen: true,
-			x: event.clientX,
-			y: event.clientY,
-			address: startAddress.value + index
-		};
-	};
+const disassembleHere = () => {
+	requestJump(contextMenu.value.address);
+	setActiveTab("disassembly");
+	closeContextMenu();
+};
 
-	const closeContextMenu = () => {
-		contextMenu.value.isOpen = false;
-	};
+const { addBreakpoint, breakpoints } = useBreakpoints();
 
-	const symbolPopover = ref({
-		isOpen: false,
-		x: 0,
-		y: 0,
-		address: 0,
-		initialLength: 1
-	});
+const addBp = (type: "read" | "write" | "access") => {
+	if (!vm?.value) return;
+	const addr = contextMenu.value.address;
+	addBreakpoint({ type, address: addr }, vm.value);
+	closeContextMenu();
+};
 
-	const openAddSymbol = () => {
-		const range = selectedRange.value;
-		const contextAddr = contextMenu.value.address;
+const getBreakpointClass = (index: number) => {
+	const addr = startAddress.value + index;
+	const bps = breakpoints.value.filter((b) => b.enabled && b.address === addr);
+	if (bps.length === 0) return "";
 
-		let symbolAddr = contextAddr;
-		let symbolSize = 1;
+	if (bps.some((b) => b.type === "access")) return "ring-2 ring-inset ring-green-500/80";
+	if (bps.some((b) => b.type === "write")) return "ring-2 ring-inset ring-red-500/80";
+	if (bps.some((b) => b.type === "read")) return "ring-2 ring-inset ring-yellow-500/80";
+	if (bps.some((b) => b.type === "pc")) return "ring-2 ring-inset ring-indigo-500/80";
+	return "";
+};
 
-		// Check if a multi-cell range is selected and the context click was inside it
-		if (range && range.size > 1 && contextAddr >= range.start && contextAddr <= range.end) {
-			symbolAddr = range.start;
-			symbolSize = range.size;
-		}
+const getDataBlockClass = (index: number) => {
+	const addr = startAddress.value + index;
+	for (const block of formattingRules.value.values()) {
+		let len = block.length;
+		if (block.type === "word") len *= 2;
+		if (addr >= block.address && addr < block.address + len) return "bg-indigo-900/30 text-indigo-200";
+	}
+	return "";
+};
 
-		symbolPopover.value = {
-			isOpen: true,
-			x: contextMenu.value.x,
-			y: contextMenu.value.y,
-			address: symbolAddr,
-			initialLength: symbolSize,
-		};
-		closeContextMenu();
-	};
+// This will be our reactive trigger to update the view
+// const tick = ref(0);
 
-	const disassembleHere = () => {
-		requestJump(contextMenu.value.address);
-		setActiveTab('disassembly');
-		closeContextMenu();
-	};
+const debugOptionsPopover = ref<InstanceType<typeof DebugOptionsPopover> | null>(null);
+const debugOverrides = computed(() => debugOptionsPopover.value?.debugOverrides || {});
 
-	const { addBreakpoint, breakpoints } = useBreakpoints();
+const activeDebugBadges = computed(() => {
+	if (!debugOptionsPopover.value || !vm?.value) return [];
 
-	const addBp = (type: 'read' | 'write' | 'access') => {
-		if (!vm?.value) return;
-		const addr = contextMenu.value.address;
-		addBreakpoint({ type, address: addr }, vm.value);
-		closeContextMenu();
-	};
+	const options = (debugOptionsPopover.value.debugOptions as DebugGroup[]) || [];
+	const overrides = (debugOptionsPopover.value.debugOverrides as Record<string, unknown>) || {};
+	const badges: { id: string; label: string; value?: string }[] = [];
 
-	const getBreakpointClass = (index: number) => {
-		const addr = startAddress.value + index;
-		const bps = breakpoints.value.filter(b => b.enabled && b.address === addr);
-		if (bps.length === 0) return '';
+	for (const group of options) {
+		for (const row of group.rows) {
+			for (const opt of row) {
+				const val = overrides[opt.id];
 
-		if (bps.some(b => b.type === 'access')) return 'ring-2 ring-inset ring-green-500/80';
-		if (bps.some(b => b.type === 'write')) return 'ring-2 ring-inset ring-red-500/80';
-		if (bps.some(b => b.type === 'read')) return 'ring-2 ring-inset ring-yellow-500/80';
-		if (bps.some(b => b.type === 'pc')) return 'ring-2 ring-inset ring-indigo-500/80';
-		return '';
-	};
-
-	const getDataBlockClass = (index: number) => {
-		const addr = startAddress.value + index;
-		for (const block of formattingRules.value.values()) {
-			let len = block.length;
-			if (block.type === 'word') len *= 2;
-			if (addr >= block.address && addr < block.address + len) return 'bg-indigo-900/30 text-indigo-200';
-		}
-		return '';
-	};
-
-	// This will be our reactive trigger to update the view
-	// const tick = ref(0);
-
-	const debugOptionsPopover = ref<InstanceType<typeof DebugOptionsPopover> | null>(null);
-	const debugOverrides = computed(() => debugOptionsPopover.value?.debugOverrides || {});
-
-	const activeDebugBadges = computed(() => {
-		if (!debugOptionsPopover.value || !vm?.value) return [];
-
-		const options = (debugOptionsPopover.value.debugOptions as DebugGroup[]) || [];
-		const overrides = (debugOptionsPopover.value.debugOverrides as Record<string, unknown>) || {};
-		const badges: { id: string; label: string; value?: string }[] = [];
-
-		for (const group of options) {
-			for (const row of group.rows) {
-				for (const opt of row) {
-					const val = overrides[opt.id];
-
-					// Determine default value
-					let defaultVal = opt.defaultValue;
-					if (defaultVal === undefined) {
-						if (opt.type === "select" && opt.options?.length) {
-							defaultVal = opt.options[0]?.value;
-						} else if (opt.type === "boolean") {
-							defaultVal = false;
-						}
+				// Determine default value
+				let defaultVal = opt.defaultValue;
+				if (defaultVal === undefined) {
+					if (opt.type === "select" && opt.options?.length) {
+						defaultVal = opt.options[0]?.value;
+					} else if (opt.type === "boolean") {
+						defaultVal = false;
 					}
+				}
 
-					if (val !== undefined && val !== defaultVal) {
-						if (opt.type === "boolean") {
-							if (val === true) {
-								badges.push({ id: opt.id, label: opt.label });
-							}
-						} else if (opt.type === "select") {
-							const selectedOption = opt.options?.find((o) => o.value === val);
-							const displayValue = selectedOption ? selectedOption.label : String(val);
-							badges.push({ id: opt.id, label: opt.label, value: displayValue });
-						} else if (opt.type === "number") {
-							badges.push({ id: opt.id, label: opt.label, value: String(val) });
+				if (val !== undefined && val !== defaultVal) {
+					if (opt.type === "boolean") {
+						if (val === true) {
+							badges.push({ id: opt.id, label: opt.label });
 						}
+					} else if (opt.type === "select") {
+						const selectedOption = opt.options?.find((o) => o.value === val);
+						const displayValue = selectedOption ? selectedOption.label : String(val);
+						badges.push({ id: opt.id, label: opt.label, value: displayValue });
+					} else if (opt.type === "number") {
+						badges.push({ id: opt.id, label: opt.label, value: String(val) });
 					}
 				}
 			}
 		}
-		return badges;
-	});
+	}
+	return badges;
+});
 
-	onMounted(() => {
-		if (scrollContainer.value) {
-			// Set initial height and observe for changes
-			containerHeight.value = scrollContainer.value.clientHeight;
-			resizeObserver = new ResizeObserver(entries => {
-				if (entries[0]) containerHeight.value = entries[0].contentRect.height;
-			});
-			resizeObserver.observe(scrollContainer.value);
+onMounted(() => {
+	if (scrollContainer.value) {
+		// Set initial height and observe for changes
+		containerHeight.value = scrollContainer.value.clientHeight;
+		resizeObserver = new ResizeObserver((entries) => {
+			if (entries[0]) containerHeight.value = entries[0].contentRect.height;
+		});
+		resizeObserver.observe(scrollContainer.value);
+	}
+
+	// Subscribe to the UI update loop from App.vue
+	// subscribeToUiUpdates?.(() => {
+	// 	tick.value++;
+	// });
+});
+
+onUnmounted(() => {
+	resizeObserver?.disconnect();
+});
+
+// --- Selection Logic ---
+const selectionAnchor = ref<number | null>(null);
+const selectionHead = ref<number | null>(null);
+const isSelecting = ref(false);
+
+const selectedRange = computed(() => {
+	if (editingIndex.value !== null) return null;
+	if (selectionAnchor.value === null || selectionHead.value === null) return null;
+	const start = Math.min(selectionAnchor.value, selectionHead.value);
+	const end = Math.max(selectionAnchor.value, selectionHead.value);
+	return { start, end, size: end - start + 1 };
+});
+
+const startSelection = (index: number, event: MouseEvent) => {
+	if (event.button !== 0) return; // Left click only
+	const addr = startAddress.value + index;
+
+	if (editingIndex.value !== null) handleBlur();
+
+	isSelecting.value = true;
+	if (event.shiftKey && selectionAnchor.value !== null) {
+		selectionHead.value = addr;
+	} else {
+		selectionAnchor.value = addr;
+		selectionHead.value = addr;
+	}
+};
+
+const updateSelection = (index: number) => {
+	if (isSelecting.value) {
+		selectionHead.value = startAddress.value + index;
+	}
+};
+
+const endSelection = () => {
+	isSelecting.value = false;
+};
+
+const isCellSelected = (index: number) => {
+	if (selectionAnchor.value === null || selectionHead.value === null) return false;
+	const addr = startAddress.value + index;
+	const start = Math.min(selectionAnchor.value, selectionHead.value);
+	const end = Math.max(selectionAnchor.value, selectionHead.value);
+	return addr >= start && addr <= end;
+};
+
+const formatAs = (type: "byte" | "string") => {
+	if (!selectedRange.value) return;
+	addFormat(selectedRange.value.start, type, selectedRange.value.size);
+	selectionAnchor.value = null;
+	selectionHead.value = null;
+};
+
+const editingIndex = ref<number | null>(null);
+const editingMode = ref<"hex" | "ascii" | null>(null);
+const editingValue = ref("");
+const hexInputRefs = ref<Map<number, HTMLInputElement>>(new Map());
+const asciiInputRefs = ref<Map<number, HTMLInputElement>>(new Map());
+
+const setHexInputRef = (el: unknown, index: number) => {
+	if (el) {
+		hexInputRefs.value.set(index, el as HTMLInputElement);
+	} else {
+		hexInputRefs.value.delete(index);
+	}
+};
+
+const setAsciiInputRef = (el: unknown, index: number) => {
+	if (el) {
+		asciiInputRefs.value.set(index, el as HTMLInputElement);
+	} else {
+		asciiInputRefs.value.delete(index);
+	}
+};
+
+const handleBlur = () => {
+	editingIndex.value = null;
+	editingMode.value = null;
+};
+
+const startEditing = async (index: number, mode: "hex" | "ascii") => {
+	if (editingIndex.value === index && editingMode.value === mode) return;
+
+	editingIndex.value = index;
+	editingMode.value = mode;
+
+	if (mode === "hex") {
+		const byte = currentMemorySlice.value[index];
+		editingValue.value = byte?.toString(16).toUpperCase().padStart(2, "0") ?? "";
+	} else {
+		editingValue.value = getAsciiChar(currentMemorySlice.value[index]);
+	}
+
+	await nextTick();
+
+	const refs = mode === "hex" ? hexInputRefs.value : asciiInputRefs.value;
+	const inputEl = refs.get(index);
+	if (inputEl) {
+		inputEl.focus();
+		inputEl.select();
+	}
+};
+
+const handleKeyDown = (index: number, event: KeyboardEvent, mode: "hex" | "ascii") => {
+	let direction = 0;
+	if (event.key === "ArrowUp") direction = -BYTES_PER_LINE;
+	else if (event.key === "ArrowDown") direction = BYTES_PER_LINE;
+	else if (event.key === "ArrowLeft") direction = -1;
+	else if (event.key === "ArrowRight") direction = 1;
+	else if (event.key === " " && mode === "hex") direction = 1;
+	else if (event.key === "Enter") direction = 1;
+	else if (event.key === "Escape") return (event.target as HTMLElement).blur();
+	else {
+		if (mode === "hex" && event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) {
+			if (!/^[0-9a-fA-F]$/.test(event.key)) event.preventDefault();
 		}
+		return;
+	}
 
-		// Subscribe to the UI update loop from App.vue
-		// subscribeToUiUpdates?.(() => {
-		// 	tick.value++;
-		// });
-	});
+	event.preventDefault();
 
-	onUnmounted(() => { resizeObserver?.disconnect(); });
+	const targetAbs = startAddress.value + index + direction;
 
-	// --- Selection Logic ---
-	const selectionAnchor = ref<number | null>(null);
-	const selectionHead = ref<number | null>(null);
-	const isSelecting = ref(false);
+	if (targetAbs < 0 || targetAbs > 0xffffff) return;
 
-	const selectedRange = computed(() => {
-		if (editingIndex.value !== null) return null;
-		if (selectionAnchor.value === null || selectionHead.value === null) return null;
-		const start = Math.min(selectionAnchor.value, selectionHead.value);
-		const end = Math.max(selectionAnchor.value, selectionHead.value);
-		return { start, end, size: end - start + 1 };
-	});
+	const visibleBytes = visibleRowCount.value * BYTES_PER_LINE;
+	const endAddress = startAddress.value + visibleBytes;
 
-	const startSelection = (index: number, event: MouseEvent) => {
-		if (event.button !== 0) return; // Left click only
-		const addr = startAddress.value + index;
-
-		if (editingIndex.value !== null) handleBlur();
-
-		isSelecting.value = true;
-		if (event.shiftKey && selectionAnchor.value !== null) {
-			selectionHead.value = addr;
+	if (targetAbs >= startAddress.value && targetAbs < endAddress) {
+		const targetIndex = targetAbs - startAddress.value;
+		startEditing(targetIndex, mode);
+	} else {
+		if (targetAbs < startAddress.value) {
+			startAddress.value = Math.max(0, startAddress.value - BYTES_PER_LINE);
 		} else {
-			selectionAnchor.value = addr;
-			selectionHead.value = addr;
-		}
-	};
-
-	const updateSelection = (index: number) => {
-		if (isSelecting.value) {
-			selectionHead.value = startAddress.value + index;
-		}
-	};
-
-	const endSelection = () => {
-		isSelecting.value = false;
-	};
-
-	const isCellSelected = (index: number) => {
-		if (selectionAnchor.value === null || selectionHead.value === null) return false;
-		const addr = startAddress.value + index;
-		const start = Math.min(selectionAnchor.value, selectionHead.value);
-		const end = Math.max(selectionAnchor.value, selectionHead.value);
-		return addr >= start && addr <= end;
-	};
-
-	const formatAs = (type: 'byte' | 'string') => {
-		if (!selectedRange.value) return;
-		addFormat(selectedRange.value.start, type, selectedRange.value.size);
-		selectionAnchor.value = null;
-		selectionHead.value = null;
-	};
-
-	const editingIndex = ref<number | null>(null);
-	const editingMode = ref<'hex' | 'ascii' | null>(null);
-	const editingValue = ref("");
-	const hexInputRefs = ref<Map<number, HTMLInputElement>>(new Map());
-	const asciiInputRefs = ref<Map<number, HTMLInputElement>>(new Map());
-
-	const setHexInputRef = (el: unknown, index: number) => {
-		if (el) {
-			hexInputRefs.value.set(index, el as HTMLInputElement);
-		} else {
-			hexInputRefs.value.delete(index);
-		}
-	};
-
-	const setAsciiInputRef = (el: unknown, index: number) => {
-		if (el) {
-			asciiInputRefs.value.set(index, el as HTMLInputElement);
-		} else {
-			asciiInputRefs.value.delete(index);
-		}
-	};
-
-	const handleBlur = () => {
-		editingIndex.value = null;
-		editingMode.value = null;
-	};
-
-	const startEditing = async (index: number, mode: 'hex' | 'ascii') => {
-		if (editingIndex.value === index && editingMode.value === mode) return;
-
-		editingIndex.value = index;
-		editingMode.value = mode;
-
-		if (mode === 'hex') {
-			const byte = currentMemorySlice.value[index];
-			editingValue.value = byte?.toString(16).toUpperCase().padStart(2, '0') ?? '';
-		} else {
-			editingValue.value = getAsciiChar(currentMemorySlice.value[index]);
+			startAddress.value = Math.min(0xffffff, startAddress.value + BYTES_PER_LINE);
 		}
 
-		await nextTick();
-
-		const refs = mode === 'hex' ? hexInputRefs.value : asciiInputRefs.value;
-		const inputEl = refs.get(index);
-		if (inputEl) {
-			inputEl.focus();
-			inputEl.select();
-		}
-	};
-
-	const handleKeyDown = (index: number, event: KeyboardEvent, mode: 'hex' | 'ascii') => {
-		let direction = 0;
-		if (event.key === "ArrowUp") direction = -BYTES_PER_LINE;
-		else if (event.key === "ArrowDown") direction = BYTES_PER_LINE;
-		else if (event.key === "ArrowLeft") direction = -1;
-		else if (event.key === "ArrowRight") direction = 1;
-		else if (event.key === " " && mode === 'hex') direction = 1;
-		else if (event.key === "Enter") direction = 1;
-		else if (event.key === "Escape") return (event.target as HTMLElement).blur();
-		else {
-			if (mode === 'hex' && event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) {
-				if (!/^[0-9a-fA-F]$/.test(event.key)) event.preventDefault();
+		nextTick(() => {
+			const newTargetIndex = targetAbs - startAddress.value;
+			if (newTargetIndex >= 0 && newTargetIndex < visibleBytes) {
+				startEditing(newTargetIndex, mode);
 			}
-			return;
-		}
+		});
+	}
+};
 
-		event.preventDefault();
+const handleHexChange = (index: number, event: Event) => {
+	const target = event.target as HTMLInputElement;
+	if (editingIndex.value === index && editingMode.value === "hex") editingValue.value = target.value;
+	const value = parseInt(target.value, 16);
+	if (!Number.isNaN(value) && value >= 0 && value <= 0xff && debugOverrides.value) {
+		vm?.value.writeDebug(startAddress.value + index, value, debugOverrides.value);
+	}
 
-		const targetAbs = startAddress.value + index + direction;
-
-		if (targetAbs < 0 || targetAbs > 0xFFFFFF) return;
-
+	if (target.value.length === 2) {
+		const nextIndex = index + 1;
 		const visibleBytes = visibleRowCount.value * BYTES_PER_LINE;
-		const endAddress = startAddress.value + visibleBytes;
-
-		if (targetAbs >= startAddress.value && targetAbs < endAddress) {
-			const targetIndex = targetAbs - startAddress.value;
-			startEditing(targetIndex, mode);
+		if (nextIndex < visibleBytes) {
+			startEditing(nextIndex, "hex");
 		} else {
-			if (targetAbs < startAddress.value) {
-				startAddress.value = Math.max(0, startAddress.value - BYTES_PER_LINE);
-			} else {
-				startAddress.value = Math.min(0xFFFFFF, startAddress.value + BYTES_PER_LINE);
-			}
-
-			nextTick(() => {
-				const newTargetIndex = targetAbs - startAddress.value;
-				if (newTargetIndex >= 0 && newTargetIndex < visibleBytes) {
-					startEditing(newTargetIndex, mode);
-				}
-			});
+			(event.target as HTMLElement).blur();
 		}
-	};
+	}
+};
 
-	const handleHexChange = (index: number, event: Event) => {
-		const target = event.target as HTMLInputElement;
-		if (editingIndex.value === index && editingMode.value === 'hex') editingValue.value = target.value;
-		const value = parseInt(target.value, 16);
-		if (!Number.isNaN(value) && value >= 0 && value <= 0xFF && debugOverrides.value) {
-			vm?.value.writeDebug(startAddress.value + index, value, debugOverrides.value);
+const handleAsciiChange = (index: number, event: Event) => {
+	const target = event.target as HTMLInputElement;
+	if (editingIndex.value === index && editingMode.value === "ascii") editingValue.value = target.value;
+	const val = target.value;
+	if (val.length > 0) {
+		let code = val.charCodeAt(0);
+		if (highBitEnabled.value) code |= 0x80;
+		if (debugOverrides.value) vm?.value.writeDebug(startAddress.value + index, code, debugOverrides.value);
+		const nextIndex = index + 1;
+		const visibleBytes = visibleRowCount.value * BYTES_PER_LINE;
+		if (nextIndex < visibleBytes) {
+			startEditing(nextIndex, "ascii");
+		} else {
+			(event.target as HTMLElement).blur();
 		}
+	}
+};
 
-		if (target.value.length === 2) {
-			const nextIndex = index + 1;
-			const visibleBytes = visibleRowCount.value * BYTES_PER_LINE;
-			if (nextIndex < visibleBytes) {
-				startEditing(nextIndex, 'hex');
-			} else {
-				(event.target as HTMLElement).blur();
-			}
-		}
-	};
+const getAsciiChar = (byte: number | undefined) => {
+	if (byte === undefined) return "·";
+	const val = byte & 0x7f;
+	if (val >= 32 && val <= 126) return String.fromCharCode(val);
+	return "·";
+};
 
-	const handleAsciiChange = (index: number, event: Event) => {
-		const target = event.target as HTMLInputElement;
-		if (editingIndex.value === index && editingMode.value === 'ascii') editingValue.value = target.value;
-		const val = target.value;
-		if (val.length > 0) {
-			let code = val.charCodeAt(0);
-			if (highBitEnabled.value) code |= 0x80;
-			if(debugOverrides.value) vm?.value.writeDebug(startAddress.value + index, code, debugOverrides.value);
-			const nextIndex = index + 1;
-			const visibleBytes = visibleRowCount.value * BYTES_PER_LINE;
-			if (nextIndex < visibleBytes) {
-				startEditing(nextIndex, 'ascii');
-			} else {
-				(event.target as HTMLElement).blur();
-			}
-		}
-	};
+const getAsciiClass = (byte: number | undefined, highlighted = false, selected = false) => {
+	if (selected) return "bg-blue-700 text-white";
+	if (highlighted) return "bg-yellow-600 text-white";
+	if (byte === undefined) return "text-gray-500";
+	const val = byte & 0x7f;
+	if (val < 0x20) return "text-gray-500";
+	// bit7=0 -> Inverse (Black on White)
+	// bit7=1 -> Normal (Green on Transparent)
+	return byte & 0x80 ? "bg-transparent text-green-300" : "bg-green-300 text-black";
+};
 
-	const getAsciiChar = (byte: number | undefined) => {
-		if (byte === undefined) return '·';
-		const val = byte & 0x7F;
-		if (val >= 32 && val <= 126) return String.fromCharCode(val);
-		return '·';
-	};
+const handleWheel = (event: WheelEvent) => {
+	event.preventDefault();
+	const scrollAmount = BYTES_PER_LINE * (event.ctrlKey ? visibleRowCount.value : 1);
 
-	const getAsciiClass = (byte: number | undefined, highlighted = false, selected = false) => {
-		if (selected) return 'bg-blue-700 text-white';
-		if (highlighted) return 'bg-yellow-600 text-white';
-		if (byte === undefined) return 'text-gray-500';
-		const val = byte & 0x7F;
-		if (val < 0x20) return 'text-gray-500';
-		// bit7=0 -> Inverse (Black on White)
-		// bit7=1 -> Normal (Green on Transparent)
-		return (byte & 0x80) ? 'bg-transparent text-green-300' : 'bg-green-300 text-black';
-	};
+	if (event.deltaY > 0) {
+		// Scrolling down -> increase address
+		const newAddress = startAddress.value + scrollAmount;
+		startAddress.value = Math.min(newAddress, 0xffffff - visibleRowCount.value * BYTES_PER_LINE + 1);
+	} else if (event.deltaY < 0) {
+		// Scrolling up -> decrease address
+		const newAddress = startAddress.value - scrollAmount;
+		startAddress.value = Math.max(newAddress, 0);
+	}
+};
 
-	const handleWheel = (event: WheelEvent) => {
-		event.preventDefault();
-		const scrollAmount = BYTES_PER_LINE * (event.ctrlKey ? visibleRowCount.value : 1);
+const currentMemorySlice = ref<Uint8Array>(new Uint8Array());
 
-		if (event.deltaY > 0) {
-			// Scrolling down -> increase address
-			const newAddress = startAddress.value + scrollAmount;
-			startAddress.value = Math.min(newAddress, 0xFFFFFF - (visibleRowCount.value * BYTES_PER_LINE) + 1);
-		} else if (event.deltaY < 0) {
-			// Scrolling up -> decrease address
-			const newAddress = startAddress.value - scrollAmount;
-			startAddress.value = Math.max(newAddress, 0);
-		}
-	};
+const isLive = ref(false);
+let pollInterval: number | undefined;
 
-	const currentMemorySlice = ref<Uint8Array>(new Uint8Array());
+const refreshMemory = () => {
+	const start = startAddress.value;
+	const length = visibleRowCount.value * BYTES_PER_LINE;
 
-	const isLive = ref(false);
-	let pollInterval: number | undefined;
+	if (vm?.value) currentMemorySlice.value = vm.value.readDebugRange(start, length, debugOverrides.value);
+	else currentMemorySlice.value = new Uint8Array(length);
+};
 
-	const refreshMemory = () => {
-		const start = startAddress.value;
-		const length = visibleRowCount.value * BYTES_PER_LINE;
+watch(isLive, (active) => {
+	clearInterval(pollInterval);
+	if (active) {
+		refreshMemory();
+		pollInterval = window.setInterval(refreshMemory, 250); // 4 FPS
+	}
+});
 
-		if (vm?.value) currentMemorySlice.value = vm.value.readDebugRange(start, length, debugOverrides.value);
-		else currentMemorySlice.value = new Uint8Array(length);
-	};
-
-	watch(isLive, (active) => {
-		clearInterval(pollInterval);
-		if (active) {
-			refreshMemory();
-			pollInterval = window.setInterval(refreshMemory, 250); // 4 FPS
-		}
-	});
-
-	// Watch for changes in startAddress or the tick, and update the slice
-	watch([startAddress, visibleRowCount, debugOverrides], () => {
+// Watch for changes in startAddress or the tick, and update the slice
+watch(
+	[startAddress, visibleRowCount, debugOverrides],
+	() => {
 		if (!isLive.value) refreshMemory();
-	}, { immediate: true, deep: true });
-
+	},
+	{ immediate: true, deep: true },
+);
 </script>

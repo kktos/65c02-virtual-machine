@@ -8,8 +8,7 @@ export class Bus implements IBus {
 	}
 
 	read(address: number, _isOpcodeFetch?: boolean): number {
-		if (address < 0 || address >= this.memory.length)
-			throw new Error(`Memory read out of bounds: 0x${address.toString(16)}`);
+		if (address < 0 || address >= this.memory.length) throw new Error(`Memory read out of bounds: 0x${address.toString(16)}`);
 		return this.memory[address] ?? 0;
 	}
 

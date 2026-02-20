@@ -4,9 +4,7 @@
 			<div class="fixed w-0 h-0 invisible" :style="{ top: y + 'px', left: x + 'px' }"></div>
 		</PopoverTrigger>
 		<PopoverContent class="w-64 p-3 bg-gray-800 border-gray-700 text-gray-200" align="start" side="bottom" :side-offset="5">
-			<div class="text-xs font-semibold text-gray-400 mb-3">
-				Edit Address {{ formatAddress(address) }}
-			</div>
+			<div class="text-xs font-semibold text-gray-400 mb-3">Edit Address {{ formatAddress(address) }}</div>
 
 			<div class="space-y-3">
 				<!-- Label Section -->
@@ -55,10 +53,7 @@
 					>
 						Delete
 					</button>
-					<button
-						@click="handleSave"
-						class="px-3 py-1 bg-cyan-600 hover:bg-cyan-500 text-white rounded text-xs flex items-center gap-1"
-					>
+					<button @click="handleSave" class="px-3 py-1 bg-cyan-600 hover:bg-cyan-500 text-white rounded text-xs flex items-center gap-1">
 						<Save class="h-3 w-3" />
 						Save
 					</button>
@@ -84,7 +79,7 @@ const props = defineProps<{
 	initialLength?: number;
 }>();
 
-const emit = defineEmits<(e: 'update:isOpen', value: boolean) => void>();
+const emit = defineEmits<(e: "update:isOpen", value: boolean) => void>();
 
 const { getLabelForAddress, addSymbol, removeSymbol } = useSymbols();
 const { getFormat, addFormat, removeFormat } = useFormatting();
@@ -94,7 +89,7 @@ const hasExisting = ref(false);
 const hasExistingFormat = ref(false);
 const inputRef = ref<HTMLInputElement | null>(null);
 
-const selectedType = ref<DataType>('code');
+const selectedType = ref<DataType>("code");
 const dataLength = ref(1);
 
 const isWordTypeDisabled = computed(() => {
@@ -102,8 +97,8 @@ const isWordTypeDisabled = computed(() => {
 });
 
 watch(dataLength, () => {
-	if (isWordTypeDisabled.value && selectedType.value === 'word') {
-		selectedType.value = 'byte';
+	if (isWordTypeDisabled.value && selectedType.value === "word") {
+		selectedType.value = "byte";
 	}
 });
 
@@ -111,7 +106,6 @@ localLabel.value = getLabelForAddress(props.address) || `L${toHex(props.address,
 hasExisting.value = !!localLabel.value;
 
 watch([() => props.isOpen], () => {
-
 	if (props.isOpen) {
 		// Load Label
 		// const existing = getLabelForAddress(props.address);
@@ -125,7 +119,7 @@ watch([() => props.isOpen], () => {
 			dataLength.value = format.length;
 			hasExistingFormat.value = true;
 		} else {
-			selectedType.value = 'code';
+			selectedType.value = "code";
 			dataLength.value = props.initialLength || 1;
 			hasExistingFormat.value = false;
 		}
@@ -143,18 +137,18 @@ const handleSave = () => {
 	}
 
 	// Save Format
-	if (selectedType.value !== 'code') {
+	if (selectedType.value !== "code") {
 		addFormat(props.address, selectedType.value, dataLength.value || 1);
 	} else if (hasExistingFormat.value) {
 		removeFormat(props.address);
 	}
 
-	emit('update:isOpen', false);
+	emit("update:isOpen", false);
 };
 
 const handleDelete = () => {
 	removeSymbol(props.address);
 	removeFormat(props.address);
-	emit('update:isOpen', false);
+	emit("update:isOpen", false);
 };
 </script>

@@ -2,7 +2,7 @@
 	<Dialog :open="isOpen" @update:open="(val) => emit('update:isOpen', val)">
 		<DialogContent class="sm:max-w-3xl bg-gray-800 border-gray-700 text-gray-200">
 			<DialogHeader>
-				<DialogTitle class="text-gray-100"><Tags class="h-8 w-8 inline-block mr-2 align-middle"/>Symbol Manager</DialogTitle>
+				<DialogTitle class="text-gray-100"><Tags class="h-8 w-8 inline-block mr-2 align-middle" />Symbol Manager</DialogTitle>
 				<DialogDescription class="text-gray-400">
 					Browse, search, and manage symbols across all namespaces. Click a symbol to navigate.
 				</DialogDescription>
@@ -78,8 +78,8 @@
 										class="h-8 bg-gray-900 border-gray-600"
 										:class="{ 'border-red-500': validationErrors.label }"
 									/>
-									<p class="text-red-400 text-xs mt-1 h-4" :class="{ 'invisible': !validationErrors.label }">
-										{{ validationErrors.label || 'Error' }}
+									<p class="text-red-400 text-xs mt-1 h-4" :class="{ invisible: !validationErrors.label }">
+										{{ validationErrors.label || "Error" }}
 									</p>
 								</div>
 							</TableCell>
@@ -91,13 +91,16 @@
 										class="h-8 bg-gray-900 border-gray-600 font-mono w-20"
 										:class="{ 'border-red-500': validationErrors.address }"
 									/>
-									<p class="text-red-400 text-xs mt-1 h-4" :class="{ 'invisible': !validationErrors.address }">
-										{{ validationErrors.address || 'Error' }}
+									<p class="text-red-400 text-xs mt-1 h-4" :class="{ invisible: !validationErrors.address }">
+										{{ validationErrors.address || "Error" }}
 									</p>
 								</div>
 							</TableCell>
 							<TableCell class="align-top">
-								<select v-model="editingSymbol.scope" class="h-8 w-full rounded-md border border-gray-600 bg-gray-900 px-2 py-1 text-sm text-gray-200 focus:outline-none">
+								<select
+									v-model="editingSymbol.scope"
+									class="h-8 w-full rounded-md border border-gray-600 bg-gray-900 px-2 py-1 text-sm text-gray-200 focus:outline-none"
+								>
 									<option v-for="scope in availableScopes" :key="scope" :value="scope">
 										{{ scope }}
 									</option>
@@ -119,7 +122,12 @@
 						<template v-for="symbol in filteredSymbols" :key="`${symbol.address}-${symbol.namespace}`">
 							<!-- Inline Edit Row -->
 							<TableRow
-								v-if="editingSymbol && !editingSymbol.isNew && editingSymbol.originalAddress === symbol.address && editingSymbol.originalNamespace === symbol.namespace"
+								v-if="
+									editingSymbol &&
+									!editingSymbol.isNew &&
+									editingSymbol.originalAddress === symbol.address &&
+									editingSymbol.originalNamespace === symbol.namespace
+								"
 								class="bg-gray-700/50 hover:bg-gray-700/50"
 							>
 								<TableCell class="align-top px-0 w-[130px]">
@@ -127,15 +135,15 @@
 								</TableCell>
 								<TableCell class="align-top px-0">
 									<!-- <div> -->
-										<Input
-											v-model="editingSymbol.label"
-											placeholder="LABEL_NAME"
-											class="h-8 bg-gray-900 border-gray-600 w-[258px]"
-											:class="{ 'border-red-500': validationErrors.label }"
-										/>
-										<p class="text-red-400 text-xs mt-1 h-4 pl-2" :class="{ 'invisible': !validationErrors.label }">
-											{{ validationErrors.label || 'Error' }}
-										</p>
+									<Input
+										v-model="editingSymbol.label"
+										placeholder="LABEL_NAME"
+										class="h-8 bg-gray-900 border-gray-600 w-[258px]"
+										:class="{ 'border-red-500': validationErrors.label }"
+									/>
+									<p class="text-red-400 text-xs mt-1 h-4 pl-2" :class="{ invisible: !validationErrors.label }">
+										{{ validationErrors.label || "Error" }}
+									</p>
 									<!-- </div> -->
 								</TableCell>
 								<TableCell class="align-top px-0 w-[131px]">
@@ -146,13 +154,16 @@
 											class="h-8 bg-gray-900 border-gray-600 font-mono"
 											:class="{ 'border-red-500': validationErrors.address }"
 										/>
-										<p class="text-red-400 text-xs mt-1 h-4" :class="{ 'invisible': !validationErrors.address }">
-											{{ validationErrors.address || 'Error' }}
+										<p class="text-red-400 text-xs mt-1 h-4" :class="{ invisible: !validationErrors.address }">
+											{{ validationErrors.address || "Error" }}
 										</p>
 									</div>
 								</TableCell>
 								<TableCell class="align-top px-0 w-[78px]">
-									<select v-model="editingSymbol.scope" class="h-8 w-full rounded-md border border-gray-600 bg-gray-900 px-2 py-1 text-sm text-gray-200 focus:outline-none">
+									<select
+										v-model="editingSymbol.scope"
+										class="h-8 w-full rounded-md border border-gray-600 bg-gray-900 px-2 py-1 text-sm text-gray-200 focus:outline-none"
+									>
 										<option v-for="scope in availableScopes" :key="scope" :value="scope">
 											{{ scope }}
 										</option>
@@ -171,11 +182,7 @@
 							</TableRow>
 
 							<!-- Display Row -->
-							<TableRow
-								v-else
-								@click="gotoSymbol(symbol)"
-								class="cursor-pointer border-gray-700 hover:bg-gray-700"
-							>
+							<TableRow v-else @click="gotoSymbol(symbol)" class="cursor-pointer border-gray-700 hover:bg-gray-700">
 								<TableCell class="truncate" :title="symbol.namespace">{{ symbol.namespace }}</TableCell>
 								<TableCell class="font-semibold text-yellow-400">
 									<div class="flex items-center gap-2">
@@ -194,12 +201,19 @@
 											class="p-1 hover:bg-gray-600 rounded"
 											:title="isBreakpointActive(symbol.address) ? 'Remove Breakpoint' : 'Add Breakpoint'"
 										>
-											<OctagonPause class="h-4 w-4" :class="isBreakpointActive(symbol.address) ? 'fill-red-500 text-red-500' : 'text-gray-400'" />
+											<OctagonPause
+												class="h-4 w-4"
+												:class="isBreakpointActive(symbol.address) ? 'fill-red-500 text-red-500' : 'text-gray-400'"
+											/>
 										</button>
 										<button @click="beginEdit(symbol)" class="p-1 text-gray-400 hover:text-blue-400 hover:bg-gray-600 rounded" title="Edit">
 											<Pencil class="h-4 w-4" />
 										</button>
-										<button @click="handleDelete(symbol)" class="p-1 text-gray-400 hover:text-red-400 hover:bg-gray-600 rounded" title="Delete">
+										<button
+											@click="handleDelete(symbol)"
+											class="p-1 text-gray-400 hover:text-red-400 hover:bg-gray-600 rounded"
+											title="Delete"
+										>
 											<Trash2 class="h-4 w-4" />
 										</button>
 									</div>
@@ -249,9 +263,9 @@ const availableScopes = computed(() => {
 	return vm?.value?.getScopes() ?? ["main"];
 });
 
-type SortKey = 'label' | 'address' | 'namespace' | 'scope';
-const sortKey = ref<SortKey>('address');
-const sortDirection = ref<'asc' | 'desc'>('asc');
+type SortKey = "label" | "address" | "namespace" | "scope";
+const sortKey = ref<SortKey>("address");
+const sortDirection = ref<"asc" | "desc">("asc");
 
 type EditableSymbol = {
 	label: string;
@@ -273,10 +287,10 @@ const validationErrors = ref({
 
 const handleSort = (key: SortKey) => {
 	if (sortKey.value === key) {
-		sortDirection.value = sortDirection.value === 'asc' ? 'desc' : 'asc';
+		sortDirection.value = sortDirection.value === "asc" ? "desc" : "asc";
 	} else {
 		sortKey.value = key;
-		sortDirection.value = 'asc';
+		sortDirection.value = "asc";
 	}
 };
 
@@ -284,7 +298,13 @@ const allSymbols = computed(() => {
 	const symbols = symbolDict.value;
 	if (!symbols) return [];
 
-	const flatList: { label: string; address: number; namespace: string; scope: string; source?: string }[] = [];
+	const flatList: {
+		label: string;
+		address: number;
+		namespace: string;
+		scope: string;
+		source?: string;
+	}[] = [];
 	for (const addrStr in symbols) {
 		const address = parseInt(addrStr, 10);
 		const namespaces = symbols[address];
@@ -308,7 +328,9 @@ const allSymbols = computed(() => {
 
 const uniqueNamespaces = computed(() => {
 	const namespaces = new Set<string>();
-	allSymbols.value.forEach((s) => { namespaces.add(s.namespace); });
+	allSymbols.value.forEach((s) => {
+		namespaces.add(s.namespace);
+	});
 	return Array.from(namespaces).sort();
 });
 
@@ -321,7 +343,7 @@ const filteredSymbols = computed(() => {
 
 	if (searchTerm.value) {
 		const lowerQuery = searchTerm.value.toLowerCase();
-		const addressQuery= parseInt(searchTerm.value,16);
+		const addressQuery = parseInt(searchTerm.value, 16);
 		symbols = symbols.filter((s) => s.address === addressQuery || s.label.toLowerCase().includes(lowerQuery));
 	}
 
@@ -337,7 +359,7 @@ const filteredSymbols = computed(() => {
 			if (valA > valB) comparison = 1;
 			else if (valA < valB) comparison = -1;
 
-			return sortDirection.value === 'asc' ? comparison : -comparison;
+			return sortDirection.value === "asc" ? comparison : -comparison;
 		});
 	}
 	return sortedSymbols;
@@ -363,7 +385,7 @@ const beginAddSymbol = () => {
 const beginEdit = (symbol: { label: string; address: number; namespace: string; scope: string }) => {
 	editingSymbol.value = {
 		...JSON.parse(JSON.stringify(symbol)), // deep copy
-		address: toHex(symbol.address,6), // show hex string in input
+		address: toHex(symbol.address, 6), // show hex string in input
 		isNew: false,
 		originalAddress: symbol.address,
 		originalNamespace: symbol.namespace,
@@ -377,7 +399,7 @@ const saveEdit = () => {
 	let hasErrors = false;
 
 	const symbol = editingSymbol.value;
-	const addressHex = String(symbol.address).replace('$', '');
+	const addressHex = String(symbol.address).replace("$", "");
 	const address = parseInt(addressHex, 16);
 	const namespace = symbol.namespace?.trim() || "user";
 
@@ -392,8 +414,8 @@ const saveEdit = () => {
 		hasErrors = true;
 	}
 
-	const existingSymbol= getSymbolForNSLabel(namespace, label);
-	if (symbol.originalNamespace!==namespace && existingSymbol) {
+	const existingSymbol = getSymbolForNSLabel(namespace, label);
+	if (symbol.originalNamespace !== namespace && existingSymbol) {
 		validationErrors.value.label = "Duplicate label.";
 		hasErrors = true;
 	}
@@ -402,7 +424,7 @@ const saveEdit = () => {
 
 	const scope = symbol.scope?.trim() || "main";
 
-	if(symbol.isNew) {
+	if (symbol.isNew) {
 		addSymbol(address, label, namespace, scope);
 	} else {
 		// biome-ignore lint/style/noNonNullAssertion: <update so value are set>
@@ -410,7 +432,7 @@ const saveEdit = () => {
 			scope,
 			namespace,
 			address,
-			label
+			label,
 		});
 	}
 
@@ -438,7 +460,7 @@ const handleDelete = (symbol: { label: string; address: number; namespace: strin
 };
 
 const toggleSymbolBreakpoint = (symbol: { address: number }) => {
-	toggleBreakpoint({ type: 'pc', address: symbol.address }, vm?.value);
+	toggleBreakpoint({ type: "pc", address: symbol.address }, vm?.value);
 };
 
 const isBreakpointActive = (address: number) => {
