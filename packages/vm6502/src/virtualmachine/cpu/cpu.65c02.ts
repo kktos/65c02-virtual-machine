@@ -35,6 +35,7 @@ const STACK_PAGE_HI = 0x0100;
 
 // --- Emulator State ---
 let isRunning = false;
+let stepOutTargetSP: number | null = null;
 let clockSpeedMhz = 1; // Default to 1 MHz
 let cyclesPerTimeslice = 10000; // Number of cycles to run before yielding
 
@@ -115,6 +116,7 @@ export function initCPU(systemBus: IBus, regView: DataView, videoSystem: Video |
 
 export function setRunning(running: boolean) {
 	isRunning = running;
+	if (!isRunning) stepOutTargetSP = null;
 	self.postMessage({ type: "isRunning", isRunning: running });
 	if (isRunning) {
 		lastPerfTime = performance.now();
@@ -189,6 +191,7 @@ export function stepOverInstruction() {
 		setStepAddedBreakpoint(added);
 		if (added) addBreakpoint("pc", physicalTarget);
 
+		stepInstruction();
 		setRunning(true);
 	} else {
 		stepInstruction();
@@ -201,21 +204,7 @@ export function stepOutInstruction() {
 	// Cleanup previous step over if it exists (e.g. interrupted)
 	if (stepBPAddress !== null) cleanStepBP();
 
-	const sp = registersView.getUint8(REG_SP_OFFSET);
-	const lo = bus.read(STACK_PAGE_HI | ((sp + 1) & 0xff));
-	const hi = bus.read(STACK_PAGE_HI | ((sp + 2) & 0xff));
-	const logicalTarget = (((hi << 8) | lo) + 1) & 0xffff;
-
-	// Assume we return to the same bank we are in now. This might be incorrect for far JSR/RTS, but is the best guess.
-	const bank = bus.getBank?.(registersView.getUint16(REG_PC_OFFSET, true)) ?? 0;
-	const physicalTarget = (bank << 16) | logicalTarget;
-
-	setStepBPAddress(physicalTarget);
-	// biome-ignore lint/style/noNonNullAssertion: <expected>
-	const added = !bankedBreakpoints.has(physicalTarget) || (bankedBreakpoints.get(physicalTarget)! & BP_PC) === 0;
-	setStepAddedBreakpoint(added);
-	if (added) addBreakpoint("pc", physicalTarget);
-
+	stepOutTargetSP = registersView.getUint8(REG_SP_OFFSET);
 	setRunning(true);
 }
 
@@ -1057,6 +1046,7 @@ function executeInstruction(): number {
 			}
 			case 0x40: {
 				// RTI (Return from Interrupt)
+				const shouldStop = stepOutTargetSP !== null && registersView.getUint8(REG_SP_OFFSET) >= stepOutTargetSP;
 
 				let s = registersView.getUint8(REG_SP_OFFSET);
 
@@ -1077,6 +1067,13 @@ function executeInstruction(): number {
 				// pc--;
 
 				cycles = 6;
+
+				if (shouldStop) {
+					setRunning(false);
+					const bank = bus.getBank?.(pc) ?? 0;
+					const physicalPC = (bank << 16) | pc;
+					self.postMessage({ type: "breakpointHit", breakpointType: "step", address: physicalPC });
+				}
 				break;
 			}
 			case 0x41: {
@@ -1999,6 +1996,8 @@ function executeInstruction(): number {
 			}
 			case 0x60: {
 				// RTS
+				const shouldStop = stepOutTargetSP !== null && registersView.getUint8(REG_SP_OFFSET) >= stepOutTargetSP;
+
 				let s = registersView.getUint8(REG_SP_OFFSET);
 				s = (s + 1) & 0xff;
 				const lo = bus.read(STACK_PAGE_HI | s);
@@ -2009,6 +2008,13 @@ function executeInstruction(): number {
 				registersView.setUint8(REG_SP_OFFSET, s);
 				pc = ((hi << 8) | lo) + 1;
 				cycles = 6;
+
+				if (shouldStop) {
+					setRunning(false);
+					const bank = bus.getBank?.(pc) ?? 0;
+					const physicalPC = (bank << 16) | pc;
+					self.postMessage({ type: "breakpointHit", breakpointType: "step", address: physicalPC });
+				}
 				break;
 			}
 
