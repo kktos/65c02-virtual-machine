@@ -9,16 +9,53 @@ import { opcodeMap } from "./opcodes";
 const { getFormat } = useFormatting();
 const { getSymbolForAddress, getLabelForAddress } = useSymbols();
 
+function findPreviousInstruction(readByte: (address: number, debug?: boolean) => number, targetAddress: number, scope: string): number {
+	if (targetAddress <= 0) return 0;
+
+	// Try to find a synchronization point by looking back.
+	// We iterate from a reasonable lookback distance down to 1.
+	const maxLookback = 12;
+
+	for (let offset = maxLookback; offset >= 1; offset--) {
+		const candidateStart = targetAddress - offset;
+		if (candidateStart < 0) continue;
+
+		// Disassemble a small chunk to see if it aligns with targetAddress
+		const lines = disassemble(readByte, scope, candidateStart, offset + 4, undefined, 0);
+
+		// If we hit an invalid opcode, this starting point is likely misaligned.
+		if (lines.some((line) => line.opc === "???")) continue;
+
+		let prevAddr = -1;
+
+		for (const line of lines) {
+			if (line.addr === targetAddress) return prevAddr !== -1 ? prevAddr : candidateStart;
+			if (line.addr > targetAddress) break;
+			prevAddr = line.addr;
+		}
+	}
+
+	// Fallback if something goes wrong
+	return Math.max(0, targetAddress - 1);
+}
+
 export function disassemble(
 	readByte: (address: number, debug?: boolean) => number,
 	scope: string,
 	fromAddress: number,
 	lineCount: number,
 	registers?: EmulatorState["registers"],
+	pivotLineIndex = 0,
 ): DisassemblyLine[] {
 	const disassembly: DisassemblyLine[] = [];
 
 	let pc = fromAddress;
+
+	if (pivotLineIndex > 0) {
+		for (let i = 0; i < pivotLineIndex; i++) {
+			pc = findPreviousInstruction(readByte, pc, scope);
+		}
+	}
 
 	while (disassembly.length < lineCount) {
 		// Safety check to prevent infinite loops if PC goes out of bounds
@@ -157,7 +194,7 @@ export function disassemble(
 				break;
 			case "IMM":
 				line.opr = `#${toHex(operandBytes[0], 2)}`;
-				if (line.opc === "CMP") line.comment = `'${String.fromCharCode(operandBytes[0] & 0x7f)}'`;
+				if (line.opc === "CMP") line.comment = `'${String.fromCharCode(operandBytes[0] & 0x7f)}' ${operandBytes[0]}`;
 				break;
 			case "ZP": {
 				effectiveAddress = operandBytes[0] ?? 0;
