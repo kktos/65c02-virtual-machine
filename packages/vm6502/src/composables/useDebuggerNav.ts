@@ -3,7 +3,7 @@ import { ref } from "vue";
 const memoryViewAddress = ref<number | null>(null);
 const activeTab = ref<"disassembly" | "memory">("disassembly");
 const jumpHistory = ref<number[]>([]);
-const historyIndex = ref(-1);
+const historyIndex = ref(0);
 const historyNavigationEvent = ref<{ address: number; timestamp: number } | null>(null);
 
 export function useDebuggerNav() {
@@ -46,13 +46,13 @@ export function useDebuggerNav() {
 
 	const clearHistory = () => {
 		jumpHistory.value.length = 0;
-		historyIndex.value = -1;
+		historyIndex.value = 0;
 	};
 
 	const jumpToHistoryIndex = (index: number) => {
 		if (index >= 0 && index < jumpHistory.value.length) {
 			historyIndex.value = index;
-			const address = jumpHistory.value[index];
+			const address = jumpHistory.value[index] as number;
 			historyNavigationEvent.value = { address, timestamp: Date.now() };
 		}
 	};

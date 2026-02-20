@@ -150,6 +150,7 @@ import { assemble } from "@/lib/assembler";
 import type { DisassemblyLine } from "@/types/disassemblyline.interface";
 import type { EmulatorState } from "@/types/emulatorstate.interface";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
+import { BRANCH_OPCODES } from "@/lib/opcodes";
 
 const vm = inject<Ref<VirtualMachine>>("vm");
 
@@ -218,17 +219,15 @@ const getBranchPrediction = (opcode: string) => {
 	return isTaken ? { char: "→", title: "Branch Taken", color: "text-green-400" } : { char: "↓", title: "Branch Not Taken", color: "text-red-400" };
 };
 
-const pcOpcodes = new Set(["JMP", "JSR", "BCC", "BCS", "BEQ", "BMI", "BNE", "BPL", "BVC", "BVS"]);
-
 const isOpcodeClickable = (line: DisassemblyLine) => {
 	const mnemonic = line.opc;
-	if (pcOpcodes.has(mnemonic)) return true;
+	if (BRANCH_OPCODES.has(mnemonic)) return true;
 	const operand = line.opr;
 	return operand.includes("$"); // Simple check for an address operand
 };
 
 const getOpcodeTitle = (opc: string) => {
-	if (pcOpcodes.has(opc)) return "CTRL+Click to follow jump/branch";
+	if (BRANCH_OPCODES.has(opc)) return "CTRL+Click to follow jump/branch";
 	return "CTRL+Click to view effective address in Memory Viewer";
 };
 

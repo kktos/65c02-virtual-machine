@@ -13,6 +13,8 @@
 			@goto-address="onGotoAddress"
 		/>
 
+		<div class="text-xs">{{ visibleRowCount }} / {{ pcRowIndex }}</div>
+
 		<!-- Explanation Result Panel -->
 		<div v-if="explanation" class="mb-3 p-3 bg-gray-700 rounded-lg text-sm text-gray-200 shadow-inner shrink-0">
 			<p class="font-semibold text-cyan-400 mb-1">AI Analysis:</p>
@@ -60,6 +62,7 @@ import { handleExplainCode } from "@/lib/gemini.utils";
 import type { DisassemblyLine } from "@/types/disassemblyline.interface";
 import type { EmulatorState } from "@/types/emulatorstate.interface";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
+import { BRANCH_OPCODES } from "@/lib/opcodes";
 
 const vm = inject<Ref<VirtualMachine>>("vm");
 
@@ -75,7 +78,7 @@ const isFormattingManagerOpen = ref(false);
 
 const { pcBreakpoints, toggleBreakpoint } = useBreakpoints();
 const { jumpEvent } = useDisassembly();
-const { setMemoryViewAddress, setActiveTab, addJumpHistory, historyIndex, historyNavigationEvent, clearHistory } = useDebuggerNav();
+const { setMemoryViewAddress, setActiveTab, addJumpHistory, historyNavigationEvent, clearHistory } = useDebuggerNav();
 const { settings } = useSettings();
 const { formattingRules } = useFormatting();
 const { symbolDict } = useSymbols();
@@ -192,6 +195,7 @@ const fullPcAddress = computed(() => {
 const disassemblyStartAddress = ref(fullPcAddress.value);
 const disassembly = ref<DisassemblyLine[]>([]);
 const isFollowingPc = ref(true);
+const pcRowIndex = ref(-1);
 
 const onGotoAddress = (addr: number) => {
 	if (addr >= totalMemory) return;
@@ -204,10 +208,9 @@ const syncToPc = () => {
 		isFollowingPc.value = false;
 	} else {
 		isFollowingPc.value = true;
-		const pcIsVisible = disassembly.value.some((line) => line.addr === fullPcAddress.value);
-		if (!pcIsVisible) {
-			disassemblyStartAddress.value = fullPcAddress.value;
-		}
+		pcRowIndex.value = disassembly.value.findIndex((line) => line.addr === fullPcAddress.value);
+		const pcIsVisible = pcRowIndex.value >= 0;
+		if (!pcIsVisible) disassemblyStartAddress.value = fullPcAddress.value;
 	}
 };
 
@@ -219,6 +222,7 @@ const { scrollContainer, visibleRowCount, handleScroll, findPreviousInstructionA
 );
 
 // useless line - used as ref in template but not seen in VSCode
+// oxlint-disable-next-line no-unused-expressions
 scrollContainer;
 
 const explanation = ref(null);
@@ -229,7 +233,7 @@ watch(
 	(newAddress, oldAddress) => {
 		if (!isFollowingPc.value) return;
 
-		if (historyIndex.value === -1) addJumpHistory(newAddress);
+		// if (historyIndex.value === -1) addJumpHistory(newAddress);
 
 		// Try to keep the PC at the same visual row index as before.
 		const oldIndex = disassembly.value.findIndex((line) => line.addr === oldAddress);
@@ -279,6 +283,7 @@ watch(
 				visibleRowCount.value,
 				registers,
 			);
+			pcRowIndex.value = disassembly.value.findIndex((line) => line.addr === fullPcAddress.value);
 		}
 	},
 	{ immediate: true, deep: true },
@@ -292,13 +297,14 @@ watch(jumpEvent, (event) => {
 	}
 });
 
-const BRANCH_OPCODES = new Set(["JMP", "JSR", "BCC", "BCS", "BEQ", "BMI", "BNE", "BPL", "BVC", "BVS"]);
-
 const handleOpcodeClick = (line: DisassemblyLine) => {
 	if (BRANCH_OPCODES.has(line.opc)) {
 		const currentBank = line.addr & 0xff0000;
 		const newAddress = currentBank | line.oprn;
-		addJumpHistory(newAddress);
+
+		// addJumpHistory(newAddress);
+		addJumpHistory(disassemblyStartAddress.value);
+
 		isFollowingPc.value = false;
 		disassemblyStartAddress.value = newAddress;
 		return;

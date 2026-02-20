@@ -240,6 +240,10 @@ export class VirtualMachine {
 		await this.workerReadyPromise;
 	}
 
+	public get isRunning() {
+		return this._isRunning;
+	}
+
 	public initVideo(canvas: HTMLCanvasElement) {
 		if (!this.machineConfig.video || !this.videoMemory) {
 			console.warn("This machine does not have video output.");

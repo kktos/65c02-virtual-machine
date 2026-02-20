@@ -9,6 +9,8 @@ export interface Opcode {
 
 export type AddressingMode = "IMP" | "ACC" | "IMM" | "ZP" | "ZPX" | "ZPY" | "REL" | "ABS" | "ABX" | "ABY" | "IND" | "IDX" | "IDY" | "ZPI" | "IAX";
 
+export const BRANCH_OPCODES = new Set(["JMP", "JSR", "BCC", "BCS", "BEQ", "BMI", "BNE", "BPL", "BVC", "BVS"]);
+
 export const opcodeMap: { [key: number]: Opcode } = {
 	0x00: { name: "BRK", bytes: 1, cycles: 7, mode: "IMP" },
 	0x01: { name: "ORA", bytes: 2, cycles: 6, mode: "IDX" },
