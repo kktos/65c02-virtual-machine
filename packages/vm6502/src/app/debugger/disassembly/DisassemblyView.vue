@@ -13,7 +13,7 @@
 			@goto-address="onGotoAddress"
 		/>
 
-		<div class="text-xs">{{ visibleRowCount }} / {{ pcRowIndex }}</div>
+		<!-- <div class="text-xs">{{ visibleRowCount }} / {{ pcRowIndex }}</div> -->
 
 		<!-- Explanation Result Panel -->
 		<div v-if="explanation" class="mb-3 p-3 bg-gray-700 rounded-lg text-sm text-gray-200 shadow-inner shrink-0">
@@ -22,7 +22,13 @@
 		</div>
 
 		<!-- Scrollable disassembly table -->
-		<div ref="disassemblyContainer" class="font-mono text-xs overflow-y-hidden flex-grow min-h-0 bg-gray-900 p-2 rounded-md" @wheel.prevent="handleScroll">
+		<div
+			ref="disassemblyContainer"
+			class="font-mono text-xs overflow-y-hidden flex-grow min-h-0 bg-gray-900 p-2 rounded-md focus:outline-none focus:ring-1 focus:ring-cyan-500"
+			tabindex="0"
+			@wheel.prevent="handleScroll"
+			@keydown.prevent="handleKeyDown"
+		>
 			<p v-if="!disassembly || disassembly.length === 0" class="text-gray-500 italic p-4 text-center">
 				Disassembly data is empty or unavailable. (Check console for debug logs)
 			</p>
@@ -196,6 +202,7 @@ const disassemblyStartAddress = ref(fullPcAddress.value);
 const disassembly = ref<DisassemblyLine[]>([]);
 const isFollowingPc = ref(true);
 const pcRowIndex = ref(-1);
+const pivotIndex = ref(0);
 
 const onGotoAddress = (addr: number) => {
 	if (addr >= totalMemory) return;
@@ -204,22 +211,41 @@ const onGotoAddress = (addr: number) => {
 };
 
 const syncToPc = () => {
+	isFollowingPc.value = !isFollowingPc.value;
 	if (isFollowingPc.value) {
-		isFollowingPc.value = false;
-	} else {
-		isFollowingPc.value = true;
-		pcRowIndex.value = disassembly.value.findIndex((line) => line.addr === fullPcAddress.value);
-		const pcIsVisible = pcRowIndex.value >= 0;
-		if (!pcIsVisible) disassemblyStartAddress.value = fullPcAddress.value;
+		const currentPcIndex = disassembly.value.findIndex((line) => line.addr === fullPcAddress.value);
+		if (currentPcIndex !== -1) {
+			pivotIndex.value = currentPcIndex;
+		} else {
+			pivotIndex.value = Math.floor(visibleRowCount.value / 2);
+		}
 	}
 };
 
-const { scrollContainer, visibleRowCount, handleScroll, findPreviousInstructionAddress } = useDisassemblyScroll(
+const { scrollContainer, visibleRowCount, handleScroll, scrollUp, scrollDown, pageUp, pageDown } = useDisassemblyScroll(
 	vm as Ref<VirtualMachine>,
 	disassembly,
 	disassemblyStartAddress,
-	ref(false),
+	isFollowingPc,
+	pivotIndex,
 );
+
+const handleKeyDown = (event: KeyboardEvent) => {
+	switch (event.key) {
+		case "ArrowUp":
+			scrollUp();
+			break;
+		case "ArrowDown":
+			scrollDown();
+			break;
+		case "PageUp":
+			pageUp();
+			break;
+		case "PageDown":
+			pageDown();
+			break;
+	}
+};
 
 // useless line - used as ref in template but not seen in VSCode
 // oxlint-disable-next-line no-unused-expressions
@@ -228,61 +254,45 @@ scrollContainer;
 const explanation = ref(null);
 const isLoading = ref(false);
 
-watch(
-	() => fullPcAddress.value,
-	(newAddress, oldAddress) => {
-		if (!isFollowingPc.value) return;
-
-		// if (historyIndex.value === -1) addJumpHistory(newAddress);
-
-		// Try to keep the PC at the same visual row index as before.
-		const oldIndex = disassembly.value.findIndex((line) => line.addr === oldAddress);
-
-		if (oldIndex === -1) {
-			// If old PC wasn't visible, just snap to the new PC (default behavior)
-			disassemblyStartAddress.value = newAddress; // this is now 24-bit
-			return;
-		}
-
-		const newIndexInOldView = disassembly.value.findIndex((line) => line.addr === newAddress);
-
-		// Optimization: If moving forward within the current view, we can just shift the start address
-		if (newIndexInOldView !== -1 && newIndexInOldView >= oldIndex) {
-			const offset = newIndexInOldView - oldIndex;
-			if (offset < disassembly.value.length) {
-				disassemblyStartAddress.value = disassembly.value[offset]?.addr ?? 0;
-			}
-		} else {
-			// Fallback: Calculate backwards from newAddress to find the start address
-			// that puts newAddress at oldIndex.
-			let targetStart = newAddress;
-			for (let i = 0; i < oldIndex; i++) {
-				// biome-ignore lint/style/noNonNullAssertion: <itsok>
-				targetStart = findPreviousInstructionAddress(targetStart);
-			}
-			disassemblyStartAddress.value = targetStart;
-		}
-	},
-);
-
 const readByte = (address: number, debug = true) => {
 	return (debug ? vm?.value.readDebug(address) : vm?.value.read(address)) ?? 0;
 };
 
 watch(
 	// Re-disassemble when the start address or memory changes
-	() => [disassemblyStartAddress.value, memory, visibleRowCount.value, busState.value, registers, formattingRules.value, symbolDict.value],
+	() => [
+		disassemblyStartAddress.value,
+		memory,
+		visibleRowCount.value,
+		busState.value,
+		registers,
+		formattingRules.value,
+		symbolDict.value,
+		isFollowingPc.value,
+		fullPcAddress.value,
+		pivotIndex.value,
+	],
 	() => {
 		if (memory) {
 			vm?.value?.syncBusState();
-			disassembly.value = disassemble(
-				readByte,
-				// biome-ignore lint/style/noNonNullAssertion: <itsok>
-				vm!.value.getScope(disassemblyStartAddress.value),
-				disassemblyStartAddress.value,
-				visibleRowCount.value,
-				registers,
-			);
+
+			let startAddr = disassemblyStartAddress.value;
+			let pivot = 0;
+
+			if (isFollowingPc.value) {
+				startAddr = fullPcAddress.value;
+				pivot = pivotIndex.value;
+			}
+
+			disassembly.value = disassemble(readByte, vm!.value.getScope(startAddr), startAddr, visibleRowCount.value, registers, pivot);
+
+			if (isFollowingPc.value && disassembly.value.length > 0) {
+				const newStart = disassembly.value[0]!.addr;
+				if (disassemblyStartAddress.value !== newStart) {
+					disassemblyStartAddress.value = newStart;
+				}
+			}
+
 			pcRowIndex.value = disassembly.value.findIndex((line) => line.addr === fullPcAddress.value);
 		}
 	},
