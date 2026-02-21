@@ -1,5 +1,6 @@
 import { computed, ref } from "vue";
 import { useSettings } from "./useSettings";
+import { toast } from "vue-sonner";
 
 const geminiModels = [
 	{ name: "Gemini 1.5 Flash", url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent" },
@@ -25,7 +26,7 @@ export function useGemini() {
 
 	async function explainCode(codeBlock: string) {
 		if (!isConfigured.value) {
-			explanation.value = "Error: Gemini API Key is not configured in the settings.";
+			toast.error("Gemini API Key is not configured in the settings.", { position: "bottom-center" });
 			return;
 		}
 
@@ -33,8 +34,8 @@ export function useGemini() {
 		explanation.value = null;
 
 		const systemPrompt =
-			"You are a world-class 6502 CPU reverse engineer and assembly language expert. Analyze the provided block of 6502 assembly code and provide a concise, single-paragraph explanation of its overall purpose and function, focusing on the high-level logic (e.g., 'This loop copies X bytes from address A to address B').";
-		const userQuery = `Analyze this 6502 assembly code block and explain its function: \n\n${codeBlock}`;
+			"You are a world-class 65C02 CPU reverse engineer and assembly language expert. Analyze the provided block of 65C02 assembly code and provide a concise, single-paragraph explanation of its overall purpose and function, focusing on the high-level logic (e.g., 'This loop copies X bytes from address A to address B').";
+		const userQuery = `Analyze this 65C02 assembly code block and explain its function: \n\n${codeBlock}`;
 
 		const payload = {
 			contents: [{ parts: [{ text: userQuery }] }],
@@ -51,7 +52,9 @@ export function useGemini() {
 			if (!response.ok) {
 				const errorData = await response.json().catch(() => ({}));
 				console.error("Gemini API Error Response:", errorData);
-				explanation.value = `Error: API request failed with status ${response.status}. ${errorData?.error?.message ?? ""}`.trim();
+				toast.error(`Error: API request failed with status ${response.status}. ${errorData?.error?.message ?? ""}`.trim(), {
+					position: "bottom-center",
+				});
 				return;
 			}
 
@@ -62,11 +65,11 @@ export function useGemini() {
 				explanation.value = text;
 			} else {
 				console.warn("Gemini API Warning: Response was empty or malformed.", result);
-				explanation.value = "Could not retrieve explanation. API response was empty or malformed.";
+				toast.error("Could not retrieve explanation. API response was empty or malformed.", { position: "bottom-center" });
 			}
 		} catch (error) {
 			console.error("Gemini API Fetch Error:", error);
-			explanation.value = "Error: Failed to connect to the analysis engine.";
+			toast.error("Error: Failed to connect to the analysis engine.", { position: "bottom-center" });
 		} finally {
 			isLoading.value = false;
 		}
