@@ -53,6 +53,26 @@
 								<Checkbox id="showCycles" v-model="settings.disassembly.showCycles" />
 								<label for="showCycles" class="text-xs font-medium leading-none cursor-pointer select-none"> Show Cycles </label>
 							</div>
+							<div class="flex flex-col gap-1.5 mt-1">
+								<label for="apiKey" class="text-xs font-medium text-gray-300">Gemini API Key</label>
+								<input
+									id="apiKey"
+									v-model="geminiApiKey"
+									type="password"
+									class="flex h-7 w-full rounded-md border border-gray-600 bg-gray-900 px-2 py-1 text-xs shadow-sm transition-colors placeholder:text-gray-500 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500"
+									placeholder="Paste API key..."
+								/>
+							</div>
+							<div class="flex flex-col gap-1.5 mt-1">
+								<label for="apiUrl" class="text-xs font-medium text-gray-300">Gemini API URL</label>
+								<input
+									id="apiUrl"
+									v-model="geminiUrl"
+									type="text"
+									class="flex h-7 w-full rounded-md border border-gray-600 bg-gray-900 px-2 py-1 text-xs shadow-sm transition-colors placeholder:text-gray-500 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500"
+									placeholder="https://..."
+								/>
+							</div>
 						</div>
 						<div class="border-t border-gray-700 -mx-4 my-1"></div>
 						<div class="grid grid-cols-2 gap-4">
@@ -106,6 +126,7 @@
 </template>
 
 <script lang="ts" setup>
+import { computed } from "vue";
 import { Binary, Paperclip, Settings2, Tags } from "lucide-vue-next";
 import AddressNavigator from "@/app/debugger/AddressNavigator.vue";
 import { Button } from "@/components/ui/button";
@@ -134,4 +155,24 @@ const emit = defineEmits<{
 const { getNamespaceList, toggleNamespace } = useSymbols();
 const { getFormattingGroups, toggleFormattingGroup } = useFormatting();
 const { settings } = useSettings();
+
+const geminiApiKey = computed({
+	get: () => settings.disassembly.gemini?.apiKey ?? "",
+	set: (val: string) => {
+		if (!settings.disassembly.gemini) {
+			settings.disassembly.gemini = { apiKey: "" };
+		}
+		settings.disassembly.gemini.apiKey = val;
+	},
+});
+
+const geminiUrl = computed({
+	get: () => settings.disassembly.gemini?.url ?? "",
+	set: (val: string) => {
+		if (!settings.disassembly.gemini) {
+			settings.disassembly.gemini = { apiKey: "", url: "" };
+		}
+		settings.disassembly.gemini.url = val;
+	},
+});
 </script>

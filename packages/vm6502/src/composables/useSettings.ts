@@ -9,6 +9,7 @@ interface DebuggerSettings {
 		scopeColors: Record<string, string>;
 		gemini: {
 			apiKey: string;
+			url: string;
 		};
 	};
 }
@@ -22,6 +23,7 @@ const defaultSettings: DebuggerSettings = {
 		},
 		gemini: {
 			apiKey: "",
+			url: "",
 		},
 	},
 };
@@ -41,6 +43,10 @@ const loadSettings = (): DebuggerSettings => {
 					scopeColors: {
 						...defaultSettings.disassembly.scopeColors,
 						...(parsed.disassembly?.scopeColors || {}),
+					},
+					gemini: {
+						...defaultSettings.disassembly.gemini,
+						...(parsed.disassembly?.gemini || {}),
 					},
 				},
 			};

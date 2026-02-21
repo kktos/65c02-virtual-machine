@@ -1,7 +1,6 @@
 import { computed, ref } from "vue";
 import { useSettings } from "./useSettings";
 
-// --- LLM Constants ---
 const GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent";
 
 export function useGemini() {
@@ -9,8 +8,13 @@ export function useGemini() {
 	const explanation = ref<string | null>(null);
 	const isLoading = ref(false);
 
-	const apiKey = computed(() => settings.disassembly.gemini?.apiKey ?? "");
-	const geminiApiUrl = computed(() => `${GEMINI_BASE_URL}?key=${apiKey.value}`);
+	if (settings.disassembly.gemini.url.trim() === "") {
+		settings.disassembly.gemini.url = GEMINI_BASE_URL;
+	}
+
+	const apiKey = computed(() => settings.disassembly.gemini.apiKey);
+	const baseUrl = computed(() => settings.disassembly.gemini.url);
+	const geminiApiUrl = computed(() => `${baseUrl.value}?key=${apiKey.value}`);
 
 	const isConfigured = computed(() => !!apiKey.value);
 
