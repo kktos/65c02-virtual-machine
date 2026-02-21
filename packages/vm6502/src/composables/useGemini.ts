@@ -24,10 +24,10 @@ export function useGemini() {
 
 	const isConfigured = computed(() => !!apiKey.value);
 
-	async function explainCode(codeBlock: string) {
+	async function explainCode(codeBlock: string): Promise<string | null> {
 		if (!isConfigured.value) {
 			toast.error("Gemini API Key is not configured in the settings.", { position: "bottom-center" });
-			return;
+			return null;
 		}
 
 		isLoading.value = true;
@@ -55,7 +55,7 @@ export function useGemini() {
 				toast.error(`Error: API request failed with status ${response.status}. ${errorData?.error?.message ?? ""}`.trim(), {
 					position: "bottom-center",
 				});
-				return;
+				return null;
 			}
 
 			const result = await response.json();
@@ -63,13 +63,16 @@ export function useGemini() {
 
 			if (text) {
 				explanation.value = text;
+				return text;
 			} else {
 				console.warn("Gemini API Warning: Response was empty or malformed.", result);
 				toast.error("Could not retrieve explanation. API response was empty or malformed.", { position: "bottom-center" });
+				return null;
 			}
 		} catch (error) {
 			console.error("Gemini API Fetch Error:", error);
 			toast.error("Error: Failed to connect to the analysis engine.", { position: "bottom-center" });
+			return null;
 		} finally {
 			isLoading.value = false;
 		}

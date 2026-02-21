@@ -1,8 +1,9 @@
 <template>
-	<table class="w-full">
+	<table class="w-full table-fixed">
 		<thead>
 			<tr class="text-gray-400 sticky top-0 bg-gray-900 border-b border-gray-700 shadow-md z-10">
-				<th class="py-1 text-center w-8"></th>
+				<th class="py-1 text-center w-6"></th>
+				<th class="py-1 text-center w-6"><StickyNote class="w-3 h-3 mx-auto" /></th>
 				<th class="py-1 text-left px-2 w-20">Addr</th>
 				<th class="py-1 text-left w-20"></th>
 				<th class="py-1 text-left w-60">Opcode</th>
@@ -14,7 +15,7 @@
 			<template v-for="line in disassembly" :key="line.addr">
 				<tr v-if="line.label">
 					<td
-						colspan="6"
+						colspan="7"
 						class="py-0.5 px-2 text-yellow-500 font-bold font-mono text-xs border-l-4 border-transparent"
 						:style="{ color: getScopeColor(line.addr) }"
 						@contextmenu.prevent="handleContextMenu($event, line)"
@@ -57,6 +58,18 @@
 					<td class="py-0.5 text-center">
 						<button @click="$emit('toggleBreakpoint', line.addr)" class="w-full h-full flex items-center justify-center cursor-pointer group">
 							<span class="w-2 h-2 rounded-full transition-colors" :class="getBreakpointClass(line.addr)"></span>
+						</button>
+					</td>
+					<td class="py-0.5 text-center group/note">
+						<button
+							@click="openNoteEditor($event, line)"
+							class="w-full h-full flex items-center justify-center cursor-pointer transition-colors"
+							:title="notes[getNoteKey(line.addr)] ? 'Edit Note' : 'Add Note'"
+						>
+							<StickyNote
+								class="w-3 h-3 transition-colors"
+								:class="notes[getNoteKey(line.addr)] ? 'text-yellow-400 fill-yellow-400/20' : 'text-gray-700 group-hover/note:text-yellow-100'"
+							/>
 						</button>
 					</td>
 					<td
@@ -138,11 +151,23 @@
 		:address="contextMenu.address"
 		:key="`${contextMenu.x}-${contextMenu.y}`"
 	/>
+
+	<NoteEditor
+		:is-open="noteEditor.isOpen"
+		:x="noteEditor.x"
+		:y="noteEditor.y"
+		:address="noteEditor.address"
+		:scope="noteEditor.scope"
+		:text="noteEditor.text"
+		:disassembly="disassembly"
+		@update:is-open="(val) => (noteEditor.isOpen = val)"
+	/>
 </template>
 
 <script lang="ts" setup>
 import { useKeyModifier } from "@vueuse/core";
-import { inject, nextTick, type Ref, ref } from "vue";
+import { inject, type Ref, ref, reactive, nextTick } from "vue";
+import { StickyNote } from "lucide-vue-next";
 import AddSymbolPopover from "@/components/AddSymbolPopover.vue";
 import { useSettings } from "@/composables/useSettings";
 import { useSymbols } from "@/composables/useSymbols";
@@ -151,6 +176,8 @@ import type { DisassemblyLine } from "@/types/disassemblyline.interface";
 import type { EmulatorState } from "@/types/emulatorstate.interface";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import { BRANCH_OPCODES } from "@/lib/opcodes";
+import { useNotes } from "@/composables/useNotes";
+import NoteEditor from "./NoteEditor.vue";
 
 const vm = inject<Ref<VirtualMachine>>("vm");
 
@@ -170,6 +197,7 @@ defineEmits<{
 const { settings } = useSettings();
 const isCtrlPressed = useKeyModifier("Control");
 const { symbolDict, addSymbol, removeSymbol } = useSymbols();
+const { notes } = useNotes();
 
 const getBranchPrediction = (opcode: string) => {
 	// Defensive check for props.registers (already added in last iteration, keeping it)
@@ -243,6 +271,11 @@ const getScopeColor = (addr: number) => {
 	// If color is black or transparent, use default class
 	if (!color || color === "#000000" || color === "#00000000") return "";
 	return color;
+};
+
+const getNoteKey = (addr: number) => {
+	const scope = getScopeForAddr(addr);
+	return `${scope}:${addr}`;
 };
 
 // --- Context Menu & Label Editing ---
@@ -384,5 +417,28 @@ const commitLabelEdit = () => {
 
 	addSymbol(addr, newLabel, namespace, scope);
 	cancelLabelEdit();
+};
+
+// --- Note Editing ---
+const noteEditor = reactive({
+	isOpen: false,
+	x: 0,
+	y: 0,
+	address: 0,
+	scope: "",
+	text: "",
+});
+
+const openNoteEditor = (event: MouseEvent, line: DisassemblyLine) => {
+	const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+	noteEditor.address = line.addr;
+	const scope = getScopeForAddr(line.addr);
+	noteEditor.scope = scope;
+	const key = `${scope}:${line.addr}`;
+
+	noteEditor.text = notes.value[key] || "";
+	noteEditor.x = rect.right + 10; // Position to the right of the icon
+	noteEditor.y = Math.min(rect.top, window.innerHeight - 250); // Prevent going off-screen bottom
+	noteEditor.isOpen = true;
 };
 </script>
