@@ -20,27 +20,36 @@ export function useDisassemblyScroll(
 
 	const visibleRowCount = computed(() => {
 		if (containerHeight.value === 0) return 10; // Default before mounted
-		return Math.max(1, Math.floor((containerHeight.value - TABLE_HEADER_HEIGHT - PANEL_TITLE_HEIGHT - PANEL_TITLE_MB_HEIGHT) / TABLE_ROW_HEIGHT));
+		return Math.max(
+			1,
+			Math.floor(
+				(containerHeight.value - TABLE_HEADER_HEIGHT - PANEL_TITLE_HEIGHT - PANEL_TITLE_MB_HEIGHT) /
+					TABLE_ROW_HEIGHT,
+			),
+		);
 	});
 
 	const readByte = (address: number) => {
 		return vm.value.readDebug(address) ?? 0;
 	};
 
-	const findPreviousInstructionAddress = (startAddr: number): number => {
+	const findPreviousInstructionAddress = async (startAddr: number) => {
 		if (startAddr <= 0) return 0;
 		const scope = vm.value.getScope(startAddr);
-		const lines = disassemble(readByte, scope, startAddr, 1, undefined, 1);
+		const lines = await disassemble(readByte, scope, startAddr, 1, undefined, 1);
 		return lines[0]?.addr ?? Math.max(0, startAddr - 1);
 	};
 
-	const scrollUp = (lines = 1) => {
+	const scrollUp = async (lines = 1) => {
 		if (isFollowingPc.value) {
-			pivotIndex.value = Math.max(0, pivotIndex.value - lines);
+			pivotIndex.value = Math.min(
+				visibleRowCount.value > 0 ? visibleRowCount.value - 1 : 0,
+				pivotIndex.value + lines,
+			);
 		} else {
 			let newStartAddress = disassemblyStartAddress.value;
 			for (let i = 0; i < lines; i++) {
-				newStartAddress = findPreviousInstructionAddress(newStartAddress);
+				newStartAddress = await findPreviousInstructionAddress(newStartAddress);
 			}
 			disassemblyStartAddress.value = newStartAddress;
 		}
@@ -48,7 +57,7 @@ export function useDisassemblyScroll(
 
 	const scrollDown = (lines = 1) => {
 		if (isFollowingPc.value) {
-			pivotIndex.value = Math.min(visibleRowCount.value > 0 ? visibleRowCount.value - 1 : 0, pivotIndex.value + lines);
+			pivotIndex.value = Math.max(0, pivotIndex.value - lines);
 		} else {
 			if (!disassembly.value || disassembly.value.length <= lines) return;
 			const newStartAddress = disassembly.value[lines]?.addr ?? disassemblyStartAddress.value;
