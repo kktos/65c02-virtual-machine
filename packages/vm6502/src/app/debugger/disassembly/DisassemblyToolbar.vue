@@ -31,11 +31,12 @@
 
 		<div class="flex items-center space-x-2">
 			<button
+				title="Explain code with AI (requires API Key in settings)"
 				@click="$emit('explain')"
-				:disabled="isLoading || !hasDisassembly"
-				class="text-xs px-3 py-1 rounded-full bg-indigo-600 text-white hover:bg-indigo-500 transition duration-150 shadow-md flex items-center disabled:opacity-50"
+				:disabled="isLoading || !hasDisassembly || !isExplainConfigured"
+				class="text-xs px-3 py-1 rounded-full bg-indigo-600 text-white hover:bg-indigo-500 transition duration-150 shadow-md flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
 			>
-				{{ isLoading ? "Analyzing..." : "✨" }}
+				{{ isLoading ? "Analyzing..." : isExplainConfigured ? "✨" : "🔑" }}
 			</button>
 
 			<Popover>
@@ -55,7 +56,7 @@
 						</div>
 						<div class="border-t border-gray-700 -mx-4 my-1"></div>
 						<div class="grid grid-cols-2 gap-4">
-							<div>
+							<div class="border-r border-gray-700">
 								<div class="text-sm font-bold text-gray-200 capitalize mb-4">Memory Scopes</div>
 								<div class="grid gap-2 max-h-48 overflow-y-auto pr-2">
 									<div v-for="scope in availableScopes" :key="scope" class="flex gap-2 items-center">
@@ -69,28 +70,30 @@
 									</div>
 								</div>
 							</div>
-							<div>
-								<div class="text-sm font-bold text-gray-200 capitalize mb-4">Symbol Namespaces</div>
-								<div class="grid gap-2 max-h-48 overflow-y-auto pr-2">
-									<div v-for="[ns, isActive] in getNamespaceList()" :key="ns" class="flex items-center space-x-2">
-										<Checkbox :id="`ns-${ns}`" :model-value="isActive" @update:model-value="toggleNamespace(ns)" />
-										<label :for="`ns-${ns}`" class="text-xs font-medium leading-none cursor-pointer select-none truncate" :title="ns">{{
-											ns
-										}}</label>
+							<div class="grid gap-3">
+								<div class="border-b border-gray-700">
+									<div class="text-sm font-bold text-gray-200 capitalize mb-4">Symbol Namespaces</div>
+									<div class="grid gap-2 max-h-48 overflow-y-auto pr-2">
+										<div v-for="[ns, isActive] in getNamespaceList()" :key="ns" class="flex items-center space-x-2">
+											<Checkbox :id="`ns-${ns}`" :model-value="isActive" @update:model-value="toggleNamespace(ns)" />
+											<label :for="`ns-${ns}`" class="text-xs font-medium leading-none cursor-pointer select-none truncate" :title="ns">{{
+												ns
+											}}</label>
+										</div>
 									</div>
 								</div>
-							</div>
-							<div>
-								<div class="text-sm font-bold text-gray-200 capitalize mb-4">Formatting Groups</div>
-								<div class="grid gap-2 max-h-48 overflow-y-auto pr-2">
-									<div v-for="[group, isActive] in getFormattingGroups()" :key="group" class="flex items-center space-x-2">
-										<Checkbox :id="`fmt-${group}`" :model-value="isActive" @update:model-value="toggleFormattingGroup(group)" />
-										<label
-											:for="`fmt-${group}`"
-											class="text-xs font-medium leading-none cursor-pointer select-none truncate"
-											:title="group"
-											>{{ group }}</label
-										>
+								<div>
+									<div class="text-sm font-bold text-gray-200 capitalize mb-4">Formatting Groups</div>
+									<div class="grid gap-2 max-h-48 overflow-y-auto pr-2">
+										<div v-for="[group, isActive] in getFormattingGroups()" :key="group" class="flex items-center space-x-2">
+											<Checkbox :id="`fmt-${group}`" :model-value="isActive" @update:model-value="toggleFormattingGroup(group)" />
+											<label
+												:for="`fmt-${group}`"
+												class="text-xs font-medium leading-none cursor-pointer select-none truncate"
+												:title="group"
+												>{{ group }}</label
+											>
+										</div>
 									</div>
 								</div>
 							</div>
@@ -116,6 +119,7 @@ const props = defineProps<{
 	isFollowingPc: boolean;
 	isLoading: boolean;
 	hasDisassembly: boolean;
+	isExplainConfigured: boolean;
 	availableScopes: string[];
 }>();
 

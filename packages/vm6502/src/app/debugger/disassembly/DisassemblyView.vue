@@ -3,7 +3,8 @@
 		<!-- Header combining title, count, and action button -->
 		<DisassemblyToolbar
 			:is-following-pc="isFollowingPc"
-			:is-loading="isLoading"
+			:is-loading="isExplainLoading"
+			:is-explain-configured="isExplainConfigured"
 			:has-disassembly="!!(disassembly && disassembly.length > 0)"
 			:available-scopes="availableScopes"
 			@open-symbol-manager="isSymbolManagerOpen = true"
@@ -16,9 +17,9 @@
 		<!-- <div class="text-xs">{{ visibleRowCount }} / {{ pcRowIndex }}</div> -->
 
 		<!-- Explanation Result Panel -->
-		<div v-if="explanation" class="mb-3 p-3 bg-gray-700 rounded-lg text-sm text-gray-200 shadow-inner shrink-0">
+		<div v-if="explanationText" class="mb-3 p-3 bg-gray-700 rounded-lg text-sm text-gray-200 shadow-inner shrink-0">
 			<p class="font-semibold text-cyan-400 mb-1">AI Analysis:</p>
-			<p class="whitespace-pre-wrap">{{ explanation }}</p>
+			<p class="whitespace-pre-wrap">{{ explanationText }}</p>
 		</div>
 
 		<!-- Scrollable disassembly table -->
@@ -27,7 +28,7 @@
 			class="font-mono text-xs overflow-y-hidden flex-grow min-h-0 bg-gray-900 p-2 rounded-md focus:outline-none focus:ring-1 focus:ring-cyan-500"
 			tabindex="0"
 			@wheel.prevent="handleScroll"
-			@keydown.prevent="handleKeyDown"
+			@keydown="handleKeyDown"
 		>
 			<p v-if="!disassembly || disassembly.length === 0" class="text-gray-500 italic p-4 text-center">
 				Disassembly data is empty or unavailable. (Check console for debug logs)
@@ -62,9 +63,9 @@ import { useDisassembly } from "@/composables/useDisassembly";
 import { useDisassemblyScroll } from "@/composables/useDisassemblyScroll";
 import { useFormatting } from "@/composables/useFormatting";
 import { useSettings } from "@/composables/useSettings";
+import { useGemini } from "@/composables/useGemini";
 import { useSymbols } from "@/composables/useSymbols";
 import { disassemble } from "@/lib/disassembler";
-import { handleExplainCode } from "@/lib/gemini.utils";
 import type { DisassemblyLine } from "@/types/disassemblyline.interface";
 import type { EmulatorState } from "@/types/emulatorstate.interface";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
@@ -87,6 +88,7 @@ const { jumpEvent } = useDisassembly();
 const { setMemoryViewAddress, setActiveTab, addJumpHistory, historyNavigationEvent, clearHistory } = useDebuggerNav();
 const { settings } = useSettings();
 const { formattingRules } = useFormatting();
+const { explanation: explanationText, isLoading: isExplainLoading, isConfigured: isExplainConfigured, explainCode } = useGemini();
 const { symbolDict } = useSymbols();
 
 const availableScopes: Ref<string[]> = ref([]);
@@ -231,17 +233,23 @@ const { scrollContainer, visibleRowCount, handleScroll, scrollUp, scrollDown, pa
 );
 
 const handleKeyDown = (event: KeyboardEvent) => {
+	if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
+
 	switch (event.key) {
 		case "ArrowUp":
+			event.preventDefault();
 			scrollUp();
 			break;
 		case "ArrowDown":
+			event.preventDefault();
 			scrollDown();
 			break;
 		case "PageUp":
+			event.preventDefault();
 			pageUp();
 			break;
 		case "PageDown":
+			event.preventDefault();
 			pageDown();
 			break;
 	}
@@ -250,9 +258,6 @@ const handleKeyDown = (event: KeyboardEvent) => {
 // useless line - used as ref in template but not seen in VSCode
 // oxlint-disable-next-line no-unused-expressions
 scrollContainer;
-
-const explanation = ref(null);
-const isLoading = ref(false);
 
 const readByte = (address: number, debug = true) => {
 	return (debug ? vm?.value.readDebug(address) : vm?.value.read(address)) ?? 0;
@@ -333,9 +338,6 @@ const handleOpcodeClick = (line: DisassemblyLine) => {
 };
 
 const handleExplain = async () => {
-	isLoading.value = true;
-	explanation.value = null;
-
 	// Use the currently displayed lines for explanation
 	const codeArray = disassembly.value;
 
@@ -352,7 +354,8 @@ const handleExplain = async () => {
 			return `${addr} ${bytes} ${op} ${finalComment}`;
 		})
 		.join("\n");
+	console.log(codeBlock);
 
-	await handleExplainCode(codeBlock, explanation, isLoading);
+	await explainCode(codeBlock);
 };
 </script>

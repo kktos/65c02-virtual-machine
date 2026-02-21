@@ -7,6 +7,9 @@ interface DebuggerSettings {
 	disassembly: {
 		showCycles: boolean;
 		scopeColors: Record<string, string>;
+		gemini: {
+			apiKey: string;
+		};
 	};
 }
 
@@ -16,6 +19,9 @@ const defaultSettings: DebuggerSettings = {
 		showCycles: true,
 		scopeColors: {
 			main: "#000000",
+		},
+		gemini: {
+			apiKey: "",
 		},
 	},
 };
