@@ -64,14 +64,16 @@
 								/>
 							</div>
 							<div class="flex flex-col gap-1.5 mt-1">
-								<label for="apiUrl" class="text-xs font-medium text-gray-300">Gemini API URL</label>
-								<input
-									id="apiUrl"
+								<label for="geminiModel" class="text-xs font-medium text-gray-300">Gemini Model</label>
+								<select
+									id="geminiModel"
 									v-model="geminiUrl"
-									type="text"
-									class="flex h-7 w-full rounded-md border border-gray-600 bg-gray-900 px-2 py-1 text-xs shadow-sm transition-colors placeholder:text-gray-500 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500"
-									placeholder="https://..."
-								/>
+									class="flex h-7 w-full rounded-md border border-gray-600 bg-gray-900 px-2 py-1 text-xs shadow-sm transition-colors focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500"
+								>
+									<option v-for="model in geminiModels" :key="model.url" :value="model.url">
+										{{ model.name }}
+									</option>
+								</select>
 							</div>
 						</div>
 						<div class="border-t border-gray-700 -mx-4 my-1"></div>
@@ -135,6 +137,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { useFormatting } from "@/composables/useFormatting";
 import { useSettings } from "@/composables/useSettings";
 import { useSymbols } from "@/composables/useSymbols";
+import { useGemini } from "@/composables/useGemini";
 
 const props = defineProps<{
 	isFollowingPc: boolean;
@@ -155,23 +158,18 @@ const emit = defineEmits<{
 const { getNamespaceList, toggleNamespace } = useSymbols();
 const { getFormattingGroups, toggleFormattingGroup } = useFormatting();
 const { settings } = useSettings();
+const { geminiModels } = useGemini();
 
 const geminiApiKey = computed({
-	get: () => settings.disassembly.gemini?.apiKey ?? "",
+	get: () => settings.disassembly.gemini.apiKey,
 	set: (val: string) => {
-		if (!settings.disassembly.gemini) {
-			settings.disassembly.gemini = { apiKey: "" };
-		}
 		settings.disassembly.gemini.apiKey = val;
 	},
 });
 
 const geminiUrl = computed({
-	get: () => settings.disassembly.gemini?.url ?? "",
+	get: () => settings.disassembly.gemini.url,
 	set: (val: string) => {
-		if (!settings.disassembly.gemini) {
-			settings.disassembly.gemini = { apiKey: "", url: "" };
-		}
 		settings.disassembly.gemini.url = val;
 	},
 });

@@ -1,16 +1,21 @@
 import { computed, ref } from "vue";
 import { useSettings } from "./useSettings";
 
-const GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent";
+const geminiModels = [
+	{ name: "Gemini 1.5 Flash", url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent" },
+	{ name: "Gemini 1.5 Pro", url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro-latest:generateContent" },
+	{ name: "Gemini 2.5 Flash-Lite", url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent" },
+	{ name: "Gemini 2.5 Flash", url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent" },
+	{ name: "Gemini 2.5 Pro", url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent" },
+	{ name: "Gemini 3 Flash (Preview)", url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent" },
+	{ name: "Gemini 3 Pro (Preview)", url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent" },
+	{ name: "Gemini 3.1 Pro (Preview)", url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-pro-preview:generateContent" },
+];
 
 export function useGemini() {
 	const { settings } = useSettings();
 	const explanation = ref<string | null>(null);
 	const isLoading = ref(false);
-
-	if (settings.disassembly.gemini.url.trim() === "") {
-		settings.disassembly.gemini.url = GEMINI_BASE_URL;
-	}
 
 	const apiKey = computed(() => settings.disassembly.gemini.apiKey);
 	const baseUrl = computed(() => settings.disassembly.gemini.url);
@@ -72,5 +77,6 @@ export function useGemini() {
 		isLoading,
 		isConfigured,
 		explainCode,
+		geminiModels,
 	};
 }
