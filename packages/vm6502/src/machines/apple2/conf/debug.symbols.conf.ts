@@ -178,7 +178,7 @@ function parseSymbols(input: string): SymbolDict {
 			const addr = parseInt(addrStr, 16);
 			if (!Number.isNaN(addr)) {
 				if (!result[addr]) result[addr] = {};
-				result[addr].SYSTEM = { label, source: "conf", scope: currentScope };
+				result[addr].SYSTEM = { addr, ns: "SYSTEM", disk: "*", label, src: "conf", scope: currentScope };
 			}
 		}
 	}
