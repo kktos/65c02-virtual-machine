@@ -1,7 +1,14 @@
 <template>
 	<Toaster rich-colors position="top-right" />
-	<ResizablePanelGroup v-if="vm" direction="horizontal" class="h-screen bg-gray-900 text-white" auto-save-id="appPanelLayout">
-		<ResizablePanel class="flex flex-col bg-white bg-[conic-gradient(#000_0_25%,#333_0_50%,#000_0_75%,#333_0_100%)] [background-size:1rem_1rem] relative">
+	<ResizablePanelGroup
+		v-if="vm"
+		direction="horizontal"
+		class="h-screen bg-gray-900 text-white"
+		auto-save-id="appPanelLayout"
+	>
+		<ResizablePanel
+			class="flex flex-col bg-white bg-[conic-gradient(#000_0_25%,#333_0_50%,#000_0_75%,#333_0_100%)] [background-size:1rem_1rem] relative"
+		>
 			<div class="flex items-center justify-between pr-2 bg-gray-900">
 				<MachineSelector
 					:machines="availableMachines"
@@ -39,9 +46,13 @@
 					@mousedown.prevent="startResizeLogs"
 				></div>
 
-				<div class="flex justify-between items-center px-2 py-1 bg-gray-800/50 border-b border-gray-700 shrink-0">
+				<div
+					class="flex justify-between items-center px-2 py-1 bg-gray-800/50 border-b border-gray-700 shrink-0"
+				>
 					<span class="font-bold text-gray-300 uppercase tracking-wider text-[10px]">System Logs</span>
-					<button @click="logs = []" class="text-[10px] hover:text-red-400 text-gray-400 transition-colors">Clear</button>
+					<button @click="logs = []" class="text-[10px] hover:text-red-400 text-gray-400 transition-colors">
+						Clear
+					</button>
 				</div>
 				<div class="flex-1 overflow-y-auto p-2 space-y-0.5">
 					<div v-for="(log, i) in logs" :key="i" class="break-all border-b border-gray-800/30 pb-0.5">
@@ -56,7 +67,11 @@
 
 		<ResizablePanel>
 			<ResizablePanelGroup direction="vertical" auto-save-id="debuggerPanelLayout">
-				<ResizablePanel :default-size="41" class="grid grid-rows-[auto_1fr] gap-2 p-2" @resize="dbgTopPanelResize">
+				<ResizablePanel
+					:default-size="41"
+					class="grid grid-rows-[auto_1fr] gap-2 p-2"
+					@resize="dbgTopPanelResize"
+				>
 					<div class="flex items-center justify-start">
 						<DebuggerControls :isRunning="isRunning" />
 					</div>
@@ -73,13 +88,22 @@
 						<!-- Stack View takes the remaining space -->
 						<Tabs default-value="breakpoints" class="h-full flex flex-col min-h-0">
 							<TabsList class="bg-gray-900/80 p-1 shrink-0">
-								<TabsTrigger value="stack_trace" class="data-[state=active]:bg-gray-700 data-[state=active]:text-cyan-300 text-gray-400">
+								<TabsTrigger
+									value="stack_trace"
+									class="data-[state=active]:bg-gray-700 data-[state=active]:text-cyan-300 text-gray-400"
+								>
 									Stack Trace
 								</TabsTrigger>
-								<TabsTrigger value="breakpoints" class="data-[state=active]:bg-gray-700 data-[state=active]:text-cyan-300 text-gray-400">
+								<TabsTrigger
+									value="breakpoints"
+									class="data-[state=active]:bg-gray-700 data-[state=active]:text-cyan-300 text-gray-400"
+								>
 									Breakpoints
 								</TabsTrigger>
-								<TabsTrigger value="state" class="data-[state=active]:bg-gray-700 data-[state=active]:text-cyan-300 text-gray-400">
+								<TabsTrigger
+									value="state"
+									class="data-[state=active]:bg-gray-700 data-[state=active]:text-cyan-300 text-gray-400"
+								>
 									Machine State
 								</TabsTrigger>
 							</TabsList>
@@ -103,7 +127,11 @@
 						<template #tab1-title> Disassembly </template>
 						<template #tab2-title> Memory Viewer </template>
 						<template #tab1-content>
-							<DisassemblyView :address="emulatorState.registers.PC" :memory="vm.sharedMemory" :registers="emulatorState.registers" />
+							<DisassemblyView
+								:address="emulatorState.registers.PC"
+								:memory="vm.sharedMemory"
+								:registers="emulatorState.registers"
+							/>
 						</template>
 						<template #tab2-content>
 							<MultiMemoryViewer />
@@ -172,7 +200,9 @@ const dbgTopPanelResize = (_size: unknown) => {
 const vm = ref<VirtualMachine | null>(null);
 const videoCanvas = ref<HTMLCanvasElement | null>(null);
 const selectedMachine = ref<MachineConfig>(availableMachines[1] as MachineConfig);
-const hasGamepad = computed(() => selectedMachine.value.inputs?.some((d) => d.type === "joystick" || d.type === "gamepad") ?? false);
+const hasGamepad = computed(
+	() => selectedMachine.value.inputs?.some((d) => d.type === "joystick" || d.type === "gamepad") ?? false,
+);
 const hasMouse = computed(() => selectedMachine.value.inputs?.some((d) => d.type === "mouse") ?? false);
 const hasDisk = computed(() => selectedMachine.value.disk?.enabled);
 
@@ -351,8 +381,11 @@ const loadMachine = (newMachine: MachineConfig) => {
 		newVm.initAudio();
 	});
 
-	const { initSymbols } = useSymbols();
-	if (newMachine.debug?.symbols) initSymbols(newMachine.debug.symbols);
+	const { initSymbols, setDiskKey } = useSymbols();
+	if (newMachine.debug?.symbols) {
+		initSymbols(newMachine.name, newMachine.debug.symbols);
+		setDiskKey("*");
+	}
 
 	const { initFormats } = useFormatting();
 	if (newMachine.debug?.dataBlocks) initFormats(newMachine.debug.dataBlocks);
