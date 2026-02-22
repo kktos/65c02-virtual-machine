@@ -5,7 +5,9 @@
 		:style="{ top: y + 'px', left: x + 'px' }"
 	>
 		<div class="bg-gray-900 px-3 py-2 border-b border-gray-700 flex justify-between items-center">
-			<span class="text-xs font-bold text-gray-300">Note for ${{ address.toString(16).toUpperCase().padStart(4, "0") }} [{{ scope }}]</span>
+			<span class="text-xs font-bold text-gray-300"
+				>Note for ${{ address.toString(16).toUpperCase().padStart(4, "0") }} [{{ scope }}]</span
+			>
 			<button @click="close" class="text-gray-500 hover:text-gray-300">
 				<span class="sr-only">Close</span>
 				<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -21,18 +23,23 @@
 				placeholder="Enter note..."
 			></textarea>
 			<div class="flex justify-end items-center">
-				<button @click="save" class="px-3 py-1 bg-cyan-600 hover:bg-cyan-500 text-white text-xs rounded transition-colors">Save</button>
+				<button
+					@click="save"
+					class="px-3 py-1 bg-cyan-600 hover:bg-cyan-500 text-white text-xs rounded transition-colors"
+				>
+					Save
+				</button>
 			</div>
 		</div>
 	</div>
 </template>
 
 <script lang="ts" setup>
-import { ref, watch, nextTick } from "vue";
+import { ref, watch, nextTick, computed } from "vue";
 import type { DisassemblyLine } from "@/types/disassemblyline.interface";
 import { useNotes } from "@/composables/useNotes";
 
-const { notes } = useNotes();
+const { addNote, updateNote, removeNote, getNoteEntry } = useNotes();
 
 const props = defineProps<{
 	isOpen: boolean;
@@ -40,7 +47,6 @@ const props = defineProps<{
 	y: number;
 	address: number;
 	scope: string;
-	text: string;
 	disassembly: DisassemblyLine[];
 }>();
 
@@ -49,13 +55,14 @@ const emit = defineEmits<{
 }>();
 
 const noteTextareaRef = ref<HTMLTextAreaElement | null>(null);
-const editableText = ref(props.text);
+const editableText = ref("");
+const noteEntry = computed(() => getNoteEntry(props.address, props.scope));
 
 watch(
 	() => props.isOpen,
 	(newVal) => {
 		if (newVal) {
-			editableText.value = props.text;
+			editableText.value = noteEntry.value?.note ?? "";
 			nextTick(() => {
 				noteTextareaRef.value?.focus();
 			});
@@ -65,13 +72,13 @@ watch(
 
 const close = () => emit("update:isOpen", false);
 
-const save = () => {
-	const key = `${props.scope}:${props.address}`;
+const save = async () => {
 	const text = editableText.value.trim();
 	if (!text.trim()) {
-		delete notes.value[key];
+		if (noteEntry.value) await removeNote(noteEntry.value.id!);
 	} else {
-		notes.value[key] = text;
+		if (noteEntry.value) await updateNote(noteEntry.value.id!, text);
+		else await addNote(props.address, props.scope, text);
 	}
 	close();
 };

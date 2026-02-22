@@ -260,6 +260,7 @@ import { useSymbols } from "@/composables/useSymbols";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import DiskDriveLogs from "./DiskDriveLogs.vue";
 import { useFormatting } from "@/composables/useDataFormattings";
+import { useNotes } from "@/composables/useNotes";
 
 const ACTIVE_DISK_KEY = "vm6502_active_disk_name";
 const ACTIVE_DISK_URL_KEY = "vm6502_active_disk_url";
@@ -268,6 +269,7 @@ const vm = inject<Ref<VirtualMachine>>("vm");
 
 const { addSymbolsFromText, setDiskKey: symbolsSetDiskKey } = useSymbols();
 const { setDiskKey: formattingsSetDiskKey } = useFormatting();
+const { setDiskKey: notesSetDiskKey } = useNotes();
 const { saveDisk, saveUrlDisk, loadDisk, getAllDisks, deleteDisk, renameDisk } = useDiskStorage();
 
 const diskConfig = computed(() => vm?.value?.machineConfig?.disk);
@@ -334,6 +336,7 @@ const setActiveDisk = async (key: IDBValidKey) => {
 
 	symbolsSetDiskKey(key as string);
 	formattingsSetDiskKey(key as string);
+	notesSetDiskKey(key as string);
 };
 
 const refreshLibrary = async () => {

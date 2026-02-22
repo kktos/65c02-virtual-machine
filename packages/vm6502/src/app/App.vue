@@ -192,6 +192,7 @@ import MouseControl from "./machine/MouseControl.vue";
 import SoundControl from "./machine/SoundControl.vue";
 import SpeedControl from "./machine/SpeedControl.vue";
 import VideoControl from "./machine/VideoControl.vue";
+import { useNotes } from "@/composables/useNotes";
 
 const dbgTopPanelResize = (_size: unknown) => {
 	// console.log('dbgTopPanelResize resized', size);
@@ -364,7 +365,7 @@ const emulatorState: EmulatorState = reactive({
 
 const isRunning = ref(false);
 
-const loadMachine = (newMachine: MachineConfig) => {
+const loadMachine = async (newMachine: MachineConfig) => {
 	console.log(`Main: Loading machine ${newMachine.name}`);
 
 	vm.value?.terminate();
@@ -381,13 +382,23 @@ const loadMachine = (newMachine: MachineConfig) => {
 		newVm.initAudio();
 	});
 
-	const { initSymbols, setDiskKey: symbolsSetDiskKey } = useSymbols();
-	initSymbols(newMachine.name, newMachine.debug?.symbols);
-	symbolsSetDiskKey("*");
+	{
+		const { initSymbols, setDiskKey } = useSymbols();
+		await initSymbols(newMachine.name, newMachine.debug?.symbols);
+		setDiskKey("*");
+	}
 
-	const { initFormats, setDiskKey: formatSetDiskKey } = useFormatting();
-	initFormats(newMachine.name, newMachine.debug?.dataBlocks);
-	formatSetDiskKey("*");
+	{
+		const { initFormats, setDiskKey } = useFormatting();
+		await initFormats(newMachine.name, newMachine.debug?.dataBlocks);
+		setDiskKey("*");
+	}
+
+	{
+		const { initNotes, setDiskKey } = useNotes();
+		await initNotes(newMachine.name);
+		setDiskKey("*");
+	}
 };
 
 const handleMachineSelected = (newMachine: MachineConfig) => {

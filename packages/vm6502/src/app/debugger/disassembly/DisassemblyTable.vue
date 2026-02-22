@@ -45,12 +45,12 @@
 						<button
 							@click="openNoteEditor($event, line)"
 							class="w-full h-full flex items-center justify-center cursor-pointer transition-colors"
-							:title="notes[getNoteKey(line.addr)] ? 'Edit Note' : 'Add Note'"
+							:title="getNote(line.addr) ? 'Edit Note' : 'Add Note'"
 						>
 							<StickyNote
 								class="w-3 h-3 transition-colors"
 								:class="
-									notes[getNoteKey(line.addr)]
+									getNote(line.addr)
 										? 'text-yellow-400 fill-yellow-400/20'
 										: 'text-gray-700 group-hover/note:text-yellow-100'
 								"
@@ -143,7 +143,6 @@
 		:y="noteEditor.y"
 		:address="noteEditor.address"
 		:scope="noteEditor.scope"
-		:text="noteEditor.text"
 		:disassembly="disassembly"
 		@update:is-open="(val) => (noteEditor.isOpen = val)"
 	/>
@@ -183,7 +182,7 @@ defineEmits<{
 const { settings } = useSettings();
 const isCtrlPressed = useKeyModifier("Control");
 const { getAddressForLabel } = useSymbols();
-const { notes } = useNotes();
+const { getNoteEntry } = useNotes();
 
 const getBranchPrediction = (opcode: string) => {
 	// Defensive check for props.registers (already added in last iteration, keeping it)
@@ -261,9 +260,9 @@ const getScopeColor = (addr: number) => {
 	return color;
 };
 
-const getNoteKey = (addr: number) => {
-	const scope = getScopeForAddr(addr);
-	return `${scope}:${addr}`;
+const getNote = (addr: number) => {
+	const scope = vm?.value?.getScope(addr & 0xffff) ?? "";
+	return getNoteEntry(addr, scope);
 };
 
 // --- Context Menu & Label Editing ---
@@ -325,23 +324,24 @@ const commitEdit = () => {
 };
 
 // --- Note Editing ---
-const noteEditor = reactive({
+const noteEditor = reactive<{
+	isOpen: boolean;
+	x: number;
+	y: number;
+	address: number;
+	scope: string;
+}>({
 	isOpen: false,
 	x: 0,
 	y: 0,
 	address: 0,
 	scope: "",
-	text: "",
 });
 
 const openNoteEditor = (event: MouseEvent, line: DisassemblyLine) => {
 	const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
 	noteEditor.address = line.addr;
-	const scope = getScopeForAddr(line.addr);
-	noteEditor.scope = scope;
-	const key = `${scope}:${line.addr}`;
-
-	noteEditor.text = notes.value[key] || "";
+	noteEditor.scope = vm?.value?.getScope(line.addr & 0xffff) ?? "";
 	noteEditor.x = rect.right + 10; // Position to the right of the icon
 	noteEditor.y = Math.min(rect.top, window.innerHeight - 250); // Prevent going off-screen bottom
 	noteEditor.isOpen = true;

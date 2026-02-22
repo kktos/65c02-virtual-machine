@@ -70,6 +70,9 @@ export function useFormatting() {
 			blocked(_currentVersion, _blockedVersion, _event) {
 				console.error(`Db ${DB_NAME} blocked`);
 			},
+			blocking(_currentVersion, _blockedVersion, event) {
+				console.error(`------Db ${DB_NAME} ${storeName} blocking`, event);
+			},
 		});
 		return db;
 	};

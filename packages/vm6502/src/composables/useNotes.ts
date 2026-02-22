@@ -1,46 +1,42 @@
 import { computed, ref } from "vue";
 import { openDB, type DBSchema } from "idb";
-import type { SymbolEntry } from "./useSymbols";
 
 export type NoteEntry = {
 	id?: number;
 	disk: string;
 	addr: number;
-	scope: number;
+	scope: string;
 	note: string;
 };
-export type SymbolDict = Record<number, Record<string, NoteEntry>>;
+export type NoteDict = Record<string, NoteEntry>; // Key is "scope:addr"
 
 interface MetadataDB extends DBSchema {
 	notes: {
 		key: number;
 		value: NoteEntry;
 		indexes: {
-			"by-disk": [string];
+			"by-disk": string;
+			"by-disk-addr-scope": [string, number, string];
 		};
 	};
 }
 
-// Shared state for active namespaces across components
-const systemDict = ref<SymbolDict>({});
-const diskDict = ref<SymbolDict>({});
-const notesState = computed(() => ({
-	dictA: systemDict.value,
-	dictB: diskDict.value,
-}));
+// Shared state
+const systemDict = ref<NoteDict>({});
+const diskDict = ref<NoteDict>({});
 
 const DB_NAME = "vm6502_metadata";
 let diskKey = ref("");
 let storeName = "";
 
-export function useSymbols() {
-	const setDiskKey = (newKey: string) => {
+export function useNotes() {
+	const setDiskKey = async (newKey: string) => {
 		diskKey.value = newKey;
-		loadNotesFromDb();
+		await loadNotesFromDb();
+		console.log("Notes::setDiskKey", diskKey.value);
 	};
 
 	const getDb = async () => {
-		if (!diskKey.value) throw new Error("No disk key provided");
 		if (!storeName) throw new Error("No store name provided");
 
 		// 1. Probe the current version
@@ -50,14 +46,25 @@ export function useSymbols() {
 		probeDb.close();
 
 		if (storeExists) return openDB<MetadataDB>(DB_NAME);
+		else {
+			console.log(
+				`${DB_NAME}v${currentVersion} ${storeName} does not exist. Creating in v${currentVersion + 1}...`,
+			);
+		}
 
 		const db = await openDB<MetadataDB>(DB_NAME, currentVersion + 1, {
 			upgrade(db) {
-				const store = db.createObjectStore(storeName as unknown as "notes", {
-					keyPath: "id",
-					autoIncrement: true,
-				});
-				store.createIndex("by-disk", ["disk"]);
+				if (!db.objectStoreNames.contains(storeName as any)) {
+					const store = db.createObjectStore(storeName as unknown as "notes", {
+						keyPath: "id",
+						autoIncrement: true,
+					});
+					store.createIndex("by-disk", "disk");
+					store.createIndex("by-disk-addr-scope", ["disk", "addr", "scope"], { unique: true });
+				}
+			},
+			blocking(_currentVersion, _blockedVersion, event) {
+				(event.target as IDBDatabase).close();
 			},
 		});
 		return db;
@@ -70,158 +77,60 @@ export function useSymbols() {
 			const tx = db.transaction(storeName as unknown as "notes", "readonly");
 			const index = tx.store.index("by-disk");
 
-			const foundNamespaces = new Set<string>();
-			const newDiskDict: SymbolDict = {};
-			const diskSymbols = await index.getAll([diskKey.value]);
-			for (const sym of diskSymbols) {
-				if (!newDiskDict[sym.addr]) newDiskDict[sym.addr] = {};
-				newDiskDict[sym.addr]![sym.ns] = sym;
-				foundNamespaces.add(sym.ns);
+			const newDict: NoteDict = {};
+			const diskNotes = await index.getAll(diskKey.value);
+			for (const note of diskNotes) {
+				const key = `${note.scope}:${note.addr}`;
+				newDict[key] = note;
 			}
 
-			const targetDict = diskKey.value === "*" ? systemDict : diskDict;
-			targetDict.value = newDiskDict;
+			if (diskKey.value === "*") systemDict.value = newDict;
+			else diskDict.value = newDict;
 		} catch (e) {
-			console.error("Failed to load symbols", e);
+			console.error("Failed to load notes", e);
 		}
 	};
 
-	const initNotes = async (machineName: string, newSymbols?: SymbolDict) => {
-		storeName = `${machineName.replace(/ /g, "_").toLowerCase()}_symbols`;
-
-		if (!newSymbols) return;
-
+	const initNotes = async (machineName: string) => {
+		storeName = `${machineName.replace(/ /g, "_").toLowerCase()}_notes`;
 		diskKey.value = "*";
-		const db = await getDb();
-		const tx = db.transaction(storeName as unknown as "notes", "readwrite");
-		const index = tx.store.index("by-disk");
-		const count = await index.count();
-		if (count) {
-			console.log(`Symbols: Found ${count} System symbols in DB.`);
-			return;
-		}
-
-		console.log("Symbols: Creating system symbols in DB...");
-
-		const keys = await index.getAllKeys([diskKey]);
-		await Promise.all(keys.map((key) => tx.store.delete(key)));
-
-		const promises: Promise<IDBValidKey>[] = [];
-		const newDict: SymbolDict = {};
-
-		for (const [addrStr, namespaces] of Object.entries(newSymbols)) {
-			for (const [namespace, data] of Object.entries(namespaces)) {
-				const scope = data.scope;
-				const addr = Number(addrStr);
-				const symbol = {
-					disk: diskKey,
-					ns: namespace,
-					label: data.label,
-					addr: addr,
-					src: data.src,
-					scope,
-				};
-				promises.push(
-					tx.store.add(symbol).then((id) => {
-						const s = { ...symbol, id: Number(id) };
-						if (!newDict[addr]) newDict[addr] = {};
-						newDict[addr][namespace] = s;
-						return id;
-					}),
-				);
-				if (!activeNamespaces.value.has(namespace)) activeNamespaces.value.set(namespace, true);
-			}
-		}
-		await Promise.all(promises);
-		await tx.done;
-		systemDict.value = newDict;
+		await loadNotesFromDb(); // load system notes
+		// diskKey.value = "";
+		diskDict.value = {};
 	};
 
-	const findNotes = (query: string, namespace = "") => {
-		const labelQuery = query.toUpperCase();
-		const nsQuery = namespace.toUpperCase();
+	const addNote = async (address: number, scope: string, note: string) => {
+		if (!diskKey.value) throw new Error("Cannot add note without a disk key.");
 
-		// Prepare address query
-		const hexQuery = query.replace(/^(\$|0x)/i, "").toUpperCase();
-		const isHex = /^[0-9A-F]+$/.test(hexQuery);
-
-		const results: SymbolEntry[] = [];
-
-		const searchInDict = (dict: SymbolDict) => {
-			for (const namespaces of Object.values(dict)) {
-				if (!namespaces) continue;
-				for (const ns in namespaces) {
-					if (nsQuery && ns.toUpperCase() !== nsQuery) continue;
-					const entry = namespaces[ns];
-					if (!entry) continue;
-
-					if (entry.label.toUpperCase().startsWith(labelQuery)) {
-						results.push(entry);
-						continue;
-					}
-
-					if (isHex) {
-						const addrStr = entry.addr.toString(16).toUpperCase().padStart(4, "0");
-						if (addrStr.startsWith(hexQuery)) results.push(entry);
-					}
-				}
-			}
-		};
-
-		searchInDict(systemDict.value);
-		searchInDict(diskDict.value);
-
-		return results;
-	};
-
-	const addNote = async (address: number, label: string, namespace = "user", scope = "main") => {
 		const db = await getDb();
-		const symbol = {
-			disk: diskKey,
-			ns: namespace,
-			label,
+		const entry: Omit<NoteEntry, "id"> = {
+			disk: diskKey.value,
 			addr: address,
-			src: "",
 			scope,
+			note,
 		};
-		const id = await db.add(storeName as unknown as "notes", symbol);
+		const id = await db.add(storeName as unknown as "notes", entry as NoteEntry);
 
-		const newSym = { ...symbol, id: Number(id) };
-		const targetDict = diskKey === "*" ? systemDict : diskDict;
-		if (!targetDict.value[address]) targetDict.value[address] = {};
-		targetDict.value[address][namespace] = newSym;
+		const newNote: NoteEntry = { ...entry, id: Number(id) };
+		const key = `${scope}:${address}`;
 
-		return id;
+		const targetDict = diskKey.value === "*" ? systemDict : diskDict;
+		targetDict.value[key] = newNote;
+
+		return newNote;
 	};
 
-	const updateNote = async (id: number, address: number, label: string, namespace: string, scope: string) => {
+	const updateNote = async (id: number, note: string) => {
 		const db = await getDb();
-		const tx = db.transaction(storeName as unknown as "notes", "readwrite");
-		const store = tx.store;
-
-		const record = await store.get(id);
+		const record = await db.get(storeName as unknown as "notes", id);
 		if (!record) return;
 
-		const oldAddr = record.addr;
-		const oldNs = record.ns;
+		record.note = note;
+		await db.put(storeName as unknown as "notes", record);
 
-		record.label = label;
-		record.addr = address;
-		record.ns = namespace;
-		record.scope = scope;
-
-		await store.put(record);
-		await tx.done;
-
+		const key = `${record.scope}:${record.addr}`;
 		const targetDict = record.disk === "*" ? systemDict : diskDict;
-
-		// Update Memory
-		if (targetDict.value[oldAddr]?.[oldNs]) {
-			delete targetDict.value[oldAddr][oldNs];
-			if (Object.keys(targetDict.value[oldAddr]).length === 0) delete targetDict.value[oldAddr];
-		}
-		if (!targetDict.value[address]) targetDict.value[address] = {};
-		targetDict.value[address][namespace] = record;
+		targetDict.value[key] = record;
 	};
 
 	const removeNote = async (id: number) => {
@@ -231,41 +140,33 @@ export function useSymbols() {
 
 		await db.delete(storeName as unknown as "notes", id);
 
+		const key = `${record.scope}:${record.addr}`;
 		const targetDict = record.disk === "*" ? systemDict : diskDict;
-		// Update Memory
-		const entry = targetDict.value[record.addr];
-		if (entry && entry[record.ns]) {
-			delete entry[record.ns];
-			if (Object.keys(entry).length === 0) delete targetDict.value[record.addr];
-		}
+		delete targetDict.value[key];
 	};
 
-	const getNoteForAddress = (address: number, scope?: string) => {
-		const search = (dict: SymbolDict) => {
-			const map = dict[address];
-			if (!map) return undefined;
-			for (const ns in map) {
-				if (!activeNamespaces.value.get(ns)) continue;
-				const sym = map[ns];
-				if (scope && sym?.scope !== scope) continue;
-				return sym?.label;
-			}
-			return undefined;
-		};
-		return search(diskDict.value) ?? search(systemDict.value);
+	const getNoteEntry = (address: number, scope: string): NoteEntry | undefined => {
+		const key = `${scope}:${address}`;
+		return diskDict.value[key] ?? systemDict.value[key];
 	};
+
+	const notes = computed(() => {
+		const allNotes: Record<string, string> = {};
+		const combined = { ...systemDict.value, ...diskDict.value };
+		for (const [key, entry] of Object.entries(combined)) {
+			allNotes[key] = entry.note;
+		}
+		return allNotes;
+	});
 
 	return {
 		initNotes,
 		setDiskKey,
-
-		getNoteForAddress,
+		notes,
+		getNoteEntry,
 		addNote,
 		updateNote,
 		removeNote,
-		findNotes,
-
-		notesState,
 		diskKey,
 	};
 }

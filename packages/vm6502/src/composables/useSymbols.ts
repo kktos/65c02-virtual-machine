@@ -72,6 +72,9 @@ export function useSymbols() {
 				store.createIndex("by-addr", ["addr"]);
 				store.createIndex("by-addr-scope", ["addr", "scope"]);
 			},
+			blocking(_currentVersion, _blockedVersion, event) {
+				console.error(`------Db ${DB_NAME} ${storeName} blocking`, event);
+			},
 		});
 		return db;
 	};
