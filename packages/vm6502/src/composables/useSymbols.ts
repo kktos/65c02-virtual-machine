@@ -1,4 +1,4 @@
-import { ref } from "vue";
+import { computed, ref } from "vue";
 import { openDB, type DBSchema } from "idb";
 
 export type SymbolEntry = {
@@ -29,8 +29,12 @@ interface MetadataDB extends DBSchema {
 
 // Shared state for active namespaces across components
 const activeNamespaces = ref<Map<string, boolean>>(new Map());
-const symbolDict = ref<SymbolDict>({});
-const symbolCache = new Map<string, SymbolEntry | undefined>();
+const systemDict = ref<SymbolDict>({});
+const diskDict = ref<SymbolDict>({});
+const symbolsState = computed(() => ({
+	dictA: systemDict.value,
+	dictB: diskDict.value,
+}));
 
 const DB_NAME = "vm6502_metadata";
 const DB_VERSION = 1;
@@ -39,6 +43,7 @@ let diskKey: string;
 export function useSymbols() {
 	const setDiskKey = (newKey: string) => {
 		diskKey = newKey;
+		loadSymbolsFromDb();
 	};
 
 	const getDb = async () => {
@@ -58,6 +63,31 @@ export function useSymbols() {
 		return db;
 	};
 
+	const loadSymbolsFromDb = async () => {
+		if (!diskKey) return;
+		try {
+			const db = await getDb();
+			const tx = db.transaction("symbols", "readonly");
+			const index = tx.store.index("by-disk");
+
+			const foundNamespaces = new Set<string>();
+			const newDiskDict: SymbolDict = {};
+			const diskSymbols = await index.getAll([diskKey]);
+			for (const sym of diskSymbols) {
+				if (!newDiskDict[sym.addr]) newDiskDict[sym.addr] = {};
+				newDiskDict[sym.addr]![sym.ns] = sym;
+				foundNamespaces.add(sym.ns);
+			}
+
+			const targetDict = diskKey === "*" ? systemDict : diskDict;
+			targetDict.value = newDiskDict;
+
+			for (const ns of foundNamespaces) if (!activeNamespaces.value.has(ns)) activeNamespaces.value.set(ns, true);
+		} catch (e) {
+			console.error("Failed to load symbols", e);
+		}
+	};
+
 	const initSymbols = async (newSymbols?: SymbolDict) => {
 		if (!newSymbols) return;
 
@@ -71,6 +101,7 @@ export function useSymbols() {
 		await Promise.all(keys.map((key) => tx.store.delete(key)));
 
 		const promises: Promise<IDBValidKey>[] = [];
+		const newDict: SymbolDict = {};
 
 		for (const [addrStr, namespaces] of Object.entries(newSymbols)) {
 			for (const [namespace, data] of Object.entries(namespaces)) {
@@ -84,16 +115,24 @@ export function useSymbols() {
 					src: data.src,
 					scope,
 				};
-				promises.push(tx.store.add(symbol));
+				promises.push(
+					tx.store.add(symbol).then((id) => {
+						const s = { ...symbol, id: Number(id) };
+						if (!newDict[addr]) newDict[addr] = {};
+						newDict[addr][namespace] = s;
+						return id;
+					}),
+				);
 				if (!activeNamespaces.value.has(namespace)) activeNamespaces.value.set(namespace, true);
 			}
 		}
 		await Promise.all(promises);
 		await tx.done;
-		symbolCache.clear();
+		const targetDict = diskKey === "*" ? systemDict : diskDict;
+		targetDict.value = newDict;
 	};
 
-	const findSymbols = async (query: string, namespace: string) => {
+	const findSymbolsDB = async (query: string, namespace: string) => {
 		const db = await getDb();
 		const label = query.toUpperCase();
 		const ns = namespace.toUpperCase();
@@ -113,16 +152,26 @@ export function useSymbols() {
 		return exact.concat(wildcard);
 	};
 
-	const addSymbols = (newSymbols: SymbolDict) => {
-		/*
-		const symbols = symbolDict.value;
-		for (const [addrStr, namespaces] of Object.entries(newSymbols)) {
-			const addr = Number(addrStr);
-			if (!symbols[addr]) symbols[addr] = {};
-			Object.assign(symbols[addr], namespaces);
-		}
-		buildNamespacesFromSymbols(symbols);
-		*/
+	const findSymbols = (query: string, namespace = "") => {
+		const labelQuery = query.toUpperCase();
+		const nsQuery = namespace.toUpperCase();
+		const results: SymbolEntry[] = [];
+
+		const searchInDict = (dict: SymbolDict) => {
+			for (const namespaces of Object.values(dict)) {
+				if (!namespaces) continue;
+				for (const ns in namespaces) {
+					if (nsQuery && ns.toUpperCase() !== nsQuery) continue;
+					const entry = namespaces[ns];
+					if (entry?.label.toUpperCase().startsWith(labelQuery)) results.push(entry);
+				}
+			}
+		};
+
+		searchInDict(systemDict.value);
+		searchInDict(diskDict.value);
+
+		return results;
 	};
 
 	const addSymbol = async (address: number, label: string, namespace = "user", scope = "main") => {
@@ -135,10 +184,15 @@ export function useSymbols() {
 			src: "",
 			scope,
 		};
-		const res = await db.add("symbols", symbol);
-		symbolCache.clear();
+		const id = await db.add("symbols", symbol);
+
+		const newSym = { ...symbol, id: Number(id) };
+		const targetDict = diskKey === "*" ? systemDict : diskDict;
+		if (!targetDict.value[address]) targetDict.value[address] = {};
+		targetDict.value[address][namespace] = newSym;
+
 		if (!activeNamespaces.value.has(namespace)) activeNamespaces.value.set(namespace, true);
-		return res;
+		return id;
 	};
 
 	const updateSymbol = async (id: number, address: number, label: string, namespace: string, scope: string) => {
@@ -149,6 +203,9 @@ export function useSymbols() {
 		const record = await store.get(id);
 		if (!record) return;
 
+		const oldAddr = record.addr;
+		const oldNs = record.ns;
+
 		record.label = label;
 		record.addr = address;
 		record.ns = namespace;
@@ -156,20 +213,39 @@ export function useSymbols() {
 
 		await store.put(record);
 		await tx.done;
-		symbolCache.clear();
+
+		const targetDict = record.disk === "*" ? systemDict : diskDict;
+
+		// Update Memory
+		if (targetDict.value[oldAddr]?.[oldNs]) {
+			delete targetDict.value[oldAddr][oldNs];
+			if (Object.keys(targetDict.value[oldAddr]).length === 0) delete targetDict.value[oldAddr];
+		}
+		if (!targetDict.value[address]) targetDict.value[address] = {};
+		targetDict.value[address][namespace] = record;
 
 		if (!activeNamespaces.value.has(namespace)) activeNamespaces.value.set(namespace, true);
 	};
 
 	const removeSymbol = async (id: number) => {
 		const db = await getDb();
+		const record = await db.get("symbols", id);
+		if (!record) return;
+
 		await db.delete("symbols", id);
-		symbolCache.clear();
+
+		const targetDict = record.disk === "*" ? systemDict : diskDict;
+		// Update Memory
+		const entry = targetDict.value[record.addr];
+		if (entry && entry[record.ns]) {
+			delete entry[record.ns];
+			if (Object.keys(entry).length === 0) delete targetDict.value[record.addr];
+		}
 	};
 
 	const getUserSymbols = () => {
 		/*
-		const allSymbols = symbolDict.value;
+		const allSymbols = diskDict.value;
 
 		const userSymbols: SymbolDict = {};
 
@@ -184,7 +260,7 @@ export function useSymbols() {
 	};
 
 	const clearUserSymbols = () => {
-		// const allSymbols = symbolDict.value;
+		// const allSymbols = diskDict.value;
 		// for (const namespaces of Object.values(allSymbols)) {
 		// 	if (namespaces.user) delete namespaces.user;
 		// }
@@ -219,7 +295,7 @@ export function useSymbols() {
 	};
 
 	const resolveActiveNamespace = (address: number, scope = "main"): string | undefined => {
-		// const allSymbols = symbolDict.value;
+		// const allSymbols = diskDict.value;
 		// const map = allSymbols[address];
 		// if (!map) return undefined;
 		// // const currentMemoryScope = vm?.value?.getScope(address) ?? "main";
@@ -238,7 +314,6 @@ export function useSymbols() {
 	};
 
 	const getLabeledInstruction = (opcode: string) => {
-		const allSymbols = symbolDict.value;
 		// if (!labels) return { labeledOpcode: opcode, labelComment: null };
 
 		const addressMatch = opcode.match(/\$([0-9A-Fa-f]{2,4}[\w,()]?)/);
@@ -254,9 +329,8 @@ export function useSymbols() {
 				// const address = parseInt(addressHex, 16);
 
 				// Determine scope for the target address
-				const ns = resolveActiveNamespace(address);
-				if (ns && allSymbols[address]?.[ns]) {
-					const entry = allSymbols[address][ns];
+				const entry = getSymbolForAddress(address);
+				if (entry) {
 					const label = entry.label;
 					// Replace the address part with the label, keeping the addressing mode suffix
 					const suffix = fullAddressExpression.substring(addressHexMatch[0].length + 1);
@@ -278,7 +352,7 @@ export function useSymbols() {
 		let currentNamespace = "user";
 		let currentScope = "main";
 
-		const promises: Promise<IDBValidKey>[] = [];
+		const promises: Promise<void>[] = [];
 
 		for (const line of lines) {
 			// Parse Namespace Line (Column 0)
@@ -312,63 +386,66 @@ export function useSymbols() {
 					src: symMatch[3] ? symMatch[3].trim() : "",
 					scope: currentScope,
 				};
-				promises.push(tx.store.add(symbol));
+				promises.push(
+					tx.store.add(symbol).then((id) => {
+						const s = { ...symbol, id: Number(id) };
+						const targetDict = diskKey === "*" ? systemDict : diskDict;
+						if (!targetDict.value[s.addr]) targetDict.value[s.addr] = {};
+						targetDict.value[s.addr]![s.ns] = s;
+					}),
+				);
 			}
 		}
 		await Promise.all(promises);
 		await tx.done;
-		symbolCache.clear();
 	};
 
-	const getSymbolForAddress = async (address: number, scope?: string) => {
-		const cacheKey = `${address}:${scope ?? "any"}`;
-		if (symbolCache.has(cacheKey)) {
-			return symbolCache.get(cacheKey);
-		}
-
-		const db = await getDb();
-		let symbols: SymbolEntry[];
-		if (scope) {
-			symbols = await db.getAllFromIndex("symbols", "by-addr-scope", [address, scope]);
-		} else {
-			symbols = await db.getAllFromIndex("symbols", "by-addr", [address]);
-		}
-		if (symbols.length === 0) {
-			symbolCache.set(cacheKey, undefined);
-			return undefined;
-		}
-		for (const symbol of symbols) {
-			if (activeNamespaces.value.get(symbol.ns)) {
-				symbolCache.set(cacheKey, symbol);
-				return symbol;
+	const getSymbolForAddress = (address: number, scope?: string) => {
+		const search = (dict: SymbolDict) => {
+			const map = dict[address];
+			if (!map) return undefined;
+			for (const ns in map) {
+				if (!activeNamespaces.value.get(ns)) continue;
+				const sym = map[ns];
+				if (scope && sym?.scope !== scope) continue;
+				return sym;
 			}
-		}
-		symbolCache.set(cacheKey, undefined);
-		return undefined;
+			return undefined;
+		};
+		return search(diskDict.value) ?? search(systemDict.value);
 	};
 
-	const getLabelForAddress = async (address: number, scope?: string) => {
-		return getSymbolForAddress(address, scope).then((symbol) => symbol?.label);
+	const getLabelForAddress = (address: number, scope?: string) => {
+		const search = (dict: SymbolDict) => {
+			const map = dict[address];
+			if (!map) return undefined;
+			for (const ns in map) {
+				if (!activeNamespaces.value.get(ns)) continue;
+				const sym = map[ns];
+				if (scope && sym?.scope !== scope) continue;
+				return sym?.label;
+			}
+			return undefined;
+		};
+		return search(diskDict.value) ?? search(systemDict.value);
 	};
 
 	const getAddressForLabel = (label: string) => {
-		const allSymbols = symbolDict.value;
 		const upperSymbol = label.toUpperCase();
-		// This is not performant for large symbol tables, but it's simple.
-		// We can optimize this later by creating a reverse map if needed.
-		for (const addressStr in allSymbols) {
-			const address = parseInt(addressStr, 10);
-			const namespaces = allSymbols[address];
-			if (namespaces) {
+		const search = (dict: SymbolDict) => {
+			for (const addressStr in dict) {
+				const address = parseInt(addressStr, 10);
+				const namespaces = dict[address];
+				if (!namespaces) continue;
 				for (const ns in namespaces) {
 					if (!activeNamespaces.value.get(ns)) continue;
 					const entry = namespaces[ns];
-					const label = entry?.label;
-					if (label?.toUpperCase() === upperSymbol) return address;
+					if (entry?.label?.toUpperCase() === upperSymbol) return address;
 				}
 			}
-		}
-		return undefined;
+			return undefined;
+		};
+		return search(diskDict.value) ?? search(systemDict.value);
 	};
 
 	const getNamespaceList = () => Array.from(activeNamespaces.value.entries());
@@ -391,7 +468,6 @@ export function useSymbols() {
 
 		getNamespaceList,
 		toggleNamespace,
-		addSymbols,
 		addSymbol,
 		removeSymbol,
 		updateSymbol,
@@ -402,7 +478,10 @@ export function useSymbols() {
 		generateSymFileContent,
 		buildNamespacesFromSymbols,
 
-		symbolDict,
+		systemDict,
+		diskDict,
+		symbolsState,
 		findSymbols,
+		findSymbolsDB,
 	};
 }
