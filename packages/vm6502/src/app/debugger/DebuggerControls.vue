@@ -1,20 +1,44 @@
 <template>
-	<div class="flex justify-start items-center space-x-2 bg-gray-800 p-2 rounded-xl shadow-inner border border-gray-700 shrink-0">
+	<div
+		class="flex justify-start items-center space-x-2 bg-gray-800 p-2 rounded-xl shadow-inner border border-gray-700 shrink-0"
+	>
 		<ButtonGroup>
-			<Button @click="toggle" size="sm" :class="[isRunning ? 'bg-red-600 hover:bg-red-500' : 'bg-green-600 hover:bg-green-500']">
+			<Button
+				@click="toggle"
+				size="sm"
+				:class="[isRunning ? 'bg-red-600 hover:bg-red-500' : 'bg-green-600 hover:bg-green-500']"
+			>
 				<Pause v-if="isRunning" class="h-4 w-4" />
 				<Play v-else class="h-4 w-4" />
 			</Button>
 
-			<Button @click="vm?.stepOver" size="sm" :disabled="isRunning" class="hover:bg-gray-600 disabled:opacity-50" title="Step Over (F10)">
+			<Button
+				@click="vm?.stepOver"
+				size="sm"
+				:disabled="isRunning"
+				class="hover:bg-gray-600 disabled:opacity-50"
+				title="Step Over (F10)"
+			>
 				<RedoDot class="h-4 w-4" />
 			</Button>
 
-			<Button @click="vm?.step" size="sm" :disabled="isRunning" class="hover:bg-gray-600 disabled:opacity-50" title="Step Into (F11)">
+			<Button
+				@click="vm?.step"
+				size="sm"
+				:disabled="isRunning"
+				class="hover:bg-gray-600 disabled:opacity-50"
+				title="Step Into (F11)"
+			>
 				<ArrowDownToDot class="h-4 w-4" />
 			</Button>
 
-			<Button @click="vm?.stepOut" :disabled="isRunning" size="sm" class="hover:bg-gray-600 disabled:opacity-50" title="Step Out (shift-F11)">
+			<Button
+				@click="vm?.stepOut"
+				:disabled="isRunning"
+				size="sm"
+				class="hover:bg-gray-600 disabled:opacity-50"
+				title="Step Out (shift-F11)"
+			>
 				<ArrowUpFromDot class="h-4 w-4" />
 			</Button>
 		</ButtonGroup>
@@ -23,7 +47,9 @@
 			<Button
 				@click="toggleBreakOnBrk"
 				size="sm"
-				:class="[breakOnBrk ? 'bg-yellow-600 hover:bg-yellow-500 text-white' : 'hover:bg-gray-600 text-gray-300']"
+				:class="[
+					breakOnBrk ? 'bg-yellow-600 hover:bg-yellow-500 text-white' : 'hover:bg-gray-600 text-gray-300',
+				]"
 				title="Pause on BRK instruction"
 			>
 				<Octagon class="mr-2 h-4 w-4" />
@@ -36,7 +62,9 @@
 				@click="toggleTrace"
 				class="relative"
 				size="sm"
-				:class="[traceEnabled ? 'bg-purple-600 hover:bg-purple-500 text-white' : 'hover:bg-gray-600 text-gray-300']"
+				:class="[
+					traceEnabled ? 'bg-purple-600 hover:bg-purple-500 text-white' : 'hover:bg-gray-600 text-gray-300',
+				]"
 				title="Enable execution tracing (JSR/JMP)"
 			>
 				<span
@@ -50,7 +78,9 @@
 		</ButtonGroup>
 
 		<ButtonGroup>
-			<Button @click="vm?.reset" size="sm" class="hover:bg-gray-600" title="Reset the CPU and memory">Reset</Button>
+			<Button @click="vm?.reset" size="sm" class="hover:bg-gray-600" title="Reset the CPU and memory"
+				>Reset</Button
+			>
 		</ButtonGroup>
 
 		<MemoryMap />
@@ -100,7 +130,18 @@
 </template>
 
 <script lang="ts" setup>
-import { ArrowDownToDot, ArrowUpFromDot, Monitor, Octagon, Pause, Play, RedoDot, RefreshCw, ScrollText, Tag } from "lucide-vue-next";
+import {
+	ArrowDownToDot,
+	ArrowUpFromDot,
+	Monitor,
+	Octagon,
+	Pause,
+	Play,
+	RedoDot,
+	RefreshCw,
+	ScrollText,
+	Tag,
+} from "lucide-vue-next";
 import { inject, type Ref, ref } from "vue";
 import MemoryMap from "@/app/debugger/memorymap/MemoryMap.vue";
 import { Button } from "@/components/ui/button";
@@ -133,7 +174,7 @@ const toggleTrace = () => {
 };
 
 const symbolFileInput = ref<HTMLInputElement | null>(null);
-const { parseSymbolsFromText, addSymbols } = useSymbols();
+const { addSymbolsFromText } = useSymbols();
 
 const triggerSymbolLoad = () => {
 	symbolFileInput.value?.click();
@@ -144,8 +185,7 @@ const handleSymbolFile = async (event: Event) => {
 	if (!input.files || input.files.length === 0) return;
 	const file = input.files[0] as File;
 	const text = await file.text();
-	const symbols = parseSymbolsFromText(text);
-	addSymbols(symbols);
+	addSymbolsFromText(text);
 	input.value = ""; // Reset input
 };
 

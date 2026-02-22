@@ -44,8 +44,16 @@
 				@opcode-click="handleOpcodeClick"
 			/>
 		</div>
-		<SymbolManager :is-open="isSymbolManagerOpen" @update:is-open="(val) => (isSymbolManagerOpen = val)" @goto-address="onGotoAddress" />
-		<FormattingManager :is-open="isFormattingManagerOpen" @update:is-open="(val) => (isFormattingManagerOpen = val)" @goto-address="onGotoAddress" />
+		<SymbolManager
+			:is-open="isSymbolManagerOpen"
+			@update:is-open="(val) => (isSymbolManagerOpen = val)"
+			@goto-address="onGotoAddress"
+		/>
+		<FormattingManager
+			:is-open="isFormattingManagerOpen"
+			@update:is-open="(val) => (isFormattingManagerOpen = val)"
+			@goto-address="onGotoAddress"
+		/>
 	</div>
 </template>
 
@@ -88,8 +96,13 @@ const { jumpEvent } = useDisassembly();
 const { setMemoryViewAddress, setActiveTab, addJumpHistory, historyNavigationEvent, clearHistory } = useDebuggerNav();
 const { settings } = useSettings();
 const { formattingRules } = useFormatting();
-const { explanation: explanationText, isLoading: isExplainLoading, isConfigured: isExplainConfigured, explainCode } = useGemini();
-const { symbolDict } = useSymbols();
+const {
+	explanation: explanationText,
+	isLoading: isExplainLoading,
+	isConfigured: isExplainConfigured,
+	explainCode,
+} = useGemini();
+const { symbolsState } = useSymbols();
 
 const availableScopes: Ref<string[]> = ref([]);
 const getRandomColor = () =>
@@ -106,7 +119,8 @@ watch(
 			await newVm.ready;
 			availableScopes.value = newVm.getScopes(); // This now returns namespaces due to parsing change
 			for (const scope of availableScopes.value) {
-				if (!settings.disassembly.scopeColors[scope]) settings.disassembly.scopeColors[scope] = getRandomColor();
+				if (!settings.disassembly.scopeColors[scope])
+					settings.disassembly.scopeColors[scope] = getRandomColor();
 			}
 			isFollowingPc.value = true;
 			clearHistory();
@@ -272,12 +286,12 @@ watch(
 		busState.value,
 		registers,
 		formattingRules.value,
-		symbolDict.value,
+		symbolsState.value,
 		isFollowingPc.value,
 		fullPcAddress.value,
 		pivotIndex.value,
 	],
-	() => {
+	async () => {
 		if (memory) {
 			vm?.value?.syncBusState();
 
@@ -289,7 +303,14 @@ watch(
 				pivot = pivotIndex.value;
 			}
 
-			disassembly.value = disassemble(readByte, vm!.value.getScope(startAddr), startAddr, visibleRowCount.value, registers, pivot);
+			disassembly.value = await disassemble(
+				readByte,
+				vm!.value.getScope(startAddr),
+				startAddr,
+				visibleRowCount.value,
+				registers,
+				pivot,
+			);
 
 			if (isFollowingPc.value && disassembly.value.length > 0) {
 				const newStart = disassembly.value[0]!.addr;

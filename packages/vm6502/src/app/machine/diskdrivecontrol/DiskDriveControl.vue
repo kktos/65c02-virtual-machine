@@ -35,7 +35,9 @@
 
 				<ScrollArea class="h-[300px] p-4">
 					<div class="space-y-2">
-						<div v-if="savedDisks.length === 0" class="text-center text-gray-500 py-8">No disks saved. Upload one to get started.</div>
+						<div v-if="savedDisks.length === 0" class="text-center text-gray-500 py-8">
+							No disks saved. Upload one to get started.
+						</div>
 
 						<div
 							v-for="disk in savedDisks"
@@ -62,12 +64,19 @@
 									<div v-else class="font-medium truncate text-sm text-gray-200" :title="disk.name">
 										{{ disk.name }}
 									</div>
-									<div v-if="disk.type === 'url'" class="text-[10px] text-gray-500 truncate" :title="disk.path">
+									<div
+										v-if="disk.type === 'url'"
+										class="text-[10px] text-gray-500 truncate"
+										:title="disk.path"
+									>
 										{{ disk.path }}
 									</div>
 									<div v-else class="text-[10px] text-gray-500 flex items-center gap-1">
 										<span>{{ formatSize(disk.size) }}</span
-										><span v-if="disk.path && disk.path !== disk.name" class="truncate text-gray-600 max-w-[100px]" :title="disk.path"
+										><span
+											v-if="disk.path && disk.path !== disk.name"
+											class="truncate text-gray-600 max-w-[100px]"
+											:title="disk.path"
 											>({{ disk.path }})</span
 										>
 									</div>
@@ -101,8 +110,19 @@
 								class="absolute top-1 right-1 p-0.5 text-gray-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
 								title="Delete"
 							>
-								<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+								<svg
+									xmlns="http://www.w3.org/2000/svg"
+									class="h-3 w-3"
+									fill="none"
+									viewBox="0 0 24 24"
+									stroke="currentColor"
+								>
+									<path
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										stroke-width="2"
+										d="M6 18L18 6M6 6l12 12"
+									/>
 								</svg>
 							</button>
 						</div>
@@ -112,10 +132,14 @@
 				<div class="p-4 border-t border-gray-800 bg-gray-900/50 flex flex-col gap-3">
 					<Tabs default-value="url" class="w-full">
 						<TabsList class="grid w-full grid-cols-2 bg-gray-800 h-8 p-1">
-							<TabsTrigger value="url" class="text-xs data-[state=active]:bg-gray-700 data-[state=active]:text-cyan-300 text-gray-400"
+							<TabsTrigger
+								value="url"
+								class="text-xs data-[state=active]:bg-gray-700 data-[state=active]:text-cyan-300 text-gray-400"
 								>Web URL</TabsTrigger
 							>
-							<TabsTrigger value="upload" class="text-xs data-[state=active]:bg-gray-700 data-[state=active]:text-cyan-300 text-gray-400"
+							<TabsTrigger
+								value="upload"
+								class="text-xs data-[state=active]:bg-gray-700 data-[state=active]:text-cyan-300 text-gray-400"
 								>Upload File</TabsTrigger
 							>
 						</TabsList>
@@ -135,15 +159,35 @@
 									class="px-3 py-1 bg-gray-700 hover:bg-gray-600 text-cyan-400 rounded border border-gray-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center shrink-0"
 									title="Load from URL"
 								>
-									<svg v-if="isLoading" class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-										<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+									<svg
+										v-if="isLoading"
+										class="animate-spin h-4 w-4"
+										xmlns="http://www.w3.org/2000/svg"
+										fill="none"
+										viewBox="0 0 24 24"
+									>
+										<circle
+											class="opacity-25"
+											cx="12"
+											cy="12"
+											r="10"
+											stroke="currentColor"
+											stroke-width="4"
+										></circle>
 										<path
 											class="opacity-75"
 											fill="currentColor"
 											d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
 										></path>
 									</svg>
-									<svg v-else xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+									<svg
+										v-else
+										xmlns="http://www.w3.org/2000/svg"
+										class="h-4 w-4"
+										fill="none"
+										viewBox="0 0 24 24"
+										stroke="currentColor"
+									>
 										<path
 											stroke-linecap="round"
 											stroke-linejoin="round"
@@ -162,7 +206,12 @@
 								class="flex items-center justify-center px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded border border-gray-600 cursor-pointer transition-colors w-full"
 							>
 								<span class="mr-2">Upload New Disk</span>
-								<input type="file" accept=".po,.2mg,.dsk,.hdv" @change="handleFileSelect" class="hidden" />
+								<input
+									type="file"
+									accept=".po,.2mg,.dsk,.hdv"
+									@change="handleFileSelect"
+									class="hidden"
+								/>
 								<Upload class="h-5 w-5 text-cyan-400" />
 							</label>
 						</TabsContent>
@@ -194,8 +243,13 @@
 		<DiskDriveLogs v-model:open="isLogSheetOpen" :logging-enabled="loggingEnabled" :file-size="fileSize" />
 
 		<div class="flex flex-col overflow-hidden min-w-[8rem]">
-			<span class="text-[10px] uppercase text-gray-400 font-bold tracking-wider">{{ diskConfig?.name || "Disk" }}</span>
-			<div class="text-xs font-mono truncate text-gray-300 cursor-help" :title="fileName ? `Size: ${formatSize(fileSize)}` : 'No disk inserted'">
+			<span class="text-[10px] uppercase text-gray-400 font-bold tracking-wider">{{
+				diskConfig?.name || "Disk"
+			}}</span>
+			<div
+				class="text-xs font-mono truncate text-gray-300 cursor-help"
+				:title="fileName ? `Size: ${formatSize(fileSize)}` : 'No disk inserted'"
+			>
 				{{ fileName || "Empty" }}
 			</div>
 		</div>
@@ -222,12 +276,13 @@ const ACTIVE_DISK_URL_KEY = "vm6502_active_disk_url";
 
 const vm = inject<Ref<VirtualMachine>>("vm");
 
-const { parseSymbolsFromText, addSymbols, getUserSymbols, clearUserSymbols, generateSymFileContent, symbolDict } = useSymbols();
-const { formattingRules, setFormatting, getFormatting, generateDataSymFileContent, parseFormattingFromText, addFormatting } = useFormatting();
+const { addSymbolsFromText, generateSymFileContent, setDiskKey } = useSymbols();
+const { formattingRules, getFormatting, generateDataSymFileContent, parseFormattingFromText, addFormatting } =
+	useFormatting();
 const diskConfig = computed(() => vm?.value?.machineConfig?.disk);
 const fileName = ref("");
 const fileSize = ref(0);
-const { saveDisk, saveUrlDisk, loadDisk, getAllDisks, deleteDisk, renameDisk, updateDiskSymbols, updateDiskFormatting } = useDiskStorage();
+const { saveDisk, saveUrlDisk, loadDisk, getAllDisks, deleteDisk, renameDisk, updateDiskFormatting } = useDiskStorage();
 const savedDisks = ref<StoredDisk[]>([]);
 const isLibraryOpen = ref(false);
 const isLogSheetOpen = ref(false);
@@ -239,27 +294,12 @@ const loggingEnabled = ref(false);
 
 const activeDiskKey = ref<IDBValidKey | null>(null);
 
-const saveSymbolsToDb = useDebounceFn(async () => {
-	if (activeDiskKey.value && vm?.value) {
-		const userSymbols = getUserSymbols();
-		await updateDiskSymbols(activeDiskKey.value, userSymbols);
-	}
-}, 1000);
-
 const saveFormattingToDb = useDebounceFn(async () => {
 	if (activeDiskKey.value) {
 		const fmt = getFormatting();
 		await updateDiskFormatting(activeDiskKey.value, fmt);
 	}
 }, 1000);
-
-watch(
-	() => symbolDict,
-	() => {
-		saveSymbolsToDb();
-	},
-	{ deep: true },
-);
 
 watch(
 	formattingRules,
@@ -313,10 +353,9 @@ const formatSize = (bytes: number) => {
 
 const setActiveDisk = async (key: IDBValidKey) => {
 	activeDiskKey.value = key;
-	clearUserSymbols();
-	const diskData = await loadDisk(key);
-	if (diskData?.symbols) addSymbols(diskData.symbols);
-	setFormatting(diskData?.formatting);
+	// clearUserSymbols();
+	await loadDisk(key);
+	setDiskKey(key as string);
 };
 
 const refreshLibrary = async () => {
@@ -353,8 +392,7 @@ const loadFromUrl = async (url: string) => {
 		if (symRes.ok) {
 			const symText = await symRes.text();
 			try {
-				const symData = parseSymbolsFromText(symText);
-				addSymbols(symData);
+				addSymbolsFromText(symText);
 
 				const fmtData = parseFormattingFromText(symText);
 				addFormatting(fmtData);
