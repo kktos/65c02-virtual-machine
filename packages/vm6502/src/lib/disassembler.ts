@@ -1,4 +1,4 @@
-import { useFormatting } from "@/composables/useFormatting";
+import { useFormatting } from "@/composables/useDataFormattings";
 import { useSymbols } from "@/composables/useSymbols";
 import type { DisassemblyLine } from "@/types/disassemblyline.interface";
 import type { EmulatorState } from "@/types/emulatorstate.interface";

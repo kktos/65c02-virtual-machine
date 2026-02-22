@@ -149,7 +149,7 @@ import { computed, markRaw, nextTick, onMounted, onUnmounted, provide, reactive,
 import { Toaster, toast } from "vue-sonner";
 import "vue-sonner/style.css";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useFormatting } from "@/composables/useFormatting";
+import { useFormatting } from "@/composables/useDataFormattings";
 import { useSymbols } from "@/composables/useSymbols";
 import TogglableDisplay from "../components/TogglableDisplay.vue";
 import ResizableHandle from "../components/ui/resizable/ResizableHandle.vue";

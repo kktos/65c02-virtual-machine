@@ -257,7 +257,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { type StoredDisk, useDiskStorage } from "@/composables/useDiskStorage";
-import { useFormatting } from "@/composables/useFormatting";
+import { useFormatting } from "@/composables/useDataFormattings";
 import { useSymbols } from "@/composables/useSymbols";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import DiskDriveLogs from "./DiskDriveLogs.vue";

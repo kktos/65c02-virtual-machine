@@ -7,7 +7,9 @@
 				@click="$emit('syncToPc')"
 				:class="[
 					'p-1 rounded transition-colors',
-					isFollowingPc ? 'text-cyan-400 bg-cyan-400/10' : 'text-gray-500 hover:text-gray-300 hover:bg-gray-700',
+					isFollowingPc
+						? 'text-cyan-400 bg-cyan-400/10'
+						: 'text-gray-500 hover:text-gray-300 hover:bg-gray-700',
 				]"
 				title="Sync with PC"
 			>
@@ -41,7 +43,12 @@
 
 			<Popover>
 				<PopoverTrigger as-child>
-					<Button variant="ghost" size="icon" class="h-6 w-6 text-gray-400 hover:text-cyan-300" title="Disassembly Options">
+					<Button
+						variant="ghost"
+						size="icon"
+						class="h-6 w-6 text-gray-400 hover:text-cyan-300"
+						title="Disassembly Options"
+					>
 						<Settings2 class="h-4 w-4" />
 					</Button>
 				</PopoverTrigger>
@@ -51,7 +58,12 @@
 						<div class="grid gap-2 -mb-2">
 							<div class="flex items-center space-x-2">
 								<Checkbox id="showCycles" v-model="settings.disassembly.showCycles" />
-								<label for="showCycles" class="text-xs font-medium leading-none cursor-pointer select-none"> Show Cycles </label>
+								<label
+									for="showCycles"
+									class="text-xs font-medium leading-none cursor-pointer select-none"
+								>
+									Show Cycles
+								</label>
 							</div>
 							<div class="flex flex-col gap-1.5 mt-1">
 								<label for="apiKey" class="text-xs font-medium text-gray-300">Gemini API Key</label>
@@ -88,7 +100,9 @@
 											v-model="settings.disassembly.scopeColors[scope]"
 											class="w-5 h-5 p-0 border-none rounded bg-transparent cursor-pointer"
 										/>
-										<label :for="`scope-color-${scope}`" class="text-xs font-medium">{{ scope }}</label>
+										<label :for="`scope-color-${scope}`" class="text-xs font-medium">{{
+											scope
+										}}</label>
 									</div>
 								</div>
 							</div>
@@ -96,19 +110,38 @@
 								<div class="border-b border-gray-700">
 									<div class="text-sm font-bold text-gray-200 capitalize mb-4">Symbol Namespaces</div>
 									<div class="grid gap-2 max-h-48 overflow-y-auto pr-2">
-										<div v-for="[ns, isActive] in getNamespaceList()" :key="ns" class="flex items-center space-x-2">
-											<Checkbox :id="`ns-${ns}`" :model-value="isActive" @update:model-value="toggleNamespace(ns)" />
-											<label :for="`ns-${ns}`" class="text-xs font-medium leading-none cursor-pointer select-none truncate" :title="ns">{{
-												ns
-											}}</label>
+										<div
+											v-for="[ns, isActive] in getNamespaceList()"
+											:key="ns"
+											class="flex items-center space-x-2"
+										>
+											<Checkbox
+												:id="`ns-${ns}`"
+												:model-value="isActive"
+												@update:model-value="toggleNamespace(ns)"
+											/>
+											<label
+												:for="`ns-${ns}`"
+												class="text-xs font-medium leading-none cursor-pointer select-none truncate"
+												:title="ns"
+												>{{ ns }}</label
+											>
 										</div>
 									</div>
 								</div>
 								<div>
 									<div class="text-sm font-bold text-gray-200 capitalize mb-4">Formatting Groups</div>
 									<div class="grid gap-2 max-h-48 overflow-y-auto pr-2">
-										<div v-for="[group, isActive] in getFormattingGroups()" :key="group" class="flex items-center space-x-2">
-											<Checkbox :id="`fmt-${group}`" :model-value="isActive" @update:model-value="toggleFormattingGroup(group)" />
+										<div
+											v-for="[group, isActive] in getFormattingGroups()"
+											:key="group"
+											class="flex items-center space-x-2"
+										>
+											<Checkbox
+												:id="`fmt-${group}`"
+												:model-value="isActive"
+												@update:model-value="toggleFormattingGroup(group)"
+											/>
 											<label
 												:for="`fmt-${group}`"
 												class="text-xs font-medium leading-none cursor-pointer select-none truncate"
@@ -134,7 +167,7 @@ import AddressNavigator from "@/app/debugger/AddressNavigator.vue";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { useFormatting } from "@/composables/useFormatting";
+import { useFormatting } from "@/composables/useDataFormattings";
 import { useSettings } from "@/composables/useSettings";
 import { useSymbols } from "@/composables/useSymbols";
 import { useGemini } from "@/composables/useGemini";

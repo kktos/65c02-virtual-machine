@@ -1,12 +1,18 @@
 <template>
 	<div
-		:class="['p-4 rounded-lg shadow-xl h-full flex flex-col transition-all duration-200', isActive ? 'bg-gray-800 ring-1 ring-cyan-500' : 'bg-gray-800/20']"
+		:class="[
+			'p-4 rounded-lg shadow-xl h-full flex flex-col transition-all duration-200',
+			isActive ? 'bg-gray-800 ring-1 ring-cyan-500' : 'bg-gray-800/20',
+		]"
 		ref="scrollContainer"
 	>
 		<div class="mb-3 mt-1 flex flex-wrap items-center gap-4 shrink-0">
 			<div class="flex flex-1 items-center gap-2">
 				<AddressNavigator @goto="handleGoto" />
-				<div v-if="selectedRange && selectedRange.size > 0" class="flex items-center gap-2 pl-2 border-l border-gray-700">
+				<div
+					v-if="selectedRange && selectedRange.size > 0"
+					class="flex items-center gap-2 pl-2 border-l border-gray-700"
+				>
 					<div class="text-gray-400 text-xs font-mono">{{ selectedRange.size }}</div>
 					<Button
 						size="sm"
@@ -30,14 +36,23 @@
 						v-model="isLive"
 						class="rounded bg-gray-700 border-gray-600 text-cyan-500 focus:ring-cyan-500 h-3 w-3"
 					/>
-					<label for="live-update" class="text-xs cursor-pointer select-none text-gray-400 hover:text-gray-200">Live Update</label>
+					<label
+						for="live-update"
+						class="text-xs cursor-pointer select-none text-gray-400 hover:text-gray-200"
+						>Live Update</label
+					>
 				</div>
 			</div>
 
 			<!-- Search Popover -->
 			<Popover v-model:open="isSearchOpen">
 				<PopoverTrigger as-child>
-					<Button variant="ghost" size="icon" class="h-6 w-6 text-gray-400 hover:text-cyan-300" title="Search Memory">
+					<Button
+						variant="ghost"
+						size="icon"
+						class="h-6 w-6 text-gray-400 hover:text-cyan-300"
+						title="Search Memory"
+					>
 						<Search class="h-4 w-4" />
 					</Button>
 				</PopoverTrigger>
@@ -68,14 +83,23 @@
 								v-model="searchAllBanks"
 								class="rounded bg-gray-900 border-gray-600 text-cyan-500 focus:ring-cyan-500 h-3 w-3"
 							/>
-							<label for="searchAllBanks" class="text-xs text-gray-300 cursor-pointer select-none">Search All Banks</label>
+							<label for="searchAllBanks" class="text-xs text-gray-300 cursor-pointer select-none"
+								>Search All Banks</label
+							>
 						</div>
 						<div v-if="searchError" class="text-[10px] text-red-400">
 							{{ searchError }}
 						</div>
 						<div class="flex justify-end space-x-2">
-							<Button size="sm" variant="secondary" class="h-7 text-xs" @click="performSearch(-1)">Prev</Button>
-							<Button size="sm" class="h-7 text-xs bg-cyan-600 hover:bg-cyan-500 text-white" @click="performSearch(1)">Next</Button>
+							<Button size="sm" variant="secondary" class="h-7 text-xs" @click="performSearch(-1)"
+								>Prev</Button
+							>
+							<Button
+								size="sm"
+								class="h-7 text-xs bg-cyan-600 hover:bg-cyan-500 text-white"
+								@click="performSearch(1)"
+								>Next</Button
+							>
 						</div>
 					</div>
 				</PopoverContent>
@@ -96,13 +120,31 @@
 			</div>
 
 			<!-- Debug Options -->
-			<DebugOptionsPopover ref="debugOptionsPopover" category="memory" align="end" :class="activeDebugBadges.length > 0 ? '' : 'ml-auto'" />
+			<DebugOptionsPopover
+				ref="debugOptionsPopover"
+				category="memory"
+				align="end"
+				:class="activeDebugBadges.length > 0 ? '' : 'ml-auto'"
+			/>
 
 			<div class="flex items-center space-x-1 ml-2 border-l border-gray-700 pl-2">
-				<Button variant="ghost" size="icon" class="h-6 w-6 text-gray-400 hover:text-cyan-300" @click="$emit('split', startAddress)" title="Split View">
+				<Button
+					variant="ghost"
+					size="icon"
+					class="h-6 w-6 text-gray-400 hover:text-cyan-300"
+					@click="$emit('split', startAddress)"
+					title="Split View"
+				>
 					<Split class="h-4 w-4" />
 				</Button>
-				<Button v-if="canClose" variant="ghost" size="icon" class="h-6 w-6 text-gray-400 hover:text-red-400" @click="$emit('close')" title="Close View">
+				<Button
+					v-if="canClose"
+					variant="ghost"
+					size="icon"
+					class="h-6 w-6 text-gray-400 hover:text-red-400"
+					@click="$emit('close')"
+					title="Close View"
+				>
 					<X class="h-4 w-4" />
 				</Button>
 			</div>
@@ -131,25 +173,42 @@
 										v-model="highBitEnabled"
 										class="rounded bg-gray-700 border-gray-600 text-cyan-500 focus:ring-cyan-500 h-3 w-3"
 									/>
-									<label for="highBit" class="text-[10px] text-gray-400 cursor-pointer select-none font-normal">High Bit</label>
+									<label
+										for="highBit"
+										class="text-[10px] text-gray-400 cursor-pointer select-none font-normal"
+										>High Bit</label
+									>
 								</div>
 							</div>
 						</th>
 					</tr>
 				</thead>
 				<tbody v-if="visibleRowCount > 0">
-					<tr v-for="lineIndex in visibleRowCount" :key="lineIndex" class="hover:bg-gray-700/50 transition duration-100 text-gray-300">
+					<tr
+						v-for="lineIndex in visibleRowCount"
+						:key="lineIndex"
+						class="hover:bg-gray-700/50 transition duration-100 text-gray-300"
+					>
 						<td class="py-0.5 text-left text-indigo-300 font-bold font-mono">
 							{{ formatAddress(startAddress + (lineIndex - 1) * BYTES_PER_LINE) }}
 						</td>
 
 						<td v-for="byteIndex in BYTES_PER_LINE" :key="byteIndex" class="p-0">
-							<template v-if="editingIndex === (lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1) && editingMode === 'hex'">
+							<template
+								v-if="
+									editingIndex === (lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1) &&
+									editingMode === 'hex'
+								"
+							>
 								<input
 									type="text"
 									:value="editingValue"
-									:ref="(el) => setHexInputRef(el, (lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1))"
-									@keydown="handleKeyDown((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1), $event, 'hex')"
+									:ref="
+										(el) => setHexInputRef(el, (lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1))
+									"
+									@keydown="
+										handleKeyDown((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1), $event, 'hex')
+									"
 									@input="handleHexChange((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1), $event)"
 									@blur="handleBlur"
 									maxlength="2"
@@ -159,24 +218,34 @@
 							<template v-else>
 								<div
 									@dblclick="startEditing((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1), 'hex')"
-									@mousedown="startSelection((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1), $event)"
+									@mousedown="
+										startSelection((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1), $event)
+									"
 									@mouseenter="updateSelection((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1))"
-									@contextmenu.prevent="handleContextMenu((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1), $event)"
+									@contextmenu.prevent="
+										handleContextMenu((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1), $event)
+									"
 									:class="[
 										'w-full text-center tabular-nums text-xs py-0.5 cursor-text select-none',
 										isCellSelected((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1))
 											? 'bg-blue-700 text-white'
 											: isHighlighted((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1))
 												? 'bg-yellow-600/50 text-white font-bold'
-												: isContextMenuTarget((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1))
+												: isContextMenuTarget(
+															(lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1),
+													  )
 													? 'bg-gray-600 ring-1 ring-cyan-500'
-													: getDataBlockClass((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1)),
+													: getDataBlockClass(
+															(lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1),
+														),
 										getBreakpointClass((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1)),
 									]"
 								>
 									{{
-										currentMemorySlice[(lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1)]?.toString(16).toUpperCase().padStart(2, "0") ??
-										"  "
+										currentMemorySlice[(lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1)]
+											?.toString(16)
+											.toUpperCase()
+											.padStart(2, "0") ?? "  "
 									}}
 								</div>
 							</template>
@@ -184,13 +253,32 @@
 
 						<td class="py-0.5 pl-4 whitespace-nowrap flex">
 							<template v-for="byteIndex in BYTES_PER_LINE" :key="byteIndex">
-								<template v-if="editingIndex === (lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1) && editingMode === 'ascii'">
+								<template
+									v-if="
+										editingIndex === (lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1) &&
+										editingMode === 'ascii'
+									"
+								>
 									<input
 										type="text"
 										:value="editingValue"
-										:ref="(el) => setAsciiInputRef(el, (lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1))"
-										@keydown="handleKeyDown((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1), $event, 'ascii')"
-										@input="handleAsciiChange((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1), $event)"
+										:ref="
+											(el) =>
+												setAsciiInputRef(el, (lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1))
+										"
+										@keydown="
+											handleKeyDown(
+												(lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1),
+												$event,
+												'ascii',
+											)
+										"
+										@input="
+											handleAsciiChange(
+												(lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1),
+												$event,
+											)
+										"
 										@blur="handleBlur"
 										maxlength="1"
 										class="w-[1.2ch] text-center bg-yellow-600 focus:bg-gray-600 focus:outline-none focus:ring-1 focus:ring-cyan-500 rounded-none tabular-nums text-xs p-0 border-none font-bold"
@@ -198,9 +286,15 @@
 								</template>
 								<template v-else>
 									<div
-										@dblclick="startEditing((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1), 'ascii')"
-										@mousedown="startSelection((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1), $event)"
-										@mouseenter="updateSelection((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1))"
+										@dblclick="
+											startEditing((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1), 'ascii')
+										"
+										@mousedown="
+											startSelection((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1), $event)
+										"
+										@mouseenter="
+											updateSelection((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1))
+										"
 										:class="[
 											'w-[1.2ch] text-center tabular-nums text-xs p-0 font-bold cursor-text select-none',
 											getAsciiClass(
@@ -214,7 +308,11 @@
 												: getDataBlockClass((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1)),
 										]"
 									>
-										{{ getAsciiChar(currentMemorySlice[(lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1)]) }}
+										{{
+											getAsciiChar(
+												currentMemorySlice[(lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1)],
+											)
+										}}
 									</div>
 								</template>
 							</template>
@@ -224,19 +322,56 @@
 			</table>
 		</div>
 
-		<Popover :open="contextMenu.isOpen" @update:open="(val) => (contextMenu.isOpen = val)" :key="`${contextMenu.x}-${contextMenu.y}`">
+		<Popover
+			:open="contextMenu.isOpen"
+			@update:open="(val) => (contextMenu.isOpen = val)"
+			:key="`${contextMenu.x}-${contextMenu.y}`"
+		>
 			<PopoverTrigger as-child>
-				<div class="fixed w-0 h-0 invisible" :style="{ top: contextMenu.y + 'px', left: contextMenu.x + 'px' }"></div>
+				<div
+					class="fixed w-0 h-0 invisible"
+					:style="{ top: contextMenu.y + 'px', left: contextMenu.x + 'px' }"
+				></div>
 			</PopoverTrigger>
-			<PopoverContent class="w-48 p-1 bg-gray-800 border-gray-700 text-gray-200 text-xs" align="start" side="bottom" :side-offset="10">
+			<PopoverContent
+				class="w-48 p-1 bg-gray-800 border-gray-700 text-gray-200 text-xs"
+				align="start"
+				side="bottom"
+				:side-offset="10"
+			>
 				<div class="px-2 py-1.5 text-xs font-semibold text-gray-400 border-b border-gray-700 mb-1">
 					Address: {{ formatAddress(contextMenu.address) }}
 				</div>
-				<button @click="disassembleHere" class="w-full text-left px-2 py-1.5 hover:bg-gray-700 rounded flex items-center">Disassemble Here</button>
-				<button @click="openAddSymbol" class="w-full text-left px-2 py-1.5 hover:bg-gray-700 rounded flex items-center">Add/Edit Label</button>
-				<button @click="addBp('read')" class="w-full text-left px-2 py-1.5 hover:bg-gray-700 rounded flex items-center">Break on Read</button>
-				<button @click="addBp('write')" class="w-full text-left px-2 py-1.5 hover:bg-gray-700 rounded flex items-center">Break on Write</button>
-				<button @click="addBp('access')" class="w-full text-left px-2 py-1.5 hover:bg-gray-700 rounded flex items-center">Break on Access</button>
+				<button
+					@click="disassembleHere"
+					class="w-full text-left px-2 py-1.5 hover:bg-gray-700 rounded flex items-center"
+				>
+					Disassemble Here
+				</button>
+				<button
+					@click="openAddSymbol"
+					class="w-full text-left px-2 py-1.5 hover:bg-gray-700 rounded flex items-center"
+				>
+					Add/Edit Label
+				</button>
+				<button
+					@click="addBp('read')"
+					class="w-full text-left px-2 py-1.5 hover:bg-gray-700 rounded flex items-center"
+				>
+					Break on Read
+				</button>
+				<button
+					@click="addBp('write')"
+					class="w-full text-left px-2 py-1.5 hover:bg-gray-700 rounded flex items-center"
+				>
+					Break on Write
+				</button>
+				<button
+					@click="addBp('access')"
+					class="w-full text-left px-2 py-1.5 hover:bg-gray-700 rounded flex items-center"
+				>
+					Break on Access
+				</button>
 			</PopoverContent>
 		</Popover>
 
@@ -264,7 +399,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { useBreakpoints } from "@/composables/useBreakpoints";
 import { useDebuggerNav } from "@/composables/useDebuggerNav";
 import { useDisassembly } from "@/composables/useDisassembly";
-import { useFormatting } from "@/composables/useFormatting";
+import { useFormatting } from "@/composables/useDataFormattings";
 import { formatAddress } from "@/lib/hex.utils";
 import type { DebugGroup } from "@/types/machine.interface";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";

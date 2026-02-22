@@ -2,8 +2,12 @@
 	<Dialog :open="isOpen" @update:open="(val) => emit('update:isOpen', val)">
 		<DialogContent class="sm:max-w-4xl bg-gray-800 border-gray-700 text-gray-200">
 			<DialogHeader>
-				<DialogTitle class="text-gray-100"><Binary class="h-8 w-8 inline-block mr-2 align-middle" />Formatting Rules</DialogTitle>
-				<DialogDescription class="text-gray-400"> Manage data formatting rules across all groups. </DialogDescription>
+				<DialogTitle class="text-gray-100"
+					><Binary class="h-8 w-8 inline-block mr-2 align-middle" />Formatting Rules</DialogTitle
+				>
+				<DialogDescription class="text-gray-400">
+					Manage data formatting rules across all groups.
+				</DialogDescription>
 			</DialogHeader>
 
 			<!-- Search and Filter -->
@@ -36,7 +40,10 @@
 								<div class="flex items-center gap-2 text-gray-300">
 									Address
 									<ArrowUp v-if="sortKey === 'address' && sortDirection === 'asc'" class="h-4 w-4" />
-									<ArrowDown v-if="sortKey === 'address' && sortDirection === 'desc'" class="h-4 w-4" />
+									<ArrowDown
+										v-if="sortKey === 'address' && sortDirection === 'desc'"
+										class="h-4 w-4"
+									/>
 								</div>
 							</TableHead>
 							<TableHead class="text-gray-300">Type</TableHead>
@@ -63,7 +70,10 @@
 										class="h-8 bg-gray-900 border-gray-600 font-mono"
 										:class="{ 'border-red-500': validationErrors.address }"
 									/>
-									<p class="text-red-400 text-xs mt-1 h-4" :class="{ invisible: !validationErrors.address }">
+									<p
+										class="text-red-400 text-xs mt-1 h-4"
+										:class="{ invisible: !validationErrors.address }"
+									>
 										{{ validationErrors.address || "Error" }}
 									</p>
 								</div>
@@ -87,7 +97,10 @@
 										class="h-8 bg-gray-900 border-gray-600"
 										:class="{ 'border-red-500': validationErrors.length }"
 									/>
-									<p class="text-red-400 text-xs mt-1 h-4" :class="{ invisible: !validationErrors.length }">
+									<p
+										class="text-red-400 text-xs mt-1 h-4"
+										:class="{ invisible: !validationErrors.length }"
+									>
 										{{ validationErrors.length || "Error" }}
 									</p>
 								</div>
@@ -98,14 +111,26 @@
 								</div>
 							</TableCell>
 							<TableCell class="align-top">
-								<Input v-model="editingRule.group" placeholder="user" class="h-8 bg-gray-900 border-gray-600" />
+								<Input
+									v-model="editingRule.group"
+									placeholder="user"
+									class="h-8 bg-gray-900 border-gray-600"
+								/>
 							</TableCell>
 							<TableCell class="text-right align-top">
 								<div class="flex items-center justify-end gap-1 mt-1">
-									<button @click="saveEdit" class="p-1 text-green-400 hover:bg-gray-600 rounded" title="Save">
+									<button
+										@click="saveEdit"
+										class="p-1 text-green-400 hover:bg-gray-600 rounded"
+										title="Save"
+									>
 										<Check class="h-4 w-4" />
 									</button>
-									<button @click="cancelEdit" class="p-1 text-red-400 hover:bg-gray-600 rounded" title="Cancel">
+									<button
+										@click="cancelEdit"
+										class="p-1 text-red-400 hover:bg-gray-600 rounded"
+										title="Cancel"
+									>
 										<X class="h-4 w-4" />
 									</button>
 								</div>
@@ -132,7 +157,10 @@
 											class="h-8 bg-gray-900 border-gray-600 font-mono"
 											:class="{ 'border-red-500': validationErrors.address }"
 										/>
-										<p class="text-red-400 text-xs mt-1 h-4" :class="{ invisible: !validationErrors.address }">
+										<p
+											class="text-red-400 text-xs mt-1 h-4"
+											:class="{ invisible: !validationErrors.address }"
+										>
 											{{ validationErrors.address || "Error" }}
 										</p>
 									</div>
@@ -156,7 +184,10 @@
 											class="h-8 bg-gray-900 border-gray-600"
 											:class="{ 'border-red-500': validationErrors.length }"
 										/>
-										<p class="text-red-400 text-xs mt-1 h-4" :class="{ invisible: !validationErrors.length }">
+										<p
+											class="text-red-400 text-xs mt-1 h-4"
+											:class="{ invisible: !validationErrors.length }"
+										>
 											{{ validationErrors.length || "Error" }}
 										</p>
 									</div>
@@ -167,14 +198,26 @@
 									</div>
 								</TableCell>
 								<TableCell class="align-top">
-									<Input v-model="editingRule.group" placeholder="user" class="h-8 bg-gray-900 border-gray-600" />
+									<Input
+										v-model="editingRule.group"
+										placeholder="user"
+										class="h-8 bg-gray-900 border-gray-600"
+									/>
 								</TableCell>
 								<TableCell class="text-right align-top">
 									<div class="flex items-center justify-end gap-1 mt-1">
-										<button @click="saveEdit" class="p-1 text-green-400 hover:bg-gray-600 rounded" title="Save">
+										<button
+											@click="saveEdit"
+											class="p-1 text-green-400 hover:bg-gray-600 rounded"
+											title="Save"
+										>
 											<Check class="h-4 w-4" />
 										</button>
-										<button @click="cancelEdit" class="p-1 text-red-400 hover:bg-gray-600 rounded" title="Cancel">
+										<button
+											@click="cancelEdit"
+											class="p-1 text-red-400 hover:bg-gray-600 rounded"
+											title="Cancel"
+										>
 											<X class="h-4 w-4" />
 										</button>
 									</div>
@@ -182,17 +225,29 @@
 							</TableRow>
 
 							<!-- Display Row -->
-							<TableRow v-else @click="gotoRule(rule)" class="cursor-pointer border-gray-700 hover:bg-gray-700">
-								<TableCell class="font-mono text-indigo-300">{{ formatAddress(rule.address) }}</TableCell>
+							<TableRow
+								v-else
+								@click="gotoRule(rule)"
+								class="cursor-pointer border-gray-700 hover:bg-gray-700"
+							>
+								<TableCell class="font-mono text-indigo-300">{{
+									formatAddress(rule.address)
+								}}</TableCell>
 								<TableCell class="text-gray-200">{{ rule.type }}</TableCell>
 								<TableCell class="text-gray-400">{{ rule.length }}</TableCell>
-								<TableCell class="font-mono text-xs text-gray-400 truncate max-w-[150px]" :title="getPreview(rule)">{{
-									getPreview(rule)
-								}}</TableCell>
+								<TableCell
+									class="font-mono text-xs text-gray-400 truncate max-w-[150px]"
+									:title="getPreview(rule)"
+									>{{ getPreview(rule) }}</TableCell
+								>
 								<TableCell class="text-gray-200">{{ rule.group }}</TableCell>
 								<TableCell class="text-right">
 									<div class="flex items-center justify-end gap-1" @click.stop>
-										<button @click="beginEdit(rule)" class="p-1 text-gray-400 hover:text-blue-400 hover:bg-gray-600 rounded" title="Edit">
+										<button
+											@click="beginEdit(rule)"
+											class="p-1 text-gray-400 hover:text-blue-400 hover:bg-gray-600 rounded"
+											title="Edit"
+										>
 											<Pencil class="h-4 w-4" />
 										</button>
 										<button
@@ -208,7 +263,9 @@
 						</template>
 
 						<TableRow v-if="filteredRules.length === 0 && !editingRule" class="hover:bg-transparent">
-							<TableCell colspan="6" class="text-center text-gray-500 py-8">No formatting rules found.</TableCell>
+							<TableCell colspan="6" class="text-center text-gray-500 py-8"
+								>No formatting rules found.</TableCell
+							>
 						</TableRow>
 					</TableBody>
 				</Table>
@@ -224,7 +281,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { type DataBlock, useFormatting } from "@/composables/useFormatting";
+import { type DataBlock, useFormatting } from "@/composables/useDataFormattings";
 import { formatAddress, toHex } from "@/lib/hex.utils";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 
@@ -247,7 +304,9 @@ type SortKey = "address" | "group";
 const sortKey = ref<SortKey>("address");
 const sortDirection = ref<"asc" | "desc">("asc");
 
-const editingRule = ref<(DataBlock & { isNew?: boolean; originalAddress?: number; originalGroup?: string }) | null>(null);
+const editingRule = ref<(DataBlock & { isNew?: boolean; originalAddress?: number; originalGroup?: string }) | null>(
+	null,
+);
 
 const tableContainerRef = ref<HTMLElement | null>(null);
 const validationErrors = ref({

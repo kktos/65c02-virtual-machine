@@ -1,4 +1,4 @@
-import type { DataBlock } from "@/composables/useFormatting";
+import type { DataBlock } from "@/composables/useDataFormattings";
 
 const datablocks = `
 	[SYSTEM]

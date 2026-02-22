@@ -1,8 +1,12 @@
+import { openDB, type DBSchema } from "idb";
 import { ref } from "vue";
+import type { SymbolDict } from "./useSymbols";
 
 export type DataType = "code" | "byte" | "word" | "string";
 
 export interface DataBlock {
+	id?: number;
+	disk: string;
 	address: number;
 	type: DataType;
 	length: number;
@@ -11,19 +15,83 @@ export interface DataBlock {
 
 export type FormattingDict = Record<number, Record<string, DataBlock>>;
 
+interface MetadataDB extends DBSchema {
+	datablocks: {
+		key: number;
+		value: DataBlock;
+		indexes: {
+			"by-disk": [string];
+		};
+	};
+}
+
 // Global state for formatting rules
 // Address -> Group -> DataBlock
-const formattingRules = ref<Map<number, Map<string, DataBlock>>>(new Map());
 const activeFormattingGroups = ref<Map<string, boolean>>(new Map());
+const systemRules = ref<Map<number, Map<string, DataBlock>>>(new Map());
+const diskRules = ref<Map<number, Map<string, DataBlock>>>(new Map());
+
+const DB_NAME = "vm6502_metadata";
+const DB_VERSION = 1;
+let diskKey: string;
+let storeName = "";
 
 export function useFormatting() {
+	const setDiskKey = (newKey: string) => {
+		diskKey = newKey;
+		loadSymbolsFromDb();
+	};
+
+	const getDb = async () => {
+		if (!diskKey) throw new Error("No disk key provided");
+		if (!storeName) throw new Error("No store name provided");
+
+		const db = await openDB<MetadataDB>(DB_NAME, DB_VERSION, {
+			upgrade(db) {
+				const store = db.createObjectStore(storeName as unknown as "datablocks", {
+					keyPath: "id",
+					autoIncrement: true,
+				});
+				store.createIndex("by-disk", ["disk"]);
+			},
+		});
+		return db;
+	};
+
+	const loadSymbolsFromDb = async () => {
+		if (!diskKey) return;
+		try {
+			const db = await getDb();
+			const tx = db.transaction(storeName as unknown as "datablocks", "readonly");
+			const index = tx.store.index("by-disk");
+
+			const foundNamespaces = new Set<string>();
+			const newDiskDict: SymbolDict = {};
+			const diskSymbols = await index.getAll([diskKey]);
+			for (const sym of diskSymbols) {
+				if (!newDiskDict[sym.addr]) newDiskDict[sym.addr] = {};
+				newDiskDict[sym.addr]![sym.ns] = sym;
+				foundNamespaces.add(sym.ns);
+			}
+
+			const targetDict = diskKey === "*" ? systemRules : diskRules;
+			targetDict.value = newDiskDict;
+
+			for (const ns of foundNamespaces)
+				if (!activeFormattingGroups.value.has(ns)) activeFormattingGroups.value.set(ns, true);
+		} catch (e) {
+			console.error("Failed to load symbols", e);
+		}
+	};
+
 	const initFormats = (newFormats?: FormattingDict) => {
 		formattingRules.value.clear();
 		activeFormattingGroups.value.clear();
 		if (newFormats) {
 			for (const [addrStr, groups] of Object.entries(newFormats)) {
 				const address = Number(addrStr);
-				for (const [group, block] of Object.entries(groups)) addFormat(address, block.type, block.length, group);
+				for (const [group, block] of Object.entries(groups))
+					addFormat(address, block.type, block.length, group);
 			}
 		}
 	};
@@ -119,7 +187,10 @@ export function useFormatting() {
 		return result;
 	};
 
-	const generateDataSymFileContent = (rules: Record<string, DataBlock> | Map<number, Map<string, DataBlock>>, groupName = "user"): string => {
+	const generateDataSymFileContent = (
+		rules: Record<string, DataBlock> | Map<number, Map<string, DataBlock>>,
+		groupName = "user",
+	): string => {
 		let rulesToExport: Record<string, DataBlock> = {};
 
 		if (rules instanceof Map) {
@@ -158,9 +229,10 @@ export function useFormatting() {
 	};
 
 	return {
+		setDiskKey,
+		initFormats,
 		formattingRules,
 		activeFormattingGroups,
-		initFormats,
 		addFormat,
 		addFormatting,
 		removeFormat,

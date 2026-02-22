@@ -75,7 +75,7 @@
 import { Save } from "lucide-vue-next";
 import { computed, nextTick, ref, watch } from "vue";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { type DataType, useFormatting } from "@/composables/useFormatting";
+import { type DataType, useFormatting } from "@/composables/useDataFormattings";
 import { useSymbols } from "@/composables/useSymbols";
 import { formatAddress, toHex } from "@/lib/hex.utils";
 
