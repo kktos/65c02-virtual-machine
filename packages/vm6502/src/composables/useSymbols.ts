@@ -39,6 +39,7 @@ const symbolsState = computed(() => ({
 const DB_NAME = "vm6502_metadata";
 const DB_VERSION = 1;
 let diskKey: string;
+let storeName = "";
 
 export function useSymbols() {
 	const setDiskKey = (newKey: string) => {
@@ -48,10 +49,11 @@ export function useSymbols() {
 
 	const getDb = async () => {
 		if (!diskKey) throw new Error("No disk key provided");
+		if (!storeName) throw new Error("No store name provided");
 
 		const db = await openDB<MetadataDB>(DB_NAME, DB_VERSION, {
 			upgrade(db) {
-				const store = db.createObjectStore("symbols", { keyPath: "id", autoIncrement: true });
+				const store = db.createObjectStore(storeName, { keyPath: "id", autoIncrement: true });
 				store.createIndex("by-ns", "namespace");
 				store.createIndex("by-disk-ns-label", ["disk", "ns", "label"]);
 				store.createIndex("by-disk-label", ["disk", "label"]);
@@ -67,7 +69,7 @@ export function useSymbols() {
 		if (!diskKey) return;
 		try {
 			const db = await getDb();
-			const tx = db.transaction("symbols", "readonly");
+			const tx = db.transaction(storeName, "readonly");
 			const index = tx.store.index("by-disk");
 
 			const foundNamespaces = new Set<string>();
@@ -88,15 +90,24 @@ export function useSymbols() {
 		}
 	};
 
-	const initSymbols = async (newSymbols?: SymbolDict) => {
-		if (!newSymbols) return;
-
+	const initSymbols = async (machineName: string, newSymbols?: SymbolDict) => {
+		storeName = `${machineName.replace(/ /g, "_").toLowerCase()}_symbols`;
 		activeNamespaces.value.clear();
 
-		const db = await getDb();
-		const tx = db.transaction("symbols", "readwrite");
+		if (!newSymbols) return;
 
+		diskKey = "*";
+		const db = await getDb();
+		const tx = db.transaction(storeName, "readwrite");
 		const index = tx.store.index("by-disk");
+		const count = await index.count();
+		if (count) {
+			console.log(`Symbols: Found ${count} System symbols in DB.`);
+			return;
+		}
+
+		console.log("Symbols: Creating system symbols in DB...");
+
 		const keys = await index.getAllKeys([diskKey]);
 		await Promise.all(keys.map((key) => tx.store.delete(key)));
 
@@ -128,8 +139,7 @@ export function useSymbols() {
 		}
 		await Promise.all(promises);
 		await tx.done;
-		const targetDict = diskKey === "*" ? systemDict : diskDict;
-		targetDict.value = newDict;
+		systemDict.value = newDict;
 	};
 
 	const findSymbolsDB = async (query: string, namespace: string) => {
@@ -140,10 +150,10 @@ export function useSymbols() {
 		const getAllFromDisk = async (disk: string) => {
 			if (ns != "") {
 				const rangeAll = IDBKeyRange.bound([disk, ns, label], [disk, ns, label + "\uffff"]);
-				return db.getAllFromIndex("symbols", "by-disk-ns-label", rangeAll);
+				return db.getAllFromIndex(storeName, "by-disk-ns-label", rangeAll);
 			}
 			const rangeAll = IDBKeyRange.bound([disk, label], [disk, label + "\uffff"]);
-			return db.getAllFromIndex("symbols", "by-disk-label", rangeAll);
+			return db.getAllFromIndex(storeName, "by-disk-label", rangeAll);
 		};
 
 		if (diskKey === "*") return getAllFromDisk("*");
@@ -184,7 +194,7 @@ export function useSymbols() {
 			src: "",
 			scope,
 		};
-		const id = await db.add("symbols", symbol);
+		const id = await db.add(storeName, symbol);
 
 		const newSym = { ...symbol, id: Number(id) };
 		const targetDict = diskKey === "*" ? systemDict : diskDict;
@@ -197,7 +207,7 @@ export function useSymbols() {
 
 	const updateSymbol = async (id: number, address: number, label: string, namespace: string, scope: string) => {
 		const db = await getDb();
-		const tx = db.transaction("symbols", "readwrite");
+		const tx = db.transaction(storeName, "readwrite");
 		const store = tx.store;
 
 		const record = await store.get(id);
@@ -229,10 +239,10 @@ export function useSymbols() {
 
 	const removeSymbol = async (id: number) => {
 		const db = await getDb();
-		const record = await db.get("symbols", id);
+		const record = await db.get(storeName, id);
 		if (!record) return;
 
-		await db.delete("symbols", id);
+		await db.delete(storeName, id);
 
 		const targetDict = record.disk === "*" ? systemDict : diskDict;
 		// Update Memory
@@ -346,7 +356,7 @@ export function useSymbols() {
 
 	const addSymbolsFromText = async (text: string) => {
 		const db = await getDb();
-		const tx = db.transaction("symbols", "readwrite");
+		const tx = db.transaction(storeName, "readwrite");
 		const lines = text.split(/\r?\n/);
 
 		let currentNamespace = "user";
