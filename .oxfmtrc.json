@@ -1,7 +1,7 @@
 {
 	"$schema": "./node_modules/oxfmt/configuration_schema.json",
 	"ignorePatterns": [],
-	"printWidth": 160,
+	"printWidth": 120,
 	"useTabs": true,
 	"semi": true,
 	"singleQuote": false,
