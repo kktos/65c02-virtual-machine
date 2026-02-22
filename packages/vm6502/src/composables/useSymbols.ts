@@ -34,6 +34,7 @@ const diskDict = ref<SymbolDict>({});
 const symbolsState = computed(() => ({
 	dictA: systemDict.value,
 	dictB: diskDict.value,
+	activeNamespaces: activeNamespaces.value,
 }));
 
 const DB_NAME = "vm6502_metadata";
@@ -320,37 +321,6 @@ export function useSymbols() {
 		return output;
 	};
 
-	const getLabeledInstruction = (opcode: string) => {
-		// if (!labels) return { labeledOpcode: opcode, labelComment: null };
-
-		const addressMatch = opcode.match(/\$([0-9A-Fa-f]{2,4}[\w,()]?)/);
-
-		if (addressMatch) {
-			const address = parseInt(addressMatch[1] ?? "", 16);
-
-			const fullAddressExpression = addressMatch[0];
-			const addressHexMatch = fullAddressExpression.match(/([0-9A-Fa-f]{2,4})/);
-
-			if (addressHexMatch) {
-				// const addressHex = addressHexMatch[1] as string;
-				// const address = parseInt(addressHex, 16);
-
-				// Determine scope for the target address
-				const entry = getSymbolForAddress(address);
-				if (entry) {
-					const label = entry.label;
-					// Replace the address part with the label, keeping the addressing mode suffix
-					const suffix = fullAddressExpression.substring(addressHexMatch[0].length + 1);
-					const newOpcode = opcode.replace(fullAddressExpression, label + suffix);
-					const comment = `$${address.toString(16).toUpperCase().padStart(4, "0")}`;
-					return { labeledOpcode: newOpcode, labelComment: comment };
-				}
-			}
-		}
-
-		return { labeledOpcode: opcode, labelComment: null };
-	};
-
 	const addSymbolsFromText = async (text: string) => {
 		const db = await getDb();
 		const tx = db.transaction(storeName as unknown as "symbols", "readwrite");
@@ -466,8 +436,8 @@ export function useSymbols() {
 		initSymbols,
 		setDiskKey,
 
-		getLabeledInstruction,
 		addSymbolsFromText,
+		generateTextFromSymbols,
 
 		getLabelForAddress,
 		getSymbolForAddress,
@@ -475,15 +445,14 @@ export function useSymbols() {
 
 		getNamespaceList,
 		toggleNamespace,
+
 		addSymbol,
 		removeSymbol,
 		updateSymbol,
-
-		generateTextFromSymbols,
+		findSymbols,
+		findSymbolsDB,
 
 		symbolsState,
 		diskKey,
-		findSymbols,
-		findSymbolsDB,
 	};
 }
