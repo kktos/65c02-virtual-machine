@@ -165,6 +165,11 @@ export function useSymbols() {
 	const findSymbols = (query: string, namespace = "") => {
 		const labelQuery = query.toUpperCase();
 		const nsQuery = namespace.toUpperCase();
+
+		// Prepare address query
+		const hexQuery = query.replace(/^(\$|0x)/i, "").toUpperCase();
+		const isHex = /^[0-9A-F]+$/.test(hexQuery);
+
 		const results: SymbolEntry[] = [];
 
 		const searchInDict = (dict: SymbolDict) => {
@@ -173,7 +178,17 @@ export function useSymbols() {
 				for (const ns in namespaces) {
 					if (nsQuery && ns.toUpperCase() !== nsQuery) continue;
 					const entry = namespaces[ns];
-					if (entry?.label.toUpperCase().startsWith(labelQuery)) results.push(entry);
+					if (!entry) continue;
+
+					if (entry.label.toUpperCase().startsWith(labelQuery)) {
+						results.push(entry);
+						continue;
+					}
+
+					if (isHex) {
+						const addrStr = entry.addr.toString(16).toUpperCase().padStart(4, "0");
+						if (addrStr.startsWith(hexQuery)) results.push(entry);
+					}
 				}
 			}
 		};
