@@ -38,7 +38,6 @@ const symbolsState = computed(() => ({
 }));
 
 const DB_NAME = "vm6502_metadata";
-const DB_VERSION = 1;
 let diskKey: string;
 let storeName = "";
 
@@ -52,7 +51,15 @@ export function useSymbols() {
 		if (!diskKey) throw new Error("No disk key provided");
 		if (!storeName) throw new Error("No store name provided");
 
-		const db = await openDB<MetadataDB>(DB_NAME, DB_VERSION, {
+		// 1. Probe the current version
+		const probeDb = await openDB(DB_NAME);
+		const currentVersion = probeDb.version;
+		const storeExists = probeDb.objectStoreNames.contains(storeName);
+		probeDb.close();
+
+		if (storeExists) return openDB<MetadataDB>(DB_NAME);
+
+		const db = await openDB<MetadataDB>(DB_NAME, currentVersion + 1, {
 			upgrade(db) {
 				const store = db.createObjectStore(storeName as unknown as "symbols", {
 					keyPath: "id",

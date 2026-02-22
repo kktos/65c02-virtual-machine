@@ -249,7 +249,6 @@
 </template>
 
 <script lang="ts" setup>
-import { useDebounceFn } from "@vueuse/core";
 import { CirclePlay, FileText, Link, Pencil, Save, Upload } from "lucide-vue-next";
 import { computed, inject, type Ref, ref, watch } from "vue";
 
@@ -257,22 +256,23 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { type StoredDisk, useDiskStorage } from "@/composables/useDiskStorage";
-import { useFormatting } from "@/composables/useDataFormattings";
 import { useSymbols } from "@/composables/useSymbols";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import DiskDriveLogs from "./DiskDriveLogs.vue";
+import { useFormatting } from "@/composables/useDataFormattings";
 
 const ACTIVE_DISK_KEY = "vm6502_active_disk_name";
 const ACTIVE_DISK_URL_KEY = "vm6502_active_disk_url";
 
 const vm = inject<Ref<VirtualMachine>>("vm");
 
-const { addSymbolsFromText, setDiskKey } = useSymbols();
-const { formattingRules, getFormatting, parseFormattingFromText, addFormatting } = useFormatting();
+const { addSymbolsFromText, setDiskKey: symbolsSetDiskKey } = useSymbols();
+const { setDiskKey: formattingsSetDiskKey } = useFormatting();
+const { saveDisk, saveUrlDisk, loadDisk, getAllDisks, deleteDisk, renameDisk } = useDiskStorage();
+
 const diskConfig = computed(() => vm?.value?.machineConfig?.disk);
 const fileName = ref("");
 const fileSize = ref(0);
-const { saveDisk, saveUrlDisk, loadDisk, getAllDisks, deleteDisk, renameDisk, updateDiskFormatting } = useDiskStorage();
 const savedDisks = ref<StoredDisk[]>([]);
 const isLibraryOpen = ref(false);
 const isLogSheetOpen = ref(false);
@@ -283,21 +283,6 @@ const urlError = ref<string | null>(null);
 const loggingEnabled = ref(false);
 
 const activeDiskKey = ref<IDBValidKey | null>(null);
-
-const saveFormattingToDb = useDebounceFn(async () => {
-	if (activeDiskKey.value) {
-		const fmt = getFormatting();
-		await updateDiskFormatting(activeDiskKey.value, fmt);
-	}
-}, 1000);
-
-watch(
-	formattingRules,
-	() => {
-		saveFormattingToDb();
-	},
-	{ deep: true },
-);
 
 const editingId = ref<IDBValidKey | null>(null);
 const editingName = ref("");
@@ -347,7 +332,8 @@ const setActiveDisk = async (key: IDBValidKey) => {
 
 	console.log("---setActiveDisk", disk);
 
-	setDiskKey(key as string);
+	symbolsSetDiskKey(key as string);
+	formattingsSetDiskKey(key as string);
 };
 
 const refreshLibrary = async () => {
@@ -386,8 +372,8 @@ const loadFromUrl = async (url: string) => {
 			try {
 				addSymbolsFromText(symText);
 
-				const fmtData = parseFormattingFromText(symText);
-				addFormatting(fmtData);
+				// const fmtData = parseFormattingFromText(symText);
+				// addFormatting(fmtData);
 				console.log(`Loaded symbols from ${symUrl}`);
 			} catch {
 				console.warn(`Failed to parse symbols from ${symUrl} as JSON.`);

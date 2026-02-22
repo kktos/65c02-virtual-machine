@@ -95,7 +95,7 @@ const { pcBreakpoints, toggleBreakpoint } = useBreakpoints();
 const { jumpEvent } = useDisassembly();
 const { setMemoryViewAddress, setActiveTab, addJumpHistory, historyNavigationEvent, clearHistory } = useDebuggerNav();
 const { settings } = useSettings();
-const { formattingRules } = useFormatting();
+const { formattingState } = useFormatting();
 const {
 	explanation: explanationText,
 	isLoading: isExplainLoading,
@@ -285,7 +285,7 @@ watch(
 		visibleRowCount.value,
 		busState.value,
 		registers,
-		formattingRules.value,
+		formattingState.value,
 		symbolsState.value,
 		isFollowingPc.value,
 		fullPcAddress.value,

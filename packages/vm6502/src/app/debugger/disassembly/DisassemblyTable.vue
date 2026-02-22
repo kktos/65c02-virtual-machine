@@ -182,7 +182,7 @@ defineEmits<{
 
 const { settings } = useSettings();
 const isCtrlPressed = useKeyModifier("Control");
-const { symbolDict } = useSymbols();
+const { getAddressForLabel } = useSymbols();
 const { notes } = useNotes();
 
 const getBranchPrediction = (opcode: string) => {
@@ -307,23 +307,11 @@ const cancelEdit = () => {
 const commitEdit = () => {
 	if (editingAddress.value === null) return;
 
-	const result = assemble(editingAddress.value, editText.value, (label) => {
-		const dict = symbolDict.value;
-		for (const addrStr in dict) {
-			const addr = parseInt(addrStr, 10);
-			const namespaces = dict[addr];
-			for (const ns in namespaces) {
-				if (namespaces[ns]?.label === label) return addr;
-			}
-		}
-		return undefined;
-	});
-
+	const result = assemble(editingAddress.value, editText.value, (label) => getAddressForLabel(label));
 	if (result.error) {
 		asmError.value = result.error;
 		return;
 	}
-
 	if (vm?.value && result.bytes.length > 0) {
 		for (let i = 0; i < result.bytes.length; i++) {
 			vm.value.writeDebug(editingAddress.value + i, result.bytes[i] as number);

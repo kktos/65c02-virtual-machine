@@ -407,7 +407,7 @@ import BinaryLoader from "./BinaryLoader.vue";
 
 const vm = inject<Ref<VirtualMachine>>("vm");
 // const subscribeToUiUpdates= inject<(callback: () => void) => void>("subscribeToUiUpdates");
-const { formattingRules, addFormat } = useFormatting();
+const { formattingRules, addFormatting } = useFormatting();
 
 const props = defineProps<{
 	canClose?: boolean;
@@ -638,11 +638,11 @@ const getBreakpointClass = (index: number) => {
 
 const getDataBlockClass = (index: number) => {
 	const addr = startAddress.value + index;
-	for (const block of formattingRules.value.values()) {
-		let len = block.length;
-		if (block.type === "word") len *= 2;
-		if (addr >= block.address && addr < block.address + len) return "bg-indigo-900/30 text-indigo-200";
-	}
+	// for (const block of formattingRules.value.values()) {
+	// 	let len = block.length;
+	// 	if (block.type === "word") len *= 2;
+	// 	if (addr >= block.address && addr < block.address + len) return "bg-indigo-900/30 text-indigo-200";
+	// }
 	return "";
 };
 
@@ -761,7 +761,7 @@ const isCellSelected = (index: number) => {
 
 const formatAs = (type: "byte" | "string") => {
 	if (!selectedRange.value) return;
-	addFormat(selectedRange.value.start, type, selectedRange.value.size);
+	addFormatting(selectedRange.value.start, type, selectedRange.value.size);
 	selectionAnchor.value = null;
 	selectionHead.value = null;
 };

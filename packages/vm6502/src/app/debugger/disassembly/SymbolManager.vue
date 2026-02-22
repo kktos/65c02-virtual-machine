@@ -343,7 +343,6 @@ import { useBreakpoints } from "@/composables/useBreakpoints";
 import { useSymbols, type SymbolEntry } from "@/composables/useSymbols";
 import { formatAddress, toHex } from "@/lib/hex.utils";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
-import { computedAsync } from "@vueuse/core";
 import { useFileDownload } from "@/composables/useFileDownload";
 import { useDiskStorage } from "@/composables/useDiskStorage";
 
@@ -416,8 +415,8 @@ const uniqueNamespaces = computed(() => {
 	return names.sort();
 });
 
-const filteredSymbols = computedAsync(async () => {
-	let symbols = await findSymbols(searchTerm.value, selectedNamespace.value);
+const filteredSymbols = computed(() => {
+	let symbols = findSymbols(searchTerm.value, selectedNamespace.value);
 
 	// Sorting - create a mutable copy
 	const sortedSymbols = [...symbols];

@@ -381,14 +381,13 @@ const loadMachine = (newMachine: MachineConfig) => {
 		newVm.initAudio();
 	});
 
-	const { initSymbols, setDiskKey } = useSymbols();
-	if (newMachine.debug?.symbols) {
-		initSymbols(newMachine.name, newMachine.debug.symbols);
-		setDiskKey("*");
-	}
+	const { initSymbols, setDiskKey: symbolsSetDiskKey } = useSymbols();
+	initSymbols(newMachine.name, newMachine.debug?.symbols);
+	symbolsSetDiskKey("*");
 
-	const { initFormats } = useFormatting();
-	if (newMachine.debug?.dataBlocks) initFormats(newMachine.debug.dataBlocks);
+	const { initFormats, setDiskKey: formatSetDiskKey } = useFormatting();
+	initFormats(newMachine.name, newMachine.debug?.dataBlocks);
+	formatSetDiskKey("*");
 };
 
 const handleMachineSelected = (newMachine: MachineConfig) => {

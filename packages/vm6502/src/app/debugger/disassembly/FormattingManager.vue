@@ -1,6 +1,6 @@
 <template>
 	<Dialog :open="isOpen" @update:open="(val) => emit('update:isOpen', val)">
-		<DialogContent class="sm:max-w-4xl bg-gray-800 border-gray-700 text-gray-200">
+		<DialogContent class="sm:max-w-4xl h-[80vh] flex flex-col bg-gray-800 border-gray-700 text-gray-200">
 			<DialogHeader>
 				<DialogTitle class="text-gray-100"
 					><Binary class="h-8 w-8 inline-block mr-2 align-middle" />Formatting Rules</DialogTitle
@@ -26,13 +26,33 @@
 						{{ group }}
 					</option>
 				</select>
+				<input type="file" ref="importFileInput" class="hidden" accept=".sym,.txt" @change="handleImportFile" />
+				<ButtonGroup>
+					<Button
+						variant="outline"
+						size="icon"
+						@click="triggerImport"
+						class="h-10 bg-gray-600 hover:bg-gray-500 text-white shrink-0"
+						title="Import from file"
+					>
+						<Upload class="h-4 w-4" />
+					</Button>
+					<Button
+						variant="outline"
+						size="icon"
+						@click="handleExport"
+						class="h-10 bg-gray-600 hover:bg-gray-500 text-white shrink-0"
+						title="Export to file"
+					>
+						<Download class="h-4 w-4" />
+					</Button>
+				</ButtonGroup>
 				<Button @click="beginAddRule" class="h-10 bg-blue-600 hover:bg-blue-500 text-white shrink-0">
-					<PlusCircle class="h-4 w-4 mr-2" />
-					Add Rule
+					<PlusCircle class="h-4 w-4" />
 				</Button>
 			</div>
 
-			<div ref="tableContainerRef" class="overflow-y-auto max-h-[60vh] border border-gray-700 rounded-md">
+			<div ref="tableContainerRef" class="flex-1 overflow-y-auto border border-gray-700 rounded-md">
 				<Table>
 					<TableHeader class="sticky top-0 bg-gray-800">
 						<TableRow class="border-gray-700 hover:bg-gray-700/50">
@@ -275,15 +295,18 @@
 </template>
 
 <script setup lang="ts">
-import { ArrowDown, ArrowUp, Binary, Check, Pencil, PlusCircle, Trash2, X } from "lucide-vue-next";
+import { ArrowDown, ArrowUp, Binary, Check, Pencil, PlusCircle, Trash2, X, Download, Upload } from "lucide-vue-next";
 import { computed, inject, type Ref, ref } from "vue";
 import { Button } from "@/components/ui/button";
+import { ButtonGroup } from "@/components/ui/button-group";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { type DataBlock, useFormatting } from "@/composables/useDataFormattings";
 import { formatAddress, toHex } from "@/lib/hex.utils";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
+import { useDiskStorage } from "@/composables/useDiskStorage";
+import { useFileDownload } from "@/composables/useFileDownload";
 
 defineProps<{
 	isOpen: boolean;
@@ -295,7 +318,16 @@ const emit = defineEmits<{
 }>();
 
 const vm = inject<Ref<VirtualMachine>>("vm");
-const { formattingRules, removeFormat, addFormat } = useFormatting();
+const {
+	findFormattings,
+	removeFormat,
+	addFormatting,
+	getFormattingGroups,
+	generateTextFromFormattings,
+	addFormattingsFromText,
+	diskKey,
+} = useFormatting();
+const { downloadFile } = useFileDownload();
 
 const searchTerm = ref("");
 const selectedGroup = ref("");
@@ -313,6 +345,7 @@ const validationErrors = ref({
 	address: "",
 	length: "",
 });
+const importFileInput = ref<HTMLInputElement | null>(null);
 
 const beginAddRule = () => {
 	editingRule.value = {
@@ -322,9 +355,7 @@ const beginAddRule = () => {
 		group: "user",
 		isNew: true,
 	};
-	if (tableContainerRef.value) {
-		tableContainerRef.value.scrollTop = 0;
-	}
+	if (tableContainerRef.value) tableContainerRef.value.scrollTop = 0;
 };
 
 const beginEdit = (rule: DataBlock) => {
@@ -404,36 +435,14 @@ const handleSort = (key: SortKey) => {
 	}
 };
 
-const allRules = computed(() => {
-	const rules: DataBlock[] = [];
-	for (const map of formattingRules.value.values()) {
-		for (const block of map.values()) {
-			rules.push(block);
-		}
-	}
-	return rules;
-});
-
 const uniqueGroups = computed(() => {
-	const groups = new Set<string>();
-	allRules.value.forEach((r) => {
-		groups.add(r.group || "user");
-	});
-	return Array.from(groups).sort();
+	const list = getFormattingGroups();
+	const groups = list.map((ns) => ns[0]);
+	return groups.sort();
 });
 
 const filteredRules = computed(() => {
-	let rules = allRules.value;
-
-	if (selectedGroup.value) {
-		rules = rules.filter((r) => (r.group || "user") === selectedGroup.value);
-	}
-
-	if (searchTerm.value) {
-		const lowerQuery = searchTerm.value.toLowerCase();
-		rules = rules.filter((r) => formatAddress(r.address).toLowerCase().includes(lowerQuery));
-	}
-
+	const rules = findFormattings(searchTerm.value, selectedGroup.value);
 	return rules.sort((a, b) => {
 		const valA = sortKey.value === "address" ? a.address : a.group || "";
 		const valB = sortKey.value === "address" ? b.address : b.group || "";
@@ -483,8 +492,31 @@ const saveEdit = () => {
 		removeFormat(rule.originalAddress, rule.originalGroup);
 	}
 
-	addFormat(address, rule.type, length, group);
+	addFormatting(address, rule.type, length, group);
 
 	editingRule.value = null;
+};
+
+const triggerImport = () => {
+	importFileInput.value?.click();
+};
+
+const handleImportFile = async (event: Event) => {
+	const input = event.target as HTMLInputElement;
+	if (!input.files || input.files.length === 0) return;
+	const file = input.files[0] as File;
+	const text = await file.text();
+	await addFormattingsFromText(text);
+	input.value = "";
+};
+
+const handleExport = async () => {
+	const { loadDisk } = useDiskStorage();
+	const disk = await loadDisk(diskKey.value);
+	if (!disk) return;
+	const name = disk.name.split(".").slice(0, -1).join(".") || disk.name;
+
+	const content = await generateTextFromFormattings();
+	downloadFile(`${name}.fmt`, "text/plain;charset=utf-8", content);
 };
 </script>
