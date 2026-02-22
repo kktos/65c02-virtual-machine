@@ -13,7 +13,9 @@
 				]"
 				title="Sync with PC"
 			>
-				<Paperclip class="h-4 w-4" />
+				<div class="text-xs flex">
+					<LockOpen class="h-4 w-4" v-if="!isFollowingPc" /><Lock v-if="isFollowingPc" class="h-4 w-4" />PC
+				</div>
 			</button>
 			<button
 				@click="$emit('openSymbolManager')"
@@ -162,7 +164,7 @@
 
 <script lang="ts" setup>
 import { computed } from "vue";
-import { Binary, Paperclip, Settings2, Tags } from "lucide-vue-next";
+import { Binary, Lock, LockOpen, Settings2, Tags } from "lucide-vue-next";
 import AddressNavigator from "@/app/debugger/AddressNavigator.vue";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
