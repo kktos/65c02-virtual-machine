@@ -98,14 +98,6 @@
 		<ButtonGroup>
 			<Button
 				class="p-2 hover:bg-gray-700 rounded text-gray-300 hover:text-white transition-colors"
-				title="Load Symbols (*.sym)"
-				@click="triggerSymbolLoad"
-			>
-				<Tag class="h-4 w-4 text-cyan-400 group-hover:text-cyan-300" />
-			</Button>
-			<input type="file" ref="symbolFileInput" class="hidden" accept=".sym,.txt" @change="handleSymbolFile" />
-			<Button
-				class="p-2 hover:bg-gray-700 rounded text-gray-300 hover:text-white transition-colors"
 				title="Paste from Clipboard"
 				@click="pasteFromClipboard"
 			>
@@ -140,13 +132,11 @@ import {
 	RedoDot,
 	RefreshCw,
 	ScrollText,
-	Tag,
 } from "lucide-vue-next";
 import { inject, type Ref, ref } from "vue";
 import MemoryMap from "@/app/debugger/memorymap/MemoryMap.vue";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
-import { useSymbols } from "@/composables/useSymbols";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 
 const vm = inject<Ref<VirtualMachine>>("vm");
@@ -171,22 +161,6 @@ const traceEnabled = ref(false);
 const toggleTrace = () => {
 	traceEnabled.value = !traceEnabled.value;
 	vm?.value?.setTrace(traceEnabled.value);
-};
-
-const symbolFileInput = ref<HTMLInputElement | null>(null);
-const { addSymbolsFromText } = useSymbols();
-
-const triggerSymbolLoad = () => {
-	symbolFileInput.value?.click();
-};
-
-const handleSymbolFile = async (event: Event) => {
-	const input = event.target as HTMLInputElement;
-	if (!input.files || input.files.length === 0) return;
-	const file = input.files[0] as File;
-	const text = await file.text();
-	addSymbolsFromText(text);
-	input.value = ""; // Reset input
 };
 
 const pasteFromClipboard = async () => {
