@@ -25,6 +25,11 @@
 						{{ ns }}
 					</option>
 				</select>
+				<input type="file" ref="importFileInput" class="hidden" accept=".sym,.txt" @change="handleImportFile" />
+				<Button @click="triggerImport" class="h-10 bg-gray-600 hover:bg-gray-500 text-white shrink-0">
+					<Upload class="h-4 w-4 mr-2" />
+					Import
+				</Button>
 				<Button @click="beginAddSymbol" class="h-10 bg-blue-600 hover:bg-blue-500 text-white shrink-0">
 					<PlusCircle class="h-4 w-4 mr-2" />
 					Add Symbol
@@ -305,6 +310,7 @@ import {
 	PlusCircle,
 	Tags,
 	Trash2,
+	Upload,
 	X,
 } from "lucide-vue-next";
 import { computed, inject, type Ref, ref } from "vue";
@@ -328,7 +334,7 @@ const emit = defineEmits<{
 }>();
 
 const vm = inject<Ref<VirtualMachine>>("vm");
-const { addSymbol, removeSymbol, updateSymbol, findSymbols, getNamespaceList } = useSymbols();
+const { addSymbol, removeSymbol, updateSymbol, findSymbols, getNamespaceList, addSymbolsFromText } = useSymbols();
 const { pcBreakpoints, toggleBreakpoint } = useBreakpoints();
 
 const searchTerm = ref("");
@@ -355,6 +361,7 @@ type EditableSymbol = {
 };
 const editingSymbol = ref<EditableSymbol | null>(null);
 const tableContainerRef = ref<HTMLElement | null>(null);
+const importFileInput = ref<HTMLInputElement | null>(null);
 
 const validationErrors = ref({
 	addr: "",
@@ -470,6 +477,19 @@ const saveEdit = async () => {
 const cancelEdit = () => {
 	editingSymbol.value = null;
 	validationErrors.value = { addr: "", label: "" };
+};
+
+const triggerImport = () => {
+	importFileInput.value?.click();
+};
+
+const handleImportFile = async (event: Event) => {
+	const input = event.target as HTMLInputElement;
+	if (!input.files || input.files.length === 0) return;
+	const file = input.files[0] as File;
+	const text = await file.text();
+	await addSymbolsFromText(text);
+	input.value = ""; // Reset input
 };
 
 const handleDelete = (symbol: SymbolEntry) => {
