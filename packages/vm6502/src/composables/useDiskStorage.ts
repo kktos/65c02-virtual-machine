@@ -1,5 +1,5 @@
 import type { DataBlock } from "@/composables/useFormatting";
-import type { SymbolDict } from "@/types/machine.interface";
+import type { SymbolDict } from "./useSymbols";
 
 export type StoredDisk =
 	| {
@@ -149,7 +149,12 @@ export function useDiskStorage() {
 				if (data) {
 					for (const prop in newdata) {
 						const value = (newdata as Record<string, unknown>)[prop];
-						if (typeof value === "object" && value !== null && !(value instanceof ArrayBuffer) && !ArrayBuffer.isView(value)) {
+						if (
+							typeof value === "object" &&
+							value !== null &&
+							!(value instanceof ArrayBuffer) &&
+							!ArrayBuffer.isView(value)
+						) {
 							// Deep clone to strip Vue Proxies, ensuring a plain object is stored
 							data[prop] = JSON.parse(JSON.stringify(value));
 						} else {
@@ -176,10 +181,6 @@ export function useDiskStorage() {
 		return updateDisk(key, { name: newName });
 	};
 
-	const updateDiskSymbols = async (key: IDBValidKey, symbols: SymbolDict) => {
-		return updateDisk(key, { symbols });
-	};
-
 	const updateDiskFormatting = async (key: IDBValidKey, formatting: Record<string, DataBlock>) => {
 		return updateDisk(key, { formatting });
 	};
@@ -191,7 +192,6 @@ export function useDiskStorage() {
 		getAllDisks,
 		deleteDisk,
 		renameDisk,
-		updateDiskSymbols,
 		updateDiskFormatting,
 	};
 }
