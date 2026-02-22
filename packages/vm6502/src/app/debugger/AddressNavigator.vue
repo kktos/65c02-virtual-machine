@@ -129,7 +129,7 @@ import { useSymbols } from "@/composables/useSymbols";
 
 const emit = defineEmits<(e: "goto", address: number) => void>();
 
-const { getAddressForLabel, getLabelForAddress, searchSymbols } = useSymbols();
+const { getAddressForLabel, getLabelForAddress, findSymbols } = useSymbols();
 const inputValue = ref("");
 const isHistoryOpen = ref(false);
 const suggestions = ref<{ label: string; address: number; scope?: string }[]>([]);
@@ -159,7 +159,7 @@ const handleInput = () => {
 		showSuggestions.value = false;
 		return;
 	}
-	suggestions.value = searchSymbols(inputValue.value);
+	suggestions.value = findSymbols(inputValue.value);
 	showSuggestions.value = suggestions.value.length > 0;
 	selectedSuggestionIndex.value = -1;
 };

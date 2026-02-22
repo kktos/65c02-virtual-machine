@@ -9,7 +9,11 @@ import { opcodeMap } from "./opcodes";
 const { getFormat } = useFormatting();
 const { getSymbolForAddress, getLabelForAddress } = useSymbols();
 
-function findPreviousInstruction(readByte: (address: number, debug?: boolean) => number, targetAddress: number, scope: string): number {
+function findPreviousInstruction(
+	readByte: (address: number, debug?: boolean) => number,
+	targetAddress: number,
+	scope: string,
+) {
 	if (targetAddress <= 0) return 0;
 
 	// Try to find a synchronization point by looking back.
@@ -46,7 +50,7 @@ export function disassemble(
 	lineCount: number,
 	registers?: EmulatorState["registers"],
 	pivotLineIndex = 0,
-): DisassemblyLine[] {
+) {
 	const disassembly: DisassemblyLine[] = [];
 
 	let pc = fromAddress;
@@ -165,7 +169,7 @@ export function disassemble(
 		const symbol = getSymbolForAddress(address, scope);
 		const line: DisassemblyLine = {
 			label: symbol?.label ?? "",
-			src: symbol?.source ?? "",
+			src: symbol?.src ?? "",
 			addr: address,
 			faddr: formatAddress(address),
 
@@ -194,7 +198,8 @@ export function disassemble(
 				break;
 			case "IMM":
 				line.opr = `#${toHex(operandBytes[0], 2)}`;
-				if (line.opc === "CMP") line.comment = `'${String.fromCharCode(operandBytes[0] & 0x7f)}' ${operandBytes[0]}`;
+				if (line.opc === "CMP")
+					line.comment = `'${String.fromCharCode(operandBytes[0] & 0x7f)}' ${operandBytes[0]}`;
 				break;
 			case "ZP": {
 				effectiveAddress = operandBytes[0] ?? 0;

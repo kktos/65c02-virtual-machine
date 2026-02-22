@@ -3,7 +3,12 @@
 		<PopoverTrigger as-child>
 			<div class="fixed w-0 h-0 invisible" :style="{ top: y + 'px', left: x + 'px' }"></div>
 		</PopoverTrigger>
-		<PopoverContent class="w-64 p-3 bg-gray-800 border-gray-700 text-gray-200" align="start" side="bottom" :side-offset="5">
+		<PopoverContent
+			class="w-64 p-3 bg-gray-800 border-gray-700 text-gray-200"
+			align="start"
+			side="bottom"
+			:side-offset="5"
+		>
 			<div class="text-xs font-semibold text-gray-400 mb-3">Edit Address {{ formatAddress(address) }}</div>
 
 			<div class="space-y-3">
@@ -53,7 +58,10 @@
 					>
 						Delete
 					</button>
-					<button @click="handleSave" class="px-3 py-1 bg-cyan-600 hover:bg-cyan-500 text-white rounded text-xs flex items-center gap-1">
+					<button
+						@click="handleSave"
+						class="px-3 py-1 bg-cyan-600 hover:bg-cyan-500 text-white rounded text-xs flex items-center gap-1"
+					>
 						<Save class="h-3 w-3" />
 						Save
 					</button>
@@ -81,7 +89,7 @@ const props = defineProps<{
 
 const emit = defineEmits<(e: "update:isOpen", value: boolean) => void>();
 
-const { getLabelForAddress, addSymbol, removeSymbol } = useSymbols();
+const { getLabelForAddress, addSymbol, removeSymbol, getSymbolForAddress, updateSymbol } = useSymbols();
 const { getFormat, addFormat, removeFormat } = useFormatting();
 
 const localLabel = ref("");
@@ -102,15 +110,12 @@ watch(dataLength, () => {
 	}
 });
 
-localLabel.value = getLabelForAddress(props.address) || `L${toHex(props.address, 4)}`;
-hasExisting.value = !!localLabel.value;
-
 watch([() => props.isOpen], () => {
 	if (props.isOpen) {
 		// Load Label
-		// const existing = getLabelForAddress(props.address);
-		// localLabel.value = existing || "";
-		// hasExisting.value = !!existing;
+		const existing = getLabelForAddress(props.address);
+		localLabel.value = existing || `L${toHex(props.address, 4)}`;
+		hasExisting.value = !!existing;
 
 		// Load Format
 		const format = getFormat(props.address);
@@ -128,12 +133,20 @@ watch([() => props.isOpen], () => {
 	}
 });
 
-const handleSave = () => {
+const handleSave = async () => {
 	// Save Label
 	if (localLabel.value.trim()) {
-		addSymbol(props.address, localLabel.value.trim());
+		const existing = getSymbolForAddress(props.address);
+		if (existing?.id) {
+			await updateSymbol(existing.id, props.address, localLabel.value.trim(), existing.ns, existing.scope);
+		} else {
+			await addSymbol(props.address, localLabel.value.trim());
+		}
 	} else if (hasExisting.value) {
-		removeSymbol(props.address);
+		const existing = getSymbolForAddress(props.address);
+		if (existing?.id) {
+			await removeSymbol(existing.id);
+		}
 	}
 
 	// Save Format
@@ -146,8 +159,11 @@ const handleSave = () => {
 	emit("update:isOpen", false);
 };
 
-const handleDelete = () => {
-	removeSymbol(props.address);
+const handleDelete = async () => {
+	const existing = getSymbolForAddress(props.address);
+	if (existing?.id) {
+		await removeSymbol(existing.id);
+	}
 	removeFormat(props.address);
 	emit("update:isOpen", false);
 };
