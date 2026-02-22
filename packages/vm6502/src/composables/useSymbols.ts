@@ -482,6 +482,7 @@ export function useSymbols() {
 		generateTextFromSymbols,
 
 		symbolsState,
+		diskKey,
 		findSymbols,
 		findSymbolsDB,
 	};

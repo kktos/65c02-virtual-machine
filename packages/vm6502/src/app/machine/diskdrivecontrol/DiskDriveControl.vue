@@ -91,14 +91,6 @@
 								<Pencil class="h-4 w-4" />
 							</button>
 							<button
-								v-if="editingId !== disk.key"
-								@click.stop="exportSymbols(disk)"
-								class="p-1 mr-1 text-gray-500 hover:bg-gray-700 hover:text-cyan-400 rounded transition-all opacity-0 group-hover:opacity-100"
-								title="Export Symbols & Formatting"
-							>
-								<Download class="h-4 w-4" />
-							</button>
-							<button
 								@click="handleLoadFromLibrary(disk.key)"
 								class="p-1 mr-2 text-green-400 hover:bg-gray-700 hover:text-green-300 rounded transition-colors"
 								title="Load"
@@ -258,14 +250,13 @@
 
 <script lang="ts" setup>
 import { useDebounceFn } from "@vueuse/core";
-import { CirclePlay, Download, FileText, Link, Pencil, Save, Upload } from "lucide-vue-next";
+import { CirclePlay, FileText, Link, Pencil, Save, Upload } from "lucide-vue-next";
 import { computed, inject, type Ref, ref, watch } from "vue";
 
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { type StoredDisk, useDiskStorage } from "@/composables/useDiskStorage";
-import { useFileDownload } from "@/composables/useFileDownload";
 import { useFormatting } from "@/composables/useFormatting";
 import { useSymbols } from "@/composables/useSymbols";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
@@ -276,9 +267,8 @@ const ACTIVE_DISK_URL_KEY = "vm6502_active_disk_url";
 
 const vm = inject<Ref<VirtualMachine>>("vm");
 
-const { addSymbolsFromText, generateSymFileContent, setDiskKey } = useSymbols();
-const { formattingRules, getFormatting, generateDataSymFileContent, parseFormattingFromText, addFormatting } =
-	useFormatting();
+const { addSymbolsFromText, setDiskKey } = useSymbols();
+const { formattingRules, getFormatting, parseFormattingFromText, addFormatting } = useFormatting();
 const diskConfig = computed(() => vm?.value?.machineConfig?.disk);
 const fileName = ref("");
 const fileSize = ref(0);
@@ -353,8 +343,10 @@ const formatSize = (bytes: number) => {
 
 const setActiveDisk = async (key: IDBValidKey) => {
 	activeDiskKey.value = key;
-	// clearUserSymbols();
-	await loadDisk(key);
+	const disk = await loadDisk(key);
+
+	console.log("---setActiveDisk", disk);
+
 	setDiskKey(key as string);
 };
 
@@ -490,31 +482,6 @@ const handleDelete = async (key: IDBValidKey) => {
 		await deleteDisk(key);
 		await refreshLibrary();
 	}
-};
-
-const { downloadFile } = useFileDownload();
-
-const exportSymbols = async (disk: StoredDisk) => {
-	const fullDisk = await loadDisk(disk.key);
-	if (!fullDisk) return;
-
-	const hasSymbols = fullDisk.symbols && Object.keys(fullDisk.symbols).length > 0;
-	const hasFormatting = fullDisk.formatting && Object.keys(fullDisk.formatting).length > 0;
-
-	if (!hasSymbols && !hasFormatting) {
-		alert("No user symbols or formatting found for this disk.");
-		return;
-	}
-
-	const name = disk.name.split(".").slice(0, -1).join(".") || disk.name;
-
-	let content = "";
-	if (hasSymbols && fullDisk.symbols) content += generateSymFileContent(fullDisk.symbols, "user");
-	if (hasFormatting && fullDisk.formatting) {
-		if (content.length) content += "\n\n";
-		content += generateDataSymFileContent(fullDisk.formatting);
-	}
-	downloadFile(`${name}.sym`, "text/plain;charset=utf-8", content);
 };
 
 const openLogs = () => {

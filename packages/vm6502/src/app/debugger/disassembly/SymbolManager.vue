@@ -26,13 +26,32 @@
 					</option>
 				</select>
 				<input type="file" ref="importFileInput" class="hidden" accept=".sym,.txt" @change="handleImportFile" />
-				<Button @click="triggerImport" class="h-10 bg-gray-600 hover:bg-gray-500 text-white shrink-0">
-					<Upload class="h-4 w-4 mr-2" />
-					Import
-				</Button>
-				<Button @click="beginAddSymbol" class="h-10 bg-blue-600 hover:bg-blue-500 text-white shrink-0">
-					<PlusCircle class="h-4 w-4 mr-2" />
-					Add Symbol
+				<ButtonGroup>
+					<Button
+						variant="outline"
+						size="icon"
+						@click="triggerImport"
+						class="h-10 bg-gray-600 hover:bg-gray-500 text-white shrink-0"
+						title="Import from file"
+					>
+						<Upload class="h-4 w-4" />
+					</Button>
+					<Button
+						variant="outline"
+						size="icon"
+						@click="handleExport"
+						class="h-10 bg-gray-600 hover:bg-gray-500 text-white shrink-0"
+						title="Export to file"
+					>
+						<Download class="h-4 w-4" />
+					</Button>
+				</ButtonGroup>
+				<Button
+					@click="beginAddSymbol"
+					size="icon"
+					class="h-10 bg-blue-600 hover:bg-blue-500 text-white shrink-0"
+				>
+					<PlusCircle class="h-4 w-4" />
 				</Button>
 			</div>
 
@@ -304,6 +323,7 @@ import {
 	ArrowDown,
 	ArrowUp,
 	Check,
+	Download,
 	FileText,
 	OctagonPause,
 	Pencil,
@@ -315,6 +335,7 @@ import {
 } from "lucide-vue-next";
 import { computed, inject, type Ref, ref } from "vue";
 import { Button } from "@/components/ui/button";
+import { ButtonGroup } from "@/components/ui/button-group";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -323,6 +344,8 @@ import { useSymbols, type SymbolEntry } from "@/composables/useSymbols";
 import { formatAddress, toHex } from "@/lib/hex.utils";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import { computedAsync } from "@vueuse/core";
+import { useFileDownload } from "@/composables/useFileDownload";
+import { useDiskStorage } from "@/composables/useDiskStorage";
 
 const props = defineProps<{
 	isOpen: boolean;
@@ -334,8 +357,18 @@ const emit = defineEmits<{
 }>();
 
 const vm = inject<Ref<VirtualMachine>>("vm");
-const { addSymbol, removeSymbol, updateSymbol, findSymbols, getNamespaceList, addSymbolsFromText } = useSymbols();
+const {
+	addSymbol,
+	removeSymbol,
+	updateSymbol,
+	findSymbols,
+	getNamespaceList,
+	addSymbolsFromText,
+	generateTextFromSymbols,
+	diskKey,
+} = useSymbols();
 const { pcBreakpoints, toggleBreakpoint } = useBreakpoints();
+const { downloadFile } = useFileDownload();
 
 const searchTerm = ref("");
 const selectedNamespace = ref("");
@@ -490,6 +523,16 @@ const handleImportFile = async (event: Event) => {
 	const text = await file.text();
 	await addSymbolsFromText(text);
 	input.value = ""; // Reset input
+};
+
+const handleExport = async () => {
+	const { loadDisk } = useDiskStorage();
+	const disk = await loadDisk(diskKey);
+	if (!disk) return;
+	const name = disk.name.split(".").slice(0, -1).join(".") || disk.name;
+
+	const content = await generateTextFromSymbols();
+	downloadFile(`${name}.sym`, "text/plain;charset=utf-8", content);
 };
 
 const handleDelete = (symbol: SymbolEntry) => {
