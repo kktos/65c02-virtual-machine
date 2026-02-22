@@ -60,8 +60,12 @@
 								<span v-if="index === historyIndex" class="text-[10px]">●</span>
 							</div>
 							<span class="font-mono text-gray-400">$</span>
-							<span class="font-mono font-medium">{{ addr.toString(16).toUpperCase().padStart(4, "0") }}</span>
-							<span class="text-gray-500 truncate ml-auto max-w-[80px]">{{ getLabelForAddress(addr) }}</span>
+							<span class="font-mono font-medium">{{
+								addr.toString(16).toUpperCase().padStart(4, "0")
+							}}</span>
+							<span class="text-gray-500 truncate ml-auto max-w-[80px]">{{
+								getLabelForAddress(addr)
+							}}</span>
 						</button>
 					</div>
 					<div v-else class="text-center text-xs text-gray-500 py-4">History is empty.</div>
@@ -97,7 +101,7 @@
 			>
 				<button
 					v-for="(suggestion, index) in suggestions"
-					:key="suggestion.label + suggestion.address"
+					:key="suggestion.label + suggestion.addr"
 					@mousedown.prevent="selectSuggestion(suggestion)"
 					class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-700 flex gap-1 justify-between items-center group transition-colors"
 					:class="index === selectedSuggestionIndex ? 'bg-gray-700 text-cyan-300' : 'text-gray-300'"
@@ -110,7 +114,7 @@
 							>{{ suggestion.scope }}</span
 						>
 						<span class="text-gray-500 text-[10px] font-mono shrink-0 group-hover:text-gray-400"
-							>${{ suggestion.address.toString(16).toUpperCase().padStart(4, "0") }}</span
+							>${{ suggestion.addr.toString(16).toUpperCase().padStart(4, "0") }}</span
 						>
 					</div>
 				</button>
@@ -125,18 +129,19 @@ import { computed, ref } from "vue";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useDebuggerNav } from "@/composables/useDebuggerNav";
-import { useSymbols } from "@/composables/useSymbols";
+import { useSymbols, type SymbolEntry } from "@/composables/useSymbols";
 
 const emit = defineEmits<(e: "goto", address: number) => void>();
 
 const { getAddressForLabel, getLabelForAddress, findSymbols } = useSymbols();
 const inputValue = ref("");
 const isHistoryOpen = ref(false);
-const suggestions = ref<{ label: string; address: number; scope?: string }[]>([]);
+const suggestions = ref<SymbolEntry[]>([]);
 const showSuggestions = ref(false);
 const selectedSuggestionIndex = ref(-1);
 
-const { historyIndex, jumpHistory, addJumpHistory, navigateHistory, jumpToHistoryIndex, clearHistory } = useDebuggerNav();
+const { historyIndex, jumpHistory, addJumpHistory, navigateHistory, jumpToHistoryIndex, clearHistory } =
+	useDebuggerNav();
 
 const canNavigateBack = computed(() => historyIndex.value > 0);
 const canNavigateForward = computed(() => historyIndex.value < jumpHistory.value.length - 1);
@@ -183,19 +188,21 @@ const selectNextSuggestion = () => {
 const selectPrevSuggestion = () => {
 	if (!showSuggestions.value || suggestions.value.length === 0) return;
 	if (selectedSuggestionIndex.value === -1) selectedSuggestionIndex.value = suggestions.value.length - 1;
-	else selectedSuggestionIndex.value = (selectedSuggestionIndex.value - 1 + suggestions.value.length) % suggestions.value.length;
+	else
+		selectedSuggestionIndex.value =
+			(selectedSuggestionIndex.value - 1 + suggestions.value.length) % suggestions.value.length;
 };
 
-const selectSuggestion = (suggestion: { label: string; address: number }) => {
+const selectSuggestion = (suggestion: SymbolEntry) => {
 	inputValue.value = suggestion.label;
-	addJumpHistory(suggestion.address);
-	emit("goto", suggestion.address);
+	addJumpHistory(suggestion.addr);
+	emit("goto", suggestion.addr);
 	closeSuggestions();
 };
 
 const handleGoto = () => {
 	if (showSuggestions.value && selectedSuggestionIndex.value !== -1) {
-		selectSuggestion(suggestions.value[selectedSuggestionIndex.value]);
+		selectSuggestion(suggestions.value[selectedSuggestionIndex.value] as SymbolEntry);
 		return;
 	}
 
