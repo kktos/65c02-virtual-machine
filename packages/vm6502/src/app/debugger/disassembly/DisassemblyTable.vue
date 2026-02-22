@@ -14,50 +14,31 @@
 		<tbody>
 			<template v-for="line in disassembly" :key="line.addr">
 				<tr v-if="line.label">
-					<td
+					<DisassemblyTableLabel
 						colspan="7"
 						class="py-0.5 px-2 text-yellow-500 font-bold font-mono text-xs border-l-4 border-transparent"
-						:style="{ color: getScopeColor(line.addr) }"
-						@contextmenu.prevent="handleContextMenu($event, line)"
-						:title="line.src"
-						@dblclick="startLabelEdit(line)"
-					>
-						<template v-if="editingLabelAddress === line.addr">
-							<div class="relative w-full inline-block">
-								<input
-									:ref="
-										(el) => {
-											if (el) editLabelInputRef = el as HTMLInputElement;
-										}
-									"
-									v-model="editLabelText"
-									class="bg-black text-yellow-500 font-bold font-mono text-xs border border-blue-500 px-1 h-5 w-full focus:outline-none"
-									@keydown.enter="commitLabelEdit"
-									@keydown.esc="cancelLabelEdit"
-									@blur="cancelLabelEdit"
-									@input="labelError = ''"
-								/>
-								<div
-									v-if="labelError"
-									class="absolute top-full left-0 mt-1 bg-red-900 text-white text-xs px-2 py-1 rounded shadow-lg z-50 whitespace-nowrap border border-red-700"
-								>
-									{{ labelError }}
-								</div>
-							</div>
-						</template>
-						<template v-else> {{ line.label }}: </template>
-					</td>
+						:line="line"
+						@on-context-menu="handleContextMenu($event, line)"
+					/>
 				</tr>
 				<tr
 					:class="[
 						'hover:bg-gray-700 transition duration-100 border-l-4',
-						line.addr === address ? 'bg-yellow-800/70 text-yellow-100 font-bold border-yellow-400' : 'border-transparent text-gray-300',
+						line.addr === address
+							? 'bg-yellow-800/70 text-yellow-100 font-bold border-yellow-400'
+							: 'border-transparent text-gray-300',
 						contextMenu.isOpen && contextMenu.address === line.addr ? 'bg-gray-700' : '',
 					]"
 				>
 					<td class="py-0.5 text-center">
-						<button @click="$emit('toggleBreakpoint', line.addr)" class="w-full h-full flex items-center justify-center cursor-pointer group">
-							<span class="w-2 h-2 rounded-full transition-colors" :class="getBreakpointClass(line.addr)"></span>
+						<button
+							@click="$emit('toggleBreakpoint', line.addr)"
+							class="w-full h-full flex items-center justify-center cursor-pointer group"
+						>
+							<span
+								class="w-2 h-2 rounded-full transition-colors"
+								:class="getBreakpointClass(line.addr)"
+							></span>
 						</button>
 					</td>
 					<td class="py-0.5 text-center group/note">
@@ -68,7 +49,11 @@
 						>
 							<StickyNote
 								class="w-3 h-3 transition-colors"
-								:class="notes[getNoteKey(line.addr)] ? 'text-yellow-400 fill-yellow-400/20' : 'text-gray-700 group-hover/note:text-yellow-100'"
+								:class="
+									notes[getNoteKey(line.addr)]
+										? 'text-yellow-400 fill-yellow-400/20'
+										: 'text-gray-700 group-hover/note:text-yellow-100'
+								"
 							/>
 						</button>
 					</td>
@@ -178,6 +163,7 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import { BRANCH_OPCODES } from "@/lib/opcodes";
 import { useNotes } from "@/composables/useNotes";
 import NoteEditor from "./NoteEditor.vue";
+import DisassemblyTableLabel from "./DisassemblyTableLabel.vue";
 
 const vm = inject<Ref<VirtualMachine>>("vm");
 
@@ -196,7 +182,7 @@ defineEmits<{
 
 const { settings } = useSettings();
 const isCtrlPressed = useKeyModifier("Control");
-const { symbolDict, addSymbol, removeSymbol } = useSymbols();
+const { symbolDict } = useSymbols();
 const { notes } = useNotes();
 
 const getBranchPrediction = (opcode: string) => {
@@ -244,7 +230,9 @@ const getBranchPrediction = (opcode: string) => {
 
 	if (!isBranchOpcode) return null;
 
-	return isTaken ? { char: "→", title: "Branch Taken", color: "text-green-400" } : { char: "↓", title: "Branch Not Taken", color: "text-red-400" };
+	return isTaken
+		? { char: "→", title: "Branch Taken", color: "text-green-400" }
+		: { char: "↓", title: "Branch Not Taken", color: "text-red-400" };
 };
 
 const isOpcodeClickable = (line: DisassemblyLine) => {
@@ -346,77 +334,6 @@ const commitEdit = () => {
 	registers.A++;
 
 	cancelEdit();
-};
-
-// --- Label Editing ---
-const editingLabelAddress = ref<number | null>(null);
-const editLabelText = ref("");
-const originalLabel = ref("");
-const labelError = ref("");
-const editLabelInputRef = ref<HTMLInputElement | null>(null);
-
-const startLabelEdit = (line: DisassemblyLine) => {
-	editingLabelAddress.value = line.addr;
-	editLabelText.value = line.label || "";
-	originalLabel.value = line.label || "";
-	labelError.value = "";
-	nextTick(() => {
-		editLabelInputRef.value?.focus();
-	});
-};
-
-const cancelLabelEdit = () => {
-	editingLabelAddress.value = null;
-	editLabelText.value = "";
-	originalLabel.value = "";
-	labelError.value = "";
-};
-
-const commitLabelEdit = () => {
-	if (editingLabelAddress.value === null) return;
-	const addr = editingLabelAddress.value;
-	const newLabel = editLabelText.value.trim();
-	const oldLabel = originalLabel.value;
-
-	// Find namespace/scope of the old label
-	let namespace = "user";
-	let scope = "main";
-
-	const namespaces = symbolDict.value[addr];
-	if (namespaces) {
-		for (const ns in namespaces) {
-			if (namespaces[ns].label === oldLabel) {
-				namespace = ns;
-				scope = namespaces[ns].scope || "main";
-				break;
-			}
-		}
-	}
-
-	if (!newLabel) {
-		removeSymbol(addr, namespace);
-		cancelLabelEdit();
-		return;
-	}
-
-	if (newLabel === oldLabel) {
-		cancelLabelEdit();
-		return;
-	}
-
-	// Check duplicate in the same namespace
-	for (const aStr in symbolDict.value) {
-		const a = parseInt(aStr, 10);
-		if (a === addr) continue;
-		const nsData = symbolDict.value[a];
-		if (nsData && nsData[namespace] && nsData[namespace].label === newLabel) {
-			labelError.value = `Label "${newLabel}" already exists in namespace "${namespace}"`;
-			return;
-		}
-	}
-
-	addSymbol(addr, newLabel, namespace, scope);
-	cancelLabelEdit();
 };
 
 // --- Note Editing ---
