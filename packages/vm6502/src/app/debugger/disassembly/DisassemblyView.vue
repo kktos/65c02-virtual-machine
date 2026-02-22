@@ -16,12 +16,6 @@
 
 		<!-- <div class="text-xs">{{ visibleRowCount }} / {{ pcRowIndex }}</div> -->
 
-		<!-- Explanation Result Panel -->
-		<div v-if="explanationText" class="mb-3 p-3 bg-gray-700 rounded-lg text-sm text-gray-200 shadow-inner shrink-0">
-			<p class="font-semibold text-cyan-400 mb-1">AI Analysis:</p>
-			<p class="whitespace-pre-wrap">{{ explanationText }}</p>
-		</div>
-
 		<!-- Scrollable disassembly table -->
 		<div
 			ref="disassemblyContainer"
@@ -39,9 +33,13 @@
 				:disassembly="disassembly"
 				:address="fullPcAddress"
 				:get-breakpoint-class="getBreakpointClass"
+				:selection-start="selectionStart"
+				:selection-end="selectionEnd"
 				@toggle-breakpoint="onToggleBreakpoint"
 				@address-click="handleAddressClick"
 				@opcode-click="handleOpcodeClick"
+				@set-selection-start="(addr) => (selectionStart = addr)"
+				@set-selection-end="(addr) => (selectionEnd = addr)"
 			/>
 		</div>
 		<SymbolManager
@@ -54,6 +52,37 @@
 			@update:is-open="(val) => (isFormattingManagerOpen = val)"
 			@goto-address="onGotoAddress"
 		/>
+
+		<Drawer v-model:open="isExplanationOpen">
+			<DrawerContent class="mx-auto w-1/3 min-w-[500px] border-gray-700 bg-gray-900 text-gray-100">
+				<DrawerHeader>
+					<DrawerTitle>Gemini Analysis</DrawerTitle>
+					<DrawerDescription class="text-gray-400">
+						Explanation of the selected assembly code.
+					</DrawerDescription>
+				</DrawerHeader>
+				<div class="p-4 max-h-[60vh] overflow-y-auto">
+					<div
+						class="whitespace-pre-wrap font-mono text-xs text-gray-300 bg-black/40 p-3 rounded border border-gray-800"
+					>
+						{{ explanationText }}
+					</div>
+				</div>
+				<DrawerFooter class="flex-row justify-end gap-2 border-t border-gray-800 pt-4">
+					<Button
+						variant="secondary"
+						@click="saveExplanationAsNote"
+						:disabled="selectionStart === null"
+						title="Save explanation as a note at the start marker"
+					>
+						Add Note @ Start
+					</Button>
+					<DrawerClose as-child>
+						<Button variant="outline" class="text-gray-900 bg-gray-200 hover:bg-gray-300">Close</Button>
+					</DrawerClose>
+				</DrawerFooter>
+			</DrawerContent>
+		</Drawer>
 	</div>
 </template>
 
@@ -65,6 +94,16 @@ import DisassemblyTable from "@/app/debugger/disassembly/DisassemblyTable.vue";
 import DisassemblyToolbar from "@/app/debugger/disassembly/DisassemblyToolbar.vue";
 import FormattingManager from "@/app/debugger/disassembly/FormattingManager.vue";
 import SymbolManager from "@/app/debugger/disassembly/SymbolManager.vue";
+import {
+	Drawer,
+	DrawerClose,
+	DrawerContent,
+	DrawerDescription,
+	DrawerFooter,
+	DrawerHeader,
+	DrawerTitle,
+} from "@/components/ui/drawer";
+import { Button } from "@/components/ui/button";
 import { useBreakpoints } from "@/composables/useBreakpoints";
 import { useDebuggerNav } from "@/composables/useDebuggerNav";
 import { useDisassembly } from "@/composables/useDisassembly";
@@ -73,6 +112,7 @@ import { useFormatting } from "@/composables/useDataFormattings";
 import { useSettings } from "@/composables/useSettings";
 import { useGemini } from "@/composables/useGemini";
 import { useSymbols } from "@/composables/useSymbols";
+import { useNotes } from "@/composables/useNotes";
 import { disassemble } from "@/lib/disassembler";
 import type { DisassemblyLine } from "@/types/disassemblyline.interface";
 import type { EmulatorState } from "@/types/emulatorstate.interface";
@@ -103,6 +143,7 @@ const {
 	explainCode,
 } = useGemini();
 const { symbolsState } = useSymbols();
+const { addNote } = useNotes();
 
 const availableScopes: Ref<string[]> = ref([]);
 const getRandomColor = () =>
@@ -219,6 +260,9 @@ const disassembly = ref<DisassemblyLine[]>([]);
 const isFollowingPc = ref(true);
 const pcRowIndex = ref(-1);
 const pivotIndex = ref(0);
+
+const selectionStart = ref<number | null>(null);
+const selectionEnd = ref<number | null>(null);
 
 const onGotoAddress = (addr: number) => {
 	if (addr >= totalMemory) return;
@@ -358,11 +402,8 @@ const handleOpcodeClick = (line: DisassemblyLine) => {
 	}
 };
 
-const handleExplain = async () => {
-	// Use the currently displayed lines for explanation
-	const codeArray = disassembly.value;
-
-	const codeBlock = codeArray
+const formatDisassemblyForAI = (lines: DisassemblyLine[]) => {
+	return lines
 		.map((line) => {
 			const labeledOpcode = line.opc;
 			const labelComment = line.comment;
@@ -375,7 +416,55 @@ const handleExplain = async () => {
 			return `${addr} ${bytes} ${op} ${finalComment}`;
 		})
 		.join("\n");
-	console.log(codeBlock);
+};
+
+const isExplanationOpen = ref(false);
+
+watch(explanationText, (val) => {
+	if (val) isExplanationOpen.value = true;
+});
+
+const saveExplanationAsNote = () => {
+	if (selectionStart.value !== null && explanationText.value) {
+		const scope = vm?.value?.getScope(selectionStart.value) ?? "";
+		addNote(selectionStart.value, explanationText.value, scope);
+	}
+};
+
+const handleExplain = async () => {
+	let codeBlock = "";
+
+	if (selectionStart.value !== null && selectionEnd.value !== null) {
+		// Range Mode: Fetch disassembly for the specific range
+		const start = Math.min(selectionStart.value, selectionEnd.value);
+		const end = Math.max(selectionStart.value, selectionEnd.value);
+		const lines: DisassemblyLine[] = [];
+
+		let currentAddr = start;
+		let safety = 0;
+
+		// Fetch in chunks until we cover the range
+		while (currentAddr <= end && safety++ < 200) {
+			const chunk = await disassemble(readByte, vm!.value.getScope(currentAddr), currentAddr, 20, registers, 0);
+			if (!chunk || chunk.length === 0) break;
+
+			for (const line of chunk) {
+				if (line.addr > end) break;
+				lines.push(line);
+				// Calculate next address based on byte count
+				const byteCount = line.bytes.trim().split(" ").length;
+				currentAddr = line.addr + byteCount;
+			}
+			// If the chunk didn't advance us (shouldn't happen), break to avoid infinite loop
+			if (chunk[0]?.addr === currentAddr) break;
+		}
+		codeBlock = formatDisassemblyForAI(lines);
+	} else {
+		// View Mode: Use currently visible lines
+		codeBlock = formatDisassemblyForAI(disassembly.value);
+	}
+
+	// console.log(codeBlock);
 
 	await explainCode(codeBlock);
 };

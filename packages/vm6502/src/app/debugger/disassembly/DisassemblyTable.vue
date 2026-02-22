@@ -2,6 +2,7 @@
 	<table class="w-full table-fixed">
 		<thead>
 			<tr class="text-gray-400 sticky top-0 bg-gray-900 border-b border-gray-700 shadow-md z-10">
+				<!-- Header -->
 				<th class="py-1 text-center w-6"></th>
 				<th class="py-1 text-center w-6"><StickyNote class="w-3 h-3 mx-auto" /></th>
 				<th class="py-1 text-left px-2 w-20">Addr</th>
@@ -27,6 +28,8 @@
 						line.addr === address
 							? 'bg-yellow-800/70 text-yellow-100 font-bold border-yellow-400'
 							: 'border-transparent text-gray-300',
+						isLineSelected(line.addr) ? 'bg-indigo-900/40 border-indigo-500/50' : '',
+						line.addr === selectionStart || line.addr === selectionEnd ? 'bg-indigo-800/60' : '',
 						contextMenu.isOpen && contextMenu.address === line.addr ? 'bg-gray-700' : '',
 					]"
 				>
@@ -128,13 +131,41 @@
 		</tbody>
 	</table>
 
+	<!-- Custom Context Menu -->
+	<div
+		v-if="contextMenu.isOpen"
+		class="fixed z-50 bg-gray-800 border border-gray-700 shadow-xl rounded-md py-1 min-w-[160px] flex flex-col"
+		:style="{ top: `${contextMenu.y}px`, left: `${contextMenu.x}px` }"
+		@mouseleave="contextMenu.isOpen = false"
+	>
+		<button
+			class="text-left px-4 py-2 text-xs text-gray-200 hover:bg-gray-700 flex items-center gap-2"
+			@click="emitMarker('start')"
+		>
+			<span>📍</span> Set Start Marker
+		</button>
+		<button
+			class="text-left px-4 py-2 text-xs text-gray-200 hover:bg-gray-700 flex items-center gap-2"
+			@click="emitMarker('end')"
+		>
+			<span>🏁</span> Set End Marker
+		</button>
+		<div class="border-t border-gray-700 my-1"></div>
+		<button
+			class="text-left px-4 py-2 text-xs text-gray-200 hover:bg-gray-700 flex items-center gap-2"
+			@click="openSymbolPopover"
+		>
+			<span>🏷️</span> Add Symbol...
+		</button>
+	</div>
+
 	<AddSymbolPopover
-		:is-open="contextMenu.isOpen"
-		@update:is-open="(val) => (contextMenu.isOpen = val)"
-		:x="contextMenu.x"
-		:y="contextMenu.y"
-		:address="contextMenu.address"
-		:key="`${contextMenu.x}-${contextMenu.y}`"
+		:is-open="symbolPopover.isOpen"
+		@update:is-open="(val) => (symbolPopover.isOpen = val)"
+		:x="symbolPopover.x"
+		:y="symbolPopover.y"
+		:address="symbolPopover.address"
+		:key="`sym-${symbolPopover.x}-${symbolPopover.y}`"
 	/>
 
 	<NoteEditor
@@ -166,17 +197,21 @@ import DisassemblyTableLabel from "./DisassemblyTableLabel.vue";
 
 const vm = inject<Ref<VirtualMachine>>("vm");
 
-const { registers } = defineProps<{
+const { registers, selectionStart, selectionEnd } = defineProps<{
 	registers: EmulatorState["registers"];
 	disassembly: DisassemblyLine[];
 	address: number;
 	getBreakpointClass: (address: number) => string;
+	selectionStart: number | null;
+	selectionEnd: number | null;
 }>();
 
-defineEmits<{
+const emit = defineEmits<{
 	(e: "toggleBreakpoint", address: number): void;
 	(e: "addressClick", address: number): void;
 	(e: "opcodeClick", line: DisassemblyLine): void;
+	(e: "setSelectionStart", address: number): void;
+	(e: "setSelectionEnd", address: number): void;
 }>();
 
 const { settings } = useSettings();
@@ -265,6 +300,13 @@ const getNote = (addr: number) => {
 	return getNoteEntry(addr, scope);
 };
 
+const isLineSelected = (addr: number) => {
+	if (selectionStart === null || selectionEnd === null) return false;
+	const min = Math.min(selectionStart, selectionEnd);
+	const max = Math.max(selectionStart, selectionEnd);
+	return addr >= min && addr <= max;
+};
+
 // --- Context Menu & Label Editing ---
 const contextMenu = ref({
 	isOpen: false,
@@ -273,6 +315,8 @@ const contextMenu = ref({
 	address: 0,
 });
 
+const symbolPopover = ref({ isOpen: false, x: 0, y: 0, address: 0 });
+
 const handleContextMenu = (event: MouseEvent, line: DisassemblyLine) => {
 	contextMenu.value = {
 		isOpen: true,
@@ -280,6 +324,17 @@ const handleContextMenu = (event: MouseEvent, line: DisassemblyLine) => {
 		y: event.clientY,
 		address: line.addr,
 	};
+};
+
+const emitMarker = (type: "start" | "end") => {
+	if (type === "start") emit("setSelectionStart", contextMenu.value.address);
+	if (type === "end") emit("setSelectionEnd", contextMenu.value.address);
+	contextMenu.value.isOpen = false;
+};
+
+const openSymbolPopover = () => {
+	symbolPopover.value = { ...contextMenu.value, isOpen: true };
+	contextMenu.value.isOpen = false;
 };
 
 // --- Inline Assembler ---
