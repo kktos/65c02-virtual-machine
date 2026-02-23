@@ -52,33 +52,12 @@
 			@update:is-open="(val) => (isFormattingManagerOpen = val)"
 			@goto-address="onGotoAddress"
 		/>
-
-		<Drawer v-model:open="isExplanationOpen">
-			<DrawerContent
-				overlay-class="bg-transparent"
-				class="mx-auto w-1/3 min-w-[500px] border-gray-700 bg-gray-900 text-gray-100"
-			>
-				<DrawerHeader>
-					<DrawerTitle class="text-white">Gemini Analysis</DrawerTitle>
-				</DrawerHeader>
-				<div class="px-2 max-h-[60vh] overflow-y-auto">
-					<div
-						class="min-h-[20vh] whitespace-pre-wrap font-mono text-xs text-gray-300 bg-black/20 p-3 rounded border border-gray-500"
-					>
-						{{ explanationText }}
-					</div>
-				</div>
-				<DrawerFooter class="flex-row justify-end gap-2 border-t border-gray-800 pt-4">
-					<Button
-						variant="secondary"
-						@click="saveExplanationAsNote"
-						title="Save explanation as a note at the start marker or at begining of disassembly"
-					>
-						Add as a Note
-					</Button>
-				</DrawerFooter>
-			</DrawerContent>
-		</Drawer>
+		<ExplanationDrawer
+			v-model:open="isExplanationOpen"
+			:explanation="explanationText"
+			:is-loading="isExplainLoading"
+			@save-as-note="saveExplanationAsNote"
+		/>
 	</div>
 </template>
 
@@ -90,8 +69,7 @@ import DisassemblyTable from "@/app/debugger/disassembly/DisassemblyTable.vue";
 import DisassemblyToolbar from "@/app/debugger/disassembly/DisassemblyToolbar.vue";
 import FormattingManager from "@/app/debugger/disassembly/FormattingManager.vue";
 import SymbolManager from "@/app/debugger/disassembly/SymbolManager.vue";
-import { Drawer, DrawerContent, DrawerFooter, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
-import { Button } from "@/components/ui/button";
+import ExplanationDrawer from "@/app/debugger/disassembly/ExplanationDrawer.vue";
 import { useBreakpoints } from "@/composables/useBreakpoints";
 import { useDebuggerNav } from "@/composables/useDebuggerNav";
 import { useDisassembly } from "@/composables/useDisassembly";
@@ -413,9 +391,10 @@ watch(explanationText, (val) => {
 });
 
 const saveExplanationAsNote = () => {
-	if (selectionStart.value !== null && explanationText.value) {
-		const scope = vm?.value?.getScope(selectionStart.value) ?? "";
-		addNote(selectionStart.value, explanationText.value, scope);
+	if (explanationText.value) {
+		const startAddr = selectionStart.value ?? disassemblyStartAddress.value;
+		const scope = vm?.value?.getScope(startAddr) ?? "";
+		addNote(startAddr, explanationText.value, scope);
 	}
 };
 
@@ -452,11 +431,9 @@ const handleExplain = async () => {
 		codeBlock = formatDisassemblyForAI(disassembly.value);
 	}
 
-	// console.log(codeBlock);
+	await explainCode(codeBlock);
 
-	explanationText.value = "this is a test ;)";
-	isExplainLoading.value = false;
-
-	// await explainCode(codeBlock);
+	selectionStart.value = null;
+	selectionEnd.value = null;
 };
 </script>
