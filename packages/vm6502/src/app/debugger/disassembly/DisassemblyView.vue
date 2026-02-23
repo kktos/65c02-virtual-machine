@@ -394,8 +394,10 @@ const saveExplanationAsNote = () => {
 	if (explanationText.value) {
 		const startAddr = selectionStart.value ?? disassemblyStartAddress.value;
 		const scope = vm?.value?.getScope(startAddr) ?? "";
-		addNote(startAddr, explanationText.value, scope);
+		addNote(startAddr, scope, explanationText.value);
+		explanationText.value = "";
 	}
+	isExplanationOpen.value = false;
 };
 
 const handleExplain = async () => {

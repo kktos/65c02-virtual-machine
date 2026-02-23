@@ -2,14 +2,14 @@
 	<Drawer v-model:open="isOpen">
 		<DrawerContent
 			overlay-class="bg-transparent"
-			class="mx-auto w-1/3 min-w-[500px] border-gray-700 bg-gray-900 text-gray-100"
+			class="mx-auto w-1/3 min-w-[500px] border-gray-300 bg-gray-700 text-gray-100"
 		>
 			<DrawerHeader>
 				<DrawerTitle class="text-white">Gemini Analysis</DrawerTitle>
 			</DrawerHeader>
 			<div class="px-2 max-h-[60vh] overflow-y-auto">
 				<div
-					class="min-h-[20vh] whitespace-pre-wrap font-mono text-xs text-gray-300 bg-black/20 p-3 rounded border border-gray-500 flex items-center justify-center"
+					class="min-h-[20vh] whitespace-pre-wrap font-mono text-md text-gray-300 bg-black/20 p-3 rounded border border-gray-500 flex items-center justify-center"
 				>
 					<div v-if="isLoading" class="text-gray-400">Analyzing...</div>
 					<div v-else>

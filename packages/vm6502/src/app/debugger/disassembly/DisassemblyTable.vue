@@ -23,6 +23,7 @@
 					/>
 				</tr>
 				<tr
+					@contextmenu.prevent="handleContextMenu($event, line)"
 					:class="[
 						'hover:bg-gray-700 transition duration-100 border-l-4',
 						line.addr === address
@@ -76,7 +77,6 @@
 						:class="{ 'cursor-pointer': isCtrlPressed && isOpcodeClickable(line) }"
 						:title="getOpcodeTitle(line.opc)"
 						@click.ctrl.prevent="$emit('opcodeClick', line)"
-						@contextmenu.prevent="handleContextMenu($event, line)"
 						@dblclick="startEdit(line)"
 					>
 						<template v-if="editingAddress === line.addr">
@@ -131,32 +131,30 @@
 		</tbody>
 	</table>
 
-	<!-- Custom Context Menu -->
-	<div
-		v-if="contextMenu.isOpen"
-		class="fixed z-50 bg-gray-800 border border-gray-700 shadow-xl rounded-md py-1 min-w-[160px] flex flex-col"
-		:style="{ top: `${contextMenu.y}px`, left: `${contextMenu.x}px` }"
-		@mouseleave="contextMenu.isOpen = false"
-	>
-		<button
-			class="text-left px-4 py-2 text-xs text-gray-200 hover:bg-gray-700 flex items-center gap-2"
-			@click="emitMarker('start')"
-		>
-			<span>📍</span> Set Start Marker
-		</button>
-		<button
-			class="text-left px-4 py-2 text-xs text-gray-200 hover:bg-gray-700 flex items-center gap-2"
-			@click="emitMarker('end')"
-		>
-			<span>🏁</span> Set End Marker
-		</button>
-		<div class="border-t border-gray-700 my-1"></div>
-		<button
-			class="text-left px-4 py-2 text-xs text-gray-200 hover:bg-gray-700 flex items-center gap-2"
-			@click="openSymbolPopover"
-		>
-			<span>🏷️</span> Add Symbol...
-		</button>
+	<!-- Markers Context Menu (CTRL + Right Click) -->
+	<div class="fixed z-50 pointer-events-none" :style="{ top: `${contextMenu.y}px`, left: `${contextMenu.x}px` }">
+		<Popover :open="contextMenu.isOpen" @update:open="(val) => (contextMenu.isOpen = val)">
+			<PopoverTrigger as-child>
+				<div class="w-0 h-0"></div>
+			</PopoverTrigger>
+			<PopoverContent
+				class="w-48 p-1 bg-gray-800 border-gray-700 text-gray-200 pointer-events-auto"
+				align="start"
+			>
+				<button
+					class="w-full text-left px-2 py-1.5 text-xs text-gray-200 hover:bg-gray-700 rounded flex items-center gap-2"
+					@click="emitMarker('start')"
+				>
+					<Pin class="w-4 h-4" /> Set Start Marker
+				</button>
+				<button
+					class="w-full text-left px-2 py-1.5 text-xs text-gray-200 hover:bg-gray-700 rounded flex items-center gap-2"
+					@click="emitMarker('end')"
+				>
+					<Flag class="w-4 h-4" /> Set End Marker
+				</button>
+			</PopoverContent>
+		</Popover>
 	</div>
 
 	<AddSymbolPopover
@@ -182,8 +180,9 @@
 <script lang="ts" setup>
 import { useKeyModifier } from "@vueuse/core";
 import { inject, type Ref, ref, reactive, nextTick } from "vue";
-import { StickyNote } from "lucide-vue-next";
+import { StickyNote, Pin, Flag } from "lucide-vue-next";
 import AddSymbolPopover from "@/components/AddSymbolPopover.vue";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useSettings } from "@/composables/useSettings";
 import { useSymbols } from "@/composables/useSymbols";
 import { assemble } from "@/lib/assembler";
@@ -318,22 +317,28 @@ const contextMenu = ref({
 const symbolPopover = ref({ isOpen: false, x: 0, y: 0, address: 0 });
 
 const handleContextMenu = (event: MouseEvent, line: DisassemblyLine) => {
-	contextMenu.value = {
-		isOpen: true,
-		x: event.clientX,
-		y: event.clientY,
-		address: line.addr,
-	};
+	if (event.ctrlKey) {
+		symbolPopover.value.isOpen = false;
+		contextMenu.value = {
+			isOpen: true,
+			x: event.clientX,
+			y: event.clientY,
+			address: line.addr,
+		};
+	} else {
+		contextMenu.value.isOpen = false;
+		symbolPopover.value = {
+			isOpen: true,
+			x: event.clientX,
+			y: event.clientY,
+			address: line.addr,
+		};
+	}
 };
 
 const emitMarker = (type: "start" | "end") => {
 	if (type === "start") emit("setSelectionStart", contextMenu.value.address);
 	if (type === "end") emit("setSelectionEnd", contextMenu.value.address);
-	contextMenu.value.isOpen = false;
-};
-
-const openSymbolPopover = () => {
-	symbolPopover.value = { ...contextMenu.value, isOpen: true };
 	contextMenu.value.isOpen = false;
 };
 

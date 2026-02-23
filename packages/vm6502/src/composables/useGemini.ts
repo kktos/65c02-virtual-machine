@@ -3,15 +3,48 @@ import { useSettings } from "./useSettings";
 import { toast } from "vue-sonner";
 
 const geminiModels = [
-	{ name: "Gemini 1.5 Flash", url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent" },
-	{ name: "Gemini 1.5 Pro", url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro-latest:generateContent" },
-	{ name: "Gemini 2.5 Flash-Lite", url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent" },
-	{ name: "Gemini 2.5 Flash", url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent" },
-	{ name: "Gemini 2.5 Pro", url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent" },
-	{ name: "Gemini 3 Flash (Preview)", url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent" },
-	{ name: "Gemini 3 Pro (Preview)", url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent" },
-	{ name: "Gemini 3.1 Pro (Preview)", url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-pro-preview:generateContent" },
+	{
+		name: "Gemini 1.5 Flash",
+		url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent",
+	},
+	{
+		name: "Gemini 1.5 Pro",
+		url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro-latest:generateContent",
+	},
+	{
+		name: "Gemini 2.5 Flash-Lite",
+		url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent",
+	},
+	{
+		name: "Gemini 2.5 Flash",
+		url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
+	},
+	{
+		name: "Gemini 2.5 Pro",
+		url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent",
+	},
+	{
+		name: "Gemini 3 Flash (Preview)",
+		url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent",
+	},
+	{
+		name: "Gemini 3 Pro (Preview)",
+		url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent",
+	},
+	{
+		name: "Gemini 3.1 Pro (Preview)",
+		url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-pro-preview:generateContent",
+	},
 ];
+
+const EXPLAIN_CODE_SYSTEM_PROMPT = `
+	You are a world-class 65C02 CPU reverse engineer and assembly language expert.
+	Analyze the provided block of 65C02 assembly code and provide a concise,
+	single-paragraph explanation of its overall purpose and function,
+	focusing on the high-level logic (e.g., 'This loop copies X bytes from address A to address B').
+	When possible, try to list first the inputs of the routine and then the outputs.
+	List the memory addresses (variables) that are used by the routine.
+`.replaceAll("\n", " ");
 
 export function useGemini() {
 	const { settings } = useSettings();
@@ -33,13 +66,11 @@ export function useGemini() {
 		isLoading.value = true;
 		explanation.value = null;
 
-		const systemPrompt =
-			"You are a world-class 65C02 CPU reverse engineer and assembly language expert. Analyze the provided block of 65C02 assembly code and provide a concise, single-paragraph explanation of its overall purpose and function, focusing on the high-level logic (e.g., 'This loop copies X bytes from address A to address B').";
 		const userQuery = `Analyze this 65C02 assembly code block and explain its function: \n\n${codeBlock}`;
 
 		const payload = {
 			contents: [{ parts: [{ text: userQuery }] }],
-			systemInstruction: { parts: [{ text: systemPrompt }] },
+			systemInstruction: { parts: [{ text: EXPLAIN_CODE_SYSTEM_PROMPT }] },
 		};
 
 		try {
@@ -52,9 +83,12 @@ export function useGemini() {
 			if (!response.ok) {
 				const errorData = await response.json().catch(() => ({}));
 				console.error("Gemini API Error Response:", errorData);
-				toast.error(`Error: API request failed with status ${response.status}. ${errorData?.error?.message ?? ""}`.trim(), {
-					position: "bottom-center",
-				});
+				toast.error(
+					`Error: API request failed with status ${response.status}. ${errorData?.error?.message ?? ""}`.trim(),
+					{
+						position: "bottom-center",
+					},
+				);
 				return null;
 			}
 
@@ -66,7 +100,9 @@ export function useGemini() {
 				return text;
 			} else {
 				console.warn("Gemini API Warning: Response was empty or malformed.", result);
-				toast.error("Could not retrieve explanation. API response was empty or malformed.", { position: "bottom-center" });
+				toast.error("Could not retrieve explanation. API response was empty or malformed.", {
+					position: "bottom-center",
+				});
 				return null;
 			}
 		} catch (error) {
