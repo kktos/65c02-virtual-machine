@@ -1,8 +1,8 @@
 <template>
-	<div class="flex justify-between items-center mb-2 shrink-0 gap-4">
+	<div class="grid grid-cols-[auto_1fr_auto] justify-between items-center mb-2 shrink-0 gap-4">
 		<AddressNavigator @goto="(addr) => $emit('gotoAddress', addr)" />
 
-		<div class="flex items-center space-x-2 mx-4">
+		<div class="flex space-x-2 mx-4">
 			<button
 				@click="$emit('syncToPc')"
 				:class="[
@@ -31,9 +31,6 @@
 			>
 				<Binary class="h-4 w-4" />
 			</button>
-		</div>
-
-		<div class="flex items-center space-x-2">
 			<button
 				title="Explain code with AI (requires API Key in settings)"
 				@click="$emit('explain')"
@@ -42,7 +39,9 @@
 			>
 				{{ isLoading ? "Analyzing..." : isExplainConfigured ? "✨" : "🔑" }}
 			</button>
+		</div>
 
+		<div class="flex space-x-2">
 			<Popover>
 				<PopoverTrigger as-child>
 					<Button
@@ -158,13 +157,20 @@
 					</div>
 				</PopoverContent>
 			</Popover>
+			<button
+				@click="$emit('toggle-maximize')"
+				:title="isMaximized ? 'Minimize View' : 'Maximize View'"
+				class="p-1 rounded hover:bg-gray-700 text-gray-400 hover:text-white transition-colors"
+			>
+				<component :is="isMaximized ? Minimize : Maximize" class="w-4 h-4" />
+			</button>
 		</div>
 	</div>
 </template>
 
 <script lang="ts" setup>
 import { computed } from "vue";
-import { Binary, Lock, LockOpen, Settings2, Tags } from "lucide-vue-next";
+import { Binary, Lock, LockOpen, Settings2, Tags, Maximize, Minimize } from "lucide-vue-next";
 import AddressNavigator from "@/app/debugger/AddressNavigator.vue";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -180,6 +186,7 @@ const props = defineProps<{
 	hasDisassembly: boolean;
 	isExplainConfigured: boolean;
 	availableScopes: string[];
+	isMaximized: Boolean;
 }>();
 
 const emit = defineEmits<{
@@ -188,6 +195,7 @@ const emit = defineEmits<{
 	(e: "gotoAddress", address: number): void;
 	(e: "openSymbolManager"): void;
 	(e: "openFormattingManager"): void;
+	(e: "toggle-maximize"): void;
 }>();
 
 const { getNamespaceList, toggleNamespace } = useSymbols();

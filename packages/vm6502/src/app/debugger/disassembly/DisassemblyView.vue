@@ -1,63 +1,70 @@
 <template>
-	<div class="p-4 bg-gray-800 rounded-lg shadow-xl h-full flex flex-col" ref="scrollContainer">
-		<!-- Header combining title, count, and action button -->
-		<DisassemblyToolbar
-			:is-following-pc="isFollowingPc"
-			:is-loading="isExplainLoading"
-			:is-explain-configured="isExplainConfigured"
-			:has-disassembly="!!(disassembly && disassembly.length > 0)"
-			:available-scopes="availableScopes"
-			@open-symbol-manager="isSymbolManagerOpen = true"
-			@open-formatting-manager="isFormattingManagerOpen = true"
-			@sync-to-pc="syncToPc"
-			@explain="handleExplain"
-			@goto-address="onGotoAddress"
-		/>
+	<!-- This anchor div holds the component's place in the layout -->
+	<div class="h-full w-full">
+		<Teleport to="body" :disabled="!isMaximized">
+			<div :class="containerClasses" ref="scrollContainer">
+				<!-- Header combining title, count, and action button -->
+				<DisassemblyToolbar
+					:is-following-pc="isFollowingPc"
+					:is-loading="isExplainLoading"
+					:is-explain-configured="isExplainConfigured"
+					:has-disassembly="!!(disassembly && disassembly.length > 0)"
+					:available-scopes="availableScopes"
+					:is-maximized="isMaximized"
+					@toggle-maximize="isMaximized = !isMaximized"
+					@open-symbol-manager="isSymbolManagerOpen = true"
+					@open-formatting-manager="isFormattingManagerOpen = true"
+					@sync-to-pc="syncToPc"
+					@explain="handleExplain"
+					@goto-address="onGotoAddress"
+				/>
 
-		<!-- <div class="text-xs">{{ visibleRowCount }} / {{ pcRowIndex }}</div> -->
+				<!-- <div class="text-xs">{{ visibleRowCount }} / {{ pcRowIndex }}</div> -->
 
-		<!-- Scrollable disassembly table -->
-		<div
-			ref="disassemblyContainer"
-			class="font-mono text-xs overflow-y-hidden flex-grow min-h-0 bg-gray-900 p-2 rounded-md focus:outline-none focus:ring-1 focus:ring-cyan-500"
-			tabindex="0"
-			@wheel.prevent="handleScroll"
-			@keydown="handleKeyDown"
-		>
-			<p v-if="!disassembly || disassembly.length === 0" class="text-gray-500 italic p-4 text-center">
-				Disassembly data is empty or unavailable. (Check console for debug logs)
-			</p>
-			<DisassemblyTable
-				v-else
-				:registers="registers"
-				:disassembly="disassembly"
-				:address="fullPcAddress"
-				:get-breakpoint-class="getBreakpointClass"
-				:selection-start="selectionStart"
-				:selection-end="selectionEnd"
-				@toggle-breakpoint="onToggleBreakpoint"
-				@address-click="handleAddressClick"
-				@opcode-click="handleOpcodeClick"
-				@set-selection-start="(addr) => (selectionStart = addr)"
-				@set-selection-end="(addr) => (selectionEnd = addr)"
-			/>
-		</div>
-		<SymbolManager
-			:is-open="isSymbolManagerOpen"
-			@update:is-open="(val) => (isSymbolManagerOpen = val)"
-			@goto-address="onGotoAddress"
-		/>
-		<FormattingManager
-			:is-open="isFormattingManagerOpen"
-			@update:is-open="(val) => (isFormattingManagerOpen = val)"
-			@goto-address="onGotoAddress"
-		/>
-		<ExplanationDrawer
-			v-model:open="isExplanationOpen"
-			:explanation="explanationText"
-			:is-loading="isExplainLoading"
-			@save-as-note="saveExplanationAsNote"
-		/>
+				<!-- Scrollable disassembly table -->
+				<div
+					ref="disassemblyContainer"
+					class="font-mono text-xs overflow-y-hidden flex-grow min-h-0 bg-gray-900 p-2 rounded-md focus:outline-none focus:ring-1 focus:ring-cyan-500"
+					tabindex="0"
+					@wheel.prevent="handleScroll"
+					@keydown="handleKeyDown"
+				>
+					<p v-if="!disassembly || disassembly.length === 0" class="text-gray-500 italic p-4 text-center">
+						Disassembly data is empty or unavailable. (Check console for debug logs)
+					</p>
+					<DisassemblyTable
+						v-else
+						:registers="registers"
+						:disassembly="disassembly"
+						:address="fullPcAddress"
+						:get-breakpoint-class="getBreakpointClass"
+						:selection-start="selectionStart"
+						:selection-end="selectionEnd"
+						@toggle-breakpoint="onToggleBreakpoint"
+						@address-click="handleAddressClick"
+						@opcode-click="handleOpcodeClick"
+						@set-selection-start="(addr) => (selectionStart = addr)"
+						@set-selection-end="(addr) => (selectionEnd = addr)"
+					/>
+				</div>
+				<SymbolManager
+					:is-open="isSymbolManagerOpen"
+					@update:is-open="(val) => (isSymbolManagerOpen = val)"
+					@goto-address="onGotoAddress"
+				/>
+				<FormattingManager
+					:is-open="isFormattingManagerOpen"
+					@update:is-open="(val) => (isFormattingManagerOpen = val)"
+					@goto-address="onGotoAddress"
+				/>
+				<ExplanationDrawer
+					v-model:open="isExplanationOpen"
+					:explanation="explanationText"
+					:is-loading="isExplainLoading"
+					@save-as-note="saveExplanationAsNote"
+				/>
+			</div>
+		</Teleport>
 	</div>
 </template>
 
@@ -93,6 +100,20 @@ interface Props {
 	registers: EmulatorState["registers"];
 }
 const { address, memory, registers } = defineProps<Props>();
+
+const isMaximized = ref(false);
+
+const containerClasses = computed(() => {
+	if (isMaximized.value) {
+		return "fixed inset-0 bg-gray-900 z-50 flex flex-col p-4 border border-cyan-500";
+	}
+	// Classes for inline mode
+	return "p-4 bg-gray-800 rounded-lg shadow-xl h-full flex flex-col";
+});
+
+watch(isMaximized, (isMax) => {
+	if (isMax) window.dispatchEvent(new Event("resize"));
+});
 
 const isSymbolManagerOpen = ref(false);
 const isFormattingManagerOpen = ref(false);
