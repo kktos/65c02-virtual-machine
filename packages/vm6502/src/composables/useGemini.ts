@@ -1,6 +1,8 @@
 import { computed, ref } from "vue";
 import { useSettings } from "./useSettings";
 import { toast } from "vue-sonner";
+import { useDiskStorage } from "./useDiskStorage";
+import { useMachine } from "./useMachine";
 
 const geminiModels = [
 	{
@@ -39,7 +41,9 @@ const geminiModels = [
 
 const EXPLAIN_CODE_SYSTEM_PROMPT = `
 	You are a world-class 65C02 CPU reverse engineer and assembly language expert.
-	Analyze the provided block of 65C02 assembly code and provide a concise,
+	Analyze the provided block of 65C02 assembly code
+	that is running on a %%MACHINE%% stored on a disk named %%DISK%%
+	and provide a concise,
 	single-paragraph explanation of its overall purpose and function,
 	focusing on the high-level logic (e.g., 'This loop copies X bytes from address A to address B').
 	When possible, try to list first the inputs of the routine and then the outputs.
@@ -48,6 +52,9 @@ const EXPLAIN_CODE_SYSTEM_PROMPT = `
 
 export function useGemini() {
 	const { settings } = useSettings();
+	const { lastLoadedDisk } = useDiskStorage();
+	const { selectedMachine } = useMachine();
+
 	const explanation = ref<string | null>(null);
 	const isLoading = ref(false);
 
@@ -63,6 +70,11 @@ export function useGemini() {
 			return null;
 		}
 
+		const systemPrompt = EXPLAIN_CODE_SYSTEM_PROMPT.replaceAll(
+			"%%DISK%%",
+			lastLoadedDisk.value?.name ?? "",
+		).replaceAll("%%MACHINE%%", selectedMachine.value.name);
+
 		isLoading.value = true;
 		explanation.value = null;
 
@@ -70,7 +82,7 @@ export function useGemini() {
 
 		const payload = {
 			contents: [{ parts: [{ text: userQuery }] }],
-			systemInstruction: { parts: [{ text: EXPLAIN_CODE_SYSTEM_PROMPT }] },
+			systemInstruction: { parts: [{ text: systemPrompt }] },
 		};
 
 		try {

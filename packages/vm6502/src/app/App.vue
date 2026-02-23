@@ -153,6 +153,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useFormatting } from "@/composables/useDataFormattings";
 import { useSymbols } from "@/composables/useSymbols";
 import TogglableDisplay from "../components/TogglableDisplay.vue";
+import { useMachine } from "../composables/useMachine";
 import CommandInterface from "./debugger/CommandInterface.vue";
 import ResizableHandle from "../components/ui/resizable/ResizableHandle.vue";
 import ResizablePanel from "../components/ui/resizable/ResizablePanel.vue";
@@ -202,7 +203,7 @@ const dbgTopPanelResize = (_size: unknown) => {
 
 const vm = ref<VirtualMachine | null>(null);
 const videoCanvas = ref<HTMLCanvasElement | null>(null);
-const selectedMachine = ref<MachineConfig>(availableMachines[1] as MachineConfig);
+const { selectedMachine } = useMachine();
 const hasGamepad = computed(
 	() => selectedMachine.value.inputs?.some((d) => d.type === "joystick" || d.type === "gamepad") ?? false,
 );

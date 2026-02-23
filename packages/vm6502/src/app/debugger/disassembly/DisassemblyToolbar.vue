@@ -37,7 +37,8 @@
 				:disabled="isLoading || !hasDisassembly || !isExplainConfigured"
 				class="text-xs px-3 py-1 rounded-full bg-indigo-600 text-white hover:bg-indigo-500 transition duration-150 shadow-md flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
 			>
-				{{ isLoading ? "Analyzing..." : isExplainConfigured ? "✨" : "🔑" }}
+				{{ isLoading ? "Analyzing..." : "" }}
+				<component :is="isExplainConfigured ? Sparkles : KeyRound" class="w-4 h-4" />
 			</button>
 		</div>
 
@@ -170,7 +171,7 @@
 
 <script lang="ts" setup>
 import { computed } from "vue";
-import { Binary, Lock, LockOpen, Settings2, Tags, Maximize, Minimize } from "lucide-vue-next";
+import { Binary, Lock, LockOpen, Settings2, Tags, Maximize, Minimize, KeyRound, Sparkles } from "lucide-vue-next";
 import AddressNavigator from "@/app/debugger/AddressNavigator.vue";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";

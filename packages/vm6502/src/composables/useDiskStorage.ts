@@ -1,5 +1,6 @@
 import type { DataBlock } from "@/composables/useDataFormattings";
 import type { SymbolDict } from "./useSymbols";
+import { ref } from "vue";
 
 export type StoredDisk =
 	| {
@@ -21,6 +22,8 @@ export type StoredDisk =
 			symbols?: SymbolDict;
 			formatting?: Record<string, DataBlock>;
 	  };
+
+let lastLoadedDisk = ref<StoredDisk | null>(null);
 
 export function useDiskStorage() {
 	const DB_NAME = "vm6502_storage";
@@ -90,6 +93,7 @@ export function useDiskStorage() {
 						else result.path = result.filepath || result.name;
 					}
 				}
+				lastLoadedDisk.value = result;
 				resolve(result as StoredDisk);
 			};
 			request.onerror = () => reject(request.error);
@@ -193,5 +197,6 @@ export function useDiskStorage() {
 		deleteDisk,
 		renameDisk,
 		updateDiskFormatting,
+		lastLoadedDisk,
 	};
 }

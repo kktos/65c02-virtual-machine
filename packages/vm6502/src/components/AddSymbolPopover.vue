@@ -110,28 +110,33 @@ watch(dataLength, () => {
 	}
 });
 
-watch([() => props.isOpen], () => {
-	if (props.isOpen) {
-		// Load Label
-		const existing = getLabelForAddress(props.address);
-		localLabel.value = existing || `L${toHex(props.address, 4)}`;
-		hasExisting.value = !!existing;
+watch(
+	() => props.isOpen,
+	(isOpen) => {
+		if (isOpen) {
+			// Load Label
+			const existing = getLabelForAddress(props.address);
+			console.log("LABEL", toHex(props.address, 4), existing);
+			localLabel.value = existing || `L${toHex(props.address, 4)}`;
+			hasExisting.value = !!existing;
 
-		// Load Format
-		const format = getFormat(props.address);
-		if (format) {
-			selectedType.value = format.type;
-			dataLength.value = format.length;
-			hasExistingFormat.value = true;
-		} else {
-			selectedType.value = "code";
-			dataLength.value = props.initialLength || 1;
-			hasExistingFormat.value = false;
+			// Load Format
+			const format = getFormat(props.address);
+			if (format) {
+				selectedType.value = format.type;
+				dataLength.value = format.length;
+				hasExistingFormat.value = true;
+			} else {
+				selectedType.value = "code";
+				dataLength.value = props.initialLength || 1;
+				hasExistingFormat.value = false;
+			}
+
+			nextTick(() => inputRef.value?.focus());
 		}
-
-		nextTick(() => inputRef.value?.focus());
-	}
-});
+	},
+	{ immediate: true },
+);
 
 const handleSave = async () => {
 	// Save Label
