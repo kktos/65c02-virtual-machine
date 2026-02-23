@@ -54,16 +54,16 @@
 		/>
 
 		<Drawer v-model:open="isExplanationOpen">
-			<DrawerContent class="mx-auto w-1/3 min-w-[500px] border-gray-700 bg-gray-900 text-gray-100">
+			<DrawerContent
+				overlay-class="bg-transparent"
+				class="mx-auto w-1/3 min-w-[500px] border-gray-700 bg-gray-900 text-gray-100"
+			>
 				<DrawerHeader>
-					<DrawerTitle>Gemini Analysis</DrawerTitle>
-					<DrawerDescription class="text-gray-400">
-						Explanation of the selected assembly code.
-					</DrawerDescription>
+					<DrawerTitle class="text-white">Gemini Analysis</DrawerTitle>
 				</DrawerHeader>
-				<div class="p-4 max-h-[60vh] overflow-y-auto">
+				<div class="px-2 max-h-[60vh] overflow-y-auto">
 					<div
-						class="whitespace-pre-wrap font-mono text-xs text-gray-300 bg-black/40 p-3 rounded border border-gray-800"
+						class="min-h-[20vh] whitespace-pre-wrap font-mono text-xs text-gray-300 bg-black/20 p-3 rounded border border-gray-500"
 					>
 						{{ explanationText }}
 					</div>
@@ -72,14 +72,10 @@
 					<Button
 						variant="secondary"
 						@click="saveExplanationAsNote"
-						:disabled="selectionStart === null"
-						title="Save explanation as a note at the start marker"
+						title="Save explanation as a note at the start marker or at begining of disassembly"
 					>
-						Add Note @ Start
+						Add as a Note
 					</Button>
-					<DrawerClose as-child>
-						<Button variant="outline" class="text-gray-900 bg-gray-200 hover:bg-gray-300">Close</Button>
-					</DrawerClose>
 				</DrawerFooter>
 			</DrawerContent>
 		</Drawer>
@@ -94,15 +90,7 @@ import DisassemblyTable from "@/app/debugger/disassembly/DisassemblyTable.vue";
 import DisassemblyToolbar from "@/app/debugger/disassembly/DisassemblyToolbar.vue";
 import FormattingManager from "@/app/debugger/disassembly/FormattingManager.vue";
 import SymbolManager from "@/app/debugger/disassembly/SymbolManager.vue";
-import {
-	Drawer,
-	DrawerClose,
-	DrawerContent,
-	DrawerDescription,
-	DrawerFooter,
-	DrawerHeader,
-	DrawerTitle,
-} from "@/components/ui/drawer";
+import { Drawer, DrawerContent, DrawerFooter, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
 import { useBreakpoints } from "@/composables/useBreakpoints";
 import { useDebuggerNav } from "@/composables/useDebuggerNav";
@@ -466,6 +454,9 @@ const handleExplain = async () => {
 
 	// console.log(codeBlock);
 
-	await explainCode(codeBlock);
+	explanationText.value = "this is a test ;)";
+	isExplainLoading.value = false;
+
+	// await explainCode(codeBlock);
 };
 </script>
