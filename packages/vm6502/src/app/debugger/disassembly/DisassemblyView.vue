@@ -419,6 +419,8 @@ const saveExplanationAsNote = () => {
 		explanationText.value = "";
 	}
 	isExplanationOpen.value = false;
+	selectionStart.value = null;
+	selectionEnd.value = null;
 };
 
 const handleExplain = async () => {
@@ -455,8 +457,5 @@ const handleExplain = async () => {
 	}
 
 	await explainCode(codeBlock);
-
-	selectionStart.value = null;
-	selectionEnd.value = null;
 };
 </script>

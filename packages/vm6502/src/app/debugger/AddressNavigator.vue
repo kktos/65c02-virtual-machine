@@ -97,7 +97,7 @@
 			<!-- Suggestions Dropdown -->
 			<div
 				v-if="showSuggestions && suggestions.length"
-				class="absolute top-full left-0 w-full mt-1 bg-gray-800 border border-gray-700 rounded-md shadow-lg z-50 max-h-60 overflow-y-auto"
+				class="absolute top-full left-0 min-w-full mt-1 bg-gray-800 border border-gray-700 rounded-md shadow-lg z-50 max-h-60 overflow-y-auto"
 			>
 				<button
 					v-for="(suggestion, index) in suggestions"
@@ -106,7 +106,7 @@
 					class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-700 flex gap-1 justify-between items-center group transition-colors"
 					:class="index === selectedSuggestionIndex ? 'bg-gray-700 text-cyan-300' : 'text-gray-300'"
 				>
-					<span class="font-mono truncate">{{ suggestion.label }}</span>
+					<span class="font-mono whitespace-nowrap">{{ suggestion.label }}</span>
 					<div class="flex justify-end items-baseline gap-2 min-w-0 flex-1">
 						<span
 							v-if="suggestion.scope"
@@ -114,7 +114,7 @@
 							>{{ suggestion.scope }}</span
 						>
 						<span class="text-gray-500 text-[10px] font-mono shrink-0 group-hover:text-gray-400"
-							>${{ suggestion.addr.toString(16).toUpperCase().padStart(4, "0") }}</span
+							>${{ toHex(suggestion.addr, 4) }}</span
 						>
 					</div>
 				</button>
@@ -130,6 +130,7 @@ import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useDebuggerNav } from "@/composables/useDebuggerNav";
 import { useSymbols, type SymbolEntry } from "@/composables/useSymbols";
+import { toHex } from "@/lib/hex.utils";
 
 const emit = defineEmits<(e: "goto", address: number) => void>();
 
