@@ -117,6 +117,14 @@
 					<rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect>
 				</svg>
 			</Button>
+
+			<Button
+				class="p-2 hover:bg-gray-700 rounded text-gray-300 hover:text-white transition-colors"
+				title="Open Command Interface (Ctrl+Shift+D)"
+				@click="toggleCommandInterface"
+			>
+				<Terminal class="h-4 w-4" />
+			</Button>
 		</ButtonGroup>
 	</div>
 </template>
@@ -132,6 +140,7 @@ import {
 	RedoDot,
 	RefreshCw,
 	ScrollText,
+	Terminal,
 } from "lucide-vue-next";
 import { inject, type Ref, ref } from "vue";
 import MemoryMap from "@/app/debugger/memorymap/MemoryMap.vue";
@@ -176,5 +185,10 @@ const pasteFromClipboard = async () => {
 		// Fallback or alert if permission denied
 		alert("Could not paste: Clipboard access denied or empty.");
 	}
+};
+
+const isCommandInterfaceOpen = inject<Ref<boolean>>("isCommandInterfaceOpen");
+const toggleCommandInterface = () => {
+	if (isCommandInterfaceOpen) isCommandInterfaceOpen.value = !isCommandInterfaceOpen.value;
 };
 </script>

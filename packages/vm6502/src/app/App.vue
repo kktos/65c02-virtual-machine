@@ -1,5 +1,6 @@
 <template>
 	<Toaster rich-colors position="top-right" />
+	<CommandInterface v-model="isCommandInterfaceOpen" />
 	<ResizablePanelGroup
 		v-if="vm"
 		direction="horizontal"
@@ -152,6 +153,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useFormatting } from "@/composables/useDataFormattings";
 import { useSymbols } from "@/composables/useSymbols";
 import TogglableDisplay from "../components/TogglableDisplay.vue";
+import CommandInterface from "./debugger/CommandInterface.vue";
 import ResizableHandle from "../components/ui/resizable/ResizableHandle.vue";
 import ResizablePanel from "../components/ui/resizable/ResizablePanel.vue";
 import ResizablePanelGroup from "../components/ui/resizable/ResizablePanelGroup.vue";
@@ -229,6 +231,19 @@ const startResizeLogs = (e: MouseEvent) => {
 	window.addEventListener("mousemove", onMouseMove);
 	window.addEventListener("mouseup", onMouseUp);
 };
+
+const isCommandInterfaceOpen = ref(false);
+provide("isCommandInterfaceOpen", isCommandInterfaceOpen);
+
+const handleGlobalKeydown = (e: KeyboardEvent) => {
+	if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "d") {
+		e.preventDefault();
+		isCommandInterfaceOpen.value = !isCommandInterfaceOpen.value;
+	}
+};
+
+onMounted(() => window.addEventListener("keydown", handleGlobalKeydown));
+onUnmounted(() => window.removeEventListener("keydown", handleGlobalKeydown));
 
 const { activeTab: activeDebuggerTab } = useDebuggerNav();
 
