@@ -617,13 +617,15 @@ export class AppleBus implements IBus {
 				case "ROM":
 					return this.rom[addr16 - 0xd000] ?? 0;
 				case "BANK2":
-					if (addr16 < 0xe000) return (bank ? this.auxbank2[addr16 - 0xd000] : this.bank2[addr16 - 0xd000]) ?? 0;
+					if (addr16 < 0xe000)
+						return (bank ? this.auxbank2[addr16 - 0xd000] : this.bank2[addr16 - 0xd000]) ?? 0;
 					else return this.memory[RAM_OFFSET + address] ?? 0;
 				case "BANK1":
 					return this.memory[RAM_OFFSET + address] ?? 0;
 			}
 			if (!this.lcReadRam) return this.rom[addr16 - 0xd000] ?? 0;
-			if (this.lcBank2 && addr16 < 0xe000) return (bank ? this.auxbank2[addr16 - 0xd000] : this.bank2[addr16 - 0xd000]) ?? 0;
+			if (this.lcBank2 && addr16 < 0xe000)
+				return (bank ? this.auxbank2[addr16 - 0xd000] : this.bank2[addr16 - 0xd000]) ?? 0;
 			return this.memory[RAM_OFFSET + address] ?? 0;
 		}
 
@@ -780,26 +782,33 @@ export class AppleBus implements IBus {
 		this.memory[RAM_OFFSET + address] = value & 0xff;
 	}
 
-	getMachineStateSpecs(): MachineStateSpec[] {
+	getMachineStateSpecs(): (MachineStateSpec | [MachineStateSpec, MachineStateSpec])[] {
 		return [
 			{ id: "lcBank2", label: "LC Bank 2", type: "led", group: "Language Card" },
 			{ id: "lcReadRam", label: "LC Read RAM", type: "led", group: "Language Card" },
 			{ id: "lcWriteRam", label: "LC Write RAM", type: "led", group: "Language Card" },
+
 			{ id: "store80", label: "80STORE", type: "led", group: "Main/Aux" },
 			{ id: "ramRdAux", label: "RAM Read Aux", type: "led", group: "Main/Aux" },
 			{ id: "ramWrAux", label: "RAM Write Aux", type: "led", group: "Main/Aux" },
 			{ id: "altZp", label: "Alt Zero Page", type: "led", group: "Main/Aux" },
+
 			{ id: "intCxRom", label: "Internal Cx ROM", type: "led", group: "Slot ROMs" },
 			{ id: "slotC3Rom", label: "Slot C3 ROM", type: "led", group: "Slot ROMs" },
 			{ id: "intC8Rom", label: "Internal C8 ROM", type: "led", group: "Slot ROMs" },
-			{ id: "col80", label: "80 Columns", type: "led", group: "Video" },
-			{ id: "altChar", label: "Alt Charset", type: "led", group: "Video" },
-			{ id: "text", label: "Text Mode", type: "led", group: "Video" },
+
+			[
+				{ id: "text", label: "Text", type: "led", group: "Video" },
+				{ id: "hires", label: "Hi-Res", type: "led", group: "Video" },
+			],
 			{ id: "mixed", label: "Mixed Mode", type: "led", group: "Video" },
 			{ id: "page2", label: "Page 2", type: "led", group: "Video" },
-			{ id: "hires", label: "Hi-Res", type: "led", group: "Video" },
-			{ id: "dblRes", label: "Dbl Hi-Res", type: "led", group: "Video" },
-			{ id: "video7Register", label: "Video-7 Mode", type: "text", group: "Video" },
+
+			{ id: "col80", label: "80 Columns", type: "led", group: "Video80" },
+			{ id: "altChar", label: "Alt Charset", type: "led", group: "Video80" },
+
+			{ id: "dblRes", label: "Dbl Hi-Res", type: "led", group: "Video+" },
+			{ id: "video7Register", label: "Video-7 Mode", type: "text", group: "Video+" },
 		];
 	}
 

@@ -48,7 +48,7 @@ export interface IBus {
 	setDebugOverrides?(overrides: Dict): void;
 
 	/** Returns a list of machine state specifications for the UI. */
-	getMachineStateSpecs?(): MachineStateSpec[];
+	getMachineStateSpecs?(): (MachineStateSpec | [MachineStateSpec, MachineStateSpec])[];
 
 	/** Saves the internal state of the bus (e.g., softswitch flags). */
 	saveState?(): Dict;
