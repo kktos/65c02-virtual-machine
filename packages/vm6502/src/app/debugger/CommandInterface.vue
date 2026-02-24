@@ -5,6 +5,7 @@
 			:showCloseButton="false"
 			class="sm:max-w-lg bg-gray-900 border-gray-700 text-gray-200"
 		>
+			<DialogTitle><DialogDescription /></DialogTitle>
 			<input
 				ref="inputRef"
 				v-model="command"
@@ -26,9 +27,10 @@
 
 <script setup lang="ts">
 import { inject, nextTick, ref, watch, type Ref } from "vue";
-import { Dialog, DialogContent, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { REG_A_OFFSET } from "../../virtualmachine/cpu/shared-memory";
 import type { VirtualMachine } from "../../virtualmachine/virtualmachine.class";
+import DialogTitle from "@/components/ui/dialog/DialogTitle.vue";
 
 const props = defineProps<{
 	modelValue: boolean;
@@ -59,6 +61,13 @@ watch(
 		}
 	},
 );
+
+type Command = {
+	paramCount: number;
+	fn: (params: string[]) => void;
+};
+
+const COMMAND_LIST: Record<string, Command> = { "A=": { paramCount: 1, fn: (params: string[]) => {} } };
 
 const execute = () => {
 	if (!vm?.value) {
