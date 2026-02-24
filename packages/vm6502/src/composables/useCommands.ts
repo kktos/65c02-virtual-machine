@@ -7,8 +7,15 @@ import { setY } from "@/commands/setY.cmd";
 import { setSP } from "@/commands/setSP.cmd";
 import { gl } from "@/commands/gl.cmd";
 import { run } from "@/commands/run.cmd";
+import { pause } from "@/commands/pause.cmd";
+import { setDisasmView } from "@/commands/setDisasmView.cmd";
+import { setMemView } from "@/commands/setMemView.cmd";
+import { addBP, addBPA, addBPR, addBPW } from "@/commands/addBP.cmd";
+import { removeBP, removeBPA, removeBPR, removeBPW } from "@/commands/removeBP.cmd";
+import { reset } from "@/commands/reset.cmd";
+import { reboot } from "@/commands/reboot.cmd";
 
-type ParamType = "byte" | "word" | "string";
+type ParamType = "byte" | "word" | "long" | "string";
 type ParamDef = ParamType | `${ParamType}?`;
 export type ParamList = (string | number | undefined)[];
 export type Command = {
@@ -45,6 +52,19 @@ export function useCommands() {
 		"SP=": setSP,
 		GL: gl,
 		RUN: run,
+		PAUSE: pause,
+		RESET: reset,
+		REBOOT: reboot,
+		DA: setDisasmView,
+		MA: setMemView,
+		BP: addBP,
+		BPA: addBPA,
+		BPW: addBPW,
+		BPR: addBPR,
+		BC: removeBP,
+		BCA: removeBPA,
+		BCW: removeBPW,
+		BCR: removeBPR,
 		HELP: {
 			description: "Lists all available commands.",
 			paramDef: [],
@@ -103,16 +123,27 @@ export function useCommands() {
 					let paramDef = commandDef.paramDef[i] as ParamDef;
 					if (paramDef.endsWith("?")) paramDef = paramDef.slice(0, -1) as ParamType;
 
-					if (paramDef === "byte") params.push(parseValue(param, 0xff));
-					else if (paramDef === "word") params.push(parseValue(param, 0xffff));
-					else if (paramDef === "string") params.push(param);
-					else throw `Unknown parameter type: ${paramDef}`;
+					switch (paramDef) {
+						case "byte":
+							params.push(parseValue(param, 0xff));
+							break;
+						case "word":
+							params.push(parseValue(param, 0xffff));
+							break;
+						case "long":
+							params.push(parseValue(param, 0xffffffff));
+							break;
+						case "string":
+							params.push(param);
+							break;
+						default:
+							throw `Unknown parameter type: ${paramDef}`;
+					}
 				}
 
 				const cleanInput = cmdInput.trim();
-				if (cleanInput && commandHistory.value[commandHistory.value.length - 1] !== cleanInput) {
+				if (cleanInput && commandHistory.value[commandHistory.value.length - 1] !== cleanInput)
 					commandHistory.value.push(cleanInput);
-				}
 
 				success.value = await commandDef.fn(vm, progress, params);
 				return true;
