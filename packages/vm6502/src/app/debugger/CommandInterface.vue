@@ -63,11 +63,18 @@ watch(
 );
 
 type Command = {
+	description: string;
 	paramCount: number;
 	fn: (params: string[]) => void;
 };
 
-const COMMAND_LIST: Record<string, Command> = { "A=": { paramCount: 1, fn: (params: string[]) => {} } };
+const COMMAND_LIST: Record<string, Command> = {
+	"A=": { description: "Set value to Accumulator", paramCount: 1, fn: (params: string[]) => {} },
+	"X=": { description: "Set value to X register", paramCount: 1, fn: (params: string[]) => {} },
+	"Y=": { description: "Set value to Y register", paramCount: 1, fn: (params: string[]) => {} },
+	"PC=": { description: "Set value to PC register", paramCount: 1, fn: (params: string[]) => {} },
+	"SP=": { description: "Set value to Stack Pointer", paramCount: 1, fn: (params: string[]) => {} },
+};
 
 const execute = () => {
 	if (!vm?.value) {
