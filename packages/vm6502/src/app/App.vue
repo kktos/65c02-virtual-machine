@@ -203,7 +203,7 @@ const dbgTopPanelResize = (_size: unknown) => {
 
 const vm = ref<VirtualMachine | null>(null);
 const videoCanvas = ref<HTMLCanvasElement | null>(null);
-const { selectedMachine } = useMachine();
+const { selectedMachine, isRunning } = useMachine();
 const hasGamepad = computed(
 	() => selectedMachine.value.inputs?.some((d) => d.type === "joystick" || d.type === "gamepad") ?? false,
 );
@@ -378,8 +378,6 @@ const emulatorState: EmulatorState = reactive({
 		N: false,
 	},
 });
-
-const isRunning = ref(false);
 
 const loadMachine = async (newMachine: MachineConfig) => {
 	console.log(`Main: Loading machine ${newMachine.name}`);

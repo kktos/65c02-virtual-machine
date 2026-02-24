@@ -404,10 +404,11 @@ import { formatAddress } from "@/lib/hex.utils";
 import type { DebugGroup } from "@/types/machine.interface";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import BinaryLoader from "./BinaryLoader.vue";
+import { useMachine } from "@/composables/useMachine";
 
 const vm = inject<Ref<VirtualMachine>>("vm");
-// const subscribeToUiUpdates= inject<(callback: () => void) => void>("subscribeToUiUpdates");
-const { formattingRules, addFormatting } = useFormatting();
+const { addFormatting } = useFormatting();
+const { isRunning } = useMachine();
 
 const props = defineProps<{
 	canClose?: boolean;
@@ -434,6 +435,25 @@ let resizeObserver: ResizeObserver | null = null;
 
 const { memoryViewAddress, setActiveTab } = useDebuggerNav();
 const { requestJump } = useDisassembly();
+
+const visibleRowCount = computed(() => {
+	if (containerHeight.value === 0) return 10; // Default before mounted
+	return Math.max(1, Math.floor(containerHeight.value / ROW_HEIGHT_ESTIMATE));
+});
+const debugOptionsPopover = ref<InstanceType<typeof DebugOptionsPopover> | null>(null);
+const debugOverrides = computed(() => debugOptionsPopover.value?.debugOverrides || {});
+
+const isLive = ref(false);
+let pollInterval: number | undefined;
+const currentMemorySlice = ref<Uint8Array>(new Uint8Array());
+const refreshMemory = () => {
+	const start = startAddress.value;
+	const length = visibleRowCount.value * BYTES_PER_LINE;
+
+	if (vm?.value) currentMemorySlice.value = vm.value.readDebugRange(start, length, debugOverrides.value);
+	else currentMemorySlice.value = new Uint8Array(length);
+};
+
 watch(memoryViewAddress, (newAddress) => {
 	if ((props.listenToNav ?? true) && newAddress !== null) startAddress.value = newAddress;
 });
@@ -441,11 +461,21 @@ watch(memoryViewAddress, (newAddress) => {
 watch(startAddress, (newAddr) => {
 	emit("update:address", newAddr);
 });
-
-const visibleRowCount = computed(() => {
-	if (containerHeight.value === 0) return 10; // Default before mounted
-	return Math.max(1, Math.floor(containerHeight.value / ROW_HEIGHT_ESTIMATE));
+watch(isLive, (active) => {
+	clearInterval(pollInterval);
+	if (active) {
+		refreshMemory();
+		pollInterval = window.setInterval(refreshMemory, 250); // 4 FPS
+	}
 });
+// Watch for changes in startAddress or the tick, and update the slice
+watch(
+	[startAddress, visibleRowCount, debugOverrides, isRunning],
+	() => {
+		if (!isLive.value) refreshMemory();
+	},
+	{ immediate: true, deep: true },
+);
 
 const highBitEnabled = ref(false);
 
@@ -648,9 +678,6 @@ const getDataBlockClass = (index: number) => {
 
 // This will be our reactive trigger to update the view
 // const tick = ref(0);
-
-const debugOptionsPopover = ref<InstanceType<typeof DebugOptionsPopover> | null>(null);
-const debugOverrides = computed(() => debugOptionsPopover.value?.debugOverrides || {});
 
 const activeDebugBadges = computed(() => {
 	if (!debugOptionsPopover.value || !vm?.value) return [];
@@ -929,34 +956,4 @@ const handleWheel = (event: WheelEvent) => {
 		startAddress.value = Math.max(newAddress, 0);
 	}
 };
-
-const currentMemorySlice = ref<Uint8Array>(new Uint8Array());
-
-const isLive = ref(false);
-let pollInterval: number | undefined;
-
-const refreshMemory = () => {
-	const start = startAddress.value;
-	const length = visibleRowCount.value * BYTES_PER_LINE;
-
-	if (vm?.value) currentMemorySlice.value = vm.value.readDebugRange(start, length, debugOverrides.value);
-	else currentMemorySlice.value = new Uint8Array(length);
-};
-
-watch(isLive, (active) => {
-	clearInterval(pollInterval);
-	if (active) {
-		refreshMemory();
-		pollInterval = window.setInterval(refreshMemory, 250); // 4 FPS
-	}
-});
-
-// Watch for changes in startAddress or the tick, and update the slice
-watch(
-	[startAddress, visibleRowCount, debugOverrides],
-	() => {
-		if (!isLive.value) refreshMemory();
-	},
-	{ immediate: true, deep: true },
-);
 </script>

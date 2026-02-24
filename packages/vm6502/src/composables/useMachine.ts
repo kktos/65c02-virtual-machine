@@ -6,8 +6,11 @@ import type { MachineConfig } from "../types/machine.interface";
 // Initialize global state with the default machine (same default as App.vue used)
 const selectedMachine = ref<MachineConfig>(availableMachines[1] as MachineConfig);
 
+const isRunning = ref(false);
+
 export function useMachine() {
 	return {
 		selectedMachine,
+		isRunning,
 	};
 }
