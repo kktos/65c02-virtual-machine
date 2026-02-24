@@ -405,7 +405,7 @@ const handleGenerateLabels = async () => {
 	const end = Math.max(selectionStart.value, selectionEnd.value);
 	const scope = vm.value.getScope(start);
 
-	await generateLabels(start, scope, end, readByte);
+	await generateLabels(start, scope, end, { read: readByte, getScope: vm.value.getScope });
 
 	clearSelection();
 };

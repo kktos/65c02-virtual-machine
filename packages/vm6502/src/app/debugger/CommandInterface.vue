@@ -170,7 +170,7 @@ const COMMAND_LIST = {
 				from,
 				scope,
 				to,
-				(addr) => vm.read(addr),
+				{ read: (addr) => vm.read(addr), getScope: (addr) => vm.getScope(addr) },
 				(p) => {
 					progress.value = p;
 				},

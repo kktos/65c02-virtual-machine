@@ -1,5 +1,5 @@
 import { useFormatting, type DataBlock } from "@/composables/useDataFormattings";
-import { useSymbols } from "@/composables/useSymbols";
+import { useSymbols, type SymbolEntry } from "@/composables/useSymbols";
 import type { DisassemblyLine } from "@/types/disassemblyline.interface";
 import type { EmulatorState } from "@/types/emulatorstate.interface";
 import { formatAddress, toHex } from "./hex.utils";
@@ -7,9 +7,10 @@ import { runHypercall } from "./hypercalls.lib";
 import { BRANCH_OPCODES, opcodeMap } from "./opcodes";
 
 type FunctionReadByte = (address: number, debug?: boolean) => number;
+type FunctionGetScope = (address: number) => string;
 
 const { getFormat } = useFormatting();
-const { getSymbolForAddress, getLabelForAddress, addSymbol } = useSymbols();
+const { getSymbolForAddress, getLabelForAddress, addManySymbols } = useSymbols();
 
 function findPreviousInstruction(
 	readByte: (address: number, debug?: boolean) => number,
@@ -355,9 +356,9 @@ export function disassemble(
 
 export async function generateLabels(
 	fromAddress: number,
-	scope: string,
+	_scope: string,
 	toAddress: number,
-	readByte: FunctionReadByte,
+	vm: { read: FunctionReadByte; getScope: FunctionGetScope },
 	onProgress?: (percentage: number) => void,
 ) {
 	let pc = fromAddress;
@@ -365,6 +366,8 @@ export async function generateLabels(
 	if (totalSize <= 0) return;
 
 	let lastReportedProgress = -1;
+
+	const symbolsToAdd: Omit<SymbolEntry, "id" | "disk" | "src">[] = [];
 
 	while (pc < toAddress) {
 		// Check for Custom Formatting (Data Directives)
@@ -382,7 +385,7 @@ export async function generateLabels(
 			continue;
 		}
 
-		const opcodeByte = readByte(pc);
+		const opcodeByte = vm.read(pc);
 		const info = opcodeMap[opcodeByte];
 
 		if (!info) {
@@ -398,7 +401,7 @@ export async function generateLabels(
 			labelPrefix = "L";
 			switch (info.mode) {
 				case "REL": {
-					const offset = readByte(pc + 1);
+					const offset = vm.read(pc + 1);
 					const signedOffset = offset < 0x80 ? offset : offset - 0x100;
 					target = (pc + 2 + signedOffset) & 0xffff;
 					break;
@@ -407,8 +410,8 @@ export async function generateLabels(
 				case "IND": // JMP ($1234) - label the pointer
 				case "IAX": {
 					// JMP ($1234,X) - label the pointer
-					const lo = readByte(pc + 1);
-					const hi = readByte(pc + 2);
+					const lo = vm.read(pc + 1);
+					const hi = vm.read(pc + 2);
 					target = (hi << 8) | lo;
 					break;
 				}
@@ -420,8 +423,8 @@ export async function generateLabels(
 				case "ABS":
 				case "ABX":
 				case "ABY": {
-					const lo = readByte(pc + 1);
-					const hi = readByte(pc + 2);
+					const lo = vm.read(pc + 1);
+					const hi = vm.read(pc + 2);
 					target = (hi << 8) | lo;
 					break;
 				}
@@ -431,7 +434,7 @@ export async function generateLabels(
 				case "IDX":
 				case "IDY":
 				case "ZPI": {
-					target = readByte(pc + 1);
+					target = vm.read(pc + 1);
 					break;
 				}
 				default: {
@@ -444,14 +447,26 @@ export async function generateLabels(
 		}
 
 		// If we found a target that needs a label, add it
-		if (target !== null && labelPrefix !== null && !getLabelForAddress(target, scope)) {
-			const label =
-				labelPrefix === "L" ? `L${toHex(target, 4)}` : `${labelPrefix}${toHex(target, target > 0xff ? 4 : 2)}`;
-			await addSymbol(target, label, "user", scope);
+		if (target !== null) {
+			const currentScope = vm.getScope(target);
+			if (labelPrefix !== null && !getLabelForAddress(target, currentScope)) {
+				const label =
+					labelPrefix === "L"
+						? `L${toHex(target, 4)}`
+						: `${labelPrefix}${toHex(target, target > 0xff ? 4 : 2)}`;
+				symbolsToAdd.push({
+					addr: target,
+					label,
+					ns: "user",
+					scope: currentScope,
+				});
+			}
 		}
 
 		pc += info.bytes;
 	}
+
+	if (symbolsToAdd.length > 0) await addManySymbols(symbolsToAdd);
 
 	onProgress?.(100);
 }
