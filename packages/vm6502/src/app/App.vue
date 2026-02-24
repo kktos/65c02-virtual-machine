@@ -146,19 +146,16 @@
 
 <script setup lang="ts">
 import { ScrollText } from "lucide-vue-next";
-import { computed, markRaw, nextTick, onMounted, onUnmounted, provide, reactive, ref, watch } from "vue";
-import { Toaster, toast } from "vue-sonner";
+import { computed, onMounted, onUnmounted, provide, reactive, ref, watch } from "vue";
+import { Toaster } from "vue-sonner";
 import "vue-sonner/style.css";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useFormatting } from "@/composables/useDataFormattings";
-import { useSymbols } from "@/composables/useSymbols";
 import TogglableDisplay from "../components/TogglableDisplay.vue";
 import { useMachine } from "../composables/useMachine";
 import CommandInterface from "./debugger/CommandInterface.vue";
 import ResizableHandle from "../components/ui/resizable/ResizableHandle.vue";
 import ResizablePanel from "../components/ui/resizable/ResizablePanel.vue";
 import ResizablePanelGroup from "../components/ui/resizable/ResizablePanelGroup.vue";
-import { useBreakpoints } from "../composables/useBreakpoints";
 import { useDebuggerNav } from "../composables/useDebuggerNav";
 import { availableMachines } from "../machines";
 import type { EmulatorState } from "../types/emulatorstate.interface";
@@ -178,7 +175,6 @@ import {
 	REG_X_OFFSET,
 	REG_Y_OFFSET,
 } from "../virtualmachine/cpu/shared-memory";
-import { VirtualMachine } from "../virtualmachine/virtualmachine.class";
 import BreakpointsList from "./debugger/BreakpointsList.vue";
 import DebuggerControls from "./debugger/DebuggerControls.vue";
 import DisassemblyView from "./debugger/disassembly/DisassemblyView.vue";
@@ -195,24 +191,20 @@ import MouseControl from "./machine/MouseControl.vue";
 import SoundControl from "./machine/SoundControl.vue";
 import SpeedControl from "./machine/SpeedControl.vue";
 import VideoControl from "./machine/VideoControl.vue";
-import { useNotes } from "@/composables/useNotes";
 
 const dbgTopPanelResize = (_size: unknown) => {
 	// console.log('dbgTopPanelResize resized', size);
 };
 
-const vm = ref<VirtualMachine | null>(null);
-const videoCanvas = ref<HTMLCanvasElement | null>(null);
-const { selectedMachine, isRunning } = useMachine();
+const { vm, selectedMachine, isRunning, videoCanvas, loadMachine, logs } = useMachine();
+
 const hasGamepad = computed(
 	() => selectedMachine.value.inputs?.some((d) => d.type === "joystick" || d.type === "gamepad") ?? false,
 );
 const hasMouse = computed(() => selectedMachine.value.inputs?.some((d) => d.type === "mouse") ?? false);
 const hasDisk = computed(() => selectedMachine.value.disk?.enabled);
 
-const logs = ref<string[]>([]);
 const showLogs = ref(false);
-const logEndRef = ref<HTMLDivElement | null>(null);
 const logHeight = ref(200);
 
 const startResizeLogs = (e: MouseEvent) => {
@@ -249,60 +241,6 @@ onUnmounted(() => window.removeEventListener("keydown", handleGlobalKeydown));
 const { activeTab: activeDebuggerTab } = useDebuggerNav();
 
 provide("vm", vm);
-const { loadBreakpoints } = useBreakpoints();
-
-const setupVmListeners = (targetVm: VirtualMachine) => {
-	targetVm.onmessage = (event) => {
-		const { type, error, message, address } = event.data;
-
-		switch (type) {
-			case "error":
-				if (error === "unimplemented_opcode") {
-					isRunning.value = false; // Ensure UI reflects the paused state
-					alert(`Emulator Halted!\n\nError: ${message}`);
-				} else console.error("Error received from worker:", event.data);
-				break;
-			case "isRunning":
-				// Update the local isRunning ref based on the worker's state
-				isRunning.value = event.data.isRunning;
-				// if (!isRunning.value) targetVm.refreshVideo();
-
-				break;
-			case "break": {
-				isRunning.value = false;
-				const msg = `BRK hit at $${address.toString(16).toUpperCase()}`;
-				toast.error(msg, {
-					style: {
-						color: "white",
-						background: "#810707",
-					},
-					closeButton: true,
-					closeButtonPosition: "top-left",
-					duration: Infinity,
-				});
-				targetVm.refreshVideo();
-				break;
-			}
-			case "breakpointHit": {
-				targetVm.refreshVideo();
-				targetVm.syncBusState();
-				break;
-			}
-			default:
-				console.log("Message received from worker:", event.data);
-		}
-	};
-
-	targetVm.onLog((payload) => {
-		if (!payload.message) return;
-
-		logs.value.push(payload.message);
-		if (logs.value.length > 500) logs.value.shift();
-		nextTick(() => {
-			if (logEndRef.value) logEndRef.value.scrollIntoView({ behavior: "smooth" });
-		});
-	});
-};
 
 onMounted(() => {
 	loadMachine(selectedMachine.value);
@@ -378,42 +316,6 @@ const emulatorState: EmulatorState = reactive({
 		N: false,
 	},
 });
-
-const loadMachine = async (newMachine: MachineConfig) => {
-	console.log(`Main: Loading machine ${newMachine.name}`);
-
-	vm.value?.terminate();
-	isRunning.value = false;
-
-	selectedMachine.value = newMachine;
-
-	const newVm = new VirtualMachine(newMachine);
-	vm.value = markRaw(newVm);
-	setupVmListeners(newVm);
-	if (videoCanvas.value) newVm.initVideo(videoCanvas.value);
-	loadBreakpoints(newVm);
-	newVm.ready.then(() => {
-		newVm.initAudio();
-	});
-
-	{
-		const { initSymbols, setDiskKey } = useSymbols();
-		await initSymbols(newMachine.name, newMachine.debug?.symbols);
-		setDiskKey("*");
-	}
-
-	{
-		const { initFormats, setDiskKey } = useFormatting();
-		await initFormats(newMachine.name, newMachine.debug?.dataBlocks);
-		setDiskKey("*");
-	}
-
-	{
-		const { initNotes, setDiskKey } = useNotes();
-		await initNotes(newMachine.name);
-		setDiskKey("*");
-	}
-};
 
 const handleMachineSelected = (newMachine: MachineConfig) => {
 	if (newMachine && newMachine.name !== vm.value?.machineConfig.name) loadMachine(newMachine);

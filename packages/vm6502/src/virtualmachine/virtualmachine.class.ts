@@ -119,7 +119,8 @@ export class VirtualMachine {
 					// It's a BRK instruction. Check for hypercalls.
 					const { wasRunning } = event.data;
 					const hypercallCommand = this.read(address + 1);
-					if (HYPERCALL_COMMANDS.has(hypercallCommand)) executeHypercallCmd(this, hypercallCommand, address, wasRunning);
+					if (HYPERCALL_COMMANDS.has(hypercallCommand))
+						executeHypercallCmd(this, hypercallCommand, address, wasRunning);
 					else this.onmessage?.(event);
 					break;
 				}
@@ -249,7 +250,12 @@ export class VirtualMachine {
 			console.warn("This machine does not have video output.");
 			return;
 		}
-		this.videoOutput = new VideoOutput(canvas, this.videoMemory, this.machineConfig.video.width, this.machineConfig.video.height);
+		this.videoOutput = new VideoOutput(
+			canvas,
+			this.videoMemory,
+			this.machineConfig.video.width,
+			this.machineConfig.video.height,
+		);
 
 		if (this.pendingPalette) {
 			this.videoOutput.setPalette(this.pendingPalette);
@@ -306,7 +312,10 @@ export class VirtualMachine {
 
 		// Prevent default browser actions for handled keys (except F-keys, etc)
 		if (!event.metaKey && (!event.altKey || event.key === "Alt")) {
-			if (event.key.length === 1 || ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Backspace", "Enter"].includes(event.key)) {
+			if (
+				event.key.length === 1 ||
+				["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Backspace", "Enter"].includes(event.key)
+			) {
 				event.preventDefault();
 			}
 		}
@@ -395,7 +404,6 @@ export class VirtualMachine {
 	public setSpeed = (speed: number) => this.worker.postMessage({ command: "setSpeed", speed });
 	public getSpeed = () => this.sharedRegisters.getFloat64(REG_SPEED_OFFSET, true);
 	public setBreakOnBrk = (enabled: boolean) => this.worker.postMessage({ command: "setBreakOnBrk", enabled });
-	public resetCPU = () => this.worker.postMessage({ command: "reset" });
 	public play = () => this.worker.postMessage({ command: "run" });
 	public pause = () => this.worker.postMessage({ command: "pause" });
 	public reset = () => this.worker.postMessage({ command: "reset" });
@@ -403,12 +411,14 @@ export class VirtualMachine {
 	public stepOut = () => this.worker.postMessage({ command: "stepOut" });
 	public stepOver = () => this.worker.postMessage({ command: "stepOver" });
 
-	public addBP = (type: Breakpoint["type"], address: number, endAddress?: number) => this.worker.postMessage({ command: "addBP", type, address, endAddress });
+	public addBP = (type: Breakpoint["type"], address: number, endAddress?: number) =>
+		this.worker.postMessage({ command: "addBP", type, address, endAddress });
 	public removeBP = (type: Breakpoint["type"], address: number, endAddress?: number) =>
 		this.worker.postMessage({ command: "removeBP", type, address, endAddress });
 	public clearBPs = () => this.worker.postMessage({ command: "clearBPs" });
 
-	public insertDisk = (data: Uint8Array, metadata: Dict = {}) => this.worker.postMessage({ command: "insertMedia", data, metadata });
+	public insertDisk = (data: Uint8Array, metadata: Dict = {}) =>
+		this.worker.postMessage({ command: "insertMedia", data, metadata });
 
 	public setTrace = (enabled: boolean) => {
 		this.isTraceEnabled = enabled;
@@ -489,7 +499,8 @@ export class VirtualMachine {
 	}
 
 	public setAnalogInput(index: number, value: number) {
-		if (index >= 0 && index < MAX_ANALOG_INPUTS) this.sharedRegisters.setFloat32(INPUT_ANALOG_0_OFFSET + index * 4, value, true);
+		if (index >= 0 && index < MAX_ANALOG_INPUTS)
+			this.sharedRegisters.setFloat32(INPUT_ANALOG_0_OFFSET + index * 4, value, true);
 	}
 
 	public setDigitalInput(value: number) {
