@@ -426,7 +426,7 @@ const emit = defineEmits<{
 const banks = vm?.value.machineConfig.memory.banks || 1;
 const totalMemory = banks * 0x10000;
 const BYTES_PER_LINE = 16;
-const startAddress = ref(props.initialAddress ?? 0x0000);
+const startAddress = ref<number>(props.initialAddress ?? 0x0000);
 
 const scrollContainer = ref<HTMLElement | null>(null);
 const containerHeight = ref(0);

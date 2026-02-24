@@ -8,7 +8,7 @@ export interface DebugOption {
 	options?: { label: string; value: string | number; color?: string }[];
 	min?: number;
 	max?: number;
-	defaultValue?: string | number;
+	defaultValue?: string | number | boolean;
 	savable?: boolean;
 	disableIf?: { optionId: string; value: string | number | boolean };
 }
