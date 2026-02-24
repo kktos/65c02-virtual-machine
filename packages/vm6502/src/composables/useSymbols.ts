@@ -235,6 +235,53 @@ export function useSymbols() {
 		return id;
 	};
 
+	const addManySymbols = async (symbols: Omit<SymbolEntry, "id" | "disk" | "src">[]) => {
+		if (symbols.length === 0) return;
+
+		const db = await getDb();
+		const tx = db.transaction(storeName as unknown as "symbols", "readwrite");
+		const store = tx.store;
+
+		const targetDict = diskKey === "*" ? systemDict : diskDict;
+		const newDict = { ...targetDict.value };
+		const modifiedAddrs = new Set<number>();
+		const newNamespaces = new Set<string>();
+
+		const promises: Promise<void>[] = [];
+
+		for (const symData of symbols) {
+			const symbol: SymbolEntry = {
+				disk: diskKey,
+				ns: symData.ns,
+				label: symData.label,
+				addr: symData.addr,
+				src: "",
+				scope: symData.scope,
+			};
+
+			promises.push(
+				store.add(symbol).then((id) => {
+					const s = { ...symbol, id: Number(id) };
+					if (!modifiedAddrs.has(s.addr)) {
+						newDict[s.addr] = newDict[s.addr] ? { ...newDict[s.addr] } : {};
+						modifiedAddrs.add(s.addr);
+					}
+					newDict[s.addr]![s.ns] = s;
+					newNamespaces.add(s.ns);
+				}),
+			);
+		}
+
+		await Promise.all(promises);
+		await tx.done;
+
+		targetDict.value = newDict;
+
+		for (const ns of newNamespaces) {
+			if (!activeNamespaces.value.has(ns)) activeNamespaces.value.set(ns, true);
+		}
+	};
+
 	const updateSymbol = async (id: number, address: number, label: string, namespace: string, scope: string) => {
 		const db = await getDb();
 		const tx = db.transaction(storeName as unknown as "symbols", "readwrite");
@@ -535,6 +582,7 @@ export function useSymbols() {
 		toggleNamespace,
 
 		addSymbol,
+		addManySymbols,
 		removeSymbol,
 		removeManySymbols,
 		updateSymbol,
