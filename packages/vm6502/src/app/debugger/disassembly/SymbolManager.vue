@@ -47,6 +47,16 @@
 					</Button>
 				</ButtonGroup>
 				<Button
+					:disabled="!selectedSymbols.size"
+					@click="handleBulkDelete"
+					variant="destructive"
+					size="icon"
+					class="h-10 text-white shrink-0 bg-red-600 hover:bg-red-500"
+					title="Delete Selected"
+				>
+					<Trash2 class="h-4 w-4" />
+				</Button>
+				<Button
 					@click="beginAddSymbol"
 					size="icon"
 					class="h-10 bg-blue-600 hover:bg-blue-500 text-white shrink-0"
@@ -59,6 +69,15 @@
 				<Table>
 					<TableHeader class="sticky top-0 bg-gray-800">
 						<TableRow class="border-gray-700 hover:bg-gray-700/50">
+							<TableHead class="w-12 px-4">
+								<input
+									type="checkbox"
+									:checked="isAllSelected"
+									@change="toggleSelectAll"
+									class="h-4 w-4 rounded border-gray-600 bg-gray-900 text-blue-500 focus:ring-blue-500 focus:ring-offset-gray-800"
+									title="Select All/None"
+								/>
+							</TableHead>
 							<TableHead @click="handleSort('ns')" class="cursor-pointer hover:bg-gray-700/50">
 								<div class="flex items-center gap-2 text-gray-300">
 									Namespace
@@ -96,6 +115,7 @@
 							v-if="editingSymbol && editingSymbol.isNew"
 							class="bg-gray-700/50 hover:bg-gray-700/50"
 						>
+							<TableCell />
 							<TableCell class="align-top">
 								<Input
 									v-model="editingSymbol.ns"
@@ -177,6 +197,7 @@
 								"
 								class="bg-gray-700/50 hover:bg-gray-700/50"
 							>
+								<TableCell />
 								<TableCell class="align-top px-0 w-[130px]">
 									<Input
 										v-model="editingSymbol.ns"
@@ -250,8 +271,17 @@
 							<TableRow
 								v-else
 								@click="gotoSymbol(symbol)"
-								class="cursor-pointer border-gray-700 hover:bg-gray-700"
+								class="cursor-pointer border-gray-700 hover:bg-gray-700/80"
+								:class="{ 'bg-blue-900/30 hover:bg-blue-900/40': selectedSymbols.has(symbol.id!) }"
 							>
+								<TableCell class="px-4" @click.stop>
+									<input
+										type="checkbox"
+										:checked="selectedSymbols.has(symbol.id!)"
+										@change="toggleSelection(symbol.id!)"
+										class="h-4 w-4 rounded border-gray-600 bg-gray-900 text-blue-500 focus:ring-blue-500 focus:ring-offset-gray-800"
+									/>
+								</TableCell>
 								<TableCell class="truncate" :title="symbol.ns">{{ symbol.ns }}</TableCell>
 								<TableCell class="font-semibold text-yellow-400">
 									<div class="flex items-center gap-2">
@@ -290,20 +320,13 @@
 										>
 											<Pencil class="h-4 w-4" />
 										</button>
-										<button
-											@click="handleDelete(symbol)"
-											class="p-1 text-gray-400 hover:text-red-400 hover:bg-gray-600 rounded"
-											title="Delete"
-										>
-											<Trash2 class="h-4 w-4" />
-										</button>
 									</div>
 								</TableCell>
 							</TableRow>
 						</template>
 
 						<TableRow v-if="filteredSymbols?.length === 0 && !editingSymbol">
-							<TableCell colspan="5" class="text-center text-gray-500 py-8">
+							<TableCell colspan="6" class="text-center text-gray-500 py-8">
 								No symbols found.
 							</TableCell>
 						</TableRow>
@@ -312,6 +335,7 @@
 			</div>
 
 			<div class="text-right text-sm text-gray-400">
+				<span v-if="selectedSymbols.size > 0" class="mr-4">Selected: {{ selectedSymbols.size }}</span>
 				<span>Total symbols: {{ filteredSymbols?.length ?? 0 }}</span>
 			</div>
 		</DialogContent>
@@ -333,7 +357,7 @@ import {
 	Upload,
 	X,
 } from "lucide-vue-next";
-import { computed, inject, type Ref, ref } from "vue";
+import { computed, inject, type Ref, ref, watch } from "vue";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -371,6 +395,11 @@ const { downloadFile } = useFileDownload();
 
 const searchTerm = ref("");
 const selectedNamespace = ref("");
+const selectedSymbols = ref(new Set<number>());
+
+watch([searchTerm, selectedNamespace], () => {
+	selectedSymbols.value.clear();
+});
 
 const availableScopes = computed(() => {
 	return vm?.value?.getScopes() ?? ["main"];
@@ -413,6 +442,11 @@ const uniqueNamespaces = computed(() => {
 	const nsList = getNamespaceList();
 	const names = nsList.map((ns) => ns[0]);
 	return names.sort();
+});
+
+const isAllSelected = computed(() => {
+	if (!filteredSymbols.value || filteredSymbols.value.length === 0) return false;
+	return filteredSymbols.value.every((s) => selectedSymbols.value.has(s.id!));
 });
 
 const filteredSymbols = computed(() => {
@@ -534,17 +568,38 @@ const handleExport = async () => {
 	downloadFile(`${name}.sym`, "text/plain;charset=utf-8", content);
 };
 
-const handleDelete = (symbol: SymbolEntry) => {
-	if (confirm(`Are you sure you want to delete symbol "${symbol.label}"?`)) {
-		removeSymbol(symbol.id as number);
-	}
-};
-
 const toggleSymbolBreakpoint = (symbol: { addr: number }) => {
 	toggleBreakpoint({ type: "pc", address: symbol.addr }, vm?.value);
 };
 
 const isBreakpointActive = (addr: number) => {
 	return pcBreakpoints.value.has(addr) && pcBreakpoints.value.get(addr);
+};
+
+const handleBulkDelete = () => {
+	const count = selectedSymbols.value.size;
+	if (count === 0) return;
+	if (confirm(`Are you sure you want to delete ${count} selected symbol(s)?`)) {
+		for (const id of selectedSymbols.value) {
+			removeSymbol(id);
+		}
+		selectedSymbols.value.clear();
+	}
+};
+
+const toggleSelectAll = () => {
+	if (isAllSelected.value) {
+		selectedSymbols.value.clear();
+	} else {
+		filteredSymbols.value.forEach((s) => selectedSymbols.value.add(s.id!));
+	}
+};
+
+const toggleSelection = (symbolId: number) => {
+	if (selectedSymbols.value.has(symbolId)) {
+		selectedSymbols.value.delete(symbolId);
+	} else {
+		selectedSymbols.value.add(symbolId);
+	}
 };
 </script>
