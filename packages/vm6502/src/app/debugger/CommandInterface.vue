@@ -11,6 +11,8 @@
 					ref="inputRef"
 					v-model="command"
 					@keydown.enter="execute"
+					@keydown.up="handleHistoryNav"
+					@keydown.down="handleHistoryNav"
 					type="text"
 					:disabled="isLoading"
 					placeholder="Enter command (e.g., A=$10)..."
@@ -55,7 +57,8 @@ const emit = defineEmits<{
 const vm = inject<Ref<VirtualMachine | null>>("vm");
 const command = ref("");
 const inputRef = ref<HTMLInputElement | null>(null);
-const { error, success, isLoading, progress, executeCommand } = useCommands();
+const { error, success, isLoading, progress, executeCommand, commandHistory } = useCommands();
+const historyIndex = ref(-1);
 
 watch(
 	() => props.modelValue,
@@ -64,6 +67,7 @@ watch(
 			// on open
 			nextTick(() => {
 				inputRef.value?.focus();
+				historyIndex.value = commandHistory.value.length;
 			});
 		} else {
 			// on close, reset state
@@ -75,10 +79,31 @@ watch(
 	},
 );
 
+const handleHistoryNav = (e: KeyboardEvent) => {
+	if (e.key === "ArrowUp") {
+		e.preventDefault();
+		if (historyIndex.value > 0) {
+			historyIndex.value--;
+			command.value = commandHistory.value[historyIndex.value] as string;
+		}
+	} else if (e.key === "ArrowDown") {
+		e.preventDefault();
+		if (historyIndex.value < commandHistory.value.length - 1) {
+			historyIndex.value++;
+			command.value = commandHistory.value[historyIndex.value] as string;
+		} else {
+			historyIndex.value = commandHistory.value.length;
+			command.value = "";
+		}
+	}
+};
+
 const execute = async () => {
 	if (await executeCommand(command.value, vm?.value || null)) {
 		command.value = "";
 		progress.value = 0;
+		historyIndex.value = commandHistory.value.length;
+		inputRef.value?.focus();
 	}
 };
 </script>

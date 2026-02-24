@@ -21,6 +21,8 @@ function typedKeys<T extends object>(obj: T): (keyof T)[] {
 	return Object.keys(obj) as (keyof T)[];
 }
 
+const commandHistory = ref<string[]>([]);
+
 export function useCommands() {
 	const error = ref("");
 	const success = ref("");
@@ -106,6 +108,12 @@ export function useCommands() {
 					else if (paramDef === "string") params.push(param);
 					else throw `Unknown parameter type: ${paramDef}`;
 				}
+
+				const cleanInput = cmdInput.trim();
+				if (cleanInput && commandHistory.value[commandHistory.value.length - 1] !== cleanInput) {
+					commandHistory.value.push(cleanInput);
+				}
+
 				success.value = await commandDef.fn(vm, progress, params);
 				return true;
 			} else {
@@ -125,5 +133,6 @@ export function useCommands() {
 		isLoading,
 		progress,
 		executeCommand,
+		commandHistory,
 	};
 }
