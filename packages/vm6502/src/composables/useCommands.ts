@@ -6,6 +6,7 @@ import { setX } from "@/commands/setX.cmd";
 import { setY } from "@/commands/setY.cmd";
 import { setSP } from "@/commands/setSP.cmd";
 import { gl } from "@/commands/gl.cmd";
+import { run } from "@/commands/run.cmd";
 
 type ParamType = "byte" | "word" | "string";
 type ParamDef = ParamType | `${ParamType}?`;
@@ -41,6 +42,7 @@ export function useCommands() {
 		"PC=": setPC,
 		"SP=": setSP,
 		GL: gl,
+		RUN: run,
 		HELP: {
 			description: "Lists all available commands.",
 			paramDef: [],
