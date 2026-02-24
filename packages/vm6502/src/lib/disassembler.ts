@@ -358,10 +358,22 @@ export async function generateLabels(
 	scope: string,
 	toAddress: number,
 	readByte: FunctionReadByte,
+	onProgress?: (percentage: number) => void,
 ) {
 	let pc = fromAddress;
+	const totalSize = toAddress - fromAddress;
+	if (totalSize <= 0) return;
+
+	let lastReportedProgress = -1;
+
 	while (pc < toAddress) {
 		// Check for Custom Formatting (Data Directives)
+		const currentProgress = Math.floor(((pc - fromAddress) / totalSize) * 100);
+		if (currentProgress > lastReportedProgress) {
+			onProgress?.(currentProgress);
+			lastReportedProgress = currentProgress;
+		}
+
 		const format = getFormat(pc);
 		if (format) {
 			let len = format.length;
@@ -393,7 +405,8 @@ export async function generateLabels(
 				}
 				case "ABS":
 				case "IND": // JMP ($1234) - label the pointer
-				case "IAX": { // JMP ($1234,X) - label the pointer
+				case "IAX": {
+					// JMP ($1234,X) - label the pointer
 					const lo = readByte(pc + 1);
 					const hi = readByte(pc + 2);
 					target = (hi << 8) | lo;
@@ -439,4 +452,6 @@ export async function generateLabels(
 
 		pc += info.bytes;
 	}
+
+	onProgress?.(100);
 }

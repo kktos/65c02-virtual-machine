@@ -4,6 +4,6 @@ export const formatAddress = (addr: number) => {
 	return `$${bank}:${offset}`;
 };
 
-export function toHex(v: number | undefined, pad: number) {
+export function toHex(v: number | undefined, pad = 2) {
 	return (v ?? 0).toString(16).toUpperCase().padStart(pad, "0");
 }
