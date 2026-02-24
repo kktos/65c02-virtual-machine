@@ -40,6 +40,14 @@
 				{{ isLoading ? "Analyzing..." : "" }}
 				<component :is="isExplainConfigured ? Sparkles : KeyRound" class="w-4 h-4" />
 			</button>
+			<button
+				@click="$emit('generateLabels')"
+				title="Generate Labels"
+				:disabled="!hasSelection"
+				class="p-1 rounded text-gray-500 transition-colors hover:text-gray-300 hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+			>
+				<Wand2 class="h-4 w-4" />
+			</button>
 		</div>
 
 		<div class="flex space-x-2">
@@ -171,7 +179,18 @@
 
 <script lang="ts" setup>
 import { computed } from "vue";
-import { Binary, Lock, LockOpen, Settings2, Tags, Maximize, Minimize, KeyRound, Sparkles } from "lucide-vue-next";
+import {
+	Binary,
+	Lock,
+	LockOpen,
+	Settings2,
+	Tags,
+	Maximize,
+	Minimize,
+	KeyRound,
+	Sparkles,
+	Wand2,
+} from "lucide-vue-next";
 import AddressNavigator from "@/app/debugger/AddressNavigator.vue";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -188,6 +207,7 @@ const props = defineProps<{
 	isExplainConfigured: boolean;
 	availableScopes: string[];
 	isMaximized: Boolean;
+	hasSelection: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -197,6 +217,7 @@ const emit = defineEmits<{
 	(e: "openSymbolManager"): void;
 	(e: "openFormattingManager"): void;
 	(e: "toggle-maximize"): void;
+	(e: "generateLabels"): void;
 }>();
 
 const { getNamespaceList, toggleNamespace } = useSymbols();

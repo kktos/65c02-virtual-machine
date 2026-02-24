@@ -1,5 +1,6 @@
 import { computed, ref } from "vue";
 import { openDB, type DBSchema } from "idb";
+import { toHex } from "@/lib/hex.utils";
 
 export type SymbolEntry = {
 	id?: number;
@@ -194,13 +195,13 @@ export function useSymbols() {
 					const entry = namespaces[ns];
 					if (!entry) continue;
 
-					if (entry.label.toUpperCase().startsWith(labelQuery)) {
+					if (!labelQuery || entry.label.toUpperCase().startsWith(labelQuery)) {
 						results.push(entry);
 						continue;
 					}
 
 					if (isHex) {
-						const addrStr = entry.addr.toString(16).toUpperCase().padStart(4, "0");
+						const addrStr = toHex(entry.addr, 4);
 						if (addrStr.startsWith(hexQuery)) results.push(entry);
 					}
 				}

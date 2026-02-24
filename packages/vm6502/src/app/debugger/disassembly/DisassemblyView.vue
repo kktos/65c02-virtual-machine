@@ -11,29 +11,28 @@
 					:has-disassembly="!!(disassembly && disassembly.length > 0)"
 					:available-scopes="availableScopes"
 					:is-maximized="isMaximized"
+					:has-selection="hasSelection"
 					@toggle-maximize="isMaximized = !isMaximized"
 					@open-symbol-manager="isSymbolManagerOpen = true"
 					@open-formatting-manager="isFormattingManagerOpen = true"
 					@sync-to-pc="syncToPc"
 					@explain="handleExplain"
 					@goto-address="gotoAddress"
+					@generate-labels="handleGenerateLabels"
 				/>
 
 				<!-- Selection Actions -->
 				<div
-					v-if="selectionStart !== null && selectionEnd !== null"
-					class="flex items-center justify-between bg-cyan-900/30 border-b border-cyan-500/30 px-2 py-1 text-xs shrink-0"
+					v-if="hasSelection"
+					class="flex items-center justify-between bg-indigo-900/40 border-b border-indigo-500/50 px-2 py-1 text-xs shrink-0"
 				>
-					<span class="text-cyan-200 font-mono">
-						Selection: ${{ toHex(Math.min(selectionStart, selectionEnd), 4) }} - ${{
-							toHex(Math.max(selectionStart, selectionEnd), 4)
+					<span class="text-indigo-200 font-mono">
+						Selection: ${{ toHex(Math.min(selectionStart!, selectionEnd!), 4) }} - ${{
+							toHex(Math.max(selectionStart!, selectionEnd!), 4)
 						}}
 					</span>
-					<button
-						@click="handleGenerateLabels"
-						class="bg-cyan-700 hover:bg-cyan-600 text-white px-2 py-0.5 rounded shadow-sm transition-colors flex items-center gap-1"
-					>
-						Generate Labels
+					<button @click="clearSelection" class="hover:bg-indigo-700 rounded-full">
+						<X class="w-4 h-4" />
 					</button>
 				</div>
 
@@ -109,6 +108,7 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import { BRANCH_OPCODES } from "@/lib/opcodes";
 import { getRandomColor } from "@/lib/colors.utils";
 import { toHex } from "@/lib/hex.utils";
+import { X } from "lucide-vue-next";
 
 const vm = inject<Ref<VirtualMachine>>("vm");
 
@@ -261,6 +261,7 @@ const pivotIndex = ref(0);
 
 const selectionStart = ref<number | null>(null);
 const selectionEnd = ref<number | null>(null);
+const hasSelection = computed(() => selectionStart.value !== null && selectionEnd.value !== null);
 
 const gotoAddress = (addr: number) => {
 	if (addr >= totalMemory) return;
@@ -406,8 +407,7 @@ const handleGenerateLabels = async () => {
 
 	await generateLabels(start, scope, end, readByte);
 
-	selectionStart.value = null;
-	selectionEnd.value = null;
+	clearSelection();
 };
 
 const formatDisassemblyForAI = (lines: DisassemblyLine[]) => {
@@ -432,6 +432,11 @@ watch(explanationText, (val) => {
 	if (val) isExplanationOpen.value = true;
 });
 
+const clearSelection = () => {
+	selectionStart.value = null;
+	selectionEnd.value = null;
+};
+
 const saveExplanationAsNote = () => {
 	if (explanationText.value) {
 		const startAddr = selectionStart.value ?? disassemblyStartAddress.value;
@@ -440,17 +445,16 @@ const saveExplanationAsNote = () => {
 		explanationText.value = "";
 	}
 	isExplanationOpen.value = false;
-	selectionStart.value = null;
-	selectionEnd.value = null;
+	clearSelection();
 };
 
 const handleExplain = async () => {
 	let codeBlock = "";
 
-	if (selectionStart.value !== null && selectionEnd.value !== null) {
+	if (hasSelection.value) {
 		// Range Mode: Fetch disassembly for the specific range
-		const start = Math.min(selectionStart.value, selectionEnd.value);
-		const end = Math.max(selectionStart.value, selectionEnd.value);
+		const start = Math.min(selectionStart.value!, selectionEnd.value!);
+		const end = Math.max(selectionStart.value!, selectionEnd.value!);
 		const lines: DisassemblyLine[] = [];
 
 		let currentAddr = start;
