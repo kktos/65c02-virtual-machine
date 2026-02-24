@@ -11,25 +11,47 @@
 						{{ group.name }}
 					</h3>
 					<div class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 items-center">
-						<template v-for="spec in group.specs" :key="spec.id">
-							<div class="flex justify-center min-w-[1rem]">
-								<div v-if="spec.type === 'led'" class="flex items-center">
-									<span
-										:class="[
-											'w-3 h-3 rounded-full transition-colors',
-											busState[spec.id]
-												? 'bg-green-500 shadow-[0_0_6px_rgba(34,197,94,0.6)]'
-												: 'bg-red-900 shadow-[0_0_6px_rgba(239,68,68,0.6)]',
-										]"
-									></span>
+						<template v-for="(spec, index) in group.specs" :key="index">
+							<div v-if="Array.isArray(spec)" class="col-span-2 flex items-center gap-4">
+								<div v-for="subSpec in spec" :key="subSpec.id" class="flex items-center gap-3">
+									<div v-if="subSpec.type === 'led'" class="flex items-center">
+										<span
+											:class="[
+												'w-3 h-3 rounded-full transition-colors',
+												busState[subSpec.id]
+													? 'bg-green-500 shadow-[0_0_6px_rgba(34,197,94,0.6)]'
+													: 'bg-red-900 shadow-[0_0_6px_rgba(239,68,68,0.6)]',
+											]"
+										></span>
+									</div>
+									<span v-else class="font-mono text-yellow-300">
+										{{ busState[subSpec.id] }}
+									</span>
+									<label :for="subSpec.id" class="text-gray-400 select-none truncate">
+										{{ subSpec.label }}
+									</label>
 								</div>
-								<span v-else class="font-mono text-yellow-300">
-									{{ busState[spec.id] }}
-								</span>
 							</div>
-							<label :for="spec.id" class="text-gray-400 select-none truncate">
-								{{ spec.label }}
-							</label>
+							<template v-else>
+								<div class="flex justify-center min-w-[1rem]">
+									<div v-if="spec.type === 'led'" class="flex items-center">
+										<span
+											:class="[
+												'w-3 h-3 rounded-full transition-colors',
+												busState[spec.id]
+													? 'bg-green-500 shadow-[0_0_6px_rgba(34,197,94,0.6)]'
+													: 'bg-red-900 shadow-[0_0_6px_rgba(239,68,68,0.6)]',
+											]"
+										></span>
+									</div>
+									<span v-else class="font-mono text-yellow-300">
+										{{ busState[spec.id] }}
+									</span>
+								</div>
+								<label :for="spec.id" class="text-gray-400 select-none truncate">
+									{{ spec.label }}
+								</label>
+							</template>
 						</template>
 					</div>
 				</div>

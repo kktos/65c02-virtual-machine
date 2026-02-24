@@ -784,18 +784,24 @@ export class AppleBus implements IBus {
 
 	getMachineStateSpecs(): (MachineStateSpec | [MachineStateSpec, MachineStateSpec])[] {
 		return [
-			{ id: "lcBank2", label: "LC Bank 2", type: "led", group: "Language Card" },
-			{ id: "lcReadRam", label: "LC Read RAM", type: "led", group: "Language Card" },
-			{ id: "lcWriteRam", label: "LC Write RAM", type: "led", group: "Language Card" },
+			{ id: "lcBank2", label: "Bank 2", type: "led", group: "Language Card" },
+			[
+				{ id: "lcReadRam", label: "Read RAM", type: "led", group: "Language Card" },
+				{ id: "lcWriteRam", label: "Write RAM", type: "led", group: "Language Card" },
+			],
 
 			{ id: "store80", label: "80STORE", type: "led", group: "Main/Aux" },
-			{ id: "ramRdAux", label: "RAM Read Aux", type: "led", group: "Main/Aux" },
-			{ id: "ramWrAux", label: "RAM Write Aux", type: "led", group: "Main/Aux" },
-			{ id: "altZp", label: "Alt Zero Page", type: "led", group: "Main/Aux" },
+			[
+				{ id: "ramRdAux", label: "Aux Read", type: "led", group: "Main/Aux" },
+				{ id: "ramWrAux", label: "Aux Write", type: "led", group: "Main/Aux" },
+			],
+			{ id: "altZp", label: "Alt ZP", type: "led", group: "Main/Aux" },
 
-			{ id: "intCxRom", label: "Internal Cx ROM", type: "led", group: "Slot ROMs" },
-			{ id: "slotC3Rom", label: "Slot C3 ROM", type: "led", group: "Slot ROMs" },
-			{ id: "intC8Rom", label: "Internal C8 ROM", type: "led", group: "Slot ROMs" },
+			[
+				{ id: "intCxRom", label: "Internal Cx", type: "led", group: "Slot ROMs" },
+				{ id: "intC8Rom", label: "Internal C8", type: "led", group: "Slot ROMs" },
+			],
+			{ id: "slotC3Rom", label: "Slot C3", type: "led", group: "Slot ROMs" },
 
 			[
 				{ id: "text", label: "Text", type: "led", group: "Video" },
