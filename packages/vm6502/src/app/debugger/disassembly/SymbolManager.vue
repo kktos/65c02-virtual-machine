@@ -334,21 +334,20 @@
 				</Table>
 			</div>
 
-			<div class="flex items-center justify-between mt-3">
-				<div class="text-sm text-gray-400">
+			<div class="flex items-center justify-between mt-3 text-sm text-gray-400">
+				<select
+					v-model="itemsPerPage"
+					class="h-8 rounded-md border border-gray-600 bg-gray-700 px-2 text-sm text-gray-200 focus:outline-none"
+				>
+					<option :value="25">25 per page</option>
+					<option :value="50">50 per page</option>
+					<option :value="100">100 per page</option>
+					<option :value="200">200 per page</option>
+				</select>
+				<div>
 					<span v-if="selectedSymbols.size > 0" class="mr-4">Selected: {{ selectedSymbols.size }}</span>
 					<span>Total: {{ filteredSymbols?.length ?? 0 }}</span>
-					<select
-						v-model="itemsPerPage"
-						class="h-8 rounded-md border border-gray-600 bg-gray-700 px-2 text-sm text-gray-200 focus:outline-none ml-4"
-					>
-						<option :value="25">25 per page</option>
-						<option :value="50">50 per page</option>
-						<option :value="100">100 per page</option>
-						<option :value="200">200 per page</option>
-					</select>
 				</div>
-
 				<div class="flex items-center gap-2" v-if="totalPages > 1">
 					<button
 						class="h-8 w-8 flex items-center justify-center rounded-lg hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -492,24 +491,17 @@ const isAllSelected = computed(() => {
 
 const filteredSymbols = computed(() => {
 	const symbols = findSymbols(searchTerm.value, selectedNamespace.value);
-
-	// Sorting - create a mutable copy
-	const sortedSymbols = [...symbols];
 	const key = sortKey.value;
 	if (key) {
-		sortedSymbols.sort((a, b) => {
+		symbols.sort((a, b) => {
 			const valA = a[key] as string | number;
 			const valB = b[key] as string | number;
-
-			let comparison = 0;
-			if (valA > valB) comparison = 1;
-			else if (valA < valB) comparison = -1;
-
+			const comparison = valA > valB ? 1 : valA < valB ? -1 : 0;
 			return sortDirection.value === "asc" ? comparison : -comparison;
 		});
 	}
 
-	return sortedSymbols;
+	return symbols;
 });
 
 const totalPages = computed(() => {
