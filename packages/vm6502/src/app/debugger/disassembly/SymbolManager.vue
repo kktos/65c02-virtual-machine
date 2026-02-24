@@ -414,7 +414,7 @@ const emit = defineEmits<{
 const vm = inject<Ref<VirtualMachine>>("vm");
 const {
 	addSymbol,
-	removeSymbol,
+	removeManySymbols,
 	updateSymbol,
 	findSymbols,
 	getNamespaceList,
@@ -626,13 +626,11 @@ const isBreakpointActive = (addr: number) => {
 	return pcBreakpoints.value.has(addr) && pcBreakpoints.value.get(addr);
 };
 
-const handleBulkDelete = () => {
+const handleBulkDelete = async () => {
 	const count = selectedSymbols.value.size;
 	if (count === 0) return;
 	if (confirm(`Are you sure you want to delete ${count} selected symbol(s)?`)) {
-		for (const id of selectedSymbols.value) {
-			removeSymbol(id);
-		}
+		await removeManySymbols(selectedSymbols.value);
 		selectedSymbols.value.clear();
 	}
 };

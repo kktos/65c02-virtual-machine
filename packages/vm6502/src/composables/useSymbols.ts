@@ -283,6 +283,83 @@ export function useSymbols() {
 		}
 	};
 
+	const removeManySymbols = async (ids: Set<number>) => {
+		if (ids.size === 0) return;
+
+		const db = await getDb();
+		const tx = db.transaction(storeName as unknown as "symbols", "readwrite");
+		const store = tx.store;
+
+		// Fetch all records first to operate on them in memory
+		const recordsToDelete = (await Promise.all(Array.from(ids).map((id) => store.get(id)))).filter(
+			(r): r is SymbolEntry => r !== undefined,
+		);
+
+		if (recordsToDelete.length === 0) {
+			await tx.done;
+			return;
+		}
+
+		// Batch delete from DB in parallel
+		const deletePromises = recordsToDelete.map((r) => store.delete(r.id!));
+
+		// Group records by disk to process dicts separately
+		const systemRecords = recordsToDelete.filter((r) => r.disk === "*");
+		const diskRecords = recordsToDelete.filter((r) => r.disk !== "*");
+
+		// Update systemDict atomically
+		if (systemRecords.length > 0) {
+			const newSystemDict = { ...systemDict.value };
+			const modifiedAddrs = new Set<number>();
+
+			for (const record of systemRecords) {
+				if (newSystemDict[record.addr]) {
+					// Ensure we only copy the inner object once per address
+					if (!modifiedAddrs.has(record.addr)) {
+						newSystemDict[record.addr] = { ...newSystemDict[record.addr] };
+						modifiedAddrs.add(record.addr);
+					}
+					delete newSystemDict[record.addr]![record.ns];
+				}
+			}
+
+			// Clean up empty address entries after all deletions for that address are done
+			for (const addr of modifiedAddrs) {
+				if (Object.keys(newSystemDict[addr]!).length === 0) {
+					delete newSystemDict[addr];
+				}
+			}
+			systemDict.value = newSystemDict;
+		}
+
+		// Update diskDict atomically
+		if (diskRecords.length > 0) {
+			const newDiskDict = { ...diskDict.value };
+			const modifiedAddrs = new Set<number>();
+
+			for (const record of diskRecords) {
+				if (newDiskDict[record.addr]) {
+					if (!modifiedAddrs.has(record.addr)) {
+						newDiskDict[record.addr] = { ...newDiskDict[record.addr] };
+						modifiedAddrs.add(record.addr);
+					}
+					delete newDiskDict[record.addr]![record.ns];
+				}
+			}
+
+			// Clean up empty address entries
+			for (const addr of modifiedAddrs) {
+				if (Object.keys(newDiskDict[addr]!).length === 0) {
+					delete newDiskDict[addr];
+				}
+			}
+			diskDict.value = newDiskDict;
+		}
+
+		await Promise.all(deletePromises);
+		await tx.done;
+	};
+
 	const generateTextFromSymbols = (): string => {
 		const groups = new Map<string, SymbolEntry[]>();
 
@@ -459,6 +536,7 @@ export function useSymbols() {
 
 		addSymbol,
 		removeSymbol,
+		removeManySymbols,
 		updateSymbol,
 		findSymbols,
 		findSymbolsDB,
