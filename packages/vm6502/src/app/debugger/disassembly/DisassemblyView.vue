@@ -16,10 +16,26 @@
 					@open-formatting-manager="isFormattingManagerOpen = true"
 					@sync-to-pc="syncToPc"
 					@explain="handleExplain"
-					@goto-address="onGotoAddress"
+					@goto-address="gotoAddress"
 				/>
 
-				<!-- <div class="text-xs">{{ visibleRowCount }} / {{ pcRowIndex }}</div> -->
+				<!-- Selection Actions -->
+				<div
+					v-if="selectionStart !== null && selectionEnd !== null"
+					class="flex items-center justify-between bg-cyan-900/30 border-b border-cyan-500/30 px-2 py-1 text-xs shrink-0"
+				>
+					<span class="text-cyan-200 font-mono">
+						Selection: ${{ toHex(Math.min(selectionStart, selectionEnd), 4) }} - ${{
+							toHex(Math.max(selectionStart, selectionEnd), 4)
+						}}
+					</span>
+					<button
+						@click="handleGenerateLabels"
+						class="bg-cyan-700 hover:bg-cyan-600 text-white px-2 py-0.5 rounded shadow-sm transition-colors flex items-center gap-1"
+					>
+						Generate Labels
+					</button>
+				</div>
 
 				<!-- Scrollable disassembly table -->
 				<div
@@ -50,12 +66,12 @@
 				<SymbolManager
 					:is-open="isSymbolManagerOpen"
 					@update:is-open="(val) => (isSymbolManagerOpen = val)"
-					@goto-address="onGotoAddress"
+					@goto-address="gotoAddress"
 				/>
 				<FormattingManager
 					:is-open="isFormattingManagerOpen"
 					@update:is-open="(val) => (isFormattingManagerOpen = val)"
-					@goto-address="onGotoAddress"
+					@goto-address="gotoAddress"
 				/>
 				<ExplanationDrawer
 					v-model:open="isExplanationOpen"
@@ -86,11 +102,13 @@ import { useSettings } from "@/composables/useSettings";
 import { useGemini } from "@/composables/useGemini";
 import { useSymbols } from "@/composables/useSymbols";
 import { useNotes } from "@/composables/useNotes";
-import { disassemble } from "@/lib/disassembler";
+import { disassemble, generateLabels } from "@/lib/disassembler";
 import type { DisassemblyLine } from "@/types/disassemblyline.interface";
 import type { EmulatorState } from "@/types/emulatorstate.interface";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import { BRANCH_OPCODES } from "@/lib/opcodes";
+import { getRandomColor } from "@/lib/colors.utils";
+import { toHex } from "@/lib/hex.utils";
 
 const vm = inject<Ref<VirtualMachine>>("vm");
 
@@ -133,26 +151,20 @@ const { symbolsState } = useSymbols();
 const { addNote } = useNotes();
 
 const availableScopes: Ref<string[]> = ref([]);
-const getRandomColor = () =>
-	`#${Math.floor(Math.random() * 16777215)
-		.toString(16)
-		.padStart(6, "0")}`;
 const banks = vm?.value.machineConfig.memory.banks || 1;
 const totalMemory = banks * 0x10000;
 
 watch(
 	() => vm?.value,
 	async (newVm) => {
-		if (newVm) {
-			await newVm.ready;
-			availableScopes.value = newVm.getScopes(); // This now returns namespaces due to parsing change
-			for (const scope of availableScopes.value) {
-				if (!settings.disassembly.scopeColors[scope])
-					settings.disassembly.scopeColors[scope] = getRandomColor();
-			}
-			isFollowingPc.value = true;
-			clearHistory();
+		if (!newVm) return;
+		await newVm.ready;
+		availableScopes.value = newVm.getScopes(); // This now returns namespaces due to parsing change
+		for (const scope of availableScopes.value) {
+			if (!settings.disassembly.scopeColors[scope]) settings.disassembly.scopeColors[scope] = getRandomColor();
 		}
+		isFollowingPc.value = true;
+		clearHistory();
 	},
 	{ immediate: true },
 );
@@ -216,10 +228,9 @@ const getEffectiveAddress = (line: DisassemblyLine): number | null => {
 };
 
 watch(historyNavigationEvent, (event) => {
-	if (event) {
-		isFollowingPc.value = false;
-		disassemblyStartAddress.value = event.address;
-	}
+	if (!event) return;
+	isFollowingPc.value = false;
+	disassemblyStartAddress.value = event.address;
 });
 
 const onToggleBreakpoint = (address: number) => {
@@ -251,7 +262,7 @@ const pivotIndex = ref(0);
 const selectionStart = ref<number | null>(null);
 const selectionEnd = ref<number | null>(null);
 
-const onGotoAddress = (addr: number) => {
+const gotoAddress = (addr: number) => {
 	if (addr >= totalMemory) return;
 	disassemblyStartAddress.value = addr;
 	isFollowingPc.value = false;
@@ -358,10 +369,7 @@ watch(
 
 // Watch for external jump requests (e.g. from TraceView)
 watch(jumpEvent, (event) => {
-	if (event) {
-		isFollowingPc.value = false;
-		disassemblyStartAddress.value = event.address;
-	}
+	if (event) gotoAddress(event.address);
 });
 
 const handleOpcodeClick = (line: DisassemblyLine) => {
@@ -387,6 +395,19 @@ const handleOpcodeClick = (line: DisassemblyLine) => {
 		setMemoryViewAddress((bank << 16) | effectiveAddress);
 		setActiveTab("memory");
 	}
+};
+
+const handleGenerateLabels = async () => {
+	if (selectionStart.value === null || selectionEnd.value === null || !vm?.value) return;
+
+	const start = Math.min(selectionStart.value, selectionEnd.value);
+	const end = Math.max(selectionStart.value, selectionEnd.value);
+	const scope = vm.value.getScope(start);
+
+	await generateLabels(start, scope, end, readByte);
+
+	selectionStart.value = null;
+	selectionEnd.value = null;
 };
 
 const formatDisassemblyForAI = (lines: DisassemblyLine[]) => {

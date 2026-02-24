@@ -22,3 +22,8 @@ export function hslToRgb(h: number, s: number, l: number): [number, number, numb
 	}
 	return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
 }
+
+export const getRandomColor = () =>
+	`#${Math.floor(Math.random() * 16777215)
+		.toString(16)
+		.padStart(6, "0")}`;

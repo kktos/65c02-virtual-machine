@@ -1,13 +1,15 @@
-import { useFormatting } from "@/composables/useDataFormattings";
+import { useFormatting, type DataBlock } from "@/composables/useDataFormattings";
 import { useSymbols } from "@/composables/useSymbols";
 import type { DisassemblyLine } from "@/types/disassemblyline.interface";
 import type { EmulatorState } from "@/types/emulatorstate.interface";
 import { formatAddress, toHex } from "./hex.utils";
 import { runHypercall } from "./hypercalls.lib";
-import { opcodeMap } from "./opcodes";
+import { BRANCH_OPCODES, opcodeMap } from "./opcodes";
+
+type FunctionReadByte = (address: number, debug?: boolean) => number;
 
 const { getFormat } = useFormatting();
-const { getSymbolForAddress, getLabelForAddress } = useSymbols();
+const { getSymbolForAddress, getLabelForAddress, addSymbol } = useSymbols();
 
 function findPreviousInstruction(
 	readByte: (address: number, debug?: boolean) => number,
@@ -43,8 +45,69 @@ function findPreviousInstruction(
 	return Math.max(0, targetAddress - 1);
 }
 
+function handleDataRegion(format: DataBlock, pc: number, disassembly: DisassemblyLine[], readByte: FunctionReadByte) {
+	let byteCount = format.length;
+	if (format.type === "word") byteCount *= 2;
+
+	const bytes: number[] = [];
+	for (let i = 0; i < byteCount; i++) bytes.push(readByte(pc + i));
+
+	let opcode = "";
+	const comment = "";
+	let rawBytesStr = "";
+
+	// Format Raw Bytes (limit to ~8 for display)
+	const displayBytes = bytes.slice(0, 8);
+	rawBytesStr = displayBytes.map((b) => toHex(b, 2)).join(" ");
+	if (bytes.length > 8) rawBytesStr += "...";
+
+	switch (format.type) {
+		case "string": {
+			const text = bytes
+				.map((b) => {
+					const c = b & 0x7f;
+					return c >= 32 && c <= 126 ? String.fromCharCode(c) : ".";
+				})
+				.join("");
+			opcode = `.STR "${text}"`;
+			break;
+		}
+		case "word": {
+			const words: string[] = [];
+			for (let i = 0; i < format.length; i++) {
+				const lo = bytes[i * 2];
+				const hi = bytes[i * 2 + 1];
+				if (lo !== undefined && hi !== undefined) {
+					const val = (hi << 8) | lo;
+					words.push(`$${toHex(val, 4)}`);
+				}
+			}
+			opcode = `.WORD ${words.join(", ")}`;
+			break;
+		}
+		default:
+			opcode = `.BYTE ${bytes.map((b) => `$${toHex(b, 2)}`).join(", ")}`;
+	}
+
+	disassembly.push({
+		label: "",
+		src: "",
+		addr: pc,
+		faddr: formatAddress(pc),
+		mode: "IMP",
+		opc: opcode,
+		opr: "",
+		oprn: 0,
+		bytes: rawBytesStr,
+		comment,
+		cycles: 0,
+	});
+
+	return byteCount;
+}
+
 export function disassemble(
-	readByte: (address: number, debug?: boolean) => number,
+	readByte: FunctionReadByte,
 	scope: string,
 	fromAddress: number,
 	lineCount: number,
@@ -56,9 +119,7 @@ export function disassemble(
 	let pc = fromAddress;
 
 	if (pivotLineIndex > 0) {
-		for (let i = 0; i < pivotLineIndex; i++) {
-			pc = findPreviousInstruction(readByte, pc, scope);
-		}
+		for (let i = 0; i < pivotLineIndex; i++) pc = findPreviousInstruction(readByte, pc, scope);
 	}
 
 	while (disassembly.length < lineCount) {
@@ -69,68 +130,11 @@ export function disassemble(
 
 		const format = getFormat(pc);
 		if (format) {
-			let byteCount = format.length;
-			if (format.type === "word") byteCount *= 2;
-
-			const bytes: number[] = [];
-			for (let i = 0; i < byteCount; i++) bytes.push(readByte(pc + i));
-
-			let opcode = "";
-			const comment = "";
-			let rawBytesStr = "";
-
-			// Format Raw Bytes (limit to ~8 for display)
-			const displayBytes = bytes.slice(0, 8);
-			rawBytesStr = displayBytes.map((b) => toHex(b, 2)).join(" ");
-			if (bytes.length > 8) rawBytesStr += "...";
-
-			switch (format.type) {
-				case "string": {
-					const text = bytes
-						.map((b) => {
-							const c = b & 0x7f;
-							return c >= 32 && c <= 126 ? String.fromCharCode(c) : ".";
-						})
-						.join("");
-					opcode = `.STR "${text}"`;
-					break;
-				}
-				case "word": {
-					const words: string[] = [];
-					for (let i = 0; i < format.length; i++) {
-						const lo = bytes[i * 2];
-						const hi = bytes[i * 2 + 1];
-						if (lo !== undefined && hi !== undefined) {
-							const val = (hi << 8) | lo;
-							words.push(`$${toHex(val, 4)}`);
-						}
-					}
-					opcode = `.WORD ${words.join(", ")}`;
-					break;
-				}
-				default:
-					opcode = `.BYTE ${bytes.map((b) => `$${toHex(b, 2)}`).join(", ")}`;
-			}
-
-			disassembly.push({
-				label: "",
-				src: "",
-				addr: pc,
-				faddr: formatAddress(pc),
-				mode: "IMP",
-				opc: opcode,
-				opr: "",
-				oprn: 0,
-				bytes: rawBytesStr,
-				comment,
-				cycles: 0,
-			});
-
+			const byteCount = handleDataRegion(format, pc, disassembly, readByte);
 			pc += byteCount;
 			continue;
 		}
 
-		const address = pc;
 		const opcodeByte = readByte(pc);
 
 		// Check for Hypercalls
@@ -150,8 +154,8 @@ export function disassemble(
 			disassembly.push({
 				label: "",
 				src: "",
-				addr: address,
-				faddr: formatAddress(address),
+				addr: pc,
+				faddr: formatAddress(pc),
 				mode: "IMP",
 				opc: "???",
 				opr: "",
@@ -166,12 +170,12 @@ export function disassemble(
 
 		const { name, bytes, cycles, mode } = opcodeInfo;
 
-		const symbol = getSymbolForAddress(address, scope);
+		const symbol = getSymbolForAddress(pc, scope);
 		const line: DisassemblyLine = {
 			label: symbol?.label ?? "",
 			src: symbol?.src ?? "",
-			addr: address,
-			faddr: formatAddress(address),
+			addr: pc,
+			faddr: formatAddress(pc),
 
 			mode,
 			opc: name,
@@ -347,4 +351,92 @@ export function disassemble(
 	// console.log("Disassembly:", toHex(fromAddress, 4), lineCount, disassembly);
 
 	return disassembly;
+}
+
+export async function generateLabels(
+	fromAddress: number,
+	scope: string,
+	toAddress: number,
+	readByte: FunctionReadByte,
+) {
+	let pc = fromAddress;
+	while (pc < toAddress) {
+		// Check for Custom Formatting (Data Directives)
+		const format = getFormat(pc);
+		if (format) {
+			let len = format.length;
+			if (format.type === "word") len *= 2;
+			pc += len;
+			continue;
+		}
+
+		const opcodeByte = readByte(pc);
+		const info = opcodeMap[opcodeByte];
+
+		if (!info) {
+			pc++;
+			continue;
+		}
+
+		let target: number | null = null;
+		let labelPrefix: "L" | "D" | null = null;
+
+		// Determine target address and label type based on opcode and mode
+		if (BRANCH_OPCODES.has(info.name)) {
+			labelPrefix = "L";
+			switch (info.mode) {
+				case "REL": {
+					const offset = readByte(pc + 1);
+					const signedOffset = offset < 0x80 ? offset : offset - 0x100;
+					target = (pc + 2 + signedOffset) & 0xffff;
+					break;
+				}
+				case "ABS":
+				case "IND": // JMP ($1234) - label the pointer
+				case "IAX": { // JMP ($1234,X) - label the pointer
+					const lo = readByte(pc + 1);
+					const hi = readByte(pc + 2);
+					target = (hi << 8) | lo;
+					break;
+				}
+			}
+		} else {
+			// Not a branch, so it could be a data reference
+			labelPrefix = "D";
+			switch (info.mode) {
+				case "ABS":
+				case "ABX":
+				case "ABY": {
+					const lo = readByte(pc + 1);
+					const hi = readByte(pc + 2);
+					target = (hi << 8) | lo;
+					break;
+				}
+				case "ZP":
+				case "ZPX":
+				case "ZPY":
+				case "IDX":
+				case "IDY":
+				case "ZPI": {
+					target = readByte(pc + 1);
+					break;
+				}
+				default: {
+					// Not a data reference mode we care about (e.g., IMM, ACC, IMP)
+					target = null;
+					labelPrefix = null;
+					break;
+				}
+			}
+		}
+
+		// If we found a target that needs a label, add it
+		if (target !== null && labelPrefix !== null && !getLabelForAddress(target, scope)) {
+			const label =
+				labelPrefix === "L" ? `L${toHex(target, 4)}` : `${labelPrefix}${toHex(target, target > 0xff ? 4 : 2)}`;
+			await addSymbol(target, label, "user", scope);
+		}
+
+		pc += info.bytes;
+	}
 }
