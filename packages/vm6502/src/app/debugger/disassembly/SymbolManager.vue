@@ -186,7 +186,7 @@
 						</TableRow>
 
 						<!-- Symbol Rows -->
-						<template v-for="symbol in filteredSymbols" :key="`${symbol.addr}-${symbol.ns}`">
+						<template v-for="symbol in paginatedSymbols" :key="`${symbol.addr}-${symbol.ns}`">
 							<!-- Inline Edit Row -->
 							<TableRow
 								v-if="
@@ -334,9 +334,40 @@
 				</Table>
 			</div>
 
-			<div class="text-right text-sm text-gray-400">
-				<span v-if="selectedSymbols.size > 0" class="mr-4">Selected: {{ selectedSymbols.size }}</span>
-				<span>Total symbols: {{ filteredSymbols?.length ?? 0 }}</span>
+			<div class="flex items-center justify-between mt-3">
+				<div class="text-sm text-gray-400">
+					<span v-if="selectedSymbols.size > 0" class="mr-4">Selected: {{ selectedSymbols.size }}</span>
+					<span>Total: {{ filteredSymbols?.length ?? 0 }}</span>
+					<select
+						v-model="itemsPerPage"
+						class="h-8 rounded-md border border-gray-600 bg-gray-700 px-2 text-sm text-gray-200 focus:outline-none ml-4"
+					>
+						<option :value="25">25 per page</option>
+						<option :value="50">50 per page</option>
+						<option :value="100">100 per page</option>
+						<option :value="200">200 per page</option>
+					</select>
+				</div>
+
+				<div class="flex items-center gap-2" v-if="totalPages > 1">
+					<button
+						class="h-8 w-8 flex items-center justify-center rounded-lg hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+						:disabled="currentPage === 1"
+						@click="currentPage--"
+					>
+						<ChevronLeft class="h-4 w-4" />
+					</button>
+					<span class="text-sm text-gray-400 min-w-[80px] text-center">
+						Page {{ currentPage }} of {{ totalPages }}
+					</span>
+					<button
+						class="h-8 w-8 flex items-center justify-center rounded-lg hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+						:disabled="currentPage === totalPages"
+						@click="currentPage++"
+					>
+						<ChevronRight class="h-4 w-4" />
+					</button>
+				</div>
 			</div>
 		</DialogContent>
 	</Dialog>
@@ -346,6 +377,8 @@
 import {
 	ArrowDown,
 	ArrowUp,
+	ChevronLeft,
+	ChevronRight,
 	Check,
 	Download,
 	FileText,
@@ -396,9 +429,16 @@ const { downloadFile } = useFileDownload();
 const searchTerm = ref("");
 const selectedNamespace = ref("");
 const selectedSymbols = ref(new Set<number>());
+const currentPage = ref(1);
+const itemsPerPage = ref(50);
 
 watch([searchTerm, selectedNamespace], () => {
 	selectedSymbols.value.clear();
+	currentPage.value = 1;
+});
+
+watch(itemsPerPage, () => {
+	currentPage.value = 1;
 });
 
 const availableScopes = computed(() => {
@@ -436,6 +476,7 @@ const handleSort = (key: SortKey) => {
 		sortKey.value = key;
 		sortDirection.value = "asc";
 	}
+	currentPage.value = 1;
 };
 
 const uniqueNamespaces = computed(() => {
@@ -450,7 +491,7 @@ const isAllSelected = computed(() => {
 });
 
 const filteredSymbols = computed(() => {
-	let symbols = findSymbols(searchTerm.value, selectedNamespace.value);
+	const symbols = findSymbols(searchTerm.value, selectedNamespace.value);
 
 	// Sorting - create a mutable copy
 	const sortedSymbols = [...symbols];
@@ -467,7 +508,24 @@ const filteredSymbols = computed(() => {
 			return sortDirection.value === "asc" ? comparison : -comparison;
 		});
 	}
+
 	return sortedSymbols;
+});
+
+const totalPages = computed(() => {
+	return Math.ceil((filteredSymbols.value?.length || 0) / itemsPerPage.value);
+});
+
+const paginatedSymbols = computed(() => {
+	const start = (currentPage.value - 1) * itemsPerPage.value;
+	const end = start + itemsPerPage.value;
+	return filteredSymbols.value?.slice(start, end) || [];
+});
+
+watch(totalPages, (newTotal) => {
+	if (currentPage.value > newTotal) {
+		currentPage.value = Math.max(1, newTotal);
+	}
 });
 
 const gotoSymbol = (symbol: { addr: number }) => {
