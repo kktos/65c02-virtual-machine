@@ -1,6 +1,6 @@
 <template>
 	<div
-		v-if="show"
+		v-if="isConsoleVisible"
 		:style="{ height: height + 'px' }"
 		class="absolute bottom-0 left-5 right-5 min-h-[100px] bg-gray-800/70 text-green-400 font-mono text-xs flex flex-col border-t border-gray-700 backdrop-blur-sm z-10"
 	>
@@ -18,8 +18,8 @@
 		</div>
 		<div class="flex-1 overflow-y-auto p-2 flex flex-col" @click="focusInput">
 			<div class="mt-auto space-y-0.5">
-				<div v-for="(log, i) in logs" :key="i" class="break-all border-b border-gray-800/30 pb-0.5">
-					{{ log }}
+				<div v-for="(log, i) in logs" :key="i" :class="log.color" class="min-h-(--text-xs)">
+					{{ log.text }}
 				</div>
 				<div ref="logEndRef"></div>
 			</div>
@@ -44,17 +44,16 @@ import { useCommands } from "@/composables/useCommands";
 import { useMachine } from "@/composables/useMachine";
 import { ref, nextTick } from "vue";
 
-defineProps<{
-	show: boolean;
-}>();
-
 const height = ref(200);
 const inputText = ref("");
 const inputRef = ref<HTMLInputElement | null>(null);
 
-const { logs, print, printError, logEndRef } = useCmdConsole();
+const { logs, print, printError, logEndRef, isConsoleVisible } = useCmdConsole();
 const { executeCommand, success, error } = useCommands();
 const { vm } = useMachine();
+
+// oxlint-disable-next-line no-unused-expressions ** VSCode doesn't see the use in the template ref
+logEndRef;
 
 const clearLogs = () => {
 	logs.value = [];
@@ -64,7 +63,7 @@ const handleEnter = async () => {
 	if (!inputText.value) return;
 
 	if (await executeCommand(inputText.value, vm?.value)) {
-		print(success.value);
+		print("\n" + success.value);
 	} else printError(error.value);
 
 	inputText.value = "";

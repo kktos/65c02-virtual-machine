@@ -147,6 +147,7 @@ import MemoryMap from "@/app/debugger/memorymap/MemoryMap.vue";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
+import { useCmdConsole } from "@/composables/useCmdConsole";
 
 const vm = inject<Ref<VirtualMachine>>("vm");
 
@@ -187,8 +188,8 @@ const pasteFromClipboard = async () => {
 	}
 };
 
-const isCommandInterfaceOpen = inject<Ref<boolean>>("isCommandInterfaceOpen");
+const { isConsoleVisible } = useCmdConsole();
 const toggleCommandInterface = () => {
-	if (isCommandInterfaceOpen) isCommandInterfaceOpen.value = !isCommandInterfaceOpen.value;
+	isConsoleVisible.value = !isConsoleVisible.value;
 };
 </script>

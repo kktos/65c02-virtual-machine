@@ -93,7 +93,7 @@ const loadMachine = async (newMachine?: MachineConfig) => {
 	console.log(`Main: Loading machine ${selectedMachine.value.name}`);
 
 	const newVm = new VirtualMachine(selectedMachine.value);
-	vm.value = markRaw(newVm);
+	vm.value = markRaw<VirtualMachine>(newVm);
 	setupVmListeners(newVm);
 	if (videoCanvas.value) newVm.initVideo(videoCanvas.value);
 

@@ -1,6 +1,5 @@
 <template>
 	<Toaster rich-colors position="top-right" />
-	<CommandInterface v-model="isCommandInterfaceOpen" />
 	<ResizablePanelGroup
 		v-if="vm"
 		direction="horizontal"
@@ -24,19 +23,10 @@
 					<MouseControl v-if="hasMouse" />
 					<DiskDriveControl v-if="hasDisk" />
 					<SpeedControl />
-
-					<button
-						@click="showCmdConsole = !showCmdConsole"
-						class="p-1 rounded hover:bg-gray-700 text-gray-400 hover:text-white transition-colors"
-						:class="{ 'text-green-400 bg-gray-800': showCmdConsole }"
-						title="Toggle Log Viewer"
-					>
-						<ScrollText />
-					</button>
 				</div>
 			</div>
 			<canvas ref="videoCanvas" class="border" style="image-rendering: pixelated"></canvas>
-			<CmdConsole :show="showCmdConsole" />
+			<CmdConsole />
 		</ResizablePanel>
 
 		<ResizableHandle />
@@ -116,14 +106,12 @@
 </template>
 
 <script setup lang="ts">
-import { ScrollText } from "lucide-vue-next";
-import { computed, onMounted, onUnmounted, provide, ref, watch } from "vue";
+import { computed, onMounted, onUnmounted, provide, watch } from "vue";
 import { Toaster } from "vue-sonner";
 import "vue-sonner/style.css";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import TogglableDisplay from "../components/TogglableDisplay.vue";
 import { useMachine } from "../composables/useMachine";
-import CommandInterface from "./debugger/CommandInterface.vue";
 import ResizableHandle from "../components/ui/resizable/ResizableHandle.vue";
 import ResizablePanel from "../components/ui/resizable/ResizablePanel.vue";
 import ResizablePanelGroup from "../components/ui/resizable/ResizablePanelGroup.vue";
@@ -162,12 +150,14 @@ import SoundControl from "./machine/SoundControl.vue";
 import SpeedControl from "./machine/SpeedControl.vue";
 import VideoControl from "./machine/VideoControl.vue";
 import CmdConsole from "./CmdConsole.vue";
+import { useCmdConsole } from "@/composables/useCmdConsole";
 
 const dbgTopPanelResize = (_size: unknown) => {
 	// console.log('dbgTopPanelResize resized', size);
 };
 
 const { vm, registers, selectedMachine, isRunning, videoCanvas, loadMachine } = useMachine();
+const { showConsole } = useCmdConsole();
 
 const hasGamepad = computed(
 	() => selectedMachine.value.inputs?.some((d) => d.type === "joystick" || d.type === "gamepad") ?? false,
@@ -175,16 +165,12 @@ const hasGamepad = computed(
 const hasMouse = computed(() => selectedMachine.value.inputs?.some((d) => d.type === "mouse") ?? false);
 const hasDisk = computed(() => selectedMachine.value.disk?.enabled);
 
-const showCmdConsole = ref(false);
-
-const isCommandInterfaceOpen = ref(false);
-provide("isCommandInterfaceOpen", isCommandInterfaceOpen);
-
 const handleGlobalKeydown = (e: KeyboardEvent) => {
 	// console.log("keydown", e.key, "ctrl", e.ctrlKey, "shift", e.shiftKey, "alt", e.altKey, "meta", e.metaKey);
 	if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "d") {
 		e.preventDefault();
-		isCommandInterfaceOpen.value = !isCommandInterfaceOpen.value;
+		showConsole();
+		// isCommandInterfaceOpen.value = !isCommandInterfaceOpen.value;
 	}
 };
 
