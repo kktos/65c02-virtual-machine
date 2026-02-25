@@ -224,6 +224,7 @@ const isCommandInterfaceOpen = ref(false);
 provide("isCommandInterfaceOpen", isCommandInterfaceOpen);
 
 const handleGlobalKeydown = (e: KeyboardEvent) => {
+	// console.log("keydown", e.key, "ctrl", e.ctrlKey, "shift", e.shiftKey, "alt", e.altKey, "meta", e.metaKey);
 	if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "d") {
 		e.preventDefault();
 		isCommandInterfaceOpen.value = !isCommandInterfaceOpen.value;

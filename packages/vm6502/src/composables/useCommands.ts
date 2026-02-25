@@ -10,19 +10,30 @@ import { run } from "@/commands/run.cmd";
 import { pause } from "@/commands/pause.cmd";
 import { setDisasmView } from "@/commands/setDisasmView.cmd";
 import { setMemView } from "@/commands/setMemView.cmd";
-import { addBP, addBPA, addBPR, addBPW } from "@/commands/addBP.cmd";
-import { removeBP, removeBPA, removeBPR, removeBPW } from "@/commands/removeBP.cmd";
+import { addBreakpointCommand } from "@/commands/addBP.cmd";
+import { removeBreakpointCommand } from "@/commands/removeBP.cmd";
 import { reset } from "@/commands/reset.cmd";
 import { reboot } from "@/commands/reboot.cmd";
 import { explain } from "@/commands/explainCode.cmd";
+import { speed } from "@/commands/speed.cmd";
 
-type ParamType = "byte" | "word" | "long" | "string";
+type ParamType = "byte" | "word" | "long" | "number" | "string";
 type ParamDef = ParamType | `${ParamType}?`;
 export type ParamList = (string | number | undefined)[];
 export type Command = {
 	description: string;
 	paramDef: ParamDef[];
 	fn: (vm: VirtualMachine, progress: Ref<number>, params: ParamList) => string | Promise<string>;
+	closeOnSuccess?: boolean;
+};
+export type CommandWrapper = {
+	description: string;
+	paramDef: ParamDef[];
+	base: Command;
+	staticParams?: {
+		prepend?: (string | number)[];
+		append?: (string | number)[];
+	};
 	closeOnSuccess?: boolean;
 };
 
@@ -41,7 +52,7 @@ export function useCommands() {
 
 	const parseValue = (valStr: string, max: number): number => {
 		const isHex = valStr.startsWith("$");
-		const value = parseInt(isHex ? valStr.slice(1) : valStr, isHex ? 16 : 10);
+		const value = Number.parseInt(isHex ? valStr.slice(1) : valStr, isHex ? 16 : 10);
 		if (Number.isNaN(value)) throw new Error(`Invalid value: ${valStr}`);
 		if (value > max) throw new Error(`Value exceeds range (max $${max.toString(16).toUpperCase()})`);
 		return value;
@@ -61,7 +72,7 @@ export function useCommands() {
 			return `Available commands:\n${commandHelp}`;
 		},
 	};
-	const COMMAND_LIST: Record<string, Command> = {
+	const COMMAND_LIST: Record<string, Command | CommandWrapper> = {
 		"A=": setA,
 		"X=": setX,
 		"Y=": setY,
@@ -72,16 +83,75 @@ export function useCommands() {
 		PAUSE: pause,
 		RESET: reset,
 		REBOOT: reboot,
-		DA: setDisasmView,
-		MA: setMemView,
-		BP: addBP,
-		BPA: addBPA,
-		BPW: addBPW,
-		BPR: addBPR,
-		BC: removeBP,
-		BCA: removeBPA,
-		BCW: removeBPW,
-		BCR: removeBPR,
+		SPEED: speed,
+		D: setDisasmView,
+		M: setMemView,
+		M1: {
+			description: "set MemViewer(1) address. Params: <address>",
+			paramDef: ["long"],
+			base: setMemView,
+			staticParams: { append: [1] },
+		},
+		M2: {
+			description: "set MemViewer(2) address. Params: <address>",
+			paramDef: ["long"],
+			base: setMemView,
+			staticParams: { append: [2] },
+		},
+		M3: {
+			description: "set MemViewer(3) address. Params: <address>",
+			paramDef: ["long"],
+			base: setMemView,
+			staticParams: { append: [3] },
+		},
+		BP: {
+			description: "Add execution breakpoint",
+			paramDef: ["long"],
+			base: addBreakpointCommand,
+			staticParams: { prepend: ["pc"] },
+		},
+		BPA: {
+			description: "Add Mem Access breakpoint",
+			paramDef: ["long"],
+			base: addBreakpointCommand,
+			staticParams: { prepend: ["access"] },
+		},
+		BPW: {
+			description: "Add Mem Write breakpoint",
+			paramDef: ["long"],
+			base: addBreakpointCommand,
+			staticParams: { prepend: ["write"] },
+		},
+		BPR: {
+			description: "Add Mem Read breakpoint",
+			paramDef: ["long"],
+			base: addBreakpointCommand,
+			staticParams: { prepend: ["read"] },
+		},
+		BC: {
+			description: "Remove execution breakpoint",
+			paramDef: ["long"],
+			base: removeBreakpointCommand,
+			staticParams: { prepend: ["pc"] },
+		},
+		BCA: {
+			description: "Remove Mem Access breakpoint",
+			paramDef: ["long"],
+			base: removeBreakpointCommand,
+			staticParams: { prepend: ["access"] },
+		},
+		BCW: {
+			description: "Remove Mem Write breakpoint",
+			paramDef: ["long"],
+			base: removeBreakpointCommand,
+			staticParams: { prepend: ["write"] },
+		},
+		BCR: {
+			description: "Remove Mem Read breakpoint",
+			paramDef: ["long"],
+			base: removeBreakpointCommand,
+			staticParams: { prepend: ["read"] },
+		},
 		EXPLAIN: { ...explain, closeOnSuccess: true },
 		HELP: cmdHelp,
 	};
@@ -104,16 +174,20 @@ export function useCommands() {
 		shouldClose.value = false;
 
 		// Find command
-		const cmdKey = typedKeys(COMMAND_LIST).find((key) => input.startsWith(key));
+		const cmd = input.split(" ")[0];
+		const cmdKey = typedKeys(COMMAND_LIST).find((key) => cmd === key);
 
 		try {
 			if (cmdKey) {
-				const commandDef = COMMAND_LIST[cmdKey] as Command;
+				const cmdSpec = COMMAND_LIST[cmdKey] as Command | CommandWrapper;
 				const paramStr = input.slice(cmdKey.length).trim();
 				const paramsAsStr = paramStr.length > 0 ? paramStr.split(/\s+/) : [];
 
-				const requiredParams = commandDef.paramDef.filter((p) => !p.endsWith("?")).length;
-				const maxParams = commandDef.paramDef.length;
+				const commandToRun = "base" in cmdSpec ? cmdSpec.base : cmdSpec;
+				const paramDef = cmdSpec.paramDef;
+
+				const requiredParams = paramDef.filter((p) => !p.endsWith("?")).length;
+				const maxParams = paramDef.length;
 
 				if (paramsAsStr.length < requiredParams || paramsAsStr.length > maxParams) {
 					throw new Error(
@@ -123,24 +197,27 @@ export function useCommands() {
 					);
 				}
 
-				const params: (string | number)[] = [];
+				const userParams: (string | number)[] = [];
 				for (let i = 0; i < paramsAsStr.length; i++) {
 					const param = paramsAsStr[i] as string;
-					let paramDef = commandDef.paramDef[i] as ParamDef;
+					let paramDef = cmdSpec.paramDef[i] as ParamDef;
 					if (paramDef.endsWith("?")) paramDef = paramDef.slice(0, -1) as ParamType;
 
 					switch (paramDef) {
 						case "byte":
-							params.push(parseValue(param, 0xff));
+							userParams.push(parseValue(param, 0xff));
 							break;
 						case "word":
-							params.push(parseValue(param, 0xffff));
+							userParams.push(parseValue(param, 0xffff));
 							break;
 						case "long":
-							params.push(parseValue(param, 0xffffffff));
+							userParams.push(parseValue(param, 0xffffffff));
+							break;
+						case "number":
+							userParams.push(Number.parseFloat(param));
 							break;
 						case "string":
-							params.push(param);
+							userParams.push(param);
 							break;
 						default:
 							throw `Unknown parameter type: ${paramDef}`;
@@ -151,8 +228,18 @@ export function useCommands() {
 				if (cleanInput && commandHistory.value[commandHistory.value.length - 1] !== cleanInput)
 					commandHistory.value.push(cleanInput);
 
-				success.value = await commandDef.fn(vm, progress, params);
-				if (commandDef.closeOnSuccess) shouldClose.value = true;
+				let finalParams: ParamList = userParams;
+				if ("base" in cmdSpec && cmdSpec.staticParams) {
+					if (cmdSpec.staticParams.prepend) {
+						finalParams = [...cmdSpec.staticParams.prepend, ...finalParams];
+					}
+					if (cmdSpec.staticParams.append) {
+						finalParams = [...finalParams, ...cmdSpec.staticParams.append];
+					}
+				}
+
+				success.value = await commandToRun.fn(vm, progress, finalParams);
+				if (cmdSpec.closeOnSuccess) shouldClose.value = true;
 				return true;
 			} else {
 				throw new Error("Unknown command");

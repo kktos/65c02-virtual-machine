@@ -15,9 +15,24 @@
 						step="0.1"
 						min="0"
 					/>
-					<button @click="switchToPresets" class="text-gray-400 hover:text-cyan-400" title="Switch to presets">
-						<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+					<button
+						@click="switchToPresets"
+						class="text-gray-400 hover:text-cyan-400"
+						title="Switch to presets"
+					>
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							class="h-4 w-4"
+							fill="none"
+							viewBox="0 0 24 24"
+							stroke="currentColor"
+						>
+							<path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								stroke-width="2"
+								d="M4 6h16M4 12h16M4 18h16"
+							/>
 						</svg>
 					</button>
 				</div>
@@ -49,9 +64,7 @@ const speedMhz = ref(0);
 const { targetSpeed } = useEmulatorSpeed();
 const isManual = ref(false);
 
-const speeds = computed(() => {
-	return vm?.value?.machineConfig.speeds;
-});
+const speeds = computed(() => vm?.value?.machineConfig.speeds);
 
 const updateSpeed = () => vm?.value.setSpeed(targetSpeed.value);
 
@@ -61,7 +74,6 @@ const onSelectChange = (event: Event) => {
 		isManual.value = true;
 	} else {
 		targetSpeed.value = Number(val);
-		updateSpeed();
 	}
 };
 
@@ -69,8 +81,7 @@ const switchToPresets = () => {
 	isManual.value = false;
 	const currentIsPreset = speeds.value?.some((s) => s.value === targetSpeed.value);
 	if (!currentIsPreset && speeds.value?.length) {
-		targetSpeed.value = speeds.value[0].value;
-		updateSpeed();
+		targetSpeed.value = speeds.value[0]!.value;
 	}
 };
 
@@ -79,9 +90,8 @@ watch(
 	([newSpeed, newSpeeds]) => {
 		if (newSpeeds && newSpeeds.length > 0) {
 			const isPreset = newSpeeds.some((s) => s.value === newSpeed);
-			if (!isPreset) {
-				isManual.value = true;
-			}
+			if (!isPreset) isManual.value = true;
+			updateSpeed();
 		}
 	},
 	{ immediate: true },

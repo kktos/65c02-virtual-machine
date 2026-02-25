@@ -3,56 +3,19 @@ import { formatAddress } from "@/lib/hex.utils";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import { useBreakpoints } from "@/composables/useBreakpoints";
 import type { Ref } from "vue";
+import type { Breakpoint } from "@/types/breakpoint.interface";
 
-export const removeBP: Command = {
-	description: "Remove execution breakpoint",
-	paramDef: ["long"],
+export const removeBreakpointCommand: Command = {
+	description: "Remove a breakpoint of a given type at an address. Params: <type> <address>",
+	paramDef: ["string", "long"],
 	fn: (vm: VirtualMachine, _progress: Ref<number>, params: ParamList) => {
-		const address = params[0] as number;
+		const type = params[0] as Breakpoint["type"];
+		const address = params[1] as number;
 
 		const { removeBreakpoint } = useBreakpoints();
 
-		removeBreakpoint({ type: "pc", address }, vm);
+		removeBreakpoint({ type, address }, vm);
 
 		return `Breakpoint removed at ${formatAddress(address)}`;
-	},
-};
-export const removeBPA: Command = {
-	description: "Remove Mem Access breakpoint",
-	paramDef: ["long"],
-	fn: (vm: VirtualMachine, _progress: Ref<number>, params: ParamList) => {
-		const address = params[0] as number;
-
-		const { removeBreakpoint } = useBreakpoints();
-
-		removeBreakpoint({ type: "access", address }, vm);
-
-		return `Breakpoint Mem Access removed at ${formatAddress(address)}`;
-	},
-};
-export const removeBPW: Command = {
-	description: "Remove Mem Write breakpoint",
-	paramDef: ["long"],
-	fn: (vm: VirtualMachine, _progress: Ref<number>, params: ParamList) => {
-		const address = params[0] as number;
-
-		const { removeBreakpoint } = useBreakpoints();
-
-		removeBreakpoint({ type: "write", address }, vm);
-
-		return `Breakpoint Mem Write removed at ${formatAddress(address)}`;
-	},
-};
-export const removeBPR: Command = {
-	description: "Remove Mem Read breakpoint",
-	paramDef: ["long"],
-	fn: (vm: VirtualMachine, _progress: Ref<number>, params: ParamList) => {
-		const address = params[0] as number;
-
-		const { removeBreakpoint } = useBreakpoints();
-
-		removeBreakpoint({ type: "read", address }, vm);
-
-		return `Breakpoint Mem Read removed at ${formatAddress(address)}`;
 	},
 };

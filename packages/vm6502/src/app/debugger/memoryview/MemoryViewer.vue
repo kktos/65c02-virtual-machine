@@ -454,6 +454,14 @@ const refreshMemory = () => {
 	else currentMemorySlice.value = new Uint8Array(length);
 };
 
+watch(
+	() => props.initialAddress,
+	(newAddress) => {
+		if (newAddress !== null && newAddress !== undefined) startAddress.value = newAddress;
+		// if ((props.listenToNav ?? true) && newAddress !== null) startAddress.value = newAddress;
+	},
+);
+
 watch(memoryViewAddress, (newAddress) => {
 	if ((props.listenToNav ?? true) && newAddress !== null) startAddress.value = newAddress;
 });
