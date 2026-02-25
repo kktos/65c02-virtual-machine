@@ -16,8 +16,9 @@ import { reset } from "@/commands/reset.cmd";
 import { reboot } from "@/commands/reboot.cmd";
 import { explain } from "@/commands/explainCode.cmd";
 import { speed } from "@/commands/speed.cmd";
+import { useSymbols } from "./useSymbols";
 
-type ParamType = "byte" | "word" | "long" | "number" | "string";
+type ParamType = "byte" | "word" | "long" | "number" | "address" | "string";
 type ParamDef = ParamType | `${ParamType}?`;
 export type ParamList = (string | number | undefined)[];
 export type Command = {
@@ -42,6 +43,123 @@ function typedKeys<T extends object>(obj: T): (keyof T)[] {
 }
 
 const commandHistory = ref<string[]>([]);
+const cmdHelp: Command = {
+	description: "Lists all available commands.",
+	paramDef: [],
+	fn: (_vm: VirtualMachine, _progress, _params: ParamList) => {
+		const commandHelp: string = typedKeys(COMMAND_LIST)
+			.sort()
+			.map((key) => {
+				const cmd = COMMAND_LIST[key];
+				return `${key.padEnd(8)} ${cmd?.description}`;
+			})
+			.join("\n");
+		return `Available commands:\n${commandHelp}`;
+	},
+};
+const COMMAND_LIST: Record<string, Command | CommandWrapper> = {
+	"A=": setA,
+	"X=": setX,
+	"Y=": setY,
+	"PC=": setPC,
+	"SP=": setSP,
+	GL: gl,
+	RUN: { ...run, closeOnSuccess: true },
+	PAUSE: pause,
+	RESET: reset,
+	REBOOT: reboot,
+	SPEED: speed,
+	D: setDisasmView,
+	M: setMemView,
+	M1: {
+		description: "set MemViewer(1) address. Params: <address>",
+		paramDef: ["address"],
+		base: setMemView,
+		staticParams: { append: [1] },
+	},
+	M2: {
+		description: "set MemViewer(2) address. Params: <address>",
+		paramDef: ["address"],
+		base: setMemView,
+		staticParams: { append: [2] },
+	},
+	M3: {
+		description: "set MemViewer(3) address. Params: <address>",
+		paramDef: ["address"],
+		base: setMemView,
+		staticParams: { append: [3] },
+	},
+	BP: {
+		description: "Add execution breakpoint",
+		paramDef: ["address"],
+		base: addBreakpointCommand,
+		staticParams: { prepend: ["pc"] },
+	},
+	BPA: {
+		description: "Add Mem Access breakpoint",
+		paramDef: ["address"],
+		base: addBreakpointCommand,
+		staticParams: { prepend: ["access"] },
+	},
+	BPW: {
+		description: "Add Mem Write breakpoint",
+		paramDef: ["address"],
+		base: addBreakpointCommand,
+		staticParams: { prepend: ["write"] },
+	},
+	BPR: {
+		description: "Add Mem Read breakpoint",
+		paramDef: ["address"],
+		base: addBreakpointCommand,
+		staticParams: { prepend: ["read"] },
+	},
+	BC: {
+		description: "Remove execution breakpoint",
+		paramDef: ["address"],
+		base: removeBreakpointCommand,
+		staticParams: { prepend: ["pc"] },
+	},
+	BCA: {
+		description: "Remove Mem Access breakpoint",
+		paramDef: ["address"],
+		base: removeBreakpointCommand,
+		staticParams: { prepend: ["access"] },
+	},
+	BCW: {
+		description: "Remove Mem Write breakpoint",
+		paramDef: ["address"],
+		base: removeBreakpointCommand,
+		staticParams: { prepend: ["write"] },
+	},
+	BCR: {
+		description: "Remove Mem Read breakpoint",
+		paramDef: ["address"],
+		base: removeBreakpointCommand,
+		staticParams: { prepend: ["read"] },
+	},
+	EXPLAIN: { ...explain, closeOnSuccess: true },
+	HELP: cmdHelp,
+};
+
+const parseValue = (valStr: string, max: number): number => {
+	const isHex = valStr.startsWith("$");
+	const value = Number.parseInt(isHex ? valStr.slice(1) : valStr, isHex ? 16 : 10);
+	if (Number.isNaN(value)) throw new Error(`Invalid value: ${valStr}`);
+	if (value > max) throw new Error(`Value exceeds range (max $${max.toString(16).toUpperCase()})`);
+	return value;
+};
+
+const { getAddressForLabel } = useSymbols();
+
+const parseAddress = (valStr: string): number => {
+	const isHex = valStr.startsWith("$");
+	if (isHex) return parseValue(valStr, 0xffff);
+
+	const value = getAddressForLabel(valStr);
+	if (value === undefined) throw new Error(`Uknown label: ${valStr}`);
+
+	return value;
+};
 
 export function useCommands() {
 	const error = ref("");
@@ -49,112 +167,6 @@ export function useCommands() {
 	const isLoading = ref(false);
 	const progress = ref(0);
 	const shouldClose = ref(false);
-
-	const parseValue = (valStr: string, max: number): number => {
-		const isHex = valStr.startsWith("$");
-		const value = Number.parseInt(isHex ? valStr.slice(1) : valStr, isHex ? 16 : 10);
-		if (Number.isNaN(value)) throw new Error(`Invalid value: ${valStr}`);
-		if (value > max) throw new Error(`Value exceeds range (max $${max.toString(16).toUpperCase()})`);
-		return value;
-	};
-
-	const cmdHelp: Command = {
-		description: "Lists all available commands.",
-		paramDef: [],
-		fn: (_vm: VirtualMachine, _progress, _params: ParamList) => {
-			const commandHelp: string = typedKeys(COMMAND_LIST)
-				.sort()
-				.map((key) => {
-					const cmd = COMMAND_LIST[key];
-					return `${key.padEnd(8)} ${cmd?.description}`;
-				})
-				.join("\n");
-			return `Available commands:\n${commandHelp}`;
-		},
-	};
-	const COMMAND_LIST: Record<string, Command | CommandWrapper> = {
-		"A=": setA,
-		"X=": setX,
-		"Y=": setY,
-		"PC=": setPC,
-		"SP=": setSP,
-		GL: gl,
-		RUN: { ...run, closeOnSuccess: true },
-		PAUSE: pause,
-		RESET: reset,
-		REBOOT: reboot,
-		SPEED: speed,
-		D: setDisasmView,
-		M: setMemView,
-		M1: {
-			description: "set MemViewer(1) address. Params: <address>",
-			paramDef: ["long"],
-			base: setMemView,
-			staticParams: { append: [1] },
-		},
-		M2: {
-			description: "set MemViewer(2) address. Params: <address>",
-			paramDef: ["long"],
-			base: setMemView,
-			staticParams: { append: [2] },
-		},
-		M3: {
-			description: "set MemViewer(3) address. Params: <address>",
-			paramDef: ["long"],
-			base: setMemView,
-			staticParams: { append: [3] },
-		},
-		BP: {
-			description: "Add execution breakpoint",
-			paramDef: ["long"],
-			base: addBreakpointCommand,
-			staticParams: { prepend: ["pc"] },
-		},
-		BPA: {
-			description: "Add Mem Access breakpoint",
-			paramDef: ["long"],
-			base: addBreakpointCommand,
-			staticParams: { prepend: ["access"] },
-		},
-		BPW: {
-			description: "Add Mem Write breakpoint",
-			paramDef: ["long"],
-			base: addBreakpointCommand,
-			staticParams: { prepend: ["write"] },
-		},
-		BPR: {
-			description: "Add Mem Read breakpoint",
-			paramDef: ["long"],
-			base: addBreakpointCommand,
-			staticParams: { prepend: ["read"] },
-		},
-		BC: {
-			description: "Remove execution breakpoint",
-			paramDef: ["long"],
-			base: removeBreakpointCommand,
-			staticParams: { prepend: ["pc"] },
-		},
-		BCA: {
-			description: "Remove Mem Access breakpoint",
-			paramDef: ["long"],
-			base: removeBreakpointCommand,
-			staticParams: { prepend: ["access"] },
-		},
-		BCW: {
-			description: "Remove Mem Write breakpoint",
-			paramDef: ["long"],
-			base: removeBreakpointCommand,
-			staticParams: { prepend: ["write"] },
-		},
-		BCR: {
-			description: "Remove Mem Read breakpoint",
-			paramDef: ["long"],
-			base: removeBreakpointCommand,
-			staticParams: { prepend: ["read"] },
-		},
-		EXPLAIN: { ...explain, closeOnSuccess: true },
-		HELP: cmdHelp,
-	};
 
 	const executeCommand = async (cmdInput: string, vm: VirtualMachine | null) => {
 		if (!vm) {
@@ -203,6 +215,7 @@ export function useCommands() {
 					let paramDef = cmdSpec.paramDef[i] as ParamDef;
 					if (paramDef.endsWith("?")) paramDef = paramDef.slice(0, -1) as ParamType;
 
+					console.log(param);
 					switch (paramDef) {
 						case "byte":
 							userParams.push(parseValue(param, 0xff));
@@ -212,6 +225,9 @@ export function useCommands() {
 							break;
 						case "long":
 							userParams.push(parseValue(param, 0xffffffff));
+							break;
+						case "address":
+							userParams.push(parseAddress(param));
 							break;
 						case "number":
 							userParams.push(Number.parseFloat(param));

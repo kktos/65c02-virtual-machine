@@ -26,9 +26,9 @@
 					<SpeedControl />
 
 					<button
-						@click="showLogs = !showLogs"
+						@click="showCmdConsole = !showCmdConsole"
 						class="p-1 rounded hover:bg-gray-700 text-gray-400 hover:text-white transition-colors"
-						:class="{ 'text-green-400 bg-gray-800': showLogs }"
+						:class="{ 'text-green-400 bg-gray-800': showCmdConsole }"
 						title="Toggle Log Viewer"
 					>
 						<ScrollText />
@@ -36,32 +36,7 @@
 				</div>
 			</div>
 			<canvas ref="videoCanvas" class="border" style="image-rendering: pixelated"></canvas>
-			<div
-				v-if="showLogs"
-				:style="{ height: logHeight + 'px' }"
-				class="absolute bottom-0 left-5 right-5 min-h-[100px] bg-gray-800/70 text-green-400 font-mono text-xs flex flex-col border-t border-gray-700 backdrop-blur-sm z-10"
-			>
-				<!-- Resize Handle -->
-				<div
-					class="absolute -top-1 left-0 right-0 h-2 cursor-row-resize hover:bg-cyan-500/50 transition-colors z-20"
-					@mousedown.prevent="startResizeLogs"
-				></div>
-
-				<div
-					class="flex justify-between items-center px-2 py-1 bg-gray-800/50 border-b border-gray-700 shrink-0"
-				>
-					<span class="font-bold text-gray-300 uppercase tracking-wider text-[10px]">System Logs</span>
-					<button @click="logs = []" class="text-[10px] hover:text-red-400 text-gray-400 transition-colors">
-						Clear
-					</button>
-				</div>
-				<div class="flex-1 overflow-y-auto p-2 space-y-0.5">
-					<div v-for="(log, i) in logs" :key="i" class="break-all border-b border-gray-800/30 pb-0.5">
-						{{ log }}
-					</div>
-					<div ref="logEndRef"></div>
-				</div>
-			</div>
+			<CmdConsole :show="showCmdConsole" />
 		</ResizablePanel>
 
 		<ResizableHandle />
@@ -186,12 +161,13 @@ import MouseControl from "./machine/MouseControl.vue";
 import SoundControl from "./machine/SoundControl.vue";
 import SpeedControl from "./machine/SpeedControl.vue";
 import VideoControl from "./machine/VideoControl.vue";
+import CmdConsole from "./CmdConsole.vue";
 
 const dbgTopPanelResize = (_size: unknown) => {
 	// console.log('dbgTopPanelResize resized', size);
 };
 
-const { vm, registers, selectedMachine, isRunning, videoCanvas, loadMachine, logs } = useMachine();
+const { vm, registers, selectedMachine, isRunning, videoCanvas, loadMachine } = useMachine();
 
 const hasGamepad = computed(
 	() => selectedMachine.value.inputs?.some((d) => d.type === "joystick" || d.type === "gamepad") ?? false,
@@ -199,26 +175,7 @@ const hasGamepad = computed(
 const hasMouse = computed(() => selectedMachine.value.inputs?.some((d) => d.type === "mouse") ?? false);
 const hasDisk = computed(() => selectedMachine.value.disk?.enabled);
 
-const showLogs = ref(false);
-const logHeight = ref(200);
-
-const startResizeLogs = (e: MouseEvent) => {
-	const startY = e.clientY;
-	const startHeight = logHeight.value;
-
-	const onMouseMove = (e: MouseEvent) => {
-		const deltaY = startY - e.clientY;
-		logHeight.value = Math.max(100, startHeight + deltaY);
-	};
-
-	const onMouseUp = () => {
-		window.removeEventListener("mousemove", onMouseMove);
-		window.removeEventListener("mouseup", onMouseUp);
-	};
-
-	window.addEventListener("mousemove", onMouseMove);
-	window.addEventListener("mouseup", onMouseUp);
-};
+const showCmdConsole = ref(false);
 
 const isCommandInterfaceOpen = ref(false);
 provide("isCommandInterfaceOpen", isCommandInterfaceOpen);

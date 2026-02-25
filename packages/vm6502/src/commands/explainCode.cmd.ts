@@ -7,7 +7,7 @@ import type { Ref } from "vue";
 
 export const explain: Command = {
 	description: "explain code from <address> to <address>",
-	paramDef: ["long", "long"],
+	paramDef: ["address", "address"],
 	fn: async (vm: VirtualMachine, _progress: Ref<number>, params: ParamList) => {
 		const readByte = (address: number, debug = true) => (debug ? vm.readDebug(address) : vm.read(address)) ?? 0;
 		const { registers } = useMachine();

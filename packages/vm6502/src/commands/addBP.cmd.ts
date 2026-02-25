@@ -7,7 +7,7 @@ import type { Breakpoint } from "@/types/breakpoint.interface";
 
 export const addBreakpointCommand: Command = {
 	description: "Add a breakpoint of a given type at an address. Params: <type> <address>",
-	paramDef: ["string", "long"],
+	paramDef: ["string", "address"],
 	fn: (vm: VirtualMachine, _progress: Ref<number>, params: ParamList) => {
 		const type = params[0] as Breakpoint["type"];
 		const address = params[1] as number;

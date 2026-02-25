@@ -1,12 +1,12 @@
 import type { Command, ParamList } from "@/composables/useCommands";
 import { generateLabels } from "@/lib/disassembler";
-import { toHex } from "@/lib/hex.utils";
+import { formatAddress } from "@/lib/hex.utils";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import type { Ref } from "vue";
 
 export const gl: Command = {
 	description: "Generate labels for a memory range. Params: <from> <to> [scope]",
-	paramDef: ["word", "word", "string?"],
+	paramDef: ["address", "address", "string?"],
 	fn: async (vm: VirtualMachine, progress: Ref<number>, params: ParamList) => {
 		const from = params[0] as number;
 		const to = params[1] as number;
@@ -23,6 +23,6 @@ export const gl: Command = {
 				progress.value = p;
 			},
 		);
-		return `Labels generated for $${toHex(from, 4)}-$${toHex(to, 4)} ('${scope}')`;
+		return `Labels generated for $${formatAddress(from)}-$${formatAddress(to)} ('${scope}')`;
 	},
 };

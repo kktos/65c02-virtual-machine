@@ -1,5 +1,5 @@
 // c:\devwork\65c02-virtual-machine\packages\vm6502\src\composables\useMachine.ts
-import { markRaw, nextTick, reactive, ref } from "vue";
+import { markRaw, reactive, ref } from "vue";
 import { availableMachines } from "../machines";
 import type { MachineConfig } from "../types/machine.interface";
 import { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
@@ -14,8 +14,6 @@ import type { EmulatorRegisters } from "@/types/emulatorstate.interface";
 const selectedMachine = ref<MachineConfig>(availableMachines[1] as MachineConfig);
 const isRunning = ref(false);
 const videoCanvas = ref<HTMLCanvasElement | null>(null);
-const logEndRef = ref<HTMLDivElement | null>(null);
-const logs = ref<string[]>([]);
 const vm = ref<VirtualMachine | null>(null);
 const registers: EmulatorRegisters = reactive({
 	A: 0,
@@ -78,11 +76,11 @@ const setupVmListeners = (targetVm: VirtualMachine) => {
 	targetVm.onLog((payload) => {
 		if (!payload.message) return;
 
-		logs.value.push(payload.message);
-		if (logs.value.length > 500) logs.value.shift();
-		nextTick(() => {
-			if (logEndRef.value) logEndRef.value.scrollIntoView({ behavior: "smooth" });
-		});
+		// logs.value.push(payload.message);
+		// if (logs.value.length > 500) logs.value.shift();
+		// nextTick(() => {
+		// 	if (logEndRef.value) logEndRef.value.scrollIntoView({ behavior: "smooth" });
+		// });
 	});
 };
 
@@ -131,7 +129,6 @@ export function useMachine() {
 		isRunning,
 		videoCanvas,
 		loadMachine,
-		logs,
 		vm,
 		registers,
 	};
