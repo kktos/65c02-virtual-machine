@@ -23,6 +23,7 @@ export type Command = {
 	description: string;
 	paramDef: ParamDef[];
 	fn: (vm: VirtualMachine, progress: Ref<number>, params: ParamList) => string | Promise<string>;
+	closeOnSuccess?: boolean;
 };
 
 function typedKeys<T extends object>(obj: T): (keyof T)[] {
@@ -36,6 +37,7 @@ export function useCommands() {
 	const success = ref("");
 	const isLoading = ref(false);
 	const progress = ref(0);
+	const shouldClose = ref(false);
 
 	const parseValue = (valStr: string, max: number): number => {
 		const isHex = valStr.startsWith("$");
@@ -45,6 +47,20 @@ export function useCommands() {
 		return value;
 	};
 
+	const cmdHelp: Command = {
+		description: "Lists all available commands.",
+		paramDef: [],
+		fn: (_vm: VirtualMachine, _progress, _params: ParamList) => {
+			const commandHelp: string = typedKeys(COMMAND_LIST)
+				.sort()
+				.map((key) => {
+					const cmd = COMMAND_LIST[key];
+					return `${key.padEnd(8)} ${cmd?.description}`;
+				})
+				.join("\n");
+			return `Available commands:\n${commandHelp}`;
+		},
+	};
 	const COMMAND_LIST: Record<string, Command> = {
 		"A=": setA,
 		"X=": setX,
@@ -52,7 +68,7 @@ export function useCommands() {
 		"PC=": setPC,
 		"SP=": setSP,
 		GL: gl,
-		RUN: run,
+		RUN: { ...run, closeOnSuccess: true },
 		PAUSE: pause,
 		RESET: reset,
 		REBOOT: reboot,
@@ -66,21 +82,8 @@ export function useCommands() {
 		BCA: removeBPA,
 		BCW: removeBPW,
 		BCR: removeBPR,
-		EXPLAIN: explain,
-		HELP: {
-			description: "Lists all available commands.",
-			paramDef: [],
-			fn: (_vm: VirtualMachine, _progress, _params: ParamList) => {
-				const commandHelp: string = typedKeys(COMMAND_LIST)
-					.sort()
-					.map((key) => {
-						const cmd = COMMAND_LIST[key];
-						return `${key.padEnd(8)} ${cmd?.description}`;
-					})
-					.join("\n");
-				return `Available commands:\n${commandHelp}`;
-			},
-		},
+		EXPLAIN: { ...explain, closeOnSuccess: true },
+		HELP: cmdHelp,
 	};
 
 	const executeCommand = async (cmdInput: string, vm: VirtualMachine | null) => {
@@ -98,6 +101,7 @@ export function useCommands() {
 		progress.value = 0;
 		error.value = "";
 		success.value = "";
+		shouldClose.value = false;
 
 		// Find command
 		const cmdKey = typedKeys(COMMAND_LIST).find((key) => input.startsWith(key));
@@ -148,6 +152,7 @@ export function useCommands() {
 					commandHistory.value.push(cleanInput);
 
 				success.value = await commandDef.fn(vm, progress, params);
+				if (commandDef.closeOnSuccess) shouldClose.value = true;
 				return true;
 			} else {
 				throw new Error("Unknown command");
@@ -167,5 +172,6 @@ export function useCommands() {
 		progress,
 		executeCommand,
 		commandHistory,
+		shouldClose,
 	};
 }

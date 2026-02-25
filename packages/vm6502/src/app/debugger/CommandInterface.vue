@@ -62,7 +62,7 @@ const emit = defineEmits<{
 const vm = inject<Ref<VirtualMachine | null>>("vm");
 const command = ref("");
 const inputRef = ref<HTMLInputElement | null>(null);
-const { error, success, isLoading, progress, executeCommand, commandHistory } = useCommands();
+const { error, success, isLoading, progress, executeCommand, commandHistory, shouldClose } = useCommands();
 const historyIndex = ref(-1);
 
 watch(
@@ -105,6 +105,9 @@ const handleHistoryNav = (e: KeyboardEvent) => {
 
 const execute = async () => {
 	if (await executeCommand(command.value, vm?.value || null)) {
+		if (shouldClose.value) {
+			emit("update:modelValue", false);
+		}
 		command.value = "";
 		progress.value = 0;
 		historyIndex.value = commandHistory.value.length;
