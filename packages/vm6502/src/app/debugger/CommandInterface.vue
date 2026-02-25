@@ -24,7 +24,12 @@
 				/>
 			</div>
 			<div v-if="error" class="mt-2 text-red-400 text-sm font-mono whitespace-pre-wrap">{{ error }}</div>
-			<div v-if="success" class="mt-2 text-green-400 text-sm font-mono whitespace-pre-wrap">{{ success }}</div>
+			<div
+				v-if="success"
+				class="mt-2 text-green-400 text-sm font-mono whitespace-pre-wrap max-h-80 overflow-y-auto"
+			>
+				{{ success }}
+			</div>
 
 			<div v-if="progress > 0" class="w-full bg-gray-700 rounded-full h-1.5 mt-2">
 				<div class="bg-cyan-600 h-1.5 rounded-full" :style="{ width: progress + '%' }"></div>
