@@ -50,13 +50,13 @@ const EXPLAIN_CODE_SYSTEM_PROMPT = `
 	List the memory addresses (variables) that are used by the routine.
 `.replaceAll("\n", " ");
 
+const explanation = ref<string | null>(null);
+const isLoading = ref(false);
+
 export function useGemini() {
 	const { settings } = useSettings();
 	const { lastLoadedDisk } = useDiskStorage();
 	const { selectedMachine } = useMachine();
-
-	const explanation = ref<string | null>(null);
-	const isLoading = ref(false);
 
 	const apiKey = computed(() => settings.disassembly.gemini.apiKey);
 	const baseUrl = computed(() => settings.disassembly.gemini.url);
@@ -68,6 +68,11 @@ export function useGemini() {
 		if (!isConfigured.value) {
 			toast.error("Gemini API Key is not configured in the settings.", { position: "bottom-center" });
 			return null;
+		}
+
+		if (codeBlock === "test") {
+			explanation.value = "this is a test";
+			return "ok";
 		}
 
 		const systemPrompt = EXPLAIN_CODE_SYSTEM_PROMPT.replaceAll(

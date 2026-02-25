@@ -14,6 +14,7 @@ import { addBP, addBPA, addBPR, addBPW } from "@/commands/addBP.cmd";
 import { removeBP, removeBPA, removeBPR, removeBPW } from "@/commands/removeBP.cmd";
 import { reset } from "@/commands/reset.cmd";
 import { reboot } from "@/commands/reboot.cmd";
+import { explain } from "@/commands/explainCode.cmd";
 
 type ParamType = "byte" | "word" | "long" | "string";
 type ParamDef = ParamType | `${ParamType}?`;
@@ -65,6 +66,7 @@ export function useCommands() {
 		BCA: removeBPA,
 		BCW: removeBPW,
 		BCR: removeBPR,
+		EXPLAIN: explain,
 		HELP: {
 			description: "Lists all available commands.",
 			paramDef: [],
