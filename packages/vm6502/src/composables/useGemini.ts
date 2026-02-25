@@ -70,11 +70,6 @@ export function useGemini() {
 			return null;
 		}
 
-		if (codeBlock === "test") {
-			explanation.value = "this is a test";
-			return "ok";
-		}
-
 		const systemPrompt = EXPLAIN_CODE_SYSTEM_PROMPT.replaceAll(
 			"%%DISK%%",
 			lastLoadedDisk.value?.name ?? "",
