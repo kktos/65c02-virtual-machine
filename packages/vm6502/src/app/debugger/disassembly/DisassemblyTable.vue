@@ -187,7 +187,7 @@ import { useSettings } from "@/composables/useSettings";
 import { useSymbols } from "@/composables/useSymbols";
 import { assemble } from "@/lib/assembler";
 import type { DisassemblyLine } from "@/types/disassemblyline.interface";
-import type { EmulatorState } from "@/types/emulatorstate.interface";
+import type { EmulatorRegisters } from "@/types/emulatorstate.interface";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import { BRANCH_OPCODES } from "@/lib/opcodes";
 import { useNotes } from "@/composables/useNotes";
@@ -197,7 +197,7 @@ import DisassemblyTableLabel from "./DisassemblyTableLabel.vue";
 const vm = inject<Ref<VirtualMachine>>("vm");
 
 const { registers, selectionStart, selectionEnd } = defineProps<{
-	registers: EmulatorState["registers"];
+	registers: EmulatorRegisters;
 	disassembly: DisassemblyLine[];
 	address: number;
 	getBreakpointClass: (address: number) => string;

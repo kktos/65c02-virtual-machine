@@ -80,11 +80,11 @@
 					<div class="grid grid-cols-[300px_300px_1fr] gap-4 min-h-0">
 						<!-- Registers and Flags stacked vertically in the first column -->
 						<div class="grid grid-col gap-2">
-							<RegistersView :registers="emulatorState.registers" />
-							<StatusFlagsView :registers="emulatorState.registers" />
+							<RegistersView :registers="registers" />
+							<StatusFlagsView :registers="registers" />
 						</div>
 
-						<StackView :stackData="vm.sharedMemory" :registers="emulatorState.registers" />
+						<StackView :stackData="vm.sharedMemory" :registers="registers" />
 
 						<!-- Stack View takes the remaining space -->
 						<Tabs default-value="breakpoints" class="h-full flex flex-col min-h-0">
@@ -128,11 +128,7 @@
 						<template #tab1-title> Disassembly </template>
 						<template #tab2-title> Memory Viewer </template>
 						<template #tab1-content>
-							<DisassemblyView
-								:address="emulatorState.registers.PC"
-								:memory="vm.sharedMemory"
-								:registers="emulatorState.registers"
-							/>
+							<DisassemblyView :address="registers.PC" :memory="vm.sharedMemory" :registers="registers" />
 						</template>
 						<template #tab2-content>
 							<MultiMemoryViewer />
@@ -146,7 +142,7 @@
 
 <script setup lang="ts">
 import { ScrollText } from "lucide-vue-next";
-import { computed, onMounted, onUnmounted, provide, reactive, ref, watch } from "vue";
+import { computed, onMounted, onUnmounted, provide, ref, watch } from "vue";
 import { Toaster } from "vue-sonner";
 import "vue-sonner/style.css";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -158,7 +154,6 @@ import ResizablePanel from "../components/ui/resizable/ResizablePanel.vue";
 import ResizablePanelGroup from "../components/ui/resizable/ResizablePanelGroup.vue";
 import { useDebuggerNav } from "../composables/useDebuggerNav";
 import { availableMachines } from "../machines";
-import type { EmulatorState } from "../types/emulatorstate.interface";
 import type { MachineConfig } from "../types/machine.interface";
 import {
 	FLAG_B_MASK,
@@ -196,7 +191,7 @@ const dbgTopPanelResize = (_size: unknown) => {
 	// console.log('dbgTopPanelResize resized', size);
 };
 
-const { vm, selectedMachine, isRunning, videoCanvas, loadMachine, logs } = useMachine();
+const { vm, registers, selectedMachine, isRunning, videoCanvas, loadMachine, logs } = useMachine();
 
 const hasGamepad = computed(
 	() => selectedMachine.value.inputs?.some((d) => d.type === "joystick" || d.type === "gamepad") ?? false,
@@ -274,21 +269,21 @@ const updateUiFromSharedBuffer = () => {
 	if (!vm.value) return requestAnimationFrame(updateUiFromSharedBuffer);
 	// This function will be called on every animation frame to update the UI
 	// It reads directly from the shared buffer and updates the reactive state.
-	emulatorState.registers.A = vm.value.sharedRegisters.getUint8(REG_A_OFFSET);
-	emulatorState.registers.X = vm.value.sharedRegisters.getUint8(REG_X_OFFSET);
-	emulatorState.registers.Y = vm.value.sharedRegisters.getUint8(REG_Y_OFFSET);
-	emulatorState.registers.SP = vm.value.sharedRegisters.getUint8(REG_SP_OFFSET);
-	emulatorState.registers.PC = vm.value.sharedRegisters.getUint16(REG_PC_OFFSET, true);
+	registers.A = vm.value.sharedRegisters.getUint8(REG_A_OFFSET);
+	registers.X = vm.value.sharedRegisters.getUint8(REG_X_OFFSET);
+	registers.Y = vm.value.sharedRegisters.getUint8(REG_Y_OFFSET);
+	registers.SP = vm.value.sharedRegisters.getUint8(REG_SP_OFFSET);
+	registers.PC = vm.value.sharedRegisters.getUint16(REG_PC_OFFSET, true);
 
 	const status = vm.value.sharedRegisters.getUint8(REG_STATUS_OFFSET);
-	emulatorState.registers.P = status;
-	emulatorState.registers.C = (status & FLAG_C_MASK) !== 0;
-	emulatorState.registers.Z = (status & FLAG_Z_MASK) !== 0;
-	emulatorState.registers.I = (status & FLAG_I_MASK) !== 0;
-	emulatorState.registers.D = (status & FLAG_D_MASK) !== 0;
-	emulatorState.registers.B = (status & FLAG_B_MASK) !== 0;
-	emulatorState.registers.V = (status & FLAG_V_MASK) !== 0;
-	emulatorState.registers.N = (status & FLAG_N_MASK) !== 0;
+	registers.P = status;
+	registers.C = (status & FLAG_C_MASK) !== 0;
+	registers.Z = (status & FLAG_Z_MASK) !== 0;
+	registers.I = (status & FLAG_I_MASK) !== 0;
+	registers.D = (status & FLAG_D_MASK) !== 0;
+	registers.B = (status & FLAG_B_MASK) !== 0;
+	registers.V = (status & FLAG_V_MASK) !== 0;
+	registers.N = (status & FLAG_N_MASK) !== 0;
 
 	// Notify subscribers
 	uiUpdateSubscribers.forEach((cb) => {
@@ -298,24 +293,6 @@ const updateUiFromSharedBuffer = () => {
 	// Keep the loop going
 	requestAnimationFrame(updateUiFromSharedBuffer);
 };
-
-const emulatorState: EmulatorState = reactive({
-	registers: {
-		A: 0,
-		X: 0,
-		Y: 0,
-		PC: 0,
-		SP: 0,
-		P: 0,
-		C: false,
-		Z: false,
-		I: false,
-		D: false,
-		B: false,
-		V: false,
-		N: false,
-	},
-});
 
 const handleMachineSelected = (newMachine: MachineConfig) => {
 	if (newMachine && newMachine.name !== vm.value?.machineConfig.name) loadMachine(newMachine);

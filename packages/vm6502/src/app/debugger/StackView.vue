@@ -3,7 +3,11 @@
 		<DebuggerPanelTitle title="Stack" />
 		<div ref="scrollContainer" class="flex flex-col h-full">
 			<!-- <DebuggerPanelTitle title="Stack ($0100 - $01FF)" /> -->
-			<div class="font-mono text-xs overflow-y-auto flex-grow min-h-0 bg-gray-900 p-2 rounded-md" style="line-height: 1.4" @wheel.prevent="handleScroll">
+			<div
+				class="font-mono text-xs overflow-y-auto flex-grow min-h-0 bg-gray-900 p-2 rounded-md"
+				style="line-height: 1.4"
+				@wheel.prevent="handleScroll"
+			>
 				<table class="w-full">
 					<thead>
 						<tr class="text-gray-400 sticky top-0 bg-gray-900 border-b border-gray-700 shadow-md">
@@ -76,7 +80,7 @@
 
 import { computed, inject, onMounted, onUnmounted, type Ref, ref, watch } from "vue";
 import { useDebuggerNav } from "@/composables/useDebuggerNav";
-import type { EmulatorState } from "@/types/emulatorstate.interface";
+import type { EmulatorRegisters } from "@/types/emulatorstate.interface";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import DebuggerPanelTitle from "./DebuggerPanelTitle.vue";
 
@@ -86,7 +90,7 @@ const vm = inject<Ref<VirtualMachine>>("vm");
 const subscribeToUiUpdates = inject<(callback: () => void) => void>("subscribeToUiUpdates");
 
 interface Props {
-	registers: EmulatorState["registers"];
+	registers: EmulatorRegisters;
 }
 const { registers } = defineProps<Props>();
 

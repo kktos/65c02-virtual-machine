@@ -101,9 +101,9 @@ import { useSettings } from "@/composables/useSettings";
 import { useGemini } from "@/composables/useGemini";
 import { useSymbols } from "@/composables/useSymbols";
 import { useNotes } from "@/composables/useNotes";
-import { disassemble, generateLabels } from "@/lib/disassembler";
+import { disassemble, disassembleRange, formatDisassemblyAsText, generateLabels } from "@/lib/disassembler";
 import type { DisassemblyLine } from "@/types/disassemblyline.interface";
-import type { EmulatorState } from "@/types/emulatorstate.interface";
+import type { EmulatorRegisters } from "@/types/emulatorstate.interface";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import { BRANCH_OPCODES } from "@/lib/opcodes";
 import { getRandomColor } from "@/lib/colors.utils";
@@ -115,7 +115,7 @@ const vm = inject<Ref<VirtualMachine>>("vm");
 interface Props {
 	address: number;
 	memory: Uint8Array<ArrayBufferLike>;
-	registers: EmulatorState["registers"];
+	registers: EmulatorRegisters;
 }
 const { address, memory, registers } = defineProps<Props>();
 
@@ -410,25 +410,11 @@ const handleGenerateLabels = async () => {
 	clearSelection();
 };
 
-const formatDisassemblyForAI = (lines: DisassemblyLine[]) => {
-	return lines
-		.map((line) => {
-			const labeledOpcode = line.opc;
-			const labelComment = line.comment;
-			const finalComment = line.comment || (labelComment ? `; ${labelComment}` : "");
-
-			const addr = `$${line.addr.toString(16).toUpperCase().padStart(4, "0")}`;
-			const bytes = line.bytes.padEnd(6, " ");
-			const op = labeledOpcode.padEnd(20, " ");
-
-			return `${addr} ${bytes} ${op} ${finalComment}`;
-		})
-		.join("\n");
-};
-
 const isExplanationOpen = ref(false);
 
 watch(explanationText, (val) => {
+	console.log("explanationText changed", val);
+
 	if (val) isExplanationOpen.value = true;
 });
 
@@ -452,33 +438,12 @@ const handleExplain = async () => {
 	let codeBlock = "";
 
 	if (hasSelection.value) {
-		// Range Mode: Fetch disassembly for the specific range
-		const start = Math.min(selectionStart.value!, selectionEnd.value!);
-		const end = Math.max(selectionStart.value!, selectionEnd.value!);
-		const lines: DisassemblyLine[] = [];
-
-		let currentAddr = start;
-		let safety = 0;
-
-		// Fetch in chunks until we cover the range
-		while (currentAddr <= end && safety++ < 200) {
-			const chunk = await disassemble(readByte, vm!.value.getScope(currentAddr), currentAddr, 20, registers, 0);
-			if (!chunk || chunk.length === 0) break;
-
-			for (const line of chunk) {
-				if (line.addr > end) break;
-				lines.push(line);
-				// Calculate next address based on byte count
-				const byteCount = line.bytes.trim().split(" ").length;
-				currentAddr = line.addr + byteCount;
-			}
-			// If the chunk didn't advance us (shouldn't happen), break to avoid infinite loop
-			if (chunk[0]?.addr === currentAddr) break;
-		}
-		codeBlock = formatDisassemblyForAI(lines);
+		const start = selectionStart.value!;
+		const end = selectionEnd.value!;
+		const lines = disassembleRange(readByte, vm!.value.getScope(start), start, end, registers);
+		codeBlock = formatDisassemblyAsText(lines);
 	} else {
-		// View Mode: Use currently visible lines
-		codeBlock = formatDisassemblyForAI(disassembly.value);
+		codeBlock = formatDisassemblyAsText(disassembly.value);
 	}
 
 	await explainCode(codeBlock);

@@ -1,5 +1,5 @@
 // c:\devwork\65c02-virtual-machine\packages\vm6502\src\composables\useMachine.ts
-import { markRaw, nextTick, ref } from "vue";
+import { markRaw, nextTick, reactive, ref } from "vue";
 import { availableMachines } from "../machines";
 import type { MachineConfig } from "../types/machine.interface";
 import { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
@@ -8,6 +8,7 @@ import { useNotes } from "./useNotes";
 import { useSymbols } from "./useSymbols";
 import { toast } from "vue-sonner";
 import { useBreakpoints } from "../composables/useBreakpoints";
+import type { EmulatorRegisters } from "@/types/emulatorstate.interface";
 
 // Initialize global state with the default machine (same default as App.vue used)
 const selectedMachine = ref<MachineConfig>(availableMachines[1] as MachineConfig);
@@ -16,6 +17,21 @@ const videoCanvas = ref<HTMLCanvasElement | null>(null);
 const logEndRef = ref<HTMLDivElement | null>(null);
 const logs = ref<string[]>([]);
 const vm = ref<VirtualMachine | null>(null);
+const registers: EmulatorRegisters = reactive({
+	A: 0,
+	X: 0,
+	Y: 0,
+	PC: 0,
+	SP: 0,
+	P: 0,
+	C: false,
+	Z: false,
+	I: false,
+	D: false,
+	B: false,
+	V: false,
+	N: false,
+});
 
 const setupVmListeners = (targetVm: VirtualMachine) => {
 	targetVm.onmessage = (event) => {
@@ -117,5 +133,6 @@ export function useMachine() {
 		loadMachine,
 		logs,
 		vm,
+		registers,
 	};
 }
