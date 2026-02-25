@@ -27,7 +27,7 @@ import { VideoOutput } from "@/virtualmachine/video/video.output";
 import { useMemoryMap } from "../composables/useMemoryMap";
 import { parseHexData } from "../lib/array.utils";
 import type { Breakpoint } from "../types/breakpoint.interface";
-import type { EmulatorState } from "../types/emulatorstate.interface";
+import type { EmulatorRegisters } from "../types/emulatorstate.interface";
 import { executeHypercallCmd, HYPERCALL_COMMANDS } from "./hypercall";
 
 const MACHINES_BASE_PATH = "../machines";
@@ -519,7 +519,7 @@ export class VirtualMachine {
 		else this.sharedMemory[addr] = value;
 	}
 
-	public updateRegister(reg: keyof EmulatorState["registers"], value: number) {
+	public updateRegister(reg: keyof EmulatorRegisters["registers"], value: number) {
 		switch (reg) {
 			case "A":
 				this.sharedRegisters.setUint8(REG_A_OFFSET, value);
