@@ -7,6 +7,6 @@ export const reset: Command = {
 	paramDef: [],
 	fn: (vm: VirtualMachine, _progress: Ref<number>, _params: ParamList) => {
 		vm.reset();
-		return `Reseted the vm`;
+		return `Reset the vm`;
 	},
 };

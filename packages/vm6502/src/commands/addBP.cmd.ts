@@ -31,19 +31,6 @@ export const addBPA: Command = {
 	},
 };
 export const addBPW: Command = {
-	description: "Add Mem Read breakpoint",
-	paramDef: ["long"],
-	fn: (vm: VirtualMachine, _progress: Ref<number>, params: ParamList) => {
-		const address = params[0] as number;
-
-		const { addBreakpoint } = useBreakpoints();
-
-		addBreakpoint({ type: "read", address }, vm);
-
-		return `Breakpoint Mem Read added at ${formatAddress(address)}`;
-	},
-};
-export const addBPR: Command = {
 	description: "Add Mem Write breakpoint",
 	paramDef: ["long"],
 	fn: (vm: VirtualMachine, _progress: Ref<number>, params: ParamList) => {
@@ -54,5 +41,18 @@ export const addBPR: Command = {
 		addBreakpoint({ type: "write", address }, vm);
 
 		return `Breakpoint Mem Write added at ${formatAddress(address)}`;
+	},
+};
+export const addBPR: Command = {
+	description: "Add Mem Read breakpoint",
+	paramDef: ["long"],
+	fn: (vm: VirtualMachine, _progress: Ref<number>, params: ParamList) => {
+		const address = params[0] as number;
+
+		const { addBreakpoint } = useBreakpoints();
+
+		addBreakpoint({ type: "read", address }, vm);
+
+		return `Breakpoint Mem Read added at ${formatAddress(address)}`;
 	},
 };
