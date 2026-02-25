@@ -1,7 +1,7 @@
 import { useFormatting, type DataBlock } from "@/composables/useDataFormattings";
 import { useSymbols, type SymbolEntry } from "@/composables/useSymbols";
 import type { DisassemblyLine } from "@/types/disassemblyline.interface";
-import type { EmulatorState } from "@/types/emulatorstate.interface";
+import type { EmulatorRegisters } from "@/types/emulatorstate.interface";
 import { formatAddress, toHex } from "./hex.utils";
 import { runHypercall } from "./hypercalls.lib";
 import { BRANCH_OPCODES, opcodeMap } from "./opcodes";
@@ -112,16 +112,14 @@ export function disassemble(
 	scope: string,
 	fromAddress: number,
 	lineCount: number,
-	registers?: EmulatorState["registers"],
+	registers?: EmulatorRegisters,
 	pivotLineIndex = 0,
 ) {
 	const disassembly: DisassemblyLine[] = [];
 
 	let pc = fromAddress;
 
-	if (pivotLineIndex > 0) {
-		for (let i = 0; i < pivotLineIndex; i++) pc = findPreviousInstruction(readByte, pc, scope);
-	}
+	if (pivotLineIndex > 0) for (let i = 0; i < pivotLineIndex; i++) pc = findPreviousInstruction(readByte, pc, scope);
 
 	while (disassembly.length < lineCount) {
 		// Safety check to prevent infinite loops if PC goes out of bounds
@@ -470,3 +468,47 @@ export async function generateLabels(
 
 	onProgress?.(100);
 }
+
+export function disassembleRange(
+	readByte: FunctionReadByte,
+	scope: string,
+	fromAddress: number,
+	toAddress: number,
+	registers?: EmulatorRegisters,
+) {
+	const lines: DisassemblyLine[] = [];
+	const start = Math.min(fromAddress, toAddress);
+	const end = Math.max(fromAddress, toAddress);
+	let currentAddr = start;
+	let safety = 0;
+	// Fetch in chunks until we cover the range
+	while (currentAddr <= end && safety++ < 200) {
+		const chunk = disassemble(readByte, scope, currentAddr, 20, registers, 0);
+		if (!chunk || chunk.length === 0) break;
+
+		for (const line of chunk) {
+			if (line.addr > end) break;
+			lines.push(line);
+			// Calculate next address based on byte count
+			const byteCount = line.bytes.trim().split(" ").length;
+			currentAddr = line.addr + byteCount;
+		}
+		// If the chunk didn't advance us (shouldn't happen), break to avoid infinite loop
+		if (chunk[0]?.addr === currentAddr) break;
+	}
+	return lines;
+}
+
+export const formatDisassemblyAsText = (lines: DisassemblyLine[]) => {
+	const org = lines[0]?.addr ?? 0;
+	let output = lines
+		.map((line) => {
+			const finalComment = line.comment ? `; ${line.comment}` : "";
+			const op = line.opc + (line.opr ? ` ${line.opr}` : "");
+			let finalLine = `\t${op.padEnd(20, " ")} ${finalComment}`;
+			if (line.label) finalLine = `${line.label}:\n${finalLine}`;
+			return finalLine;
+		})
+		.join("\n");
+	return `\t.ORG $${toHex(org, 4)}\n${output}`;
+};
