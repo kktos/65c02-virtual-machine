@@ -1,4 +1,4 @@
--1-
+-1- **NOT_YET**
 Can we add a feature to highlight bytes that have changed since the last update in the Memory Viewer?
 
 -2-
@@ -22,8 +22,16 @@ $00:FCDA 20 ED FD JSR COUT ; [rom] $FDED
 to
 $00:FCDA 20 ED FD JSR SYSTEM::COUT ; [rom] $FDED
 
--3-
+-3- **DONE**
 let's have a tiny assembler
 
 -4-
 do we store the mods into a patch list... associated with the disk... patch manager ?
+
+-5-
+"Run Until" Feature
+Enhance the run command (or create a new runUntil) to accept a target address. The VM would run and automatically pause when PC hits that address (effectively a temporary breakpoint).
+
+-6-
+Memory Inspection Command
+Idea: Add a command (e.g., mem or dump) to print a hex dump of a specific memory range to the output, useful for quick debugging without switching UI tabs.
