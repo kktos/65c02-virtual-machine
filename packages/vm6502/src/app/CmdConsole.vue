@@ -12,7 +12,7 @@
 
 		<div class="flex justify-between items-center px-2 py-1 bg-gray-800/50 border-b border-gray-700 shrink-0">
 			<span class="font-bold text-gray-300 uppercase tracking-wider text-[10px]">Console</span>
-			<button @click="clearLogs" class="text-[10px] hover:text-red-400 text-gray-400 transition-colors">
+			<button @click="clearConsole" class="text-[10px] hover:text-red-400 text-gray-400 transition-colors">
 				Clear
 			</button>
 		</div>
@@ -48,21 +48,17 @@ const height = ref(200);
 const inputText = ref("");
 const inputRef = ref<HTMLInputElement | null>(null);
 
-const { logs, print, printError, logEndRef, isConsoleVisible } = useCmdConsole();
+const { logs, print, printError, logEndRef, isConsoleVisible, clearConsole } = useCmdConsole();
 const { executeCommand, success, error } = useCommands();
 const { vm } = useMachine();
 
 // oxlint-disable-next-line no-unused-expressions ** VSCode doesn't see the use in the template ref
 logEndRef;
 
-const clearLogs = () => {
-	logs.value = [];
-};
-
 const handleEnter = async () => {
 	if (!inputText.value) return;
 
-	if (await executeCommand(inputText.value, vm?.value)) {
+	if (await executeCommand(inputText.value, vm.value)) {
 		print("\n" + success.value);
 	} else printError(error.value);
 

@@ -32,6 +32,10 @@ const hideConsole = () => {
 	isConsoleVisible.value = false;
 };
 
+const clearConsole = () => {
+	logs.value.length = 0;
+};
+
 export function useCmdConsole() {
 	return {
 		logs,
@@ -39,6 +43,7 @@ export function useCmdConsole() {
 		printError,
 		showConsole,
 		hideConsole,
+		clearConsole,
 		isConsoleVisible,
 		logEndRef,
 	};
