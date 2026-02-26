@@ -2,7 +2,7 @@
 	<div
 		v-if="isConsoleVisible"
 		:style="{ height: height + 'px' }"
-		class="absolute bottom-0 left-5 right-5 min-h-[100px] bg-gray-800/70 text-green-400 font-mono text-xs flex flex-col border-t border-gray-700 backdrop-blur-sm z-10"
+		class="absolute bottom-0 left-5 right-5 min-h-[100px] bg-gray-800/70 text-green-400 flex flex-col border-t border-gray-700 backdrop-blur-sm z-10"
 	>
 		<!-- Resize Handle -->
 		<div
@@ -10,15 +10,35 @@
 			@mousedown.prevent="startResizeLogs"
 		></div>
 
-		<div class="flex justify-between items-center px-2 py-1 bg-gray-800/50 border-b border-gray-700 shrink-0">
+		<div
+			class="flex justify-between items-center px-2 py-1 bg-gray-800/50 border-b border-gray-700 shrink-0 font-mono text-xs"
+		>
 			<span class="font-bold text-gray-300 uppercase tracking-wider text-[10px]">Console</span>
-			<button @click="clearConsole" class="text-[10px] hover:text-red-400 text-gray-400 transition-colors">
-				Clear
-			</button>
+			<div class="flex items-center gap-3">
+				<button
+					@click="decreaseFontSize"
+					class="text-[10px] hover:text-cyan-400 text-gray-400 transition-colors"
+				>
+					A-
+				</button>
+				<button
+					@click="increaseFontSize"
+					class="text-[10px] hover:text-cyan-400 text-gray-400 transition-colors"
+				>
+					A+
+				</button>
+				<button @click="clearConsole" class="text-[10px] hover:text-red-400 text-gray-400 transition-colors">
+					Clear
+				</button>
+			</div>
 		</div>
-		<div class="flex-1 overflow-y-auto p-2 flex flex-col" @click="focusInput">
+		<div
+			class="flex-1 overflow-y-auto p-2 flex flex-col"
+			@click="focusInput"
+			:style="{ fontSize: fontSize + 'px', fontFamily: fontFamily }"
+		>
 			<div class="mt-auto space-y-0.5">
-				<div v-for="(log, i) in logs" :key="i" :class="log.color" class="min-h-(--text-xs) whitespace-pre">
+				<div v-for="(log, i) in logs" :key="i" :class="log.color" class="whitespace-pre">
 					{{ log.text }}
 				</div>
 				<div ref="logEndRef"></div>
@@ -30,6 +50,8 @@
 				ref="inputRef"
 				v-model="inputText"
 				@keydown.enter="handleEnter"
+				@keydown.up.prevent="handleHistoryUp"
+				@keydown.down.prevent="handleHistoryDown"
 				@keydown.escape="handleEscape"
 				class="flex-1 bg-transparent border-none outline-none text-green-400 placeholder-gray-700"
 				spellcheck="false"
@@ -43,20 +65,22 @@
 import { useCmdConsole } from "@/composables/useCmdConsole";
 import { useCommands } from "@/composables/useCommands";
 import { useMachine } from "@/composables/useMachine";
+import { useConsoleSettings } from "@/composables/useConsoleSettings";
 import { ref, nextTick, watch, onMounted } from "vue";
 
-const LS_KEY_HEIGHT = "vm6502-console-height";
-const height = ref(200);
+const { height, fontSize, fontFamily, loadSettings, increaseFontSize, decreaseFontSize } = useConsoleSettings();
+
 const inputText = ref("");
 const inputRef = ref<HTMLInputElement | null>(null);
+let tempInput = "";
+const historyIndex = ref(-1);
 
 const { logs, print, printError, logEndRef, isConsoleVisible, clearConsole, hideConsole } = useCmdConsole();
-const { executeCommand, success, error } = useCommands();
+const { executeCommand, success, error, commandHistory, shouldClose } = useCommands();
 const { vm } = useMachine();
 
 onMounted(() => {
-	const savedHeight = localStorage.getItem(LS_KEY_HEIGHT);
-	if (savedHeight) height.value = Math.max(100, Number.parseInt(savedHeight, 10));
+	loadSettings();
 });
 
 // oxlint-disable-next-line no-unused-expressions ** VSCode doesn't see the use in the template ref
@@ -69,8 +93,6 @@ watch(
 	},
 );
 
-watch(height, (newHeight) => localStorage.setItem(LS_KEY_HEIGHT, newHeight.toString()));
-
 const handleEnter = async () => {
 	if (!inputText.value) return;
 
@@ -78,13 +100,12 @@ const handleEnter = async () => {
 	if (await executeCommand(inputText.value, vm.value)) {
 		print("\n" + success.value);
 	} else printError(error.value);
+	if (shouldClose.value) hideConsole();
 
+	historyIndex.value = -1;
+	tempInput = "";
 	inputText.value = "";
 	nextTick(() => inputRef.value?.focus());
-};
-
-const handleEscape = () => {
-	hideConsole();
 };
 
 const focusInput = () => {
@@ -108,5 +129,31 @@ const startResizeLogs = (e: MouseEvent) => {
 
 	window.addEventListener("mousemove", onMouseMove);
 	window.addEventListener("mouseup", onMouseUp);
+};
+
+const handleHistoryUp = () => {
+	if (commandHistory.value.length === 0) return;
+	if (historyIndex.value === -1) {
+		tempInput = inputText.value;
+	}
+	if (historyIndex.value < commandHistory.value.length - 1) {
+		historyIndex.value++;
+		inputText.value = commandHistory.value[commandHistory.value.length - 1 - historyIndex.value] as string;
+	}
+};
+
+const handleHistoryDown = () => {
+	if (historyIndex.value >= 0) {
+		historyIndex.value--;
+		inputText.value = (
+			historyIndex.value === -1
+				? tempInput
+				: commandHistory.value[commandHistory.value.length - 1 - historyIndex.value]
+		) as string;
+	}
+};
+
+const handleEscape = () => {
+	hideConsole();
 };
 </script>

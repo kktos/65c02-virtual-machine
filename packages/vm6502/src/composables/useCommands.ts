@@ -1,4 +1,4 @@
-import { ref, type Ref } from "vue";
+import { ref, type Ref, watch } from "vue";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import { setA } from "@/commands/setA.cmd";
 import { setPC } from "@/commands/setPC.cmd";
@@ -20,6 +20,11 @@ import { execRemoveBP } from "@/commands/removeBP.cmd";
 import { useCmdConsole } from "./useCmdConsole";
 import { defData } from "@/commands/defData.cmd";
 import { defCode } from "@/commands/defCode.cmd";
+import { defLabel } from "@/commands/defLabel.cmd";
+import { renLabel } from "@/commands/renLabel.cmd";
+import { undefLabel } from "@/commands/undefLabel.cmd";
+import { findLabel } from "@/commands/findLabel.cmd";
+import { font } from "@/commands/font.cmd";
 
 type ParamType = "byte" | "word" | "long" | "number" | "address" | "range" | "string";
 type ParamDef = ParamType | `${ParamType}?` | string;
@@ -45,7 +50,18 @@ function typedKeys<T extends object>(obj: T): (keyof T)[] {
 	return Object.keys(obj) as (keyof T)[];
 }
 
-const commandHistory = ref<string[]>([]);
+const HISTORY_MAX_SIZE = 50;
+const LS_KEY_HISTORY = "vm6502-console-history";
+const commandHistory = ref<string[]>(JSON.parse(localStorage.getItem(LS_KEY_HISTORY) || "[]"));
+
+watch(
+	commandHistory,
+	(history) => {
+		localStorage.setItem(LS_KEY_HISTORY, JSON.stringify(history));
+	},
+	{ deep: true },
+);
+
 const cmdHelp: Command = {
 	description: "Lists all available commands.",
 	paramDef: [],
@@ -89,6 +105,17 @@ const COMMAND_LIST: Record<string, Command | CommandWrapper> = {
 		base: defData,
 		staticParams: { prepend: ["word"] },
 	},
+	DA: {
+		description: "define a string/ascii at <address> with length <word>",
+		paramDef: ["address", "word"],
+		base: defData,
+		staticParams: { prepend: ["string"] },
+	},
+	DEF: defLabel,
+	UNDEF: undefLabel,
+	REN: renLabel,
+	FIND: findLabel,
+	FONT: font,
 	M1: {
 		description: "set MemViewer(1) <address>",
 		paramDef: ["address"],
@@ -291,8 +318,12 @@ export function useCommands() {
 				}
 
 				const cleanInput = cmdInput.trim();
-				if (cleanInput && commandHistory.value[commandHistory.value.length - 1] !== cleanInput)
+				if (cleanInput && commandHistory.value[commandHistory.value.length - 1] !== cleanInput) {
 					commandHistory.value.push(cleanInput);
+					if (commandHistory.value.length > HISTORY_MAX_SIZE) {
+						commandHistory.value.splice(0, commandHistory.value.length - HISTORY_MAX_SIZE);
+					}
+				}
 
 				let finalParams: ParamList = userParams;
 				if ("base" in cmdSpec && cmdSpec.staticParams) {
