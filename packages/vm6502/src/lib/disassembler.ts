@@ -46,7 +46,13 @@ function findPreviousInstruction(
 	return Math.max(0, targetAddress - 1);
 }
 
-function handleDataRegion(format: DataBlock, pc: number, disassembly: DisassemblyLine[], readByte: FunctionReadByte) {
+function handleDataRegion(
+	format: DataBlock,
+	pc: number,
+	disassembly: DisassemblyLine[],
+	readByte: FunctionReadByte,
+	symbol?: SymbolEntry,
+) {
 	let byteCount = format.length;
 	if (format.type === "word") byteCount *= 2;
 
@@ -91,7 +97,7 @@ function handleDataRegion(format: DataBlock, pc: number, disassembly: Disassembl
 	}
 
 	disassembly.push({
-		label: "",
+		label: symbol?.label ?? "",
 		src: "",
 		addr: pc,
 		faddr: formatAddress(pc),
@@ -125,11 +131,12 @@ export function disassemble(
 		// Safety check to prevent infinite loops if PC goes out of bounds
 		if (pc > 0xffffff) break;
 
-		// Check for Custom Formatting (Data Directives)
+		const symbol = getSymbolForAddress(pc, scope);
 
+		// Check for Custom Formatting (Data Directives)
 		const format = getFormat(pc);
 		if (format) {
-			const byteCount = handleDataRegion(format, pc, disassembly, readByte);
+			const byteCount = handleDataRegion(format, pc, disassembly, readByte, symbol);
 			pc += byteCount;
 			continue;
 		}
@@ -169,7 +176,6 @@ export function disassemble(
 
 		const { name, bytes, cycles, mode } = opcodeInfo;
 
-		const symbol = getSymbolForAddress(pc, scope);
 		const line: DisassemblyLine = {
 			label: symbol?.label ?? "",
 			src: symbol?.src ?? "",
@@ -480,9 +486,7 @@ export function disassembleRange(
 	const start = Math.min(fromAddress, toAddress);
 	const end = Math.max(fromAddress, toAddress);
 	let currentAddr = start;
-	let safety = 0;
-	// Fetch in chunks until we cover the range
-	while (currentAddr <= end && safety++ < 200) {
+	while (currentAddr <= end) {
 		const chunk = disassemble(readByte, scope, currentAddr, 20, registers, 0);
 		if (!chunk || chunk.length === 0) break;
 
