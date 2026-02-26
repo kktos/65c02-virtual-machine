@@ -30,6 +30,7 @@
 				ref="inputRef"
 				v-model="inputText"
 				@keydown.enter="handleEnter"
+				@keydown.escape="handleEscape"
 				class="flex-1 bg-transparent border-none outline-none text-green-400 placeholder-gray-700"
 				spellcheck="false"
 				autocomplete="off"
@@ -42,18 +43,25 @@
 import { useCmdConsole } from "@/composables/useCmdConsole";
 import { useCommands } from "@/composables/useCommands";
 import { useMachine } from "@/composables/useMachine";
-import { ref, nextTick } from "vue";
+import { ref, nextTick, watch } from "vue";
 
 const height = ref(200);
 const inputText = ref("");
 const inputRef = ref<HTMLInputElement | null>(null);
 
-const { logs, print, printError, logEndRef, isConsoleVisible, clearConsole } = useCmdConsole();
+const { logs, print, printError, logEndRef, isConsoleVisible, clearConsole, hideConsole } = useCmdConsole();
 const { executeCommand, success, error } = useCommands();
 const { vm } = useMachine();
 
 // oxlint-disable-next-line no-unused-expressions ** VSCode doesn't see the use in the template ref
 logEndRef;
+
+watch(
+	() => isConsoleVisible.value,
+	(visible) => {
+		if (visible) nextTick(() => inputRef.value?.focus());
+	},
+);
 
 const handleEnter = async () => {
 	if (!inputText.value) return;
@@ -64,6 +72,10 @@ const handleEnter = async () => {
 
 	inputText.value = "";
 	nextTick(() => inputRef.value?.focus());
+};
+
+const handleEscape = () => {
+	hideConsole();
 };
 
 const focusInput = () => {

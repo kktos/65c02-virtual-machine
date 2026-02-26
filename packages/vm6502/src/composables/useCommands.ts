@@ -10,17 +10,17 @@ import { run } from "@/commands/run.cmd";
 import { pause } from "@/commands/pause.cmd";
 import { setDisasmView } from "@/commands/setDisasmView.cmd";
 import { setMemView } from "@/commands/setMemView.cmd";
-import { addBreakpointCommand } from "@/commands/addBP.cmd";
-import { removeBreakpointCommand } from "@/commands/removeBP.cmd";
 import { reset } from "@/commands/reset.cmd";
 import { reboot } from "@/commands/reboot.cmd";
 import { explain } from "@/commands/explainCode.cmd";
 import { speed } from "@/commands/speed.cmd";
 import { useSymbols } from "./useSymbols";
+import { execAddBP } from "@/commands/addBP.cmd";
+import { execRemoveBP } from "@/commands/removeBP.cmd";
 
-type ParamType = "byte" | "word" | "long" | "number" | "address" | "string";
-type ParamDef = ParamType | `${ParamType}?`;
-export type ParamList = (string | number | undefined)[];
+type ParamType = "byte" | "word" | "long" | "number" | "address" | "range" | "string";
+type ParamDef = ParamType | `${ParamType}?` | string;
+export type ParamList = (string | number | { start: number; end: number } | undefined)[];
 export type Command = {
 	description: string;
 	paramDef: ParamDef[];
@@ -50,13 +50,15 @@ const cmdHelp: Command = {
 		const commandHelp: string = typedKeys(COMMAND_LIST)
 			.sort()
 			.map((key) => {
-				const cmd = COMMAND_LIST[key];
-				return `${key.padEnd(8)} ${cmd?.description}`;
+				const cmd = COMMAND_LIST[key] as Command | CommandWrapper;
+				const params = cmd.paramDef.map((p) => `<${p}>`).join(" ");
+				return `${key.padEnd(8)} ${params.padEnd(20)} ${cmd?.description}`;
 			})
 			.join("\n");
 		return `Available commands:\n${commandHelp}`;
 	},
 };
+
 const COMMAND_LIST: Record<string, Command | CommandWrapper> = {
 	"A=": setA,
 	"X=": setX,
@@ -91,51 +93,43 @@ const COMMAND_LIST: Record<string, Command | CommandWrapper> = {
 	},
 	BP: {
 		description: "Add execution breakpoint",
-		paramDef: ["address"],
-		base: addBreakpointCommand,
-		staticParams: { prepend: ["pc"] },
+		paramDef: ["range|address"],
+		fn: execAddBP("pc"),
 	},
 	BPA: {
 		description: "Add Mem Access breakpoint",
-		paramDef: ["address"],
-		base: addBreakpointCommand,
-		staticParams: { prepend: ["access"] },
+		paramDef: ["range|address"],
+		fn: execAddBP("access"),
 	},
 	BPW: {
 		description: "Add Mem Write breakpoint",
-		paramDef: ["address"],
-		base: addBreakpointCommand,
-		staticParams: { prepend: ["write"] },
+		paramDef: ["range|address"],
+		fn: execAddBP("write"),
 	},
 	BPR: {
 		description: "Add Mem Read breakpoint",
-		paramDef: ["address"],
-		base: addBreakpointCommand,
-		staticParams: { prepend: ["read"] },
+		paramDef: ["range|address"],
+		fn: execAddBP("read"),
 	},
 	BC: {
 		description: "Remove execution breakpoint",
-		paramDef: ["address"],
-		base: removeBreakpointCommand,
-		staticParams: { prepend: ["pc"] },
+		paramDef: ["range|address"],
+		fn: execRemoveBP("pc"),
 	},
 	BCA: {
 		description: "Remove Mem Access breakpoint",
-		paramDef: ["address"],
-		base: removeBreakpointCommand,
-		staticParams: { prepend: ["access"] },
+		paramDef: ["range|address"],
+		fn: execRemoveBP("access"),
 	},
 	BCW: {
 		description: "Remove Mem Write breakpoint",
-		paramDef: ["address"],
-		base: removeBreakpointCommand,
-		staticParams: { prepend: ["write"] },
+		paramDef: ["range|address"],
+		fn: execRemoveBP("write"),
 	},
 	BCR: {
 		description: "Remove Mem Read breakpoint",
-		paramDef: ["address"],
-		base: removeBreakpointCommand,
-		staticParams: { prepend: ["read"] },
+		paramDef: ["range|address"],
+		fn: execRemoveBP("read"),
 	},
 	EXPLAIN: { ...explain, closeOnSuccess: true },
 	HELP: cmdHelp,
@@ -143,7 +137,12 @@ const COMMAND_LIST: Record<string, Command | CommandWrapper> = {
 
 const parseValue = (valStr: string, max: number): number => {
 	const isHex = valStr.startsWith("$");
-	const value = Number.parseInt(isHex ? valStr.slice(1) : valStr, isHex ? 16 : 10);
+	const cleanStr = isHex ? valStr.slice(1) : valStr;
+
+	if (isHex && !/^[0-9A-Fa-f]+$/.test(cleanStr)) throw new Error(`Invalid hex format: ${valStr}`);
+	if (!isHex && !/^\d+$/.test(cleanStr)) throw new Error(`Invalid number format: ${valStr}`);
+
+	const value = Number.parseInt(cleanStr, isHex ? 16 : 10);
 	if (Number.isNaN(value)) throw new Error(`Invalid value: ${valStr}`);
 	if (value > max) throw new Error(`Value exceeds range (max $${max.toString(16).toUpperCase()})`);
 	return value;
@@ -159,6 +158,16 @@ const parseAddress = (valStr: string): number => {
 	if (value === undefined) throw new Error(`Uknown label: ${valStr}`);
 
 	return value;
+};
+
+const parseRange = (valStr: string): { start: number; end: number } => {
+	const separator = valStr.includes(":") ? ":" : valStr.includes("-") ? "-" : null;
+	if (!separator) throw new Error("Invalid range format");
+
+	const [startStr, endStr] = valStr.split(separator);
+	if (!startStr || !endStr) throw new Error("Invalid range format");
+
+	return { start: parseAddress(startStr.trim()), end: parseAddress(endStr.trim()) };
 };
 
 export function useCommands() {
@@ -212,32 +221,49 @@ export function useCommands() {
 				const userParams: (string | number)[] = [];
 				for (let i = 0; i < paramsAsStr.length; i++) {
 					const param = paramsAsStr[i] as string;
-					let paramDef = cmdSpec.paramDef[i] as ParamDef;
-					if (paramDef.endsWith("?")) paramDef = paramDef.slice(0, -1) as ParamType;
+					let paramDefStr = cmdSpec.paramDef[i] as string;
+					if (paramDefStr.endsWith("?")) paramDefStr = paramDefStr.slice(0, -1);
 
-					console.log(param);
-					switch (paramDef) {
-						case "byte":
-							userParams.push(parseValue(param, 0xff));
-							break;
-						case "word":
-							userParams.push(parseValue(param, 0xffff));
-							break;
-						case "long":
-							userParams.push(parseValue(param, 0xffffffff));
-							break;
-						case "address":
-							userParams.push(parseAddress(param));
-							break;
-						case "number":
-							userParams.push(Number.parseFloat(param));
-							break;
-						case "string":
-							userParams.push(param);
-							break;
-						default:
-							throw `Unknown parameter type: ${paramDef}`;
+					const allowedTypes = paramDefStr.split("|");
+					let parsedValue: any = undefined;
+					let lastError: Error | null = null;
+
+					for (const type of allowedTypes) {
+						try {
+							switch (type) {
+								case "byte":
+									parsedValue = parseValue(param, 0xff);
+									break;
+								case "word":
+									parsedValue = parseValue(param, 0xffff);
+									break;
+								case "long":
+									parsedValue = parseValue(param, 0xffffffff);
+									break;
+								case "address":
+									parsedValue = parseAddress(param);
+									break;
+								case "range":
+									parsedValue = parseRange(param);
+									break;
+								case "number":
+									parsedValue = Number.parseFloat(param);
+									if (Number.isNaN(parsedValue)) throw new Error("Invalid number");
+									break;
+								case "string":
+									parsedValue = param;
+									break;
+								default:
+									throw new Error(`Unknown parameter type: ${type}`);
+							}
+							if (parsedValue !== undefined) break;
+						} catch (e: any) {
+							lastError = e;
+						}
 					}
+
+					if (parsedValue === undefined) throw lastError || new Error("Invalid parameter");
+					userParams.push(parsedValue);
 				}
 
 				const cleanInput = cmdInput.trim();
