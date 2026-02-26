@@ -236,7 +236,7 @@ export function useCommands() {
 
 		if (isLoading.value) return false;
 
-		let input = cmdInput.trim().toUpperCase();
+		let input = cmdInput.trim();
 		if (!input) input = "HELP";
 
 		isLoading.value = true;
@@ -246,7 +246,7 @@ export function useCommands() {
 		shouldClose.value = false;
 
 		// Find command
-		const cmd = input.split(" ")[0];
+		const cmd = input.split(" ")[0]?.toUpperCase();
 		const cmdKey = typedKeys(COMMAND_LIST).find((key) => cmd === key);
 
 		try {
