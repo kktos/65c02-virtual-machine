@@ -3,7 +3,7 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import type { Ref } from "vue";
 
 export const pause: Command = {
-	description: "run the vm at PC or <address>",
+	description: "Pause the vm",
 	paramDef: [],
 	fn: (vm: VirtualMachine, _progress: Ref<number>, _params: ParamList) => {
 		vm.pause();

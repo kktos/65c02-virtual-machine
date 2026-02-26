@@ -17,6 +17,9 @@ import { speed } from "@/commands/speed.cmd";
 import { useSymbols } from "./useSymbols";
 import { execAddBP } from "@/commands/addBP.cmd";
 import { execRemoveBP } from "@/commands/removeBP.cmd";
+import { useCmdConsole } from "./useCmdConsole";
+import { defData } from "@/commands/defData.cmd";
+import { defCode } from "@/commands/defCode.cmd";
 
 type ParamType = "byte" | "word" | "long" | "number" | "address" | "range" | "string";
 type ParamDef = ParamType | `${ParamType}?` | string;
@@ -52,7 +55,7 @@ const cmdHelp: Command = {
 			.map((key) => {
 				const cmd = COMMAND_LIST[key] as Command | CommandWrapper;
 				const params = cmd.paramDef.map((p) => `<${p}>`).join(" ");
-				return `${key.padEnd(8)} ${params.padEnd(20)} ${cmd?.description}`;
+				return `${key.padEnd(8)} ${params.padEnd(30)} ${cmd?.description}`;
 			})
 			.join("\n");
 		return `Available commands:\n${commandHelp}`;
@@ -73,20 +76,33 @@ const COMMAND_LIST: Record<string, Command | CommandWrapper> = {
 	SPEED: speed,
 	D: setDisasmView,
 	M: setMemView,
+	CODE: defCode,
+	DB: {
+		description: "define n bytes at <address> with n = <word>",
+		paramDef: ["address", "word"],
+		base: defData,
+		staticParams: { prepend: ["byte"] },
+	},
+	DW: {
+		description: "define n words at <address> with n = <word>",
+		paramDef: ["address", "word"],
+		base: defData,
+		staticParams: { prepend: ["word"] },
+	},
 	M1: {
-		description: "set MemViewer(1) address. Params: <address>",
+		description: "set MemViewer(1) <address>",
 		paramDef: ["address"],
 		base: setMemView,
 		staticParams: { append: [1] },
 	},
 	M2: {
-		description: "set MemViewer(2) address. Params: <address>",
+		description: "set MemViewer(2) <address>",
 		paramDef: ["address"],
 		base: setMemView,
 		staticParams: { append: [2] },
 	},
 	M3: {
-		description: "set MemViewer(3) address. Params: <address>",
+		description: "set MemViewer(3) <address>",
 		paramDef: ["address"],
 		base: setMemView,
 		staticParams: { append: [3] },
@@ -133,6 +149,14 @@ const COMMAND_LIST: Record<string, Command | CommandWrapper> = {
 	},
 	EXPLAIN: { ...explain, closeOnSuccess: true },
 	HELP: cmdHelp,
+	CLS: {
+		description: "Clear console",
+		paramDef: [],
+		fn: (_vm, _progress, _params: ParamList) => {
+			useCmdConsole().clearConsole();
+			return "";
+		},
+	},
 };
 
 const parseValue = (valStr: string, max: number): number => {

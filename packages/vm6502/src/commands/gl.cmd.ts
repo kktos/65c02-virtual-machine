@@ -6,11 +6,10 @@ import type { Ref } from "vue";
 
 export const gl: Command = {
 	description: "Generate labels for a memory range. Params: <from> <to> [scope]",
-	paramDef: ["address", "address", "string?"],
+	paramDef: ["range", "string?"],
 	fn: async (vm: VirtualMachine, progress: Ref<number>, params: ParamList) => {
-		const from = params[0] as number;
-		const to = params[1] as number;
-		const scope = (params[2] as string) || vm.getScope(from);
+		const { start: from, end: to } = params[0] as { start: number; end: number };
+		const scope = (params[1] as string) || vm.getScope(from);
 
 		if (from >= to) throw new Error("'from' address must be less than 'to' address.");
 

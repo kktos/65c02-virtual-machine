@@ -6,8 +6,8 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import type { Ref } from "vue";
 
 export const setMemView: Command = {
-	description: "set MemViewer address. Params: <address> [viewerId]",
-	paramDef: ["address", "byte?"],
+	description: "set MemViewer [index number] <address>",
+	paramDef: ["address", "number?"],
 	fn: (_vm: VirtualMachine, _progress: Ref<number>, params: ParamList) => {
 		const address = params[0] as number;
 		let viewerIdx = params[1] as number | 0;

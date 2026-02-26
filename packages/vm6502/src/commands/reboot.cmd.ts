@@ -4,7 +4,7 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import type { Ref } from "vue";
 
 export const reboot: Command = {
-	description: "reboot the vm",
+	description: "Reboot the vm",
 	paramDef: [],
 	fn: (_vm: VirtualMachine, _progress: Ref<number>, _params: ParamList) => {
 		const { loadMachine } = useMachine();
