@@ -53,7 +53,7 @@
 				@keydown.up.prevent="handleHistoryUp"
 				@keydown.down.prevent="handleHistoryDown"
 				@keydown.escape="handleEscape"
-				class="flex-1 bg-transparent border-none outline-none text-green-400 placeholder-gray-700"
+				class="flex-1 bg-transparent border-none outline-none text-green-400 placeholder-gray-700 font-mono text-xs"
 				spellcheck="false"
 				autocomplete="off"
 			/>

@@ -116,7 +116,6 @@ watch(
 		if (isOpen) {
 			// Load Label
 			const existing = getLabelForAddress(props.address);
-			console.log("LABEL", toHex(props.address, 4), existing);
 			localLabel.value = existing || `L${toHex(props.address, 4)}`;
 			hasExisting.value = !!existing;
 
