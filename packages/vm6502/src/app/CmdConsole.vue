@@ -18,7 +18,7 @@
 		</div>
 		<div class="flex-1 overflow-y-auto p-2 flex flex-col" @click="focusInput">
 			<div class="mt-auto space-y-0.5">
-				<div v-for="(log, i) in logs" :key="i" :class="log.color" class="min-h-(--text-xs)">
+				<div v-for="(log, i) in logs" :key="i" :class="log.color" class="min-h-(--text-xs) whitespace-pre">
 					{{ log.text }}
 				</div>
 				<div ref="logEndRef"></div>
@@ -43,8 +43,9 @@
 import { useCmdConsole } from "@/composables/useCmdConsole";
 import { useCommands } from "@/composables/useCommands";
 import { useMachine } from "@/composables/useMachine";
-import { ref, nextTick, watch } from "vue";
+import { ref, nextTick, watch, onMounted } from "vue";
 
+const LS_KEY_HEIGHT = "vm6502-console-height";
 const height = ref(200);
 const inputText = ref("");
 const inputRef = ref<HTMLInputElement | null>(null);
@@ -52,6 +53,11 @@ const inputRef = ref<HTMLInputElement | null>(null);
 const { logs, print, printError, logEndRef, isConsoleVisible, clearConsole, hideConsole } = useCmdConsole();
 const { executeCommand, success, error } = useCommands();
 const { vm } = useMachine();
+
+onMounted(() => {
+	const savedHeight = localStorage.getItem(LS_KEY_HEIGHT);
+	if (savedHeight) height.value = Math.max(100, Number.parseInt(savedHeight, 10));
+});
 
 // oxlint-disable-next-line no-unused-expressions ** VSCode doesn't see the use in the template ref
 logEndRef;
@@ -63,9 +69,12 @@ watch(
 	},
 );
 
+watch(height, (newHeight) => localStorage.setItem(LS_KEY_HEIGHT, newHeight.toString()));
+
 const handleEnter = async () => {
 	if (!inputText.value) return;
 
+	print("> " + inputText.value);
 	if (await executeCommand(inputText.value, vm.value)) {
 		print("\n" + success.value);
 	} else printError(error.value);
