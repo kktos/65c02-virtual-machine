@@ -6,6 +6,7 @@ import { setX } from "@/commands/setX.cmd";
 import { setY } from "@/commands/setY.cmd";
 import { setSP } from "@/commands/setSP.cmd";
 import { hook } from "@/commands/hook.cmd";
+import { listHooks } from "@/commands/listHooks.cmd";
 import { gl } from "@/commands/gl.cmd";
 import { run } from "@/commands/run.cmd";
 import { pause } from "@/commands/pause.cmd";
@@ -250,6 +251,7 @@ const COMMAND_LIST: Record<string, Command | CommandWrapper> = {
 	FIND: findLabel,
 	FONT: font,
 	HOOK: hook,
+	HOOKS: listHooks,
 	LABELS: labelsCmd,
 	M1: {
 		description: "set MemViewer(1) <address>",
@@ -392,14 +394,15 @@ export function useCommands() {
 
 				const commandToRun = "base" in cmdSpec ? cmdSpec.base : cmdSpec;
 				const paramDef = cmdSpec.paramDef;
+				const hasRestParam = paramDef.some((p) => p.startsWith("rest"));
 
 				const requiredParams = paramDef.filter((p) => !p.endsWith("?")).length;
 				const maxParams = paramDef.length;
 
-				if (paramsAsStr.length < requiredParams || paramsAsStr.length > maxParams) {
+				if (paramsAsStr.length < requiredParams || (!hasRestParam && paramsAsStr.length > maxParams)) {
 					throw new Error(
 						`Invalid parameters for "${cmdKey}". Expected ${requiredParams}${
-							requiredParams !== maxParams ? `-${maxParams}` : ""
+							!hasRestParam && requiredParams !== maxParams ? `-${maxParams}` : ""
 						}, got ${paramsAsStr.length}.`,
 					);
 				}

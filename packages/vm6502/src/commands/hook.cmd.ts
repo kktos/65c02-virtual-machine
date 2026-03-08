@@ -1,19 +1,16 @@
 import { useBreakpoints } from "@/composables/useBreakpoints";
 import type { Command, ParamList } from "@/composables/useCommands";
+import { formatAddress } from "@/lib/hex.utils";
 import type { Breakpoint } from "@/types/breakpoint.interface";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 
 export const hook: Command = {
 	description: "Set a command to execute when a breakpoint is hit. Usage: HOOK <type> <address> do <command>",
-	paramDef: ["string", "address", "string", "rest"],
+	paramDef: ["string", "address", "rest"],
 	fn: (vm: VirtualMachine, _progress, params: ParamList) => {
 		const type = params[0] as Breakpoint["type"];
 		const address = params[1] as number;
-		const doKeyword = params[2] as string;
-		const commandToExecute = params[3] as string;
-
-		if (doKeyword?.toLowerCase() !== "do")
-			throw new Error("Invalid HOOK syntax. Expected 'do' keyword after address.");
+		const commandToExecute = params[2] as string;
 
 		if (!commandToExecute) throw new Error("Missing command to execute for HOOK.");
 
@@ -29,6 +26,6 @@ export const hook: Command = {
 		removeBreakpoint({ type, address }, vm);
 		addBreakpoint({ type, address, command: commandToExecute }, vm);
 
-		return `Hook set on ${type.toUpperCase()} @ $${address.toString(16).padStart(4, "0")}`;
+		return `Hook set on ${type.toUpperCase()} @ ${formatAddress(address)}`;
 	},
 };
