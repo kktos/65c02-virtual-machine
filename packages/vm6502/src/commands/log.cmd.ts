@@ -13,9 +13,8 @@ import {
 import { toHex } from "@/lib/hex.utils";
 
 const evaluateArg = (arg: string, vm: VirtualMachine): string => {
-	const argUpper = arg.toUpperCase();
 	// Check for registers
-	switch (argUpper) {
+	switch (arg.toUpperCase()) {
 		case "A":
 			return toHex(vm.sharedRegisters.getUint8(REG_A_OFFSET));
 		case "X":
@@ -26,7 +25,8 @@ const evaluateArg = (arg: string, vm: VirtualMachine): string => {
 			return toHex(vm.sharedRegisters.getUint8(REG_SP_OFFSET));
 		case "PC":
 			return toHex(vm.sharedRegisters.getUint8(REG_PC_OFFSET), 4);
-		case "FLAGS": {
+		case "FLAGS":
+		case "P": {
 			const p = vm.sharedRegisters.getUint8(REG_STATUS_OFFSET);
 			const flags = [
 				p & 0x80 ? "N" : "n",
@@ -38,7 +38,7 @@ const evaluateArg = (arg: string, vm: VirtualMachine): string => {
 				p & 0x02 ? "Z" : "z",
 				p & 0x01 ? "C" : "c",
 			].join("");
-			return `${flags} ($${p.toString(16).padStart(2, "0").toUpperCase()})`;
+			return `${flags} ($${toHex(p)})`;
 		}
 	}
 
@@ -65,12 +65,10 @@ const evaluateArg = (arg: string, vm: VirtualMachine): string => {
 			}
 		}
 
-		if (Number.isNaN(address) || address < 0 || address > 0xffff) {
-			return `<invalid address: ${address}>`;
-		}
+		if (Number.isNaN(address) || address < 0 || address > 0xffff) return `<invalid address: ${address}>`;
 
 		const value = vm.read(address);
-		return value.toString(16).padStart(2, "0").toUpperCase();
+		return `$${toHex(value)}`;
 	}
 
 	// It's a string literal (or a number we pass through)
