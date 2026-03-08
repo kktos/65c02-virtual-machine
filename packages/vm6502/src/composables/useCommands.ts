@@ -27,7 +27,6 @@ import { undefLabel } from "@/commands/undefLabel.cmd";
 import { findLabel } from "@/commands/findLabel.cmd";
 import { font } from "@/commands/font.cmd";
 import { logCmd } from "@/commands/log.cmd";
-import { parseAddress, parseRange, parseValue } from "@/lib/parse.utils";
 import { labelsCmd } from "@/commands/labels.cmd";
 import { useRoutines } from "./useRoutines";
 import { useRoutineEditor } from "./useRoutineEditor";
@@ -317,16 +316,9 @@ export function useCommands() {
 				const parser = new ExpressionParser(singleCmdTrimmed.substring(2), vm);
 				const condition = parser.parse();
 				const restIndex = parser.getRestIndex();
-
 				let rest = singleCmdTrimmed.substring(2 + restIndex).trim();
-				if (rest.toUpperCase().startsWith("THEN")) {
-					rest = rest.substring(4).trim();
-				}
-
-				if (condition !== 0) {
-					commandQueue.unshift(rest);
-				}
-
+				if (rest.toUpperCase().startsWith("THEN")) rest = rest.substring(4).trim();
+				if (condition !== 0) commandQueue.unshift(rest);
 				continue;
 			}
 
@@ -339,7 +331,7 @@ export function useCommands() {
 				const routineCmds = getRoutine(routineName);
 				if (!routineCmds) throw new Error(`Routine '${routineName}' not found.`);
 
-				commandQueue.unshift(...routineCmds, END_ROUTINE_MARKER);
+				commandQueue.unshift(...routineCmds.filter((line) => !line.trim().startsWith(";")), END_ROUTINE_MARKER);
 				const msg = `Executing routine '${routineName}'...`;
 				success.value = success.value ? success.value + "\n" + msg : msg;
 				continue;
@@ -349,77 +341,125 @@ export function useCommands() {
 
 			if (cmdKey) {
 				const cmdSpec = COMMAND_LIST[cmdKey] as Command | CommandWrapper;
-				const paramStr = singleCmdTrimmed.slice(cmdKey.length).trim();
-				const paramsAsStr = paramStr.length > 0 ? paramStr.split(/\s+/) : [];
 
 				const commandToRun = "base" in cmdSpec ? cmdSpec.base : cmdSpec;
 				const paramDef = cmdSpec.paramDef;
-				const hasRestParam = paramDef.some((p) => p.startsWith("rest"));
 
-				const requiredParams = paramDef.filter((p) => !p.endsWith("?")).length;
-				const maxParams = paramDef.length;
-
-				if (paramsAsStr.length < requiredParams || (!hasRestParam && paramsAsStr.length > maxParams)) {
-					throw new Error(
-						`Invalid parameters for "${cmdKey}". Expected ${requiredParams}${
-							!hasRestParam && requiredParams !== maxParams ? `-${maxParams}` : ""
-						}, got ${paramsAsStr.length}.`,
-					);
-				}
-
+				let paramStr = singleCmdTrimmed.slice(cmdKey.length).trim();
 				const userParams: ParamList = [];
-				for (let i = 0; i < paramsAsStr.length; i++) {
-					const param = paramsAsStr[i] as string;
-					let paramDefStr = cmdSpec.paramDef[i] as string;
-					if (paramDefStr.endsWith("?")) paramDefStr = paramDefStr.slice(0, -1);
 
+				for (let i = 0; i < paramDef.length; i++) {
+					let paramDefStr = paramDef[i] as string;
+					const isOptional = paramDefStr.endsWith("?");
+					if (isOptional) paramDefStr = paramDefStr.slice(0, -1);
+
+					if (!paramStr && !isOptional) {
+						const requiredRemaining = paramDef.slice(i).filter((p) => !p.endsWith("?")).length;
+						if (requiredRemaining > 0) {
+							throw new Error(`Missing required parameter(s) for "${cmdKey}".`);
+						}
+						break; // All remaining are optional
+					}
+
+					if (!paramStr && isOptional) {
+						userParams.push(undefined);
+						continue;
+					}
 					if (paramDefStr === "rest") {
-						const rest = paramsAsStr.slice(i).join(" ");
-						userParams.push(rest);
-						// Consume the rest of the parameters
-						i = paramsAsStr.length;
+						userParams.push(paramStr);
+						paramStr = "";
 						continue;
 					}
 
 					const allowedTypes = paramDefStr.split("|");
 					let parsedValue: any = undefined;
 					let lastError: Error | null = null;
+					const originalParamStr = paramStr;
 
 					for (const type of allowedTypes) {
+						paramStr = originalParamStr; // Reset for each type attempt
 						try {
 							switch (type) {
 								case "byte":
-									parsedValue = parseValue(param, 0xff);
-									break;
 								case "word":
-									parsedValue = parseValue(param, 0xffff);
-									break;
 								case "long":
-									parsedValue = parseValue(param, 0xffffffff);
+								case "address": {
+									const parser = new ExpressionParser(paramStr, vm);
+									const value = parser.parse();
+									const restIndex = parser.getRestIndex();
+									paramStr = paramStr.substring(restIndex).trim();
+
+									if (type === "byte" && (value > 0xff || value < -128))
+										throw new Error(`Byte value out of range: ${value}`);
+									if (type === "word" && (value > 0xffff || value < -32768))
+										throw new Error(`Word value out of range: ${value}`);
+									if (type === "address" && (value > 0xffffff || value < 0))
+										throw new Error(`Address out of range: ${value}`);
+
+									parsedValue = value;
 									break;
-								case "address":
-									parsedValue = parseAddress(param);
+								}
+								case "range": {
+									const parser1 = new ExpressionParser(paramStr, vm);
+									const startVal = parser1.parse();
+									const restAfter1 = paramStr.substring(parser1.getRestIndex()).trim();
+
+									const separator = restAfter1.startsWith(":")
+										? ":"
+										: restAfter1.startsWith("-")
+											? "-"
+											: null;
+
+									if (separator) {
+										const afterSep = restAfter1.substring(1).trim();
+										const parser2 = new ExpressionParser(afterSep, vm);
+										const endVal = parser2.parse();
+
+										paramStr = afterSep.substring(parser2.getRestIndex()).trim();
+										parsedValue = { start: startVal, end: endVal };
+									} else {
+										throw new Error("Invalid range: missing '-' or ':' separator.");
+									}
 									break;
-								case "range":
-									parsedValue = parseRange(param);
+								}
+								case "string": {
+									let value: string;
+									if (paramStr.startsWith('"')) {
+										const endQuoteIdx = paramStr.indexOf('"', 1);
+										if (endQuoteIdx === -1) throw new Error("Unterminated string literal");
+										value = paramStr.substring(1, endQuoteIdx);
+										paramStr = paramStr.substring(endQuoteIdx + 1).trim();
+									} else {
+										const spaceIdx = paramStr.indexOf(" ");
+										if (spaceIdx === -1) {
+											value = paramStr;
+											paramStr = "";
+										} else {
+											value = paramStr.substring(0, spaceIdx);
+											paramStr = paramStr.substring(spaceIdx).trim();
+										}
+									}
+									parsedValue = value;
 									break;
-								case "number":
-									parsedValue = Number.parseFloat(param);
-									if (Number.isNaN(parsedValue)) throw new Error("Invalid number");
-									break;
-								case "string":
-									parsedValue = param;
-									break;
+								}
 								default:
 									throw new Error(`Unknown parameter type: ${type}`);
 							}
 							if (parsedValue !== undefined) break;
 						} catch (e: any) {
 							lastError = e;
+							parsedValue = undefined;
 						}
 					}
 
-					if (parsedValue === undefined) throw lastError || new Error("Invalid parameter");
+					if (parsedValue === undefined) {
+						if (isOptional) {
+							userParams.push(undefined);
+							paramStr = originalParamStr;
+							continue;
+						}
+						throw lastError || new Error(`Invalid parameter for "${cmdKey}".`);
+					}
 					userParams.push(parsedValue);
 				}
 

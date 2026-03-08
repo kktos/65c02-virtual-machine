@@ -56,7 +56,7 @@ export class ExpressionParser {
 
 	private tokenize(input: string) {
 		let i = 0;
-		while (i < input.length) {
+		loop: while (i < input.length) {
 			const char = input[i] as string;
 
 			if (/\s/.test(char)) {
@@ -188,7 +188,8 @@ export class ExpressionParser {
 					this.tokens.push({ type: TokenType.RBRACKET, value: 0, text: "]", start, end: i + 1 });
 					break;
 				default:
-					throw new Error(`Unknown character: ${char} at ${i}`);
+					break loop;
+				// throw new Error(`Unknown character: ${char} at ${i}`);
 			}
 			i++;
 		}
