@@ -56,13 +56,17 @@ Script doesn’t have address but a name
 
 > do <name>
 
+Add a cmd to exec a script - DONE
+
+-10-
+Add a cmd to add a list of labels; problem is CR is the end of the command
+SOLVED: multilines commands
+
 - Add script to execute to the machine config
 - Add cmd to clear BPs: bp clear
 - Add it to the script so choosing a machine clean up the bps
-- Add a cmd to add a list of labels; problem is CR is the end of the command
 - ⁠Add a command to set ROM/Memory data
 - ⁠Add a command to load a file into mem (already there in MemView: composable)
-- Add a cmd to exec a script
 
 File could be an URL -> for script or ROM data
 

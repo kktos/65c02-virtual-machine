@@ -98,4 +98,5 @@ export interface MachineConfig {
 		options?: DebugGroup[];
 		dataBlocks?: Record<number, Record<string, DataBlock>>;
 	};
+	routines?: Record<string, string>;
 }
