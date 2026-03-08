@@ -1,5 +1,6 @@
 <template>
 	<Toaster rich-colors position="top-right" />
+	<LogWindow v-for="win in logWindows.values()" :key="win.id" :window-state="win" />
 	<ResizablePanelGroup
 		v-if="vm"
 		direction="horizontal"
@@ -151,6 +152,8 @@ import SpeedControl from "./machine/SpeedControl.vue";
 import VideoControl from "./machine/VideoControl.vue";
 import CmdConsole from "./CmdConsole.vue";
 import { useCmdConsole } from "@/composables/useCmdConsole";
+import { useLogWindows } from "@/composables/useLogWindows";
+import LogWindow from "@/components/LogWindow.vue";
 
 const dbgTopPanelResize = (_size: unknown) => {
 	// console.log('dbgTopPanelResize resized', size);
@@ -158,6 +161,7 @@ const dbgTopPanelResize = (_size: unknown) => {
 
 const { vm, registers, selectedMachine, isRunning, videoCanvas, loadMachine } = useMachine();
 const { showConsole } = useCmdConsole();
+const { logWindows } = useLogWindows();
 
 const hasGamepad = computed(
 	() => selectedMachine.value.inputs?.some((d) => d.type === "joystick" || d.type === "gamepad") ?? false,

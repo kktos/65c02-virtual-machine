@@ -27,6 +27,7 @@ import { renLabel } from "@/commands/renLabel.cmd";
 import { undefLabel } from "@/commands/undefLabel.cmd";
 import { findLabel } from "@/commands/findLabel.cmd";
 import { font } from "@/commands/font.cmd";
+import { logCmd } from "@/commands/log.cmd";
 
 type ParamType = "byte" | "word" | "long" | "number" | "address" | "range" | "string" | "rest";
 type ParamDef = ParamType | `${ParamType}?` | string;
@@ -312,6 +313,7 @@ const COMMAND_LIST: Record<string, Command | CommandWrapper> = {
 		fn: execRemoveBP("read"),
 	},
 	EXPLAIN: { ...explain, closeOnSuccess: true },
+	LOG: logCmd,
 	ROUTINE: defineRoutineCmd,
 	ROUTINES: listRoutinesCmd,
 	HELP: cmdHelp,
