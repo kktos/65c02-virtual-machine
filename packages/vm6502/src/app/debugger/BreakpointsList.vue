@@ -21,7 +21,7 @@
 						]"
 						:title="bp.command ? `Hook on ${bp.type}` : bp.type"
 					>
-						<span class="tracking-wider uppercase">
+						<span class="tracking-wider uppercase flex flex-col items-center">
 							{{ bp.type }}<FishingHook v-if="bp.command" class="w-4 h-4" />
 						</span>
 					</span>
@@ -42,7 +42,7 @@
 								</span>
 							</span>
 							<div
-								v-if="bp.command"
+								v-if="bp.command || editingBpKey === getBreakpointKey(bp)"
 								class="flex items-baseline gap-1 text-xs text-cyan-300 flex-1 min-w-0"
 							>
 								<span class="font-semibold text-cyan-500">RUNS:</span>
@@ -65,6 +65,15 @@
 								>
 									{{ bp.command }}
 								</code>
+							</div>
+							<div v-else class="flex-1 flex justify-start items-center">
+								<button
+									@click="startEditing(bp)"
+									title="Add hook command"
+									class="ml-2 p-1 rounded-full hover:bg-gray-900/70 transition-colors"
+								>
+									<FishingHook class="w-4 h-4 text-gray-500 hover:text-cyan-400" />
+								</button>
 							</div>
 						</div>
 						<button
