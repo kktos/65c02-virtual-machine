@@ -246,102 +246,111 @@ export function useCommands() {
 		success.value = "";
 		shouldClose.value = false;
 
-		// Find command
-		const cmd = input.split(" ")[0]?.toUpperCase();
-		const cmdKey = typedKeys(COMMAND_LIST).find((key) => cmd === key);
+		const commands = input.split(";").filter((c) => c.trim() !== "");
 
 		try {
-			if (cmdKey) {
-				const cmdSpec = COMMAND_LIST[cmdKey] as Command | CommandWrapper;
-				const paramStr = input.slice(cmdKey.length).trim();
-				const paramsAsStr = paramStr.length > 0 ? paramStr.split(/\s+/) : [];
+			const allSuccessMessages: string[] = [];
 
-				const commandToRun = "base" in cmdSpec ? cmdSpec.base : cmdSpec;
-				const paramDef = cmdSpec.paramDef;
+			for (const singleCmd of commands) {
+				const singleCmdTrimmed = singleCmd.trim();
+				const cmd = singleCmdTrimmed.split(" ")[0]?.toUpperCase();
+				const cmdKey = typedKeys(COMMAND_LIST).find((key) => cmd === key);
 
-				const requiredParams = paramDef.filter((p) => !p.endsWith("?")).length;
-				const maxParams = paramDef.length;
+				if (cmdKey) {
+					const cmdSpec = COMMAND_LIST[cmdKey] as Command | CommandWrapper;
+					const paramStr = singleCmdTrimmed.slice(cmdKey.length).trim();
+					const paramsAsStr = paramStr.length > 0 ? paramStr.split(/\s+/) : [];
 
-				if (paramsAsStr.length < requiredParams || paramsAsStr.length > maxParams) {
-					throw new Error(
-						`Invalid parameters. Expected ${requiredParams}${
-							requiredParams !== maxParams ? `-${maxParams}` : ""
-						}, got ${paramsAsStr.length}.`,
-					);
-				}
+					const commandToRun = "base" in cmdSpec ? cmdSpec.base : cmdSpec;
+					const paramDef = cmdSpec.paramDef;
 
-				const userParams: (string | number)[] = [];
-				for (let i = 0; i < paramsAsStr.length; i++) {
-					const param = paramsAsStr[i] as string;
-					let paramDefStr = cmdSpec.paramDef[i] as string;
-					if (paramDefStr.endsWith("?")) paramDefStr = paramDefStr.slice(0, -1);
+					const requiredParams = paramDef.filter((p) => !p.endsWith("?")).length;
+					const maxParams = paramDef.length;
 
-					const allowedTypes = paramDefStr.split("|");
-					let parsedValue: any = undefined;
-					let lastError: Error | null = null;
+					if (paramsAsStr.length < requiredParams || paramsAsStr.length > maxParams) {
+						throw new Error(
+							`Invalid parameters for "${cmdKey}". Expected ${requiredParams}${
+								requiredParams !== maxParams ? `-${maxParams}` : ""
+							}, got ${paramsAsStr.length}.`,
+						);
+					}
 
-					for (const type of allowedTypes) {
-						try {
-							switch (type) {
-								case "byte":
-									parsedValue = parseValue(param, 0xff);
-									break;
-								case "word":
-									parsedValue = parseValue(param, 0xffff);
-									break;
-								case "long":
-									parsedValue = parseValue(param, 0xffffffff);
-									break;
-								case "address":
-									parsedValue = parseAddress(param);
-									break;
-								case "range":
-									parsedValue = parseRange(param);
-									break;
-								case "number":
-									parsedValue = Number.parseFloat(param);
-									if (Number.isNaN(parsedValue)) throw new Error("Invalid number");
-									break;
-								case "string":
-									parsedValue = param;
-									break;
-								default:
-									throw new Error(`Unknown parameter type: ${type}`);
+					const userParams: ParamList = [];
+					for (let i = 0; i < paramsAsStr.length; i++) {
+						const param = paramsAsStr[i] as string;
+						let paramDefStr = cmdSpec.paramDef[i] as string;
+						if (paramDefStr.endsWith("?")) paramDefStr = paramDefStr.slice(0, -1);
+
+						const allowedTypes = paramDefStr.split("|");
+						let parsedValue: any = undefined;
+						let lastError: Error | null = null;
+
+						for (const type of allowedTypes) {
+							try {
+								switch (type) {
+									case "byte":
+										parsedValue = parseValue(param, 0xff);
+										break;
+									case "word":
+										parsedValue = parseValue(param, 0xffff);
+										break;
+									case "long":
+										parsedValue = parseValue(param, 0xffffffff);
+										break;
+									case "address":
+										parsedValue = parseAddress(param);
+										break;
+									case "range":
+										parsedValue = parseRange(param);
+										break;
+									case "number":
+										parsedValue = Number.parseFloat(param);
+										if (Number.isNaN(parsedValue)) throw new Error("Invalid number");
+										break;
+									case "string":
+										parsedValue = param;
+										break;
+									default:
+										throw new Error(`Unknown parameter type: ${type}`);
+								}
+								if (parsedValue !== undefined) break;
+							} catch (e: any) {
+								lastError = e;
 							}
-							if (parsedValue !== undefined) break;
-						} catch (e: any) {
-							lastError = e;
+						}
+
+						if (parsedValue === undefined) throw lastError || new Error("Invalid parameter");
+						userParams.push(parsedValue);
+					}
+
+					let finalParams: ParamList = userParams;
+					if ("base" in cmdSpec && cmdSpec.staticParams) {
+						if (cmdSpec.staticParams.prepend) {
+							finalParams = [...cmdSpec.staticParams.prepend, ...finalParams];
+						}
+						if (cmdSpec.staticParams.append) {
+							finalParams = [...finalParams, ...cmdSpec.staticParams.append];
 						}
 					}
 
-					if (parsedValue === undefined) throw lastError || new Error("Invalid parameter");
-					userParams.push(parsedValue);
+					const resultMessage = await commandToRun.fn(vm, progress, finalParams);
+					if (resultMessage) allSuccessMessages.push(resultMessage);
+					if (cmdSpec.closeOnSuccess) shouldClose.value = true;
+				} else {
+					throw new Error(`Unknown command: ${cmd}`);
 				}
-
-				const cleanInput = cmdInput.trim();
-				if (cleanInput && commandHistory.value[commandHistory.value.length - 1] !== cleanInput) {
-					commandHistory.value.push(cleanInput);
-					if (commandHistory.value.length > HISTORY_MAX_SIZE) {
-						commandHistory.value.splice(0, commandHistory.value.length - HISTORY_MAX_SIZE);
-					}
-				}
-
-				let finalParams: ParamList = userParams;
-				if ("base" in cmdSpec && cmdSpec.staticParams) {
-					if (cmdSpec.staticParams.prepend) {
-						finalParams = [...cmdSpec.staticParams.prepend, ...finalParams];
-					}
-					if (cmdSpec.staticParams.append) {
-						finalParams = [...finalParams, ...cmdSpec.staticParams.append];
-					}
-				}
-
-				success.value = await commandToRun.fn(vm, progress, finalParams);
-				if (cmdSpec.closeOnSuccess) shouldClose.value = true;
-				return true;
-			} else {
-				throw new Error("Unknown command");
 			}
+
+			const cleanInput = cmdInput.trim();
+			if (cleanInput && commandHistory.value[commandHistory.value.length - 1] !== cleanInput) {
+				commandHistory.value.push(cleanInput);
+				if (commandHistory.value.length > HISTORY_MAX_SIZE) {
+					commandHistory.value.splice(0, commandHistory.value.length - HISTORY_MAX_SIZE);
+				}
+			}
+
+			success.value = allSuccessMessages.join("\n");
+			return true;
 		} catch (e: any) {
 			error.value = e.message || "Execution failed";
 			return false;
