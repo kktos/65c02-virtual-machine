@@ -19,6 +19,7 @@ type UseBreakpointsResult = {
 	removeBreakpoint: (bp: Breakpoint, vm?: VirtualMachine) => void;
 	toggleBreakpoint: (bp: Breakpoint, vm?: VirtualMachine) => void;
 	toggleBreakpointEnable: (bp: Breakpoint, vm?: VirtualMachine) => void;
+	getBreakpoint: (bp: Breakpoint) => BreakpointState | undefined;
 	pcBreakpoints: ComputedRef<Map<number, boolean>>;
 };
 
@@ -78,11 +79,8 @@ export function useBreakpoints(): UseBreakpointsResult {
 
 	const toggleBreakpoint = (bp: Breakpoint, vm?: VirtualMachine) => {
 		const key = getBreakpointKey(bp);
-		if (breakpoints.value.has(key)) {
-			removeBreakpoint(bp, vm);
-		} else {
-			addBreakpoint(bp, vm);
-		}
+		if (breakpoints.value.has(key)) removeBreakpoint(bp, vm);
+		else addBreakpoint(bp, vm);
 	};
 
 	const toggleBreakpointEnable = (bp: Breakpoint, vm?: VirtualMachine) => {
@@ -92,12 +90,13 @@ export function useBreakpoints(): UseBreakpointsResult {
 			const updatedItem = { ...item, enabled: !item.enabled };
 			breakpoints.value.set(key, updatedItem);
 			saveBreakpoints();
-			if (updatedItem.enabled) {
-				vm?.addBP(item.type, item.address, item.endAddress);
-			} else {
-				vm?.removeBP(item.type, item.address, item.endAddress);
-			}
+			if (updatedItem.enabled) vm?.addBP(item.type, item.address, item.endAddress);
+			else vm?.removeBP(item.type, item.address, item.endAddress);
 		}
+	};
+
+	const getBreakpoint = (bp: Breakpoint): BreakpointState | undefined => {
+		return breakpoints.value.get(getBreakpointKey(bp));
 	};
 
 	// Computed map for efficient lookup of PC breakpoints (used in DisassemblyView)
@@ -116,6 +115,7 @@ export function useBreakpoints(): UseBreakpointsResult {
 		removeBreakpoint,
 		toggleBreakpoint,
 		toggleBreakpointEnable,
+		getBreakpoint,
 		pcBreakpoints,
 	};
 

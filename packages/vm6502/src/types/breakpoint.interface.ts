@@ -5,4 +5,5 @@ export interface Breakpoint {
 	endAddress?: number;
 	type: BreakpointType;
 	enabled?: boolean;
+	command?: string;
 }

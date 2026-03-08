@@ -5,6 +5,7 @@ import { setPC } from "@/commands/setPC.cmd";
 import { setX } from "@/commands/setX.cmd";
 import { setY } from "@/commands/setY.cmd";
 import { setSP } from "@/commands/setSP.cmd";
+import { hook } from "@/commands/hook.cmd";
 import { gl } from "@/commands/gl.cmd";
 import { run } from "@/commands/run.cmd";
 import { pause } from "@/commands/pause.cmd";
@@ -26,7 +27,7 @@ import { undefLabel } from "@/commands/undefLabel.cmd";
 import { findLabel } from "@/commands/findLabel.cmd";
 import { font } from "@/commands/font.cmd";
 
-type ParamType = "byte" | "word" | "long" | "number" | "address" | "range" | "string";
+type ParamType = "byte" | "word" | "long" | "number" | "address" | "range" | "string" | "rest";
 type ParamDef = ParamType | `${ParamType}?` | string;
 export type ParamList = (string | number | { start: number; end: number } | undefined)[];
 
@@ -248,6 +249,7 @@ const COMMAND_LIST: Record<string, Command | CommandWrapper> = {
 	REN: renLabel,
 	FIND: findLabel,
 	FONT: font,
+	HOOK: hook,
 	LABELS: labelsCmd,
 	M1: {
 		description: "set MemViewer(1) <address>",
@@ -407,6 +409,14 @@ export function useCommands() {
 					const param = paramsAsStr[i] as string;
 					let paramDefStr = cmdSpec.paramDef[i] as string;
 					if (paramDefStr.endsWith("?")) paramDefStr = paramDefStr.slice(0, -1);
+
+					if (paramDefStr === "rest") {
+						const rest = paramsAsStr.slice(i).join(" ");
+						userParams.push(rest);
+						// Consume the rest of the parameters
+						i = paramsAsStr.length;
+						continue;
+					}
 
 					const allowedTypes = paramDefStr.split("|");
 					let parsedValue: any = undefined;
