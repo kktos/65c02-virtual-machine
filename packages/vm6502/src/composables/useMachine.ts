@@ -71,8 +71,8 @@ const setupVmListeners = (targetVm: VirtualMachine) => {
 					const { executeCommand } = useCommands();
 					await executeCommand(bp?.command, targetVm);
 					targetVm.play();
+					break;
 				}
-
 				targetVm.refreshVideo();
 				targetVm.syncBusState();
 				break;

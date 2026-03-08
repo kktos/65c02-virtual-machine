@@ -58,29 +58,24 @@ Script doesn’t have address but a name
 
 Add a cmd to exec a script - DONE
 
--10-
+-10- DONE
 Add a cmd to add a list of labels; problem is CR is the end of the command
 SOLVED: multilines commands
 
 -11-
 Add script to execute to the machine config - DONE
 
-- Add cmd to clear BPs: bp clear
-- Add it to the script so choosing a machine clean up the bps
-- ⁠Add a command to set ROM/Memory data
-- ⁠Add a command to load a file into mem (already there in MemView: composable)
-
-File could be an URL -> for script or ROM data
-
-Hooks
+-12-
+Hooks - DONE
 Like the one we had on v1
 Set a hook at address and exec a command
 
 > hook $3000 a=$10;x=$00
 
-Allow more than one command on a line; they should be separated by ;
+Allow more than one command on a line; they should be separated by ; - DONE
 
-_logs_
+-13-
+_logs_ - DONE
 A way to have small dedicated panels/windows for log.
 One for hypercalls
 One for a hook, for instance
@@ -92,6 +87,15 @@ To hide it
 Commands to print to it
 
 > log idx/name/id expr
+
+-14-
+
+- Add cmd to clear BPs: bp clear
+- Add it to the script so choosing a machine clean up the bps
+- ⁠Add a command to set ROM/Memory data
+- ⁠Add a command to load a file into mem (already there in MemView: composable)
+
+File could be an URL -> for script or ROM data
 
 Expr comma separated sub cmds
 
