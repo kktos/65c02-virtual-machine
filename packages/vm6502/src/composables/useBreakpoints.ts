@@ -17,6 +17,7 @@ type UseBreakpointsResult = {
 	loadBreakpoints: (vm?: VirtualMachine) => Promise<void>;
 	addBreakpoint: (bp: Breakpoint, vm?: VirtualMachine) => void;
 	removeBreakpoint: (bp: Breakpoint, vm?: VirtualMachine) => void;
+	updateBreakpointCommand: (bp: Breakpoint, newCommand: string) => void;
 	toggleBreakpoint: (bp: Breakpoint, vm?: VirtualMachine) => void;
 	toggleBreakpointEnable: (bp: Breakpoint, vm?: VirtualMachine) => void;
 	getBreakpoint: (bp: Breakpoint) => BreakpointState | undefined;
@@ -77,6 +78,16 @@ export function useBreakpoints(): UseBreakpointsResult {
 		}
 	};
 
+	const updateBreakpointCommand = (bp: Breakpoint, newCommand: string) => {
+		const key = getBreakpointKey(bp);
+		const item = breakpoints.value.get(key);
+		if (item) {
+			const updatedItem = { ...item, command: newCommand.trim() };
+			breakpoints.value.set(key, updatedItem);
+			saveBreakpoints();
+		}
+	};
+
 	const toggleBreakpoint = (bp: Breakpoint, vm?: VirtualMachine) => {
 		const key = getBreakpointKey(bp);
 		if (breakpoints.value.has(key)) removeBreakpoint(bp, vm);
@@ -113,6 +124,7 @@ export function useBreakpoints(): UseBreakpointsResult {
 		loadBreakpoints,
 		addBreakpoint,
 		removeBreakpoint,
+		updateBreakpointCommand,
 		toggleBreakpoint,
 		toggleBreakpointEnable,
 		getBreakpoint,

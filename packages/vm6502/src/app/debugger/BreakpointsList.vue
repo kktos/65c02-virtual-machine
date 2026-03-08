@@ -3,7 +3,9 @@
 		<BreakpointAddControl />
 		<ScrollArea class="flex-1 min-h-0 w-full" type="always">
 			<ul class="space-y-2 text-sm text-gray-300 p-2 bg-gray-900 rounded-md min-h-full">
-				<li v-if="breakpoints.length === 0" class="text-gray-500 italic p-2 text-center">No active breakpoints.</li>
+				<li v-if="breakpoints.length === 0" class="text-gray-500 italic p-2 text-center">
+					No active breakpoints.
+				</li>
 				<li
 					v-for="(bp, index) in breakpoints"
 					:key="bp.address + bp.type + index"
@@ -12,13 +14,19 @@
 						!bp.enabled ? 'opacity-60' : '',
 					]"
 				>
-					<span :class="['flex items-center justify-center w-15 text-xs font-bold text-white', getTypeStyles(bp.type).bg]" :title="bp.type">
+					<span
+						:class="[
+							'flex items-center justify-center w-15 text-xs font-bold text-white',
+							getTypeStyles(bp.type).bg,
+						]"
+						:title="bp.command ? `Hook on ${bp.type}` : bp.type"
+					>
 						<span class="tracking-wider uppercase">
-							{{ bp.type }}
+							{{ bp.type }}<FishingHook v-if="bp.command" class="w-4 h-4" />
 						</span>
 					</span>
 					<div class="flex-1 flex justify-between items-center pl-3 pr-2">
-						<div class="flex items-center space-x-3">
+						<div class="flex items-center space-x-3 flex-1 min-w-0">
 							<input
 								type="checkbox"
 								:checked="bp.enabled"
@@ -27,14 +35,43 @@
 								title="Enable/Disable Breakpoint"
 							/>
 							<span class="text-indigo-300">
-								{{ "$" + bp.address.toString(16).toUpperCase().padStart(4, "0") }}
+								{{ formatAddress(bp.address) }}
 								<span v-if="bp.endAddress && bp.endAddress !== bp.address">
 									-
-									{{ "$" + bp.endAddress.toString(16).toUpperCase().padStart(4, "0") }}
+									{{ formatAddress(bp.endAddress) }}
 								</span>
 							</span>
+							<div
+								v-if="bp.command"
+								class="flex items-baseline gap-1 text-xs text-cyan-300 flex-1 min-w-0"
+							>
+								<span class="font-semibold text-cyan-500">RUNS:</span>
+								<div v-if="editingBpKey === getBreakpointKey(bp)" class="flex-1">
+									<input
+										ref="editInput"
+										v-model="editingCommand"
+										type="text"
+										class="bg-gray-900/90 px-1.5 py-0.5 rounded-sm text-cyan-200 font-mono text-xs w-full focus:ring-1 focus:ring-cyan-400 focus:outline-none border border-cyan-700"
+										@blur="saveEdit(bp)"
+										@keydown.enter.prevent="saveEdit(bp)"
+										@keydown.esc.prevent="cancelEdit"
+									/>
+								</div>
+								<code
+									v-else
+									class="bg-gray-900/70 px-1.5 py-0.5 rounded-sm text-cyan-200 cursor-pointer hover:bg-gray-900 flex-1 truncate"
+									title="Click to edit command"
+									@click="startEditing(bp)"
+								>
+									{{ bp.command }}
+								</code>
+							</div>
 						</div>
-						<button @click="handleRemoveBreakpoint(bp)" class="text-red-500 hover:text-red-400 text-lg p-1" title="Remove Breakpoint">
+						<button
+							@click="handleRemoveBreakpoint(bp)"
+							class="text-red-500 hover:text-red-400 text-lg p-1"
+							title="Remove Breakpoint"
+						>
 							&times;
 						</button>
 					</div>
@@ -45,17 +82,26 @@
 </template>
 
 <script lang="ts" setup>
-import { inject, type Ref, watch } from "vue";
-import { useBreakpoints } from "@/composables/useBreakpoints";
+import { inject, type Ref, watch, ref, nextTick } from "vue";
+import { useBreakpoints, type BreakpointState } from "@/composables/useBreakpoints";
 import type { Breakpoint } from "@/types/breakpoint.interface";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import { ScrollArea } from "../../components/ui/scroll-area";
 import BreakpointAddControl from "./BreakpointAddControl.vue";
-
-/** biome-ignore-all lint/correctness/noUnusedVariables: vue */
-
+import { formatAddress } from "@/lib/hex.utils";
+import { FishingHook } from "lucide-vue-next";
 const vm = inject<Ref<VirtualMachine>>("vm");
-const { breakpoints, removeBreakpoint, toggleBreakpointEnable, loadBreakpoints } = useBreakpoints();
+const { breakpoints, removeBreakpoint, toggleBreakpointEnable, loadBreakpoints, updateBreakpointCommand } =
+	useBreakpoints();
+
+const editingBpKey = ref<string | null>(null);
+const editingCommand = ref("");
+const editInput = ref<HTMLInputElement | null>(null);
+
+// The key generation logic must match useBreakpoints
+const getBreakpointKey = (bp: Breakpoint) => {
+	return `${bp.type}|${bp.address}|${bp.endAddress ?? "null"}`;
+};
 
 watch(
 	() => vm?.value,
@@ -64,6 +110,30 @@ watch(
 	},
 	{ immediate: true },
 );
+
+watch(editingBpKey, (newKey) => {
+	if (newKey) {
+		nextTick(() => {
+			editInput.value?.focus();
+		});
+	}
+});
+
+const startEditing = (bp: BreakpointState) => {
+	editingBpKey.value = getBreakpointKey(bp);
+	editingCommand.value = bp.command || "";
+};
+
+const cancelEdit = () => {
+	editingBpKey.value = null;
+};
+
+const saveEdit = (bp: BreakpointState) => {
+	if (editingBpKey.value === getBreakpointKey(bp)) {
+		updateBreakpointCommand(bp, editingCommand.value);
+		editingBpKey.value = null;
+	}
+};
 
 const handleRemoveBreakpoint = (bp: Breakpoint) => removeBreakpoint(bp, vm?.value);
 const handleToggleEnable = (bp: Breakpoint) => toggleBreakpointEnable(bp, vm?.value);
