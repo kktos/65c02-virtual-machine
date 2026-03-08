@@ -1,0 +1,44 @@
+import type { Command } from "@/composables/useCommands";
+import { useSymbols } from "@/composables/useSymbols";
+import { parseValue } from "@/lib/parse.utils";
+
+const { addManySymbols } = useSymbols();
+
+export const labelsCmd: Command = {
+	description: "Define multiple labels. Usage: LABELS <namespace> [<scope>] ... END",
+	paramDef: ["string", "string?"],
+	fn: (_vm, _progress, params) => {
+		const namespace = params[0] as string;
+		const scope = (params[1] as string) || "main";
+
+		return {
+			__isMultiLineRequest: true,
+			prompt: `LABELS ${namespace}|`,
+			terminator: "END",
+			onComplete: async (lines: string[]) => {
+				const symbols: { ns: string; label: string; addr: number; scope: string }[] = [];
+
+				for (const line of lines) {
+					const trimmed = line.trim();
+					if (!trimmed) continue;
+
+					const parts = trimmed.split(/\s+/) as [string, string];
+					if (parts.length < 2)
+						throw new Error(`Invalid line format: "${line}". Expected: <address> <label>`);
+
+					const addrStr = parts[0];
+					const label = parts[1];
+					const addr = parseValue(addrStr, 0xffffff);
+
+					symbols.push({ ns: namespace, label, addr, scope });
+				}
+
+				if (symbols.length > 0) {
+					await addManySymbols(symbols);
+					return `Defined ${symbols.length} labels in namespace '${namespace}' (scope: ${scope}).`;
+				}
+				return "No labels defined.";
+			},
+		};
+	},
+};

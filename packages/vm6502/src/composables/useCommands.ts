@@ -16,7 +16,6 @@ import { reset } from "@/commands/reset.cmd";
 import { reboot } from "@/commands/reboot.cmd";
 import { explain } from "@/commands/explainCode.cmd";
 import { speed } from "@/commands/speed.cmd";
-import { useSymbols } from "./useSymbols";
 import { execAddBP } from "@/commands/addBP.cmd";
 import { execRemoveBP } from "@/commands/removeBP.cmd";
 import { useCmdConsole } from "./useCmdConsole";
@@ -28,6 +27,8 @@ import { undefLabel } from "@/commands/undefLabel.cmd";
 import { findLabel } from "@/commands/findLabel.cmd";
 import { font } from "@/commands/font.cmd";
 import { logCmd } from "@/commands/log.cmd";
+import { parseAddress, parseRange, parseValue } from "@/lib/parse.utils";
+import { labelsCmd } from "@/commands/labels.cmd";
 
 type ParamType = "byte" | "word" | "long" | "number" | "address" | "range" | "string" | "rest";
 type ParamDef = ParamType | `${ParamType}?` | string;
@@ -84,82 +85,6 @@ watch(
 	},
 	{ deep: true },
 );
-
-const parseValue = (valStr: string, max: number): number => {
-	const isHex = valStr.startsWith("$");
-	const cleanStr = isHex ? valStr.slice(1) : valStr;
-
-	if (isHex && !/^[0-9A-Fa-f]+$/.test(cleanStr)) throw new Error(`Invalid hex format: ${valStr}`);
-	if (!isHex && !/^\d+$/.test(cleanStr)) throw new Error(`Invalid number format: ${valStr}`);
-
-	const value = Number.parseInt(cleanStr, isHex ? 16 : 10);
-	if (Number.isNaN(value)) throw new Error(`Invalid value: ${valStr}`);
-	if (value > max) throw new Error(`Value exceeds range (max $${max.toString(16).toUpperCase()})`);
-	return value;
-};
-
-const { getAddressForLabel } = useSymbols();
-
-const parseAddress = (valStr: string): number => {
-	const isHex = valStr.startsWith("$");
-	if (isHex) return parseValue(valStr, 0xffff);
-
-	const [ns, label] = valStr.split("::") as [string, string | undefined];
-	const value = label ? getAddressForLabel(label, ns) : getAddressForLabel(ns);
-	if (value === undefined) throw new Error(`Uknown label: ${valStr}`);
-
-	return value;
-};
-
-const parseRange = (valStr: string): { start: number; end: number } => {
-	const separator = valStr.includes(":") ? ":" : valStr.includes("-") ? "-" : null;
-	if (!separator) throw new Error("Invalid range format");
-
-	const [startStr, endStr] = valStr.split(separator);
-	if (!startStr || !endStr) throw new Error("Invalid range format");
-
-	return { start: parseAddress(startStr.trim()), end: parseAddress(endStr.trim()) };
-};
-
-const labelsCmd: Command = {
-	description: "Define multiple labels. Usage: LABELS <namespace> [<scope>] ... END",
-	paramDef: ["string", "string?"],
-	fn: (_vm, _progress, params) => {
-		const namespace = params[0] as string;
-		const scope = (params[1] as string) || "main";
-
-		return {
-			__isMultiLineRequest: true,
-			prompt: `LABELS ${namespace}|`,
-			terminator: "END",
-			onComplete: async (lines: string[]) => {
-				const { addManySymbols } = useSymbols();
-				const symbols: { ns: string; label: string; addr: number; scope: string }[] = [];
-
-				for (const line of lines) {
-					const trimmed = line.trim();
-					if (!trimmed) continue;
-
-					const parts = trimmed.split(/\s+/) as [string, string];
-					if (parts.length < 2)
-						throw new Error(`Invalid line format: "${line}". Expected: <address> <label>`);
-
-					const addrStr = parts[0];
-					const label = parts[1];
-					const addr = parseValue(addrStr, 0xffffff);
-
-					symbols.push({ ns: namespace, label, addr, scope });
-				}
-
-				if (symbols.length > 0) {
-					await addManySymbols(symbols);
-					return `Defined ${symbols.length} labels in namespace '${namespace}' (scope: ${scope}).`;
-				}
-				return "No labels defined.";
-			},
-		};
-	},
-};
 
 const cmdHelp: Command = {
 	description: "Lists all available commands.",
