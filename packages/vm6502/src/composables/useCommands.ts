@@ -19,6 +19,14 @@ import { speed } from "@/commands/speed.cmd";
 import { execAddBP } from "@/commands/addBP.cmd";
 import { execRemoveBP } from "@/commands/removeBP.cmd";
 import { useCmdConsole } from "./useCmdConsole";
+import {
+	REG_A_OFFSET,
+	REG_PC_OFFSET,
+	REG_SP_OFFSET,
+	REG_STATUS_OFFSET,
+	REG_X_OFFSET,
+	REG_Y_OFFSET,
+} from "@/virtualmachine/cpu/shared-memory";
 import { defData } from "@/commands/defData.cmd";
 import { defCode } from "@/commands/defCode.cmd";
 import { defLabel } from "@/commands/defLabel.cmd";
@@ -102,7 +110,11 @@ const cmdHelp: Command = {
 			"DO".padEnd(11) + "<name>".padEnd(29) + "Execute a defined routine.",
 			"ROUTINE".padEnd(11) + "<name> ... END".padEnd(29) + "Define a routine.",
 		].join("\n");
-		return `Available commands:\n${commandHelp}\n\n${routineHelp}`;
+		const controlHelp = [
+			"IF".padEnd(12) + "<cnd> <cmd>".padEnd(28) + "Conditional: IF <op1> ==|!= <op2> <command>",
+		].join("\n");
+
+		return `Available commands:\n${commandHelp}\n\nScripting & Control Flow:\n${routineHelp}\n${controlHelp}`;
 	},
 };
 
@@ -261,6 +273,46 @@ export function useCommands() {
 	const isMultiLine = computed(() => multiLineSession.value !== null);
 	const multiLinePrompt = computed(() => multiLineSession.value?.prompt ?? "");
 
+	const evaluateIfOperand = (arg: string, vm: VirtualMachine): number => {
+		const argUpper = arg.toUpperCase();
+		// Check for registers
+		switch (argUpper) {
+			case "A":
+				return vm.sharedRegisters.getUint8(REG_A_OFFSET);
+			case "X":
+				return vm.sharedRegisters.getUint8(REG_X_OFFSET);
+			case "Y":
+				return vm.sharedRegisters.getUint8(REG_Y_OFFSET);
+			case "SP":
+				return vm.sharedRegisters.getUint8(REG_SP_OFFSET);
+			case "PC":
+				return vm.sharedRegisters.getUint16(REG_PC_OFFSET, true);
+			case "P":
+			case "FLAGS":
+				return vm.sharedRegisters.getUint8(REG_STATUS_OFFSET);
+		}
+
+		// Check for memory access mem[<address>]
+		const memMatch = arg.match(/^mem\[(.+)\]$/i);
+		if (memMatch) {
+			const addrStr = memMatch[1] as string;
+			const address = parseAddress(addrStr); // Re-use parseAddress
+
+			if (Number.isNaN(address) || address < 0 || address > 0xffff) {
+				throw new Error(`Invalid address: ${address}`);
+			}
+
+			return vm.read(address);
+		}
+
+		// Fallback to parseAddress for numbers and labels
+		try {
+			return parseAddress(arg);
+		} catch (e) {
+			throw new Error(`Invalid expression term: ${arg}`);
+		}
+	};
+
 	const processLine = async (cmdInput: string, vm: VirtualMachine) => {
 		// Handle multi-line input
 		if (multiLineSession.value) {
@@ -297,6 +349,36 @@ export function useCommands() {
 			}
 
 			const cmd = singleCmdTrimmed.split(" ")[0]?.toUpperCase();
+
+			if (cmd === "IF") {
+				const parts = singleCmdTrimmed.split(/\s+/);
+				if (parts.length < 5) {
+					throw new Error("Invalid IF command syntax. Expected: IF <operand> <operator> <operand> <command>");
+				}
+				const leftStr = parts[1] as string;
+				const operator = parts[2] as string;
+				const rightStr = parts[3] as string;
+				const commandToRunStr = parts.slice(4).join(" ");
+
+				if (operator !== "==" && operator !== "!=") {
+					throw new Error(`Unsupported IF operator: ${operator}. Supported operators are ==, !=.`);
+				}
+
+				const leftVal = evaluateIfOperand(leftStr, vm);
+				const rightVal = evaluateIfOperand(rightStr, vm);
+
+				let conditionMet = false;
+				if (operator === "==") {
+					conditionMet = leftVal === rightVal;
+				} else if (operator === "!=") {
+					conditionMet = leftVal !== rightVal;
+				}
+
+				if (conditionMet) {
+					commandQueue.unshift(commandToRunStr);
+				}
+				continue;
+			}
 
 			if (cmd === "DO") {
 				const parts = singleCmdTrimmed.split(/\s+/);
