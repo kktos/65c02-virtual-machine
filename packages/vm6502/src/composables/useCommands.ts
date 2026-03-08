@@ -143,7 +143,7 @@ const labelsCmd: Command = {
 
 					const addrStr = parts[0];
 					const label = parts[1];
-					const addr = parseAddress(addrStr);
+					const addr = parseValue(addrStr, 0xffffff);
 
 					symbols.push({ ns: namespace, label, addr, scope });
 				}

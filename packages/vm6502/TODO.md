@@ -62,7 +62,9 @@ Add a cmd to exec a script - DONE
 Add a cmd to add a list of labels; problem is CR is the end of the command
 SOLVED: multilines commands
 
-- Add script to execute to the machine config
+-11-
+Add script to execute to the machine config - DONE
+
 - Add cmd to clear BPs: bp clear
 - Add it to the script so choosing a machine clean up the bps
 - ⁠Add a command to set ROM/Memory data
