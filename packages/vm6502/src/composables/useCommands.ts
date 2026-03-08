@@ -284,43 +284,49 @@ export function useCommands() {
 
 				const cmd = singleCmdTrimmed.split(" ")[0]?.toUpperCase();
 
-				if (cmd === "ROUTINE") {
-					if (recordingRoutineName) throw new Error("Nested routines are not supported.");
-					const parts = singleCmdTrimmed.split(/\s+/);
-					if (parts.length < 2) throw new Error("Routine name missing.");
-					recordingRoutineName = parts[1];
-					currentRoutineCmds = [];
-					continue;
-				}
+				switch (cmd) {
+					case "ROUTINE": {
+						if (recordingRoutineName) throw new Error("Nested routines are not supported.");
 
-				if (recordingRoutineName) {
-					if (cmd === "END") {
+						const parts = singleCmdTrimmed.split(/\s+/);
+						if (parts.length < 2) throw new Error("Routine name missing.");
+
+						recordingRoutineName = parts[1] as string;
+						currentRoutineCmds = [];
+						continue;
+					}
+
+					case "END": {
+						if (!recordingRoutineName) throw new Error("Unexpected END.");
+
 						routines.value[recordingRoutineName] = [...currentRoutineCmds];
 						allSuccessMessages.push(`Routine '${recordingRoutineName}' defined.`);
 						recordingRoutineName = null;
 						currentRoutineCmds = [];
-					} else {
-						currentRoutineCmds.push(singleCmdTrimmed);
+						continue;
 					}
-					continue;
-				}
 
-				if (cmd === "END") throw new Error("Unexpected END.");
+					case "DO": {
+						routineDepth++;
+						if (routineDepth > MAX_ROUTINE_DEPTH) throw new Error("Max routine recursion depth exceeded.");
 
-				if (cmd === "DO") {
-					routineDepth++;
-					if (routineDepth > MAX_ROUTINE_DEPTH) {
-						throw new Error("Max routine recursion depth exceeded.");
+						const parts = singleCmdTrimmed.split(/\s+/);
+						if (parts.length < 2) throw new Error("Routine name missing for DO command.");
+
+						const routineName = parts[1] as string;
+						const routineCmds = routines.value[routineName];
+						if (!routineCmds) throw new Error(`Routine '${routineName}' not found.`);
+
+						commandQueue.unshift(...routineCmds, END_ROUTINE_MARKER);
+						allSuccessMessages.push(`Executing routine '${routineName}'...`);
+						continue;
 					}
-					const parts = singleCmdTrimmed.split(/\s+/);
-					if (parts.length < 2) throw new Error("Routine name missing for DO command.");
-					const routineName = parts[1] as string;
-					const routineCmds = routines.value[routineName];
-					if (!routineCmds) throw new Error(`Routine '${routineName}' not found.`);
-
-					commandQueue.unshift(...routineCmds, END_ROUTINE_MARKER);
-					allSuccessMessages.push(`Executing routine '${routineName}'...`);
-					continue;
+					default:
+						if (recordingRoutineName) {
+							currentRoutineCmds.push(singleCmdTrimmed);
+							continue;
+						}
+						break;
 				}
 
 				const cmdKey = typedKeys(COMMAND_LIST).find((key) => cmd === key);
