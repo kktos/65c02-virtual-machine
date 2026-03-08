@@ -17,8 +17,11 @@
 			@mousedown.prevent="startDrag"
 		>
 			<span class="font-bold text-gray-300 uppercase tracking-wider text-[10px]">{{ windowState.name }}</span>
-			<button @click="closeWindow" class="text-[10px] hover:text-red-400 text-gray-400 transition-colors">
-				Close
+			<button
+				@click="closeWindow"
+				class="text-[10px] flex items-center justify-center hover:text-cyan-300 hover:bg-gray-700 text-gray-400 transition-colors w-4 h-4"
+			>
+				<X class="h-3 w-3" />
 			</button>
 		</div>
 
@@ -43,6 +46,7 @@
 </template>
 
 <script setup lang="ts">
+import { X } from "lucide-vue-next";
 import { ref, watch, nextTick, reactive } from "vue";
 import type { LogWindow as LogWindowType } from "@/composables/useLogWindows";
 import { useLogWindows } from "@/composables/useLogWindows";
