@@ -53,6 +53,7 @@ function typedKeys<T extends object>(obj: T): (keyof T)[] {
 const HISTORY_MAX_SIZE = 50;
 const LS_KEY_HISTORY = "vm6502-console-history";
 const commandHistory = ref<string[]>(JSON.parse(localStorage.getItem(LS_KEY_HISTORY) || "[]"));
+const routines = ref<Record<string, string[]>>({});
 
 watch(
 	commandHistory,
@@ -71,10 +72,25 @@ const cmdHelp: Command = {
 			.map((key) => {
 				const cmd = COMMAND_LIST[key] as Command | CommandWrapper;
 				const params = cmd.paramDef.map((p) => `<${p}>`).join(" ");
-				return `${key.padEnd(8)} ${params.padEnd(30)} ${cmd?.description}`;
+				return `${key.padEnd(10)} ${params.padEnd(28)} ${cmd?.description}`;
 			})
 			.join("\n");
-		return `Available commands:\n${commandHelp}`;
+		const routineHelp = [
+			"DO".padEnd(11) + "<name>".padEnd(29) + "Execute a defined routine.",
+			"ROUTINE".padEnd(11) + "<name> ... END".padEnd(29) + "Define a routine.",
+		].join("\n");
+		return `Available commands:\n${commandHelp}\n\n${routineHelp}`;
+	},
+};
+
+const listRoutinesCmd: Command = {
+	description: "Lists all defined routines.",
+	paramDef: [],
+	fn: () => {
+		const routineNames = Object.keys(routines.value);
+		if (routineNames.length === 0) return "No routines defined.";
+
+		return "Defined routines:\n" + routineNames.map((name) => `- ${name}`).join("\n");
 	},
 };
 
@@ -175,6 +191,7 @@ const COMMAND_LIST: Record<string, Command | CommandWrapper> = {
 		fn: execRemoveBP("read"),
 	},
 	EXPLAIN: { ...explain, closeOnSuccess: true },
+	ROUTINES: listRoutinesCmd,
 	HELP: cmdHelp,
 	CLS: {
 		description: "Clear console",
@@ -246,14 +263,66 @@ export function useCommands() {
 		success.value = "";
 		shouldClose.value = false;
 
-		const commands = input.split(";").filter((c) => c.trim() !== "");
+		const commandQueue = input.split(";").filter((c) => c.trim() !== "");
+		let recordingRoutineName: string | null = null;
+		let currentRoutineCmds: string[] = [];
+		let routineDepth = 0;
+		const MAX_ROUTINE_DEPTH = 100;
+		const END_ROUTINE_MARKER = "--END-ROUTINE--";
 
 		try {
 			const allSuccessMessages: string[] = [];
 
-			for (const singleCmd of commands) {
+			while (commandQueue.length > 0) {
+				const singleCmd = commandQueue.shift() as string;
 				const singleCmdTrimmed = singleCmd.trim();
+
+				if (singleCmdTrimmed === END_ROUTINE_MARKER) {
+					routineDepth--;
+					continue;
+				}
+
 				const cmd = singleCmdTrimmed.split(" ")[0]?.toUpperCase();
+
+				if (cmd === "ROUTINE") {
+					if (recordingRoutineName) throw new Error("Nested routines are not supported.");
+					const parts = singleCmdTrimmed.split(/\s+/);
+					if (parts.length < 2) throw new Error("Routine name missing.");
+					recordingRoutineName = parts[1];
+					currentRoutineCmds = [];
+					continue;
+				}
+
+				if (recordingRoutineName) {
+					if (cmd === "END") {
+						routines.value[recordingRoutineName] = [...currentRoutineCmds];
+						allSuccessMessages.push(`Routine '${recordingRoutineName}' defined.`);
+						recordingRoutineName = null;
+						currentRoutineCmds = [];
+					} else {
+						currentRoutineCmds.push(singleCmdTrimmed);
+					}
+					continue;
+				}
+
+				if (cmd === "END") throw new Error("Unexpected END.");
+
+				if (cmd === "DO") {
+					routineDepth++;
+					if (routineDepth > MAX_ROUTINE_DEPTH) {
+						throw new Error("Max routine recursion depth exceeded.");
+					}
+					const parts = singleCmdTrimmed.split(/\s+/);
+					if (parts.length < 2) throw new Error("Routine name missing for DO command.");
+					const routineName = parts[1] as string;
+					const routineCmds = routines.value[routineName];
+					if (!routineCmds) throw new Error(`Routine '${routineName}' not found.`);
+
+					commandQueue.unshift(...routineCmds, END_ROUTINE_MARKER);
+					allSuccessMessages.push(`Executing routine '${routineName}'...`);
+					continue;
+				}
+
 				const cmdKey = typedKeys(COMMAND_LIST).find((key) => cmd === key);
 
 				if (cmdKey) {
@@ -337,9 +406,11 @@ export function useCommands() {
 					if (resultMessage) allSuccessMessages.push(resultMessage);
 					if (cmdSpec.closeOnSuccess) shouldClose.value = true;
 				} else {
-					throw new Error(`Unknown command: ${cmd}`);
+					if (cmd) throw new Error(`Unknown command: ${cmd}`);
 				}
 			}
+
+			if (recordingRoutineName) throw new Error(`Routine '${recordingRoutineName}' not closed with END.`);
 
 			const cleanInput = cmdInput.trim();
 			if (cleanInput && commandHistory.value[commandHistory.value.length - 1] !== cleanInput) {
@@ -367,5 +438,6 @@ export function useCommands() {
 		executeCommand,
 		commandHistory,
 		shouldClose,
+		routines,
 	};
 }
