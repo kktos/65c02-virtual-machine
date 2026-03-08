@@ -16,6 +16,14 @@
 			<span class="font-bold text-gray-300 uppercase tracking-wider text-[10px]">Console</span>
 			<div class="flex items-center gap-3">
 				<button
+					@click="openRoutineEditor"
+					title="Open Routine Editor"
+					class="p-1 rounded-md text-gray-400 hover:bg-gray-700 hover:text-white focus:outline-none focus:ring-2 focus:ring-inset focus:ring-white"
+				>
+					<span class="sr-only">Open Routine Editor</span>
+					<FileCode2 class="w-4 h-4" />
+				</button>
+				<button
 					@click="decreaseFontSize"
 					class="text-[10px] hover:text-cyan-400 text-gray-400 transition-colors"
 				>
@@ -67,6 +75,8 @@ import { useCommands } from "@/composables/useCommands";
 import { useMachine } from "@/composables/useMachine";
 import { useConsoleSettings } from "@/composables/useConsoleSettings";
 import { computed, nextTick, onMounted, ref, watch } from "vue";
+import { useRoutineEditor } from "@/composables/useRoutineEditor";
+import { FileCode2 } from "lucide-vue-next";
 
 const { height, fontSize, fontFamily, loadSettings, increaseFontSize, decreaseFontSize } = useConsoleSettings();
 
@@ -78,6 +88,11 @@ const historyIndex = ref(-1);
 const { logs, print, printError, logEndRef, isConsoleVisible, clearConsole, hideConsole } = useCmdConsole();
 const { executeCommand, success, error, commandHistory, shouldClose, isMultiLine, multiLinePrompt } = useCommands();
 const { vm } = useMachine();
+
+const { open } = useRoutineEditor();
+const openRoutineEditor = (event: MouseEvent) => {
+	open(event);
+};
 
 onMounted(() => {
 	loadSettings();

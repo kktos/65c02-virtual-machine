@@ -37,6 +37,8 @@ import { font } from "@/commands/font.cmd";
 import { logCmd } from "@/commands/log.cmd";
 import { parseAddress, parseRange, parseValue } from "@/lib/parse.utils";
 import { labelsCmd } from "@/commands/labels.cmd";
+import { useRoutines } from "./useRoutines";
+import { useRoutineEditor } from "./useRoutineEditor";
 
 type ParamType = "byte" | "word" | "long" | "number" | "address" | "range" | "string" | "rest";
 type ParamDef = ParamType | `${ParamType}?` | string;
@@ -77,7 +79,6 @@ function typedKeys<T extends object>(obj: T): (keyof T)[] {
 const HISTORY_MAX_SIZE = 50;
 const LS_KEY_HISTORY = "vm6502-console-history";
 const commandHistory = ref<string[]>(JSON.parse(localStorage.getItem(LS_KEY_HISTORY) || "[]"));
-const routines = ref<Record<string, string[]>>({});
 
 const multiLineSession = ref<{
 	prompt: string;
@@ -122,7 +123,8 @@ const listRoutinesCmd: Command = {
 	description: "Lists all defined routines.",
 	paramDef: [],
 	fn: () => {
-		const routineNames = Object.keys(routines.value);
+		const { getRoutineNames } = useRoutines();
+		const routineNames = getRoutineNames();
 		if (routineNames.length === 0) return "No routines defined.";
 
 		return "Defined routines:\n" + routineNames.map((name) => `- ${name}`).join("\n");
@@ -143,7 +145,8 @@ const defineRoutineCmd: Command = {
 			prompt: `${routineName}|`,
 			terminator: "END",
 			onComplete: (lines: string[]) => {
-				routines.value[routineName] = lines;
+				const { setRoutine } = useRoutines();
+				setRoutine(routineName, lines);
 				return `Routine '${routineName}' defined.`;
 			},
 		};
@@ -254,6 +257,15 @@ const COMMAND_LIST: Record<string, Command | CommandWrapper> = {
 	ROUTINE: defineRoutineCmd,
 	ROUTINES: listRoutinesCmd,
 	HELP: cmdHelp,
+	EDITROUTINES: {
+		description: "Open the routine editor window.",
+		paramDef: [],
+		fn: () => {
+			useRoutineEditor().open();
+			return "Opening routine editor...";
+		},
+		closeOnSuccess: true,
+	},
 	CLS: {
 		description: "Clear console",
 		paramDef: [],
@@ -298,9 +310,8 @@ export function useCommands() {
 			const addrStr = memMatch[1] as string;
 			const address = parseAddress(addrStr); // Re-use parseAddress
 
-			if (Number.isNaN(address) || address < 0 || address > 0xffff) {
+			if (Number.isNaN(address) || address < 0 || address > 0xffff)
 				throw new Error(`Invalid address: ${address}`);
-			}
 
 			return vm.read(address);
 		}
@@ -309,7 +320,7 @@ export function useCommands() {
 		try {
 			return parseAddress(arg);
 		} catch (e) {
-			throw new Error(`Invalid expression term: ${arg}`);
+			throw new Error(`Invalid expression term: ${arg} - ${(e as Error).message}`);
 		}
 	};
 
@@ -344,25 +355,22 @@ export function useCommands() {
 			const singleCmd = commandQueue.shift() as string;
 			const singleCmdTrimmed = singleCmd.trim();
 
-			if (singleCmdTrimmed === END_ROUTINE_MARKER) {
-				continue;
-			}
+			if (singleCmdTrimmed === END_ROUTINE_MARKER) continue;
 
 			const cmd = singleCmdTrimmed.split(" ")[0]?.toUpperCase();
 
 			if (cmd === "IF") {
 				const parts = singleCmdTrimmed.split(/\s+/);
-				if (parts.length < 5) {
+				if (parts.length < 5)
 					throw new Error("Invalid IF command syntax. Expected: IF <operand> <operator> <operand> <command>");
-				}
+
 				const leftStr = parts[1] as string;
 				const operator = parts[2] as string;
 				const rightStr = parts[3] as string;
 				const commandToRunStr = parts.slice(4).join(" ");
 
-				if (operator !== "==" && operator !== "!=") {
+				if (operator !== "==" && operator !== "!=")
 					throw new Error(`Unsupported IF operator: ${operator}. Supported operators are ==, !=.`);
-				}
 
 				const leftVal = evaluateIfOperand(leftStr, vm);
 				const rightVal = evaluateIfOperand(rightStr, vm);
@@ -374,9 +382,8 @@ export function useCommands() {
 					conditionMet = leftVal !== rightVal;
 				}
 
-				if (conditionMet) {
-					commandQueue.unshift(commandToRunStr);
-				}
+				if (conditionMet) commandQueue.unshift(commandToRunStr);
+
 				continue;
 			}
 
@@ -385,7 +392,8 @@ export function useCommands() {
 				if (parts.length < 2) throw new Error("Routine name missing for DO command.");
 
 				const routineName = parts[1] as string;
-				const routineCmds = routines.value[routineName];
+				const { getRoutine } = useRoutines();
+				const routineCmds = getRoutine(routineName);
 				if (!routineCmds) throw new Error(`Routine '${routineName}' not found.`);
 
 				commandQueue.unshift(...routineCmds, END_ROUTINE_MARKER);
@@ -563,6 +571,5 @@ export function useCommands() {
 		shouldClose,
 		isMultiLine,
 		multiLinePrompt,
-		routines,
 	};
 }
