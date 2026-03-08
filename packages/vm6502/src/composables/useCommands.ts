@@ -1,4 +1,4 @@
-import { ref, type Ref, watch } from "vue";
+import { computed, ref, type Ref, watch } from "vue";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import { setA } from "@/commands/setA.cmd";
 import { setPC } from "@/commands/setPC.cmd";
@@ -29,10 +29,22 @@ import { font } from "@/commands/font.cmd";
 type ParamType = "byte" | "word" | "long" | "number" | "address" | "range" | "string";
 type ParamDef = ParamType | `${ParamType}?` | string;
 export type ParamList = (string | number | { start: number; end: number } | undefined)[];
+
+export type MultiLineRequest = {
+	__isMultiLineRequest: true;
+	prompt: string;
+	terminator: string;
+	onComplete: (lines: string[]) => string | Promise<string>;
+};
+
 export type Command = {
 	description: string;
 	paramDef: ParamDef[];
-	fn: (vm: VirtualMachine, progress: Ref<number>, params: ParamList) => string | Promise<string>;
+	fn: (
+		vm: VirtualMachine,
+		progress: Ref<number>,
+		params: ParamList,
+	) => string | Promise<string> | MultiLineRequest | Promise<MultiLineRequest>;
 	closeOnSuccess?: boolean;
 };
 export type CommandWrapper = {
@@ -54,6 +66,13 @@ const HISTORY_MAX_SIZE = 50;
 const LS_KEY_HISTORY = "vm6502-console-history";
 const commandHistory = ref<string[]>(JSON.parse(localStorage.getItem(LS_KEY_HISTORY) || "[]"));
 const routines = ref<Record<string, string[]>>({});
+
+const multiLineSession = ref<{
+	prompt: string;
+	terminator: string;
+	onComplete: (lines: string[]) => string | Promise<string>;
+	lines: string[];
+} | null>(null);
 
 watch(
 	commandHistory,
@@ -91,6 +110,27 @@ const listRoutinesCmd: Command = {
 		if (routineNames.length === 0) return "No routines defined.";
 
 		return "Defined routines:\n" + routineNames.map((name) => `- ${name}`).join("\n");
+	},
+};
+
+const defineRoutineCmd: Command = {
+	description: "Define a routine on multiple lines, ended by END.",
+	paramDef: ["string"],
+	fn: (_vm, _progress, params) => {
+		const routineName = params[0] as string;
+		if (!routineName) {
+			throw new Error("Routine name missing.");
+		}
+
+		return {
+			__isMultiLineRequest: true,
+			prompt: `${routineName}|`,
+			terminator: "END",
+			onComplete: (lines: string[]) => {
+				routines.value[routineName] = lines;
+				return `Routine '${routineName}' defined.`;
+			},
+		};
 	},
 };
 
@@ -191,6 +231,7 @@ const COMMAND_LIST: Record<string, Command | CommandWrapper> = {
 		fn: execRemoveBP("read"),
 	},
 	EXPLAIN: { ...explain, closeOnSuccess: true },
+	ROUTINE: defineRoutineCmd,
 	ROUTINES: listRoutinesCmd,
 	HELP: cmdHelp,
 	CLS: {
@@ -245,6 +286,8 @@ export function useCommands() {
 	const isLoading = ref(false);
 	const progress = ref(0);
 	const shouldClose = ref(false);
+	const isMultiLine = computed(() => multiLineSession.value !== null);
+	const multiLinePrompt = computed(() => multiLineSession.value?.prompt ?? "");
 
 	const executeCommand = async (cmdInput: string, vm: VirtualMachine | null) => {
 		if (!vm) {
@@ -253,6 +296,26 @@ export function useCommands() {
 		}
 
 		if (isLoading.value) return false;
+
+		// Handle multi-line input
+		if (multiLineSession.value) {
+			const trimmedInput = cmdInput.trim();
+			if (trimmedInput.toUpperCase() === multiLineSession.value.terminator) {
+				const { onComplete, lines } = multiLineSession.value;
+				multiLineSession.value = null;
+				try {
+					success.value = await onComplete(lines);
+					return true;
+				} catch (e: any) {
+					error.value = e.message || "Execution failed";
+					return false;
+				}
+			} else {
+				multiLineSession.value.lines.push(cmdInput);
+				success.value = "";
+				return true;
+			}
+		}
 
 		let input = cmdInput.trim();
 		if (!input) input = "HELP";
@@ -264,10 +327,8 @@ export function useCommands() {
 		shouldClose.value = false;
 
 		const commandQueue = input.split(";").filter((c) => c.trim() !== "");
-		let recordingRoutineName: string | null = null;
-		let currentRoutineCmds: string[] = [];
-		let routineDepth = 0;
-		const MAX_ROUTINE_DEPTH = 100;
+		// let routineDepth = 0;
+		// const MAX_ROUTINE_DEPTH = 100;
 		const END_ROUTINE_MARKER = "--END-ROUTINE--";
 
 		try {
@@ -278,55 +339,23 @@ export function useCommands() {
 				const singleCmdTrimmed = singleCmd.trim();
 
 				if (singleCmdTrimmed === END_ROUTINE_MARKER) {
-					routineDepth--;
+					// routineDepth--;
 					continue;
 				}
 
 				const cmd = singleCmdTrimmed.split(" ")[0]?.toUpperCase();
 
-				switch (cmd) {
-					case "ROUTINE": {
-						if (recordingRoutineName) throw new Error("Nested routines are not supported.");
+				if (cmd === "DO") {
+					const parts = singleCmdTrimmed.split(/\s+/);
+					if (parts.length < 2) throw new Error("Routine name missing for DO command.");
 
-						const parts = singleCmdTrimmed.split(/\s+/);
-						if (parts.length < 2) throw new Error("Routine name missing.");
+					const routineName = parts[1] as string;
+					const routineCmds = routines.value[routineName];
+					if (!routineCmds) throw new Error(`Routine '${routineName}' not found.`);
 
-						recordingRoutineName = parts[1] as string;
-						currentRoutineCmds = [];
-						continue;
-					}
-
-					case "END": {
-						if (!recordingRoutineName) throw new Error("Unexpected END.");
-
-						routines.value[recordingRoutineName] = [...currentRoutineCmds];
-						allSuccessMessages.push(`Routine '${recordingRoutineName}' defined.`);
-						recordingRoutineName = null;
-						currentRoutineCmds = [];
-						continue;
-					}
-
-					case "DO": {
-						routineDepth++;
-						if (routineDepth > MAX_ROUTINE_DEPTH) throw new Error("Max routine recursion depth exceeded.");
-
-						const parts = singleCmdTrimmed.split(/\s+/);
-						if (parts.length < 2) throw new Error("Routine name missing for DO command.");
-
-						const routineName = parts[1] as string;
-						const routineCmds = routines.value[routineName];
-						if (!routineCmds) throw new Error(`Routine '${routineName}' not found.`);
-
-						commandQueue.unshift(...routineCmds, END_ROUTINE_MARKER);
-						allSuccessMessages.push(`Executing routine '${routineName}'...`);
-						continue;
-					}
-					default:
-						if (recordingRoutineName) {
-							currentRoutineCmds.push(singleCmdTrimmed);
-							continue;
-						}
-						break;
+					commandQueue.unshift(...routineCmds, END_ROUTINE_MARKER);
+					allSuccessMessages.push(`Executing routine '${routineName}'...`);
+					continue;
 				}
 
 				const cmdKey = typedKeys(COMMAND_LIST).find((key) => cmd === key);
@@ -408,15 +437,32 @@ export function useCommands() {
 						}
 					}
 
-					const resultMessage = await commandToRun.fn(vm, progress, finalParams);
+					const result = await commandToRun.fn(vm, progress, finalParams);
+
+					if (typeof result === "object" && result !== null && (result as any).__isMultiLineRequest) {
+						const request = result as MultiLineRequest;
+						if (commandQueue.length > 0) {
+							throw new Error(
+								"Commands that start multi-line mode cannot be combined with other commands using ';'.",
+							);
+						}
+						multiLineSession.value = {
+							prompt: request.prompt,
+							terminator: request.terminator,
+							onComplete: request.onComplete,
+							lines: [],
+						};
+						success.value = `Defining routine. Type '${request.terminator}' to finish.`;
+						return true; // Exits executeCommand
+					}
+
+					const resultMessage = result as string;
 					if (resultMessage) allSuccessMessages.push(resultMessage);
 					if (cmdSpec.closeOnSuccess) shouldClose.value = true;
 				} else {
 					if (cmd) throw new Error(`Unknown command: ${cmd}`);
 				}
 			}
-
-			if (recordingRoutineName) throw new Error(`Routine '${recordingRoutineName}' not closed with END.`);
 
 			const cleanInput = cmdInput.trim();
 			if (cleanInput && commandHistory.value[commandHistory.value.length - 1] !== cleanInput) {
@@ -444,6 +490,8 @@ export function useCommands() {
 		executeCommand,
 		commandHistory,
 		shouldClose,
+		isMultiLine,
+		multiLinePrompt,
 		routines,
 	};
 }

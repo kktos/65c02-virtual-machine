@@ -45,7 +45,7 @@
 			</div>
 		</div>
 		<div class="flex items-center gap-1 p-1">
-			<span class="text-gray-500 font-bold select-none">&gt;</span>
+			<span class="text-gray-500 font-bold select-none">{{ prompt }}</span>
 			<input
 				ref="inputRef"
 				v-model="inputText"
@@ -66,7 +66,7 @@ import { useCmdConsole } from "@/composables/useCmdConsole";
 import { useCommands } from "@/composables/useCommands";
 import { useMachine } from "@/composables/useMachine";
 import { useConsoleSettings } from "@/composables/useConsoleSettings";
-import { ref, nextTick, watch, onMounted } from "vue";
+import { computed, nextTick, onMounted, ref, watch } from "vue";
 
 const { height, fontSize, fontFamily, loadSettings, increaseFontSize, decreaseFontSize } = useConsoleSettings();
 
@@ -76,7 +76,7 @@ let tempInput = "";
 const historyIndex = ref(-1);
 
 const { logs, print, printError, logEndRef, isConsoleVisible, clearConsole, hideConsole } = useCmdConsole();
-const { executeCommand, success, error, commandHistory, shouldClose } = useCommands();
+const { executeCommand, success, error, commandHistory, shouldClose, isMultiLine, multiLinePrompt } = useCommands();
 const { vm } = useMachine();
 
 onMounted(() => {
@@ -93,17 +93,27 @@ watch(
 	},
 );
 
-const handleEnter = async () => {
-	if (!inputText.value) return;
+const prompt = computed(() => (isMultiLine.value ? multiLinePrompt.value : "> "));
 
-	print("> " + inputText.value);
-	if (await executeCommand(inputText.value, vm.value)) {
-		print("\n" + success.value);
-	} else printError(error.value);
+const handleEnter = async () => {
+	const currentInput = inputText.value;
+	// In multi-line mode, we want to be able to submit empty lines.
+	if (!isMultiLine.value && !currentInput) return;
+
+	print(prompt.value + currentInput);
+
+	if (await executeCommand(currentInput, vm.value)) {
+		if (success.value) print("\n" + success.value);
+	} else {
+		printError(error.value);
+	}
 	if (shouldClose.value) hideConsole();
 
-	historyIndex.value = -1;
-	tempInput = "";
+	// Only reset history tracking if we are NOT in a multi-line session
+	if (!isMultiLine.value) {
+		historyIndex.value = -1;
+		tempInput = "";
+	}
 	inputText.value = "";
 	nextTick(() => inputRef.value?.focus());
 };
