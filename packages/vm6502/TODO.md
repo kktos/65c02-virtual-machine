@@ -43,6 +43,19 @@ we need also UNDEF label
 -8-
 we need to group the commands by theme for the HELP
 
+-9-
+Scripts -> Routines
+Add a script manager and a script editor like the note one
+Script doesn’t have address but a name
+
+; NO
+
+> exec <url> | <name>
+
+; YES
+
+> do <name>
+
 - Add script to execute to the machine config
 - Add cmd to clear BPs: bp clear
 - Add it to the script so choosing a machine clean up the bps
@@ -60,12 +73,6 @@ Set a hook at address and exec a command
 > hook $3000 a=$10;x=$00
 
 Allow more than one command on a line; they should be separated by ;
-
-Scripts
-Add a script manager and a script editor like the note one
-Script doesn’t have address but a name
-
-> exec <url> | <name>
 
 _logs_
 A way to have small dedicated panels/windows for log.
