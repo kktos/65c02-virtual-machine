@@ -35,3 +35,67 @@ Enhance the run command (or create a new runUntil) to accept a target address. T
 -6-
 Memory Inspection Command
 Idea: Add a command (e.g., mem or dump) to print a hex dump of a specific memory range to the output, useful for quick debugging without switching UI tabs.
+
+-7-
+UNDEF addr
+we need also UNDEF label
+
+-8-
+we need to group the commands by theme for the HELP
+
+- Add script to execute to the machine config
+- Add cmd to clear BPs: bp clear
+- Add it to the script so choosing a machine clean up the bps
+- Add a cmd to add a list of labels; problem is CR is the end of the command
+- ⁠Add a command to set ROM/Memory data
+- ⁠Add a command to load a file into mem (already there in MemView: composable)
+- Add a cmd to exec a script
+
+File could be an URL -> for script or ROM data
+
+Hooks
+Like the one we had on v1
+Set a hook at address and exec a command
+
+> hook $3000 a=$10;x=$00
+
+Allow more than one command on a line; they should be separated by ;
+
+Scripts
+Add a script manager and a script editor like the note one
+Script doesn’t have address but a name
+
+> exec <url> | <name>
+
+_logs_
+A way to have small dedicated panels/windows for log.
+One for hypercalls
+One for a hook, for instance
+
+A command to create such panel
+To show it
+To hide it
+
+Commands to print to it
+
+> log idx/name/id expr
+
+Expr comma separated sub cmds
+
+Registers
+Address/label as byte/word/string
+
+Add a command to set memory values
+
+<address> : <values>
+Values comma separated 
+Byte word or string
+^^
+Syntax problem with range
+
+To fill mem with values
+<range> : value(s)
+
+What about conditional ?
+IF expr THEN script/command
+Take inspiration from shell ?
