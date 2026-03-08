@@ -205,7 +205,8 @@ const parseAddress = (valStr: string): number => {
 	const isHex = valStr.startsWith("$");
 	if (isHex) return parseValue(valStr, 0xffff);
 
-	const value = getAddressForLabel(valStr);
+	const [ns, label] = valStr.split("::") as [string, string | undefined];
+	const value = label ? getAddressForLabel(label, ns) : getAddressForLabel(ns);
 	if (value === undefined) throw new Error(`Uknown label: ${valStr}`);
 
 	return value;

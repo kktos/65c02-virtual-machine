@@ -542,7 +542,7 @@ export function useSymbols() {
 		return search(diskDict.value) ?? search(systemDict.value);
 	};
 
-	const getAddressForLabel = (label: string) => {
+	const getAddressForLabel = (label: string, namespace = "") => {
 		const upperSymbol = label.toUpperCase();
 		const search = (dict: SymbolDict) => {
 			for (const addressStr in dict) {
@@ -550,6 +550,7 @@ export function useSymbols() {
 				const namespaces = dict[address];
 				if (!namespaces) continue;
 				for (const ns in namespaces) {
+					if (namespace && ns.toUpperCase() !== namespace.toUpperCase()) continue;
 					if (!activeNamespaces.value.get(ns)) continue;
 					const entry = namespaces[ns];
 					if (entry?.label?.toUpperCase() === upperSymbol) return address;
