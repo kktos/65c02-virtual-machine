@@ -40,18 +40,12 @@
 				</button>
 			</div>
 		</div>
-		<div
-			class="flex-1 overflow-y-auto p-2 flex flex-col"
+		<ScrollbackView
+			class="flex-1 overflow-x-hidden"
+			:logs="logs"
 			@click="focusInput"
 			:style="{ fontSize: fontSize + 'px', fontFamily: fontFamily }"
-		>
-			<div class="mt-auto space-y-0.5">
-				<div v-for="(log, i) in logs" :key="i" :class="log.color" class="whitespace-pre">
-					{{ log.text }}
-				</div>
-				<div ref="logEndRef"></div>
-			</div>
-		</div>
+		/>
 		<div class="flex items-center gap-1 p-1">
 			<span class="text-gray-500 font-bold select-none">{{ prompt }}</span>
 			<input
@@ -72,6 +66,8 @@
 <script setup lang="ts">
 import { useCmdConsole } from "@/composables/useCmdConsole";
 import { useCommands } from "@/composables/useCommands";
+import { useScrollback } from "@/composables/useScrollback";
+import ScrollbackView from "@/components/ScrollbackView.vue";
 import { useMachine } from "@/composables/useMachine";
 import { useConsoleSettings } from "@/composables/useConsoleSettings";
 import { computed, nextTick, onMounted, ref, watch } from "vue";
@@ -85,21 +81,16 @@ const inputRef = ref<HTMLInputElement | null>(null);
 let tempInput = "";
 const historyIndex = ref(-1);
 
-const { logs, print, printError, logEndRef, isConsoleVisible, clearConsole, hideConsole } = useCmdConsole();
+const { logs, print, printError, clear } = useScrollback();
+const { isConsoleVisible, hideConsole, onClearConsole } = useCmdConsole();
 const { executeCommand, success, error, commandHistory, shouldClose, isMultiLine, multiLinePrompt } = useCommands();
 const { vm } = useMachine();
 
 const { open } = useRoutineEditor();
-const openRoutineEditor = (event: MouseEvent) => {
-	open(event);
-};
-
-onMounted(() => {
-	loadSettings();
-});
-
-// oxlint-disable-next-line no-unused-expressions ** VSCode doesn't see the use in the template ref
-logEndRef;
+const openRoutineEditor = (event: MouseEvent) => open(event);
+onMounted(() => loadSettings());
+onClearConsole(() => clear());
+const clearConsole = () => clear();
 
 watch(
 	() => isConsoleVisible.value,

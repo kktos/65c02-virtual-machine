@@ -5,15 +5,19 @@ export interface LogLine {
 	color?: string;
 }
 
-// Singleton state
-const logs: Ref<LogLine[]> = ref([]);
+const BUFFER_SIZE = 500;
 
 export function useScrollback() {
-	const print = (text: string, color = "text-gray-300") => {
+	const logs: Ref<LogLine[]> = ref([]);
+
+	const print = (text: string, color = "") => {
 		const lines = text.split("\n");
-		for (const line of lines) {
-			logs.value.push({ text: line, color });
-		}
+		for (const line of lines) logs.value.push({ text: line, color });
+		if (logs.value.length > BUFFER_SIZE) logs.value.shift();
+	};
+
+	const printError = (text: string) => {
+		print(text, "text-red-400");
 	};
 
 	const clear = () => {
@@ -23,6 +27,7 @@ export function useScrollback() {
 	return {
 		logs: readonly(logs),
 		print,
+		printError,
 		clear,
 	};
 }
