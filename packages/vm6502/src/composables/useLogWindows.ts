@@ -2,6 +2,7 @@ import { reactive } from "vue";
 
 export interface LogLine {
 	text: string;
+	color?: string;
 }
 
 export interface LogWindow {
@@ -55,12 +56,12 @@ const clear = (name: string) => {
 	}
 };
 
-const trace = (name: string, text: string) => {
+const trace = (name: string, text: string, color?: string) => {
 	let window = logWindows.get(name);
 	if (!window || !window.isVisible) {
 		window = open(name);
 	}
-	window.lines.push({ text });
+	window.lines.push({ text, color });
 	if (window.lines.length > 500) {
 		window.lines.splice(0, window.lines.length - 500);
 	}
