@@ -1,0 +1,221 @@
+<template>
+	<div
+		v-if="isOpen"
+		ref="floatingWindow"
+		:style="floatingWindowStyle"
+		class="fixed flex flex-col bg-gray-900/95 backdrop-blur-sm border border-gray-700 rounded-lg shadow-2xl z-50 overflow-hidden"
+		@mousedown="bringToFront"
+	>
+		<!-- Header / Drag Handle -->
+		<div
+			ref="dragHandle"
+			@mousedown="startDrag"
+			class="flex items-center justify-between px-3 py-2 bg-gray-800/90 border-b border-gray-700 cursor-move select-none shrink-0"
+		>
+			<span class="text-xs font-bold text-gray-200 uppercase tracking-wider">{{ title }}</span>
+			<button
+				@click="close"
+				class="text-gray-400 hover:text-white hover:bg-gray-700 rounded p-1 transition-colors"
+				title="Close"
+			>
+				<X class="h-4 w-4" />
+			</button>
+		</div>
+
+		<!-- Content Slot -->
+		<div class="flex-1 overflow-auto p-4 relative">
+			<slot />
+		</div>
+
+		<!-- Resize Handle -->
+		<div
+			v-if="resizable"
+			class="absolute bottom-0 right-0 w-4 h-4 cursor-se-resize flex items-end justify-end p-0.5 z-10"
+			@mousedown.prevent="startResize"
+		>
+			<svg
+				xmlns="http://www.w3.org/2000/svg"
+				viewBox="0 0 24 24"
+				fill="none"
+				stroke="currentColor"
+				stroke-width="2"
+				stroke-linecap="round"
+				stroke-linejoin="round"
+				class="w-3 h-3 text-gray-500"
+			>
+				<path d="M21 15v6" />
+				<path d="M15 21h6" />
+				<path d="M21 21l-6-6" />
+			</svg>
+		</div>
+	</div>
+</template>
+
+<script lang="ts" setup>
+import { X } from "lucide-vue-next";
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
+
+const props = withDefaults(
+	defineProps<{
+		title: string;
+		id: string;
+		resizable?: boolean;
+		defaultWidth?: number;
+		defaultHeight?: number;
+		minWidth?: number;
+		minHeight?: number;
+	}>(),
+	{
+		resizable: true,
+		defaultWidth: 320,
+		defaultHeight: 240,
+		minWidth: 200,
+		minHeight: 150,
+	},
+);
+
+const emit = defineEmits<{
+	(e: "close"): void;
+}>();
+
+const isOpen = ref(false);
+const floatingWindow = ref<HTMLElement | null>(null);
+
+// State for position and size
+const position = ref({ x: 100, y: 100 });
+const size = ref({ width: props.defaultWidth, height: props.defaultHeight });
+
+const STORAGE_KEY = computed(() => `floating-window-${props.id}`);
+
+const floatingWindowStyle = computed(() => ({
+	left: `${position.value.x}px`,
+	top: `${position.value.y}px`,
+	width: `${size.value.width}px`,
+	height: `${size.value.height}px`,
+}));
+
+const clampToViewport = () => {
+	if (!floatingWindow.value) return;
+
+	const winWidth = window.innerWidth;
+	const winHeight = window.innerHeight;
+
+	// Ensure window is at least partially visible
+	const newX = Math.min(Math.max(0, position.value.x), winWidth - 50);
+	const newY = Math.min(Math.max(0, position.value.y), winHeight - 50);
+
+	if (newX !== position.value.x || newY !== position.value.y) {
+		position.value = { x: newX, y: newY };
+		saveState();
+	}
+};
+
+const saveState = () => {
+	const state = {
+		isOpen: isOpen.value,
+		position: position.value,
+		size: size.value,
+	};
+	localStorage.setItem(STORAGE_KEY.value, JSON.stringify(state));
+};
+
+const loadState = () => {
+	const saved = localStorage.getItem(STORAGE_KEY.value);
+	if (saved) {
+		try {
+			const state = JSON.parse(saved);
+			if (state.position) position.value = state.position;
+			if (state.size) size.value = state.size;
+			if (typeof state.isOpen === "boolean") isOpen.value = state.isOpen;
+		} catch (e) {
+			console.error("Failed to load floating window state", e);
+		}
+	}
+};
+
+const open = () => {
+	isOpen.value = true;
+	saveState();
+	nextTick(() => clampToViewport());
+};
+
+const close = () => {
+	isOpen.value = false;
+	saveState();
+	emit("close");
+};
+
+const toggle = () => {
+	if (isOpen.value) close();
+	else open();
+};
+
+const bringToFront = () => {
+	// Placeholder for z-index management
+};
+
+const startDrag = (event: MouseEvent) => {
+	if (event.button !== 0) return;
+
+	const startX = event.clientX;
+	const startY = event.clientY;
+	const startLeft = position.value.x;
+	const startTop = position.value.y;
+
+	const doDrag = (e: MouseEvent) => {
+		position.value.x = startLeft + e.clientX - startX;
+		position.value.y = startTop + e.clientY - startY;
+	};
+
+	const stopDrag = () => {
+		window.removeEventListener("mousemove", doDrag);
+		window.removeEventListener("mouseup", stopDrag);
+		saveState();
+	};
+
+	window.addEventListener("mousemove", doDrag);
+	window.addEventListener("mouseup", stopDrag);
+};
+
+const startResize = (event: MouseEvent) => {
+	if (event.button !== 0) return;
+	event.stopPropagation();
+
+	const startX = event.clientX;
+	const startY = event.clientY;
+	const startWidth = size.value.width;
+	const startHeight = size.value.height;
+
+	const onMouseMove = (e: MouseEvent) => {
+		const newWidth = Math.max(props.minWidth, startWidth + e.clientX - startX);
+		const newHeight = Math.max(props.minHeight, startHeight + e.clientY - startY);
+		size.value = { width: newWidth, height: newHeight };
+	};
+
+	const onMouseUp = () => {
+		window.removeEventListener("mousemove", onMouseMove);
+		window.removeEventListener("mouseup", onMouseUp);
+		saveState();
+	};
+
+	window.addEventListener("mousemove", onMouseMove);
+	window.addEventListener("mouseup", onMouseUp);
+};
+
+watch(() => props.id, loadState, { immediate: true });
+
+onMounted(() => {
+	window.addEventListener("resize", clampToViewport);
+});
+
+onUnmounted(() => {
+	window.removeEventListener("resize", clampToViewport);
+});
+
+defineExpose({
+	open,
+	close,
+	toggle,
+	isOpen,
+});
+</script>
