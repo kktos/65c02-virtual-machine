@@ -28,10 +28,10 @@ import { findLabel } from "@/commands/findLabel.cmd";
 import { font } from "@/commands/font.cmd";
 import { logCmd } from "@/commands/log.cmd";
 import { labelsCmd } from "@/commands/labels.cmd";
+import { printCmd } from "@/commands/print.cmd";
 import { useRoutines } from "./useRoutines";
 import { useRoutineEditor } from "./useRoutineEditor";
 import { ExpressionParser } from "@/lib/expressionParser";
-
 type ParamType = "byte" | "word" | "long" | "number" | "address" | "range" | "string" | "rest";
 type ParamDef = ParamType | `${ParamType}?` | string;
 export type ParamList = (string | number | { start: number; end: number } | undefined)[];
@@ -92,7 +92,7 @@ watch(
 const cmdHelp: Command = {
 	description: "Lists all available commands.",
 	paramDef: [],
-	group: "System",
+	group: "Console",
 	fn: (_vm: VirtualMachine, _progress, _params: ParamList) => {
 		const groups: Record<string, { key: string; cmd: Command | CommandWrapper }[]> = {};
 
@@ -313,6 +313,7 @@ const COMMAND_LIST: Record<string, Command | CommandWrapper> = {
 	},
 	EXPLAIN: { ...explain, closeOnSuccess: true, group: "AI" },
 	LOG: { ...logCmd, group: "Logging" },
+	PRINT: { ...printCmd, group: "Console" },
 	ROUTINE: { ...defineRoutineCmd, group: "Scripting" },
 	ROUTINES: { ...listRoutinesCmd, group: "Scripting" },
 	HELP: cmdHelp,
