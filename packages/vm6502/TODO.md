@@ -44,7 +44,7 @@ we need also UNDEF label
 we need to group the commands by theme for the HELP
 
 -9-
-Scripts -> Routines
+Scripts -> Routines - DONE
 Add a script manager and a script editor like the note one
 Script doesn’t have address but a name
 
