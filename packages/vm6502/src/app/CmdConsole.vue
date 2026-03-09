@@ -2,7 +2,7 @@
 	<div
 		v-if="isConsoleVisible"
 		:style="{ height: height + 'px' }"
-		class="absolute bottom-0 left-5 right-5 min-h-[100px] bg-gray-800/70 text-green-400 flex flex-col border-t border-gray-700 backdrop-blur-sm z-10"
+		class="absolute bottom-0 left-5 right-5 min-h-[100px] bg-gray-800/70 flex flex-col border-t border-gray-700 backdrop-blur-sm z-10"
 	>
 		<!-- Resize Handle -->
 		<div
@@ -49,7 +49,7 @@
 			class="flex-1 overflow-x-hidden"
 			:logs="logs"
 			@click="focusInput"
-			:style="{ fontSize: fontSize + 'px', fontFamily: fontFamily }"
+			:style="{ fontSize: fontSize + 'px', fontFamily: fontFamily, color: fontColor }"
 		/>
 		<div class="flex items-center gap-1 p-1">
 			<span class="text-gray-500 font-bold select-none">{{ prompt }}</span>
@@ -60,7 +60,8 @@
 				@keydown.up.prevent="handleHistoryUp"
 				@keydown.down.prevent="handleHistoryDown"
 				@keydown.escape="handleEscape"
-				class="flex-1 bg-transparent border-none outline-none text-green-400 placeholder-gray-700 font-mono text-xs"
+				class="flex-1 bg-transparent border-none outline-none placeholder-gray-700 font-mono text-xs"
+				:style="{ color: fontColor }"
 				spellcheck="false"
 				autocomplete="off"
 			/>
@@ -79,7 +80,8 @@ import { computed, nextTick, onMounted, ref, watch } from "vue";
 import { useRoutineEditor } from "@/composables/useRoutineEditor";
 import { FileCode2, ZoomOut, ZoomIn, Trash2 } from "lucide-vue-next";
 
-const { height, fontSize, fontFamily, loadSettings, increaseFontSize, decreaseFontSize } = useConsoleSettings();
+const { height, fontSize, fontFamily, fontColor, loadSettings, increaseFontSize, decreaseFontSize } =
+	useConsoleSettings();
 
 const inputText = ref("");
 const inputRef = ref<HTMLInputElement | null>(null);
