@@ -2,7 +2,6 @@
 import type { MachineConfig } from "@/types/machine.interface";
 import { debugDataConfig } from "./conf/debug.data.conf";
 import { debugOptionsConfig } from "./conf/debug.options.conf";
-import { debugSymbolsConfig } from "./conf/debug.symbols.conf";
 import { memoryConfig } from "./conf/memory.conf";
 import { regionsConfig } from "./conf/regions.conf";
 
@@ -180,7 +179,7 @@ export const apple2e: MachineConfig = {
 	disk: { enabled: true, name: "SPDisk" },
 	debug: {
 		options: debugOptionsConfig,
-		symbols: debugSymbolsConfig,
+		// symbols: debugSymbolsConfig,
 		dataBlocks: debugDataConfig,
 	},
 	regions: regionsConfig,

@@ -89,11 +89,13 @@ Commands to print to it
 > log idx/name/id expr
 
 -14-
+⁠Add a command to set ROM/Memory data
+⁠Add a command to load a file into mem (already there in MemView: composable)
+
+-15-
 
 - Add cmd to clear BPs: bp clear
 - Add it to the script so choosing a machine clean up the bps
-- ⁠Add a command to set ROM/Memory data
-- ⁠Add a command to load a file into mem (already there in MemView: composable)
 
 File could be an URL -> for script or ROM data
 

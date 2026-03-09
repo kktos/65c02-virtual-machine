@@ -24,11 +24,16 @@ export function useRoutines() {
 		return Object.prototype.hasOwnProperty.call(routines.value, name);
 	};
 
+	const clearRoutines = () => {
+		routines.value = {};
+	};
+
 	return {
 		setRoutine,
 		getRoutine,
 		getRoutineNames,
 		deleteRoutine,
 		routineExists,
+		clearRoutines,
 	};
 }

@@ -6,7 +6,6 @@ import { setX } from "@/commands/setX.cmd";
 import { setY } from "@/commands/setY.cmd";
 import { setSP } from "@/commands/setSP.cmd";
 import { hook } from "@/commands/hook.cmd";
-import { listHooks } from "@/commands/listHooks.cmd";
 import { gl } from "@/commands/gl.cmd";
 import { run } from "@/commands/run.cmd";
 import { pause } from "@/commands/pause.cmd";
@@ -32,6 +31,8 @@ import { printCmd } from "@/commands/print.cmd";
 import { useRoutines } from "./useRoutines";
 import { useRoutineEditor } from "./useRoutineEditor";
 import { ExpressionParser } from "@/lib/expressionParser";
+import { listCmd } from "@/commands/list.cmd";
+
 type ParamType = "byte" | "word" | "long" | "number" | "address" | "range" | "string" | "rest";
 type ParamDef = ParamType | `${ParamType}?` | string;
 export type ParamList = (string | number | { start: number; end: number } | undefined)[];
@@ -46,13 +47,13 @@ export type MultiLineRequest = {
 export type Command = {
 	description: string;
 	paramDef: ParamDef[];
+	group: string;
 	fn: (
 		vm: VirtualMachine,
 		progress: Ref<number>,
 		params: ParamList,
 	) => string | Promise<string> | MultiLineRequest | Promise<MultiLineRequest>;
 	closeOnSuccess?: boolean;
-	group?: string;
 };
 export type CommandWrapper = {
 	description: string;
@@ -135,6 +136,7 @@ const cmdHelp: Command = {
 				commandsInGroup.push({
 					key: "DO",
 					cmd: {
+						group: "Scripting",
 						description: "Execute a defined routine.",
 						paramDef: ["string"],
 						fn: () => "",
@@ -143,6 +145,7 @@ const cmdHelp: Command = {
 				commandsInGroup.push({
 					key: "IF",
 					cmd: {
+						group: "Scripting",
 						description: "Conditional: IF <expression> [THEN] <command>",
 						paramDef: ["expr"],
 						fn: () => "",
@@ -164,26 +167,13 @@ const cmdHelp: Command = {
 	},
 };
 
-const listRoutinesCmd: Command = {
-	description: "Lists all defined routines.",
-	paramDef: [],
-	fn: () => {
-		const { getRoutineNames } = useRoutines();
-		const routineNames = getRoutineNames();
-		if (routineNames.length === 0) return "No routines defined.";
-
-		return "Defined routines:\n" + routineNames.map((name) => `- ${name}`).join("\n");
-	},
-};
-
 const defineRoutineCmd: Command = {
 	description: "Define a routine on multiple lines, ended by END.",
 	paramDef: ["string"],
+	group: "Scripting",
 	fn: (_vm, _progress, params) => {
 		const routineName = params[0] as string;
-		if (!routineName) {
-			throw new Error("Routine name missing.");
-		}
+		if (!routineName) throw new Error("Routine name missing.");
 
 		return {
 			__isMultiLineRequest: true,
@@ -240,7 +230,6 @@ const COMMAND_LIST: Record<string, Command | CommandWrapper> = {
 	FIND: { ...findLabel, group: "Symbols" },
 	FONT: { ...font, group: "Console" },
 	HOOK: { ...hook, group: "Breakpoints" },
-	HOOKS: { ...listHooks, group: "Breakpoints" },
 	LABELS: { ...labelsCmd, group: "Symbols" },
 	M1: {
 		description: "set MemViewer(1) <address>",
@@ -313,9 +302,7 @@ const COMMAND_LIST: Record<string, Command | CommandWrapper> = {
 	},
 	EXPLAIN: { ...explain, closeOnSuccess: true, group: "AI" },
 	LOG: { ...logCmd, group: "Logging" },
-	PRINT: { ...printCmd, group: "Console" },
-	ROUTINE: { ...defineRoutineCmd, group: "Scripting" },
-	ROUTINES: { ...listRoutinesCmd, group: "Scripting" },
+	ROUTINE: defineRoutineCmd,
 	HELP: cmdHelp,
 	EDITROUTINES: {
 		description: "Open the routine editor window.",
@@ -327,6 +314,8 @@ const COMMAND_LIST: Record<string, Command | CommandWrapper> = {
 		closeOnSuccess: true,
 		group: "Scripting",
 	},
+	LIST: listCmd,
+	PRINT: { ...printCmd, group: "Console" },
 	CLS: {
 		description: "Clear console",
 		paramDef: [],
