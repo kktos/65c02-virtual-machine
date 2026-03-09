@@ -14,29 +14,34 @@
 			class="flex justify-between items-center px-2 py-1 bg-gray-800/50 border-b border-gray-700 shrink-0 font-mono text-xs"
 		>
 			<span class="font-bold text-gray-300 uppercase tracking-wider text-[10px]">Console</span>
-			<div class="flex items-center gap-3">
+			<div class="flex items-center gap-1">
 				<button
 					@click="openRoutineEditor"
 					title="Open Routine Editor"
-					class="p-1 rounded-md text-gray-400 hover:bg-gray-700 hover:text-white focus:outline-none focus:ring-2 focus:ring-inset focus:ring-white"
+					class="p-1 rounded-md text-gray-400 hover:bg-gray-700 hover:text-white focus:outline-none focus:ring-1 focus:ring-inset focus:ring-cyan-500"
 				>
-					<span class="sr-only">Open Routine Editor</span>
 					<FileCode2 class="w-4 h-4" />
 				</button>
 				<button
 					@click="decreaseFontSize"
-					class="text-[10px] hover:text-cyan-400 text-gray-400 transition-colors"
+					title="Decrease font size"
+					class="p-1 rounded-md text-gray-400 hover:bg-gray-700 hover:text-white focus:outline-none focus:ring-1 focus:ring-inset focus:ring-cyan-500"
 				>
-					A-
+					<ZoomOut class="w-4 h-4" />
 				</button>
 				<button
 					@click="increaseFontSize"
-					class="text-[10px] hover:text-cyan-400 text-gray-400 transition-colors"
+					title="Increase font size"
+					class="p-1 rounded-md text-gray-400 hover:bg-gray-700 hover:text-white focus:outline-none focus:ring-1 focus:ring-inset focus:ring-cyan-500"
 				>
-					A+
+					<ZoomIn class="w-4 h-4" />
 				</button>
-				<button @click="clearConsole" class="text-[10px] hover:text-red-400 text-gray-400 transition-colors">
-					Clear
+				<button
+					@click="clearConsole"
+					title="Clear console"
+					class="p-1 rounded-md text-gray-400 hover:bg-gray-700 hover:text-red-400 focus:outline-none focus:ring-1 focus:ring-inset focus:ring-cyan-500"
+				>
+					<Trash2 class="w-4 h-4" />
 				</button>
 			</div>
 		</div>
@@ -72,7 +77,7 @@ import { useMachine } from "@/composables/useMachine";
 import { useConsoleSettings } from "@/composables/useConsoleSettings";
 import { computed, nextTick, onMounted, ref, watch } from "vue";
 import { useRoutineEditor } from "@/composables/useRoutineEditor";
-import { FileCode2 } from "lucide-vue-next";
+import { FileCode2, ZoomOut, ZoomIn, Trash2 } from "lucide-vue-next";
 
 const { height, fontSize, fontFamily, loadSettings, increaseFontSize, decreaseFontSize } = useConsoleSettings();
 
