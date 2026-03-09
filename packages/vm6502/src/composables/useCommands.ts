@@ -111,6 +111,23 @@ const cmdHelp: Command = {
 
 		const sortedGroupNames = Object.keys(groups).sort();
 
+		const wrapText = (text: string, indent: number, maxWidth: number) => {
+			const words = text.split(" ");
+			const lines: string[] = [];
+			let currentLine = "";
+
+			words.forEach((word) => {
+				if ((currentLine + word).length > maxWidth) {
+					lines.push(currentLine);
+					currentLine = "";
+				}
+				currentLine += (currentLine.length > 0 ? " " : "") + word;
+			});
+			if (currentLine) lines.push(currentLine);
+
+			return lines.join("\n" + " ".repeat(indent));
+		};
+
 		for (const groupName of sortedGroupNames) {
 			output += `\n\n[ ${groupName} ]`;
 			const commandsInGroup = groups[groupName]!;
@@ -135,7 +152,9 @@ const cmdHelp: Command = {
 			const commandHelp = commandsInGroup
 				.map(({ key, cmd }) => {
 					const params = cmd.paramDef.map((p) => `<${p}>`).join(" ");
-					return `\n${key.padEnd(10)} ${params.padEnd(28)} ${cmd?.description}`;
+					const prefix = `${key.padEnd(10)} ${params.padEnd(28)} `;
+					const desc = wrapText(cmd.description || "", 40, 60);
+					return `\n${prefix}${desc}`;
 				})
 				.join("");
 			output += commandHelp;
