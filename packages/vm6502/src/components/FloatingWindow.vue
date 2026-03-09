@@ -3,19 +3,22 @@
 		v-if="isOpen"
 		ref="floatingWindow"
 		:style="floatingWindowStyle"
-		class="fixed flex flex-col bg-gray-900/95 backdrop-blur-sm border border-gray-700 rounded-lg shadow-2xl z-50 overflow-hidden"
+		class="fixed flex flex-col bg-black/80 backdrop-blur-sm border border-gray-700 rounded-lg shadow-2xl z-50 overflow-hidden"
 		@mousedown="bringToFront"
 	>
 		<!-- Header / Drag Handle -->
 		<div
 			ref="dragHandle"
 			@mousedown="startDrag"
-			class="flex items-center justify-between px-3 py-2 bg-gray-800/90 border-b border-gray-700 cursor-move select-none shrink-0"
+			class="flex items-center justify-between px-3 py-1 bg-gray-900/70 border-b border-gray-700 cursor-move select-none shrink-0"
 		>
-			<span class="text-xs font-bold text-gray-200 uppercase tracking-wider">{{ title }}</span>
+			<div class="flex items-center gap-2 text-gray-300">
+				<slot name="icon" />
+				<span class="text-xs font-bold text-gray-200 uppercase tracking-wider">{{ title }}</span>
+			</div>
 			<button
 				@click="close"
-				class="text-gray-400 hover:text-white hover:bg-gray-700 rounded p-1 transition-colors"
+				class="text-gray-400 hover:text-cyan-300 hover:bg-gray-700 rounded p-1 transition-colors"
 				title="Close"
 			>
 				<X class="h-4 w-4" />
@@ -23,7 +26,7 @@
 		</div>
 
 		<!-- Content Slot -->
-		<div class="flex-1 overflow-auto p-4 relative">
+		<div class="flex-1 overflow-auto relative flex flex-col">
 			<slot />
 		</div>
 
@@ -64,6 +67,8 @@ const props = withDefaults(
 		defaultHeight?: number;
 		minWidth?: number;
 		minHeight?: number;
+		defaultX?: number;
+		defaultY?: number;
 	}>(),
 	{
 		resizable: true,
@@ -71,6 +76,8 @@ const props = withDefaults(
 		defaultHeight: 240,
 		minWidth: 200,
 		minHeight: 150,
+		defaultX: 100,
+		defaultY: 100,
 	},
 );
 
@@ -82,7 +89,7 @@ const isOpen = ref(false);
 const floatingWindow = ref<HTMLElement | null>(null);
 
 // State for position and size
-const position = ref({ x: 100, y: 100 });
+const position = ref({ x: props.defaultX, y: props.defaultY });
 const size = ref({ width: props.defaultWidth, height: props.defaultHeight });
 
 const STORAGE_KEY = computed(() => `floating-window-${props.id}`);
