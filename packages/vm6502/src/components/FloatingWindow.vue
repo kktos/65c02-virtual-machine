@@ -26,7 +26,7 @@
 		</div>
 
 		<!-- Content Slot -->
-		<div class="flex-1 overflow-auto relative flex flex-col">
+		<div class="flex-1 relative flex flex-col" :class="{ 'overflow-auto': contentScrollable }">
 			<slot />
 		</div>
 
@@ -63,6 +63,7 @@ const props = withDefaults(
 		title: string;
 		id: string;
 		resizable?: boolean;
+		contentScrollable?: boolean;
 		defaultWidth?: number;
 		defaultHeight?: number;
 		minWidth?: number;
@@ -72,6 +73,7 @@ const props = withDefaults(
 	}>(),
 	{
 		resizable: true,
+		contentScrollable: true,
 		defaultWidth: 320,
 		defaultHeight: 240,
 		minWidth: 200,
@@ -140,8 +142,14 @@ const loadState = () => {
 	}
 };
 
-const open = () => {
+const open = (options?: { x?: number; y?: number; width?: number; height?: number }) => {
+	if (options?.x) position.value.x = options.x;
+	if (options?.y) position.value.y = options.y;
+	if (options?.width) size.value.width = options.width;
+	if (options?.height) size.value.height = options.height;
+
 	isOpen.value = true;
+	// Save new state if opened programmatically with new coordinates
 	saveState();
 	nextTick(() => clampToViewport());
 };

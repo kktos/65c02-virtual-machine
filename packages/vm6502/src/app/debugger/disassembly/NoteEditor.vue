@@ -7,6 +7,7 @@
 		:default-y="y"
 		:default-width="320"
 		:default-height="250"
+		:content-scrollable="false"
 		@close="close"
 	>
 		<template #icon>

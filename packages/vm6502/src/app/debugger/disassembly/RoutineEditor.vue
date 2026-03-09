@@ -9,6 +9,7 @@
 		:default-height="320"
 		:min-width="320"
 		:min-height="200"
+		:content-scrollable="false"
 		@close="close"
 		@wheel.stop
 	>
