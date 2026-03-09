@@ -79,14 +79,25 @@ export class ExpressionParser {
 				continue;
 			}
 
-			// Decimal number
-			if (/[0-9]/.test(char)) {
-				let dec = "";
+			// Decimal/Float number
+			if (/[0-9]/.test(char) || (char === "." && i + 1 < input.length && /[0-9]/.test(input[i + 1] as string))) {
+				let numStr = "";
+
 				while (i < input.length && /[0-9]/.test(input[i] as string)) {
-					dec += input[i];
+					numStr += input[i];
 					i++;
 				}
-				this.tokens.push({ type: TokenType.NUMBER, value: parseInt(dec, 10), text: dec, start, end: i });
+
+				if (i < input.length && input[i] === ".") {
+					numStr += ".";
+					i++;
+					while (i < input.length && /[0-9]/.test(input[i] as string)) {
+						numStr += input[i];
+						i++;
+					}
+				}
+
+				this.tokens.push({ type: TokenType.NUMBER, value: parseFloat(numStr), text: numStr, start, end: i });
 				continue;
 			}
 
@@ -297,7 +308,7 @@ export class ExpressionParser {
 			case TokenType.MUL:
 				return left * right;
 			case TokenType.DIV:
-				return Math.floor(left / right);
+				return left / right;
 			case TokenType.AND:
 				return left & right;
 			case TokenType.OR:
