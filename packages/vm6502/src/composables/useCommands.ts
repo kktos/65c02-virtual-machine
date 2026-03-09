@@ -207,6 +207,11 @@ export function useCommands() {
 									parsedValue = value;
 									break;
 								}
+								case "number": {
+									const parser = new ExpressionParser(paramStr, vm);
+									parsedValue = parser.parse();
+									break;
+								}
 								default:
 									throw new Error(`Unknown parameter type: ${type}`);
 							}

@@ -201,7 +201,7 @@ export const COMMAND_LIST: Record<string, Command | CommandWrapper> = {
 	PAUSE: { ...pause, group: "Execution" },
 	RESET: { ...reset, group: "Execution" },
 	REBOOT: { ...reboot, group: "Execution" },
-	SPEED: { ...speed, group: "Execution" },
+	SPEED: speed,
 	D: { ...setDisasmView, group: "Viewers" },
 	M: { ...setMemView, group: "Viewers" },
 	CODE: { ...defCode, group: "Memory" },
