@@ -503,16 +503,43 @@ export function disassembleRange(
 	return lines;
 }
 
-export const formatDisassemblyAsText = (lines: DisassemblyLine[]) => {
-	const org = lines[0]?.addr ?? 0;
-	let output = lines
-		.map((line) => {
-			const finalComment = line.comment ? `; ${line.comment}` : "";
-			const op = line.opc + (line.opr ? ` ${line.opr}` : "");
-			let finalLine = `\t${op.padEnd(20, " ")} ${finalComment}`;
-			if (line.label) finalLine = `${line.label}:\n${finalLine}`;
-			return finalLine;
-		})
-		.join("\n");
-	return `\t.ORG $${toHex(org, 4)}\n${output}`;
+type FormatDisassemblyOptions = {
+	withOrg?: boolean;
+	withAddr?: boolean;
+	withBytes?: boolean;
+};
+function formatAddr(addr: number) {
+	const bank = ((addr >> 16) & 0xff).toString(16).toUpperCase().padStart(2, "0");
+	const offset = (addr & 0xffff).toString(16).toUpperCase().padStart(4, "0");
+	return `$${bank}/${offset}`;
+}
+function disasmTextOnly(line: DisassemblyLine) {
+	const finalComment = line.comment ? `; ${line.comment}` : "";
+	const op = line.opc + (line.opr ? ` ${line.opr}` : "");
+	let finalLine = `\t${op.padEnd(20, " ")} ${finalComment}`;
+	if (line.label) finalLine = `${line.label}:\n${finalLine}`;
+	return finalLine;
+}
+function disasmWithAddr(line: DisassemblyLine) {
+	const finalComment = line.comment ? `; ${line.comment}` : "";
+	const op = line.opc + (line.opr ? ` ${line.opr}` : "");
+	let finalLine = `${formatAddr(line.addr)}:  ${op.padEnd(20, " ")} ${finalComment}`;
+	if (line.label) finalLine = `${line.label}:\n${finalLine}`;
+	return finalLine;
+}
+function disasmWithBytes(line: DisassemblyLine) {
+	const finalComment = line.comment ? `; ${line.comment}` : "";
+	const op = line.opc + (line.opr ? ` ${line.opr}` : "");
+	let finalLine = `${formatAddr(line.addr)}:  ${line.bytes.padEnd(10, " ")} ${op.padEnd(20, " ")} ${finalComment}`;
+	if (line.label) finalLine = `${line.label}:\n${finalLine}`;
+	return finalLine;
+}
+
+export const formatDisassemblyAsText = (
+	lines: DisassemblyLine[],
+	{ withOrg, withAddr, withBytes }: FormatDisassemblyOptions = { withOrg: true, withAddr: false, withBytes: false },
+) => {
+	let mapper = withAddr ? (withBytes ? disasmWithBytes : disasmWithAddr) : disasmTextOnly;
+	let output = lines.map((line) => mapper(line)).join("\n");
+	return withOrg ? `\t.ORG $${toHex(lines[0]?.addr ?? 0, 4)}\n${output}` : output;
 };

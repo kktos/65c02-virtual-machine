@@ -1,5 +1,13 @@
 import { useSymbols } from "@/composables/useSymbols";
 
+export const parseHexValue = (valStr: string, max: number): number => {
+	if (!/^[0-9A-Fa-f]+$/.test(valStr)) throw new Error(`Invalid hex format: ${valStr}`);
+	const value = Number.parseInt(valStr, 16);
+	if (Number.isNaN(value)) throw new Error(`Invalid value: ${valStr}`);
+	if (value > max) throw new Error(`Value exceeds range (max $${max.toString(16).toUpperCase()})`);
+	return value;
+};
+
 export const parseValue = (valStr: string, max: number): number => {
 	const isHex = valStr.startsWith("$");
 	const cleanStr = isHex ? valStr.slice(1) : valStr;
