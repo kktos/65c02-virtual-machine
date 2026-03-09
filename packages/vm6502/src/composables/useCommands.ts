@@ -52,6 +52,7 @@ export type Command = {
 		params: ParamList,
 	) => string | Promise<string> | MultiLineRequest | Promise<MultiLineRequest>;
 	closeOnSuccess?: boolean;
+	group?: string;
 };
 export type CommandWrapper = {
 	description: string;
@@ -62,6 +63,7 @@ export type CommandWrapper = {
 		append?: (string | number)[];
 	};
 	closeOnSuccess?: boolean;
+	group?: string;
 };
 
 function typedKeys<T extends object>(obj: T): (keyof T)[] {
@@ -90,24 +92,56 @@ watch(
 const cmdHelp: Command = {
 	description: "Lists all available commands.",
 	paramDef: [],
+	group: "System",
 	fn: (_vm: VirtualMachine, _progress, _params: ParamList) => {
-		const commandHelp: string = typedKeys(COMMAND_LIST)
-			.sort()
-			.map((key) => {
-				const cmd = COMMAND_LIST[key] as Command | CommandWrapper;
-				const params = cmd.paramDef.map((p) => `<${p}>`).join(" ");
-				return `${key.padEnd(10)} ${params.padEnd(28)} ${cmd?.description}`;
-			})
-			.join("\n");
-		const routineHelp = [
-			"DO".padEnd(11) + "<name>".padEnd(29) + "Execute a defined routine.",
-			"ROUTINE".padEnd(11) + "<name> ... END".padEnd(29) + "Define a routine.",
-		].join("\n");
-		const controlHelp = [
-			"IF".padEnd(12) + "<cnd> <cmd>".padEnd(28) + "Conditional: IF <op1> ==|!= <op2> <command>",
-		].join("\n");
+		const groups: Record<string, { key: string; cmd: Command | CommandWrapper }[]> = {};
 
-		return `Available commands:\n${commandHelp}\n\nScripting & Control Flow:\n${routineHelp}\n${controlHelp}`;
+		typedKeys(COMMAND_LIST)
+			.sort()
+			.forEach((key) => {
+				const cmd = COMMAND_LIST[key] as Command | CommandWrapper;
+				const groupName = cmd.group ?? "General";
+				if (!groups[groupName]) {
+					groups[groupName] = [];
+				}
+				groups[groupName]!.push({ key, cmd });
+			});
+
+		let output = "Available commands:";
+
+		const sortedGroupNames = Object.keys(groups).sort();
+
+		for (const groupName of sortedGroupNames) {
+			output += `\n\n[ ${groupName} ]`;
+			const commandsInGroup = groups[groupName]!;
+			if (groupName === "Scripting") {
+				commandsInGroup.push({
+					key: "DO",
+					cmd: {
+						description: "Execute a defined routine.",
+						paramDef: ["string"],
+						fn: () => "",
+					},
+				});
+				commandsInGroup.push({
+					key: "IF",
+					cmd: {
+						description: "Conditional: IF <expression> [THEN] <command>",
+						paramDef: ["expr"],
+						fn: () => "",
+					},
+				});
+			}
+			const commandHelp = commandsInGroup
+				.map(({ key, cmd }) => {
+					const params = cmd.paramDef.map((p) => `<${p}>`).join(" ");
+					return `\n${key.padEnd(10)} ${params.padEnd(28)} ${cmd?.description}`;
+				})
+				.join("");
+			output += commandHelp;
+		}
+
+		return output;
 	},
 };
 
@@ -146,108 +180,122 @@ const defineRoutineCmd: Command = {
 };
 
 const COMMAND_LIST: Record<string, Command | CommandWrapper> = {
-	"A=": setA,
-	"X=": setX,
-	"Y=": setY,
-	"PC=": setPC,
-	"SP=": setSP,
-	GL: gl,
-	RUN: { ...run, closeOnSuccess: true },
-	PAUSE: pause,
-	RESET: reset,
-	REBOOT: reboot,
-	SPEED: speed,
-	D: setDisasmView,
-	M: setMemView,
-	CODE: defCode,
+	"A=": { ...setA, group: "Registers" },
+	"X=": { ...setX, group: "Registers" },
+	"Y=": { ...setY, group: "Registers" },
+	"PC=": { ...setPC, group: "Registers" },
+	"SP=": { ...setSP, group: "Registers" },
+	GL: { ...gl, group: "Memory" },
+	RUN: { ...run, closeOnSuccess: true, group: "Execution" },
+	PAUSE: { ...pause, group: "Execution" },
+	RESET: { ...reset, group: "Execution" },
+	REBOOT: { ...reboot, group: "Execution" },
+	SPEED: { ...speed, group: "Execution" },
+	D: { ...setDisasmView, group: "Viewers" },
+	M: { ...setMemView, group: "Viewers" },
+	CODE: { ...defCode, group: "Memory" },
 	DB: {
 		description: "define n bytes at <address> with n = <word>",
 		paramDef: ["address", "word"],
 		base: defData,
 		staticParams: { prepend: ["byte"] },
+		group: "Memory",
 	},
 	DW: {
 		description: "define n words at <address> with n = <word>",
 		paramDef: ["address", "word"],
 		base: defData,
 		staticParams: { prepend: ["word"] },
+		group: "Memory",
 	},
 	DA: {
 		description: "define a string/ascii at <address> with length <word>",
 		paramDef: ["address", "word"],
 		base: defData,
 		staticParams: { prepend: ["string"] },
+		group: "Memory",
 	},
-	DEF: defLabel,
-	UNDEF: undefLabel,
-	REN: renLabel,
-	FIND: findLabel,
-	FONT: font,
-	HOOK: hook,
-	HOOKS: listHooks,
-	LABELS: labelsCmd,
+	DEF: { ...defLabel, group: "Symbols" },
+	UNDEF: { ...undefLabel, group: "Symbols" },
+	REN: { ...renLabel, group: "Symbols" },
+	FIND: { ...findLabel, group: "Symbols" },
+	FONT: { ...font, group: "Console" },
+	HOOK: { ...hook, group: "Breakpoints" },
+	HOOKS: { ...listHooks, group: "Breakpoints" },
+	LABELS: { ...labelsCmd, group: "Symbols" },
 	M1: {
 		description: "set MemViewer(1) <address>",
 		paramDef: ["address"],
 		base: setMemView,
 		staticParams: { append: [1] },
+		group: "Viewers",
 	},
 	M2: {
 		description: "set MemViewer(2) <address>",
 		paramDef: ["address"],
 		base: setMemView,
 		staticParams: { append: [2] },
+		group: "Viewers",
 	},
 	M3: {
 		description: "set MemViewer(3) <address>",
 		paramDef: ["address"],
 		base: setMemView,
 		staticParams: { append: [3] },
+		group: "Viewers",
 	},
 	BP: {
 		description: "Add execution breakpoint",
 		paramDef: ["range|address"],
 		fn: execAddBP("pc"),
+		group: "Breakpoints",
 	},
 	BPA: {
 		description: "Add Mem Access breakpoint",
 		paramDef: ["range|address"],
 		fn: execAddBP("access"),
+		group: "Breakpoints",
 	},
 	BPW: {
 		description: "Add Mem Write breakpoint",
 		paramDef: ["range|address"],
 		fn: execAddBP("write"),
+		group: "Breakpoints",
 	},
 	BPR: {
 		description: "Add Mem Read breakpoint",
 		paramDef: ["range|address"],
 		fn: execAddBP("read"),
+		group: "Breakpoints",
 	},
 	BC: {
 		description: "Remove execution breakpoint",
 		paramDef: ["range|address"],
 		fn: execRemoveBP("pc"),
+		group: "Breakpoints",
 	},
 	BCA: {
 		description: "Remove Mem Access breakpoint",
 		paramDef: ["range|address"],
 		fn: execRemoveBP("access"),
+		group: "Breakpoints",
 	},
 	BCW: {
 		description: "Remove Mem Write breakpoint",
 		paramDef: ["range|address"],
 		fn: execRemoveBP("write"),
+		group: "Breakpoints",
 	},
 	BCR: {
 		description: "Remove Mem Read breakpoint",
 		paramDef: ["range|address"],
 		fn: execRemoveBP("read"),
+		group: "Breakpoints",
 	},
-	EXPLAIN: { ...explain, closeOnSuccess: true },
-	LOG: logCmd,
-	ROUTINE: defineRoutineCmd,
-	ROUTINES: listRoutinesCmd,
+	EXPLAIN: { ...explain, closeOnSuccess: true, group: "AI" },
+	LOG: { ...logCmd, group: "Logging" },
+	ROUTINE: { ...defineRoutineCmd, group: "Scripting" },
+	ROUTINES: { ...listRoutinesCmd, group: "Scripting" },
 	HELP: cmdHelp,
 	EDITROUTINES: {
 		description: "Open the routine editor window.",
@@ -257,6 +305,7 @@ const COMMAND_LIST: Record<string, Command | CommandWrapper> = {
 			return "Opening routine editor...";
 		},
 		closeOnSuccess: true,
+		group: "Scripting",
 	},
 	CLS: {
 		description: "Clear console",
@@ -265,6 +314,7 @@ const COMMAND_LIST: Record<string, Command | CommandWrapper> = {
 			useCmdConsole().clearConsole();
 			return "";
 		},
+		group: "Console",
 	},
 };
 
@@ -404,22 +454,15 @@ export function useCommands() {
 									const startVal = parser1.parse();
 									const restAfter1 = paramStr.substring(parser1.getRestIndex()).trim();
 
-									const separator = restAfter1.startsWith(":")
-										? ":"
-										: restAfter1.startsWith("-")
-											? "-"
-											: null;
+									const hasSeparator = restAfter1.startsWith(":") || restAfter1.startsWith("-");
+									if (!hasSeparator) throw new Error("Invalid range: missing '-' or ':' separator.");
 
-									if (separator) {
-										const afterSep = restAfter1.substring(1).trim();
-										const parser2 = new ExpressionParser(afterSep, vm);
-										const endVal = parser2.parse();
+									const afterSep = restAfter1.substring(1).trim();
+									const parser2 = new ExpressionParser(afterSep, vm);
+									const endVal = parser2.parse();
 
-										paramStr = afterSep.substring(parser2.getRestIndex()).trim();
-										parsedValue = { start: startVal, end: endVal };
-									} else {
-										throw new Error("Invalid range: missing '-' or ':' separator.");
-									}
+									paramStr = afterSep.substring(parser2.getRestIndex()).trim();
+									parsedValue = { start: startVal, end: endVal };
 									break;
 								}
 								case "string": {
