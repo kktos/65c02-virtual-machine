@@ -1,78 +1,21 @@
 import { useLogWindows } from "@/composables/useLogWindows";
 import type { Command } from "@/composables/useCommands";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
-import { useSymbols } from "@/composables/useSymbols";
-import {
-	REG_A_OFFSET,
-	REG_PC_OFFSET,
-	REG_SP_OFFSET,
-	REG_STATUS_OFFSET,
-	REG_X_OFFSET,
-	REG_Y_OFFSET,
-} from "@/virtualmachine/cpu/shared-memory";
-import { toHex } from "@/lib/hex.utils";
+import { ExpressionParser } from "@/lib/expressionParser";
+import { formatAddress, toHex } from "@/lib/hex.utils";
 
-const evaluateArg = (arg: string, vm: VirtualMachine): string => {
-	// Check for registers
-	switch (arg.toUpperCase()) {
-		case "A":
-			return toHex(vm.sharedRegisters.getUint8(REG_A_OFFSET));
-		case "X":
-			return toHex(vm.sharedRegisters.getUint8(REG_X_OFFSET));
-		case "Y":
-			return toHex(vm.sharedRegisters.getUint8(REG_Y_OFFSET));
-		case "SP":
-			return toHex(vm.sharedRegisters.getUint8(REG_SP_OFFSET));
-		case "PC":
-			return toHex(vm.sharedRegisters.getUint8(REG_PC_OFFSET), 4);
-		case "FLAGS":
-		case "P": {
-			const p = vm.sharedRegisters.getUint8(REG_STATUS_OFFSET);
-			const flags = [
-				p & 0x80 ? "N" : "n",
-				p & 0x40 ? "V" : "v",
-				p & 0x20 ? "1" : "0", // unused
-				p & 0x10 ? "B" : "b",
-				p & 0x08 ? "D" : "d",
-				p & 0x04 ? "I" : "i",
-				p & 0x02 ? "Z" : "z",
-				p & 0x01 ? "C" : "c",
-			].join("");
-			return `${flags} ($${toHex(p)})`;
-		}
-	}
-
-	// Check for memory access mem[<address>]
-	const memMatch = arg.match(/^mem\[(.+)\]$/i);
-	if (memMatch) {
-		const addrStr = memMatch[1] as string;
-		let address: number;
-		if (addrStr.toUpperCase() === "PC") {
-			address = vm.sharedRegisters.getUint8(REG_PC_OFFSET);
-		} else {
-			const { getAddressForLabel } = useSymbols();
-			const isHex = addrStr.startsWith("$");
-			if (isHex) {
-				const cleanStr = addrStr.slice(1);
-				if (!/^[0-9A-Fa-f]+$/.test(cleanStr)) return `<invalid hex: ${addrStr}>`;
-				address = parseInt(cleanStr, 16);
-			} else if (/^\d+$/.test(addrStr)) {
-				address = parseInt(addrStr, 10);
-			} else {
-				const value = getAddressForLabel(addrStr);
-				if (value === undefined) return `<unknown label: ${addrStr}>`;
-				address = value;
-			}
-		}
-
-		if (Number.isNaN(address) || address < 0 || address > 0xffff) return `<invalid address: ${address}>`;
-
-		const value = vm.read(address);
-		return `$${toHex(value)}`;
-	}
-
-	// It's a string literal (or a number we pass through)
-	return arg;
+const formatFlags = (p: number): string => {
+	const flags = [
+		p & 0x80 ? "N" : "n",
+		p & 0x40 ? "V" : "v",
+		p & 0x20 ? "1" : "0", // unused
+		p & 0x10 ? "B" : "b",
+		p & 0x08 ? "D" : "d",
+		p & 0x04 ? "I" : "i",
+		p & 0x02 ? "Z" : "z",
+		p & 0x01 ? "C" : "c",
+	].join("");
+	return `${flags} ($${toHex(p)})`;
 };
 
 const parseAndEval = (text: string, vm: VirtualMachine): string => {
@@ -84,7 +27,35 @@ const parseAndEval = (text: string, vm: VirtualMachine): string => {
 		if (currentArg.startsWith('"') && currentArg.endsWith('"')) {
 			return currentArg.substring(1, currentArg.length - 1);
 		}
-		return evaluateArg(currentArg, vm);
+
+		try {
+			const parser = new ExpressionParser(currentArg, vm);
+			const value = parser.parse();
+			const upperArg = currentArg.toUpperCase();
+
+			if (upperArg === "P" || upperArg === "FLAGS") {
+				return formatFlags(value);
+			}
+
+			if (value < 0) {
+				return `${value} ($${toHex(value & 0xffff, 4)})`;
+			}
+
+			if (value > 0xffff) {
+				return formatAddress(value);
+			}
+
+			if (value > 0xff || upperArg === "PC") {
+				return `$${toHex(value, 4)}`;
+			}
+
+			return `$${toHex(value, 2)}`;
+		} catch (e) {
+			if (e instanceof Error) {
+				return `<Error: ${e.message}>`;
+			}
+			return `<Unknown error>`;
+		}
 	});
 
 	return evaluatedArgs.join(" ");
@@ -92,7 +63,7 @@ const parseAndEval = (text: string, vm: VirtualMachine): string => {
 
 export const logCmd: Command = {
 	description:
-		"Interact with log windows. Usage: log <name> [open|close|clear] | <args...>. Args can be strings, numbers, registers (A,X,Y,SP,PC,FLAGS), or memory (mem[addr]).",
+		"Interact with log windows. Usage: log <name> [open|close|clear] | <args...>. Args can be strings, numbers, or expressions (e.g. A, X+1, mem[PC]).",
 	paramDef: ["string", "rest?"],
 	fn: (vm, _progress, params) => {
 		const { open, close, trace, clear } = useLogWindows();

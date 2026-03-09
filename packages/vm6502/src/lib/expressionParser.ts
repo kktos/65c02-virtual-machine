@@ -197,11 +197,11 @@ export class ExpressionParser {
 	}
 
 	private peek(): Token {
-		return this.tokens[this.pos];
+		return this.tokens[this.pos] as Token;
 	}
 
 	private consume(): Token {
-		return this.tokens[this.pos++];
+		return this.tokens[this.pos++] as Token;
 	}
 
 	private match(type: TokenType): boolean {
