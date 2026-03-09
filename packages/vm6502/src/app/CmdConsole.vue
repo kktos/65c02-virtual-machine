@@ -79,6 +79,7 @@ import { useConsoleSettings } from "@/composables/useConsoleSettings";
 import { computed, nextTick, onMounted, ref, watch } from "vue";
 import { useRoutineEditor } from "@/composables/useRoutineEditor";
 import { FileCode2, ZoomOut, ZoomIn, Trash2 } from "lucide-vue-next";
+import { useEventBus } from "@vueuse/core";
 
 const { height, fontSize, fontFamily, fontColor, loadSettings, increaseFontSize, decreaseFontSize } =
 	useConsoleSettings();
@@ -89,15 +90,16 @@ let tempInput = "";
 const historyIndex = ref(-1);
 
 const { logs, print, printError, clear } = useScrollback();
-const { isConsoleVisible, hideConsole, onClearConsole } = useCmdConsole();
+const { isConsoleVisible, hideConsole, BUS_KEY } = useCmdConsole();
 const { executeCommand, success, error, commandHistory, shouldClose, isMultiLine, multiLinePrompt } = useCommands();
 const { vm } = useMachine();
 
 const { open } = useRoutineEditor();
 const openRoutineEditor = (event: MouseEvent) => open(event);
 onMounted(() => loadSettings());
-onClearConsole(() => clear());
 const clearConsole = () => clear();
+
+useEventBus<void>(BUS_KEY).on(clearConsole);
 
 watch(
 	() => isConsoleVisible.value,
