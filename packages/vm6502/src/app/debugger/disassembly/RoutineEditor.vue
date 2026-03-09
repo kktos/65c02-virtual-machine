@@ -1,31 +1,20 @@
 <template>
-	<div
-		v-if="isOpen"
-		class="fixed z-50 bg-gray-800 border border-gray-600 rounded-lg shadow-2xl flex flex-col"
-		:style="{
-			top: `${position.y}px`,
-			left: `${position.x}px`,
-			width: `${size.width}px`,
-			height: `${size.height}px`,
-		}"
+	<FloatingWindow
+		ref="windowRef"
+		id="routine-editor"
+		title="Routine Editor"
+		:default-x="x"
+		:default-y="y"
+		:default-width="480"
+		:default-height="320"
+		:min-width="320"
+		:min-height="200"
+		@close="close"
 		@wheel.stop
 	>
-		<div
-			class="bg-gray-900 px-3 py-2 border-b border-gray-700 flex justify-between items-center cursor-move"
-			@mousedown.prevent="handleDragStart"
-		>
-			<div class="text-xs font-bold text-gray-300 flex items-center gap-2">
-				<FileCode2 class="w-4 h-4" />
-				Routine Editor
-			</div>
-			<button @click="close" class="text-gray-500 hover:text-gray-300">
-				<span class="sr-only">Close</span>
-				<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-				</svg>
-			</button>
-		</div>
-
+		<template #icon>
+			<FileCode2 class="w-4 h-4" />
+		</template>
 		<div class="flex flex-grow min-h-0">
 			<!-- Left panel: Routine list -->
 			<div class="w-1/3 border-r border-gray-700 flex flex-col bg-gray-900/50">
@@ -101,28 +90,14 @@
 				</div>
 			</div>
 		</div>
-
-		<div
-			class="absolute bottom-0 right-0 w-4 h-4 cursor-se-resize text-gray-500 hover:text-gray-300"
-			@mousedown.prevent="handleResizeStart"
-		>
-			<svg
-				xmlns="http://www.w3.org/2000/svg"
-				fill="none"
-				viewBox="0 0 24 24"
-				stroke-width="1.5"
-				stroke="currentColor"
-			>
-				<path stroke-linecap="round" stroke-linejoin="round" d="m4.5 4.5 15 15m0 0V8.25m0 6.75H8.25" />
-			</svg>
-		</div>
-	</div>
+	</FloatingWindow>
 </template>
 
 <script lang="ts" setup>
-import { ref, watch, computed, reactive, nextTick } from "vue";
+import { ref, watch, computed, nextTick, onMounted } from "vue";
 import { useRoutines } from "@/composables/useRoutines";
 import { FileCode2, Plus, Trash2 } from "lucide-vue-next";
+import FloatingWindow from "@/components/FloatingWindow.vue";
 
 const { getRoutineNames, getRoutine, setRoutine, deleteRoutine, routineExists } = useRoutines();
 
@@ -136,6 +111,7 @@ const emit = defineEmits<{
 	(e: "update:isOpen", value: boolean): void;
 }>();
 
+const windowRef = ref<InstanceType<typeof FloatingWindow> | null>(null);
 const routineNames = computed(() => getRoutineNames().sort());
 const selectedRoutineName = ref<string | null>(null);
 const editableContent = ref("");
@@ -243,56 +219,18 @@ watch(routineNames, (newNames) => {
 
 const close = () => emit("update:isOpen", false);
 
-const position = reactive({ x: 0, y: 0 });
-const size = reactive({ width: 480, height: 320 });
-const dragOffset = reactive({ x: 0, y: 0 });
-
 watch(
 	() => props.isOpen,
 	(newVal) => {
 		if (newVal) {
-			position.x = props.x;
-			position.y = Math.min(props.y, window.innerHeight - size.height - 20);
+			windowRef.value?.open();
+		} else {
+			windowRef.value?.close();
 		}
 	},
 );
 
-const handleDragStart = (event: MouseEvent) => {
-	dragOffset.x = event.clientX - position.x;
-	dragOffset.y = event.clientY - position.y;
-	document.body.style.cursor = "move";
-	const handleDragMove = (moveEvent: MouseEvent) => {
-		position.x = moveEvent.clientX - dragOffset.x;
-		position.y = moveEvent.clientY - dragOffset.y;
-	};
-	const handleDragEnd = () => {
-		document.body.style.cursor = "";
-		window.removeEventListener("mousemove", handleDragMove);
-		window.removeEventListener("mouseup", handleDragEnd);
-	};
-	window.addEventListener("mousemove", handleDragMove);
-	window.addEventListener("mouseup", handleDragEnd);
-};
-
-const handleResizeStart = (event: MouseEvent) => {
-	event.stopPropagation();
-	const initialMouseX = event.clientX;
-	const initialMouseY = event.clientY;
-	const initialWidth = size.width;
-	const initialHeight = size.height;
-	document.body.style.cursor = "se-resize";
-	const handleResizeMove = (moveEvent: MouseEvent) => {
-		const dx = moveEvent.clientX - initialMouseX;
-		const dy = moveEvent.clientY - initialMouseY;
-		size.width = Math.max(320, initialWidth + dx);
-		size.height = Math.max(200, initialHeight + dy);
-	};
-	const handleResizeEnd = () => {
-		document.body.style.cursor = "";
-		window.removeEventListener("mousemove", handleResizeMove);
-		window.removeEventListener("mouseup", handleResizeEnd);
-	};
-	window.addEventListener("mousemove", handleResizeMove);
-	window.addEventListener("mouseup", handleResizeEnd);
-};
+onMounted(() => {
+	if (props.isOpen) windowRef.value?.open();
+});
 </script>
