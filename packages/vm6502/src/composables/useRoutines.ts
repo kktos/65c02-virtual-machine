@@ -4,8 +4,8 @@ import { ref } from "vue";
 const routines = ref<Record<string, string[]>>({});
 
 export function useRoutines() {
-	const setRoutine = (name: string, content: string[]) => {
-		routines.value[name] = content;
+	const setRoutine = (name: string, content: string | string[]) => {
+		routines.value[name] = typeof content === "string" ? content.split("\n") : content;
 	};
 
 	const getRoutine = (name: string) => {

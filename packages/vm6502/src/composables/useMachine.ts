@@ -10,6 +10,7 @@ import { toast } from "vue-sonner";
 import { useBreakpoints } from "../composables/useBreakpoints";
 import type { EmulatorRegisters } from "@/types/emulatorstate.interface";
 import { useCommands } from "./useCommands";
+import { useRoutines } from "./useRoutines";
 
 // Initialize global state with the default machine (same default as App.vue used)
 const selectedMachine = ref<MachineConfig>(availableMachines[1] as MachineConfig);
@@ -119,7 +120,11 @@ const loadMachine = async (newMachine?: MachineConfig) => {
 		await initSymbols(selectedMachine.value.name);
 
 		const initScript = selectedMachine.value.routines?.init;
-		if (initScript) await executeCommand(initScript, newVm);
+		if (initScript) {
+			const { setRoutine } = useRoutines();
+			setRoutine("init", initScript);
+			await executeCommand("do init", newVm);
+		}
 
 		setDiskKey("*");
 	}
