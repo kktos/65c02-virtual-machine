@@ -4,6 +4,7 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import type { Ref } from "vue";
 import { useRoutines } from "@/composables/useRoutines";
 import type { Command, ParamList } from "@/types/command";
+import { useCommands } from "@/composables/useCommands";
 
 function listHooks() {
 	const { breakpoints } = useBreakpoints();
@@ -31,8 +32,22 @@ function listRoutines() {
 	return routineNames.map((name) => `* \`${name}\``).join("\n");
 }
 
+function listHistory() {
+	const { commandHistory } = useCommands();
+	if (commandHistory.value.length === 0) return "Command history is empty.";
+	const shortenString = (s: string) => {
+		s = s.replace("\n", " ");
+		if (s.length > 15) return s.slice(0, 15) + "...";
+		return s;
+	};
+	const historyList = commandHistory.value
+		.map((cmd, index) => `${(index + 1).toString().padStart(3, "\u00A0")}: ${shortenString(cmd)}`)
+		.join("  \n");
+	return `${historyList}\n`;
+}
+
 export const listCmd: Command = {
-	description: "List <hooks|routines>.",
+	description: "List <hooks|routines|history>.",
 	paramDef: ["string"],
 	group: "Console",
 	fn: (_vm: VirtualMachine, _progress: Ref<number>, params: ParamList) => {
@@ -44,6 +59,9 @@ export const listCmd: Command = {
 				break;
 			case "ROUTINES":
 				content = listRoutines();
+				break;
+			case "HISTORY":
+				content = listHistory();
 				break;
 			default:
 				throw new Error("Invalid list name");

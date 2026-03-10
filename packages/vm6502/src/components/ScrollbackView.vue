@@ -3,7 +3,7 @@
 		<div class="mt-auto">
 			<div v-for="log in logs" :key="log.id" :class="getLogClass(log)">
 				<div v-if="log.format === 'markdown'" class="markdown-preview" v-html="renderMarkdown(log.text)"></div>
-				<div v-else class="whitespace-pre-wrap break-words">{{ log.text }}</div>
+				<div v-else class="whitespace-pre-wrap break-words">{{ log.text || "\u00A0" }}</div>
 			</div>
 		</div>
 	</div>
