@@ -67,7 +67,7 @@ export function useSymbols() {
 					autoIncrement: true,
 				});
 				store.createIndex("by-ns", "namespace");
-				store.createIndex("by-disk-ns-label", ["disk", "ns", "label"]);
+				store.createIndex("by-disk-ns-label", ["disk", "ns", "label"], { unique: true });
 				store.createIndex("by-disk-label", ["disk", "label"]);
 				store.createIndex("by-disk", ["disk"]);
 				store.createIndex("by-addr", ["addr"]);
@@ -238,29 +238,31 @@ export function useSymbols() {
 	const addManySymbols = async (symbols: Omit<SymbolEntry, "id" | "disk" | "src">[]) => {
 		if (symbols.length === 0) return;
 
-		const db = await getDb();
-		const tx = db.transaction(storeName as unknown as "symbols", "readwrite");
-		const store = tx.store;
-
 		const targetDict = diskKey === "*" ? systemDict : diskDict;
 		const newDict = { ...targetDict.value };
 		const modifiedAddrs = new Set<number>();
 		const newNamespaces = new Set<string>();
 
-		const promises: Promise<void>[] = [];
+		const db = await getDb();
+		const tx = db.transaction(storeName as unknown as "symbols", "readwrite");
+		const store = tx.store;
+		const index = store.index("by-disk-ns-label");
 
-		for (const symData of symbols) {
-			const symbol: SymbolEntry = {
-				disk: diskKey,
-				ns: symData.ns,
-				label: symData.label,
-				addr: symData.addr,
-				src: "",
-				scope: symData.scope,
-			};
-
-			promises.push(
-				store.add(symbol).then((id) => {
+		const existing = await Promise.all(symbols.map((e) => index.get([diskKey, e.ns, e.label])));
+		await Promise.all(
+			symbols.map((entry, i) => {
+				const symbol: SymbolEntry = {
+					disk: diskKey,
+					ns: entry.ns,
+					label: entry.label,
+					addr: entry.addr,
+					src: "",
+					scope: entry.scope,
+				};
+				let p: Promise<number>;
+				if (existing[i]) p = store.put({ ...symbol, id: existing[i]!.id });
+				else p = store.add(symbol);
+				p.then((id) => {
 					const s = { ...symbol, id: Number(id) };
 					if (!modifiedAddrs.has(s.addr)) {
 						newDict[s.addr] = newDict[s.addr] ? { ...newDict[s.addr] } : {};
@@ -268,18 +270,16 @@ export function useSymbols() {
 					}
 					newDict[s.addr]![s.ns] = s;
 					newNamespaces.add(s.ns);
-				}),
-			);
-		}
+				});
+				return p;
+			}),
+		);
 
-		await Promise.all(promises);
 		await tx.done;
 
 		targetDict.value = newDict;
 
-		for (const ns of newNamespaces) {
-			if (!activeNamespaces.value.has(ns)) activeNamespaces.value.set(ns, true);
-		}
+		for (const ns of newNamespaces) if (!activeNamespaces.value.has(ns)) activeNamespaces.value.set(ns, true);
 	};
 
 	const updateSymbol = async (id: number, address: number, label: string, namespace: string, scope: string) => {
@@ -347,8 +347,12 @@ export function useSymbols() {
 			return;
 		}
 
+		console.log("recordsToDelete", recordsToDelete);
+
 		// Batch delete from DB in parallel
 		const deletePromises = recordsToDelete.map((r) => store.delete(r.id!));
+		await Promise.all(deletePromises);
+		await tx.done;
 
 		// Group records by disk to process dicts separately
 		const systemRecords = recordsToDelete.filter((r) => r.disk === "*");
@@ -402,9 +406,6 @@ export function useSymbols() {
 			}
 			diskDict.value = newDiskDict;
 		}
-
-		await Promise.all(deletePromises);
-		await tx.done;
 	};
 
 	const generateTextFromSymbols = (): string => {
