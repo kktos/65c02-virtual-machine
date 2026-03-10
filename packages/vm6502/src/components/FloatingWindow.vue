@@ -219,7 +219,14 @@ const startResize = (event: MouseEvent) => {
 	window.addEventListener("mouseup", onMouseUp);
 };
 
-watch(() => props.id, loadState, { immediate: true });
+watch(
+	() => props.id,
+	() => {
+		loadState();
+		emit("resize", size.value);
+	},
+	{ immediate: true },
+);
 
 onMounted(() => {
 	window.addEventListener("resize", clampToViewport);
