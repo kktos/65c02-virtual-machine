@@ -1,16 +1,27 @@
 <template>
-	<Dialog :open="isOpen" @update:open="(val) => emit('update:isOpen', val)">
-		<DialogContent class="sm:max-w-3xl h-[80vh] flex flex-col bg-gray-800 border-gray-700 text-gray-200">
-			<DialogHeader>
-				<DialogTitle class="text-gray-100"
-					><Tags class="h-8 w-8 inline-block mr-2 align-middle" />Symbol Manager</DialogTitle
-				>
-				<DialogDescription class="text-gray-400">
-					Browse, search, and manage symbols across all namespaces. Click a symbol to navigate.
-				</DialogDescription>
-			</DialogHeader>
+	<FloatingWindow
+		ref="windowRef"
+		id="symbol-manager"
+		title="Symbol Manager"
+		:default-width="960"
+		:default-height="700"
+		:min-width="480"
+		:min-height="400"
+		:content-scrollable="false"
+		@resize="onResize"
+	>
+		<template #icon>
+			<Tags class="h-4 w-4 text-gray-300" />
+		</template>
 
-			<div class="flex justify-between items-center my-4 gap-4">
+		<div class="p-4 flex flex-col h-full bg-gray-800/95 text-gray-200">
+			<p class="text-xs text-gray-400 -mt-2 mb-4">
+				Browse, search, and manage symbols across all namespaces. Click a symbol to navigate. ({{
+					tableContainerHeight
+				}})
+			</p>
+
+			<div class="flex justify-between items-center mb-4 gap-4">
 				<Input
 					v-model="searchTerm"
 					placeholder="Search by label or address..."
@@ -18,7 +29,7 @@
 				/>
 				<select
 					v-model="selectedNamespace"
-					class="h-10 w-[200px] rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-sm text-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800"
+					class="h-10 w-[200px] rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-sm text-gray-200 focus:outline-none focus:ring-1 focus:ring-cyan-500"
 				>
 					<option value="">All Namespaces</option>
 					<option v-for="ns in uniqueNamespaces" :key="ns" :value="ns">
@@ -65,7 +76,7 @@
 				</Button>
 			</div>
 
-			<div ref="tableContainerRef" class="flex-1 overflow-y-auto border border-gray-700 rounded-md">
+			<div ref="tableContainerRef" class="flex-1 overflow-y-auto border border-gray-700 rounded-md min-h-0">
 				<Table>
 					<TableHeader class="sticky top-0 bg-gray-800">
 						<TableRow class="border-gray-700 hover:bg-gray-700/50">
@@ -271,7 +282,7 @@
 							<TableRow
 								v-else
 								@click="gotoSymbol(symbol)"
-								class="cursor-pointer border-gray-700 hover:bg-gray-700/80"
+								class="cursor-pointer border-gray-700 hover:bg-gray-700/80 h-[41px]"
 								:class="{ 'bg-blue-900/30 hover:bg-blue-900/40': selectedSymbols.has(symbol.id!) }"
 							>
 								<TableCell class="px-4" @click.stop>
@@ -334,19 +345,10 @@
 				</Table>
 			</div>
 
-			<div class="flex items-center justify-between mt-3 text-sm text-gray-400">
-				<select
-					v-model="itemsPerPage"
-					class="h-8 rounded-md border border-gray-600 bg-gray-700 px-2 text-sm text-gray-200 focus:outline-none"
-				>
-					<option :value="25">25 per page</option>
-					<option :value="50">50 per page</option>
-					<option :value="100">100 per page</option>
-					<option :value="200">200 per page</option>
-				</select>
+			<div class="flex items-center justify-end mt-3 text-sm text-gray-400">
 				<div>
 					<span v-if="selectedSymbols.size > 0" class="mr-4">Selected: {{ selectedSymbols.size }}</span>
-					<span>Total: {{ filteredSymbols?.length ?? 0 }}</span>
+					<span>Showing {{ paginatedSymbols.length }} of {{ filteredSymbols?.length ?? 0 }} total </span>
 				</div>
 				<div class="flex items-center gap-2" v-if="totalPages > 1">
 					<button
@@ -368,16 +370,14 @@
 					</button>
 				</div>
 			</div>
-		</DialogContent>
-	</Dialog>
+		</div>
+	</FloatingWindow>
 </template>
 
 <script setup lang="ts">
 import {
 	ArrowDown,
 	ArrowUp,
-	ChevronLeft,
-	ChevronRight,
 	Check,
 	Download,
 	FileText,
@@ -388,11 +388,13 @@ import {
 	Trash2,
 	Upload,
 	X,
+	ChevronLeft,
+	ChevronRight,
 } from "lucide-vue-next";
 import { computed, inject, type Ref, ref, watch } from "vue";
+import FloatingWindow from "@/components/FloatingWindow.vue";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useBreakpoints } from "@/composables/useBreakpoints";
@@ -401,15 +403,14 @@ import { formatAddress, toHex } from "@/lib/hex.utils";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import { useFileDownload } from "@/composables/useFileDownload";
 import { useDiskStorage } from "@/composables/useDiskStorage";
-
-const props = defineProps<{
-	isOpen: boolean;
-}>();
+import { useElementSize } from "@vueuse/core";
 
 const emit = defineEmits<{
-	(e: "update:isOpen", value: boolean): void;
 	(e: "gotoAddress", address: number): void;
 }>();
+
+const windowRef = ref<InstanceType<typeof FloatingWindow> | null>(null);
+const currentPage = ref(1);
 
 const vm = inject<Ref<VirtualMachine>>("vm");
 const {
@@ -428,15 +429,20 @@ const { downloadFile } = useFileDownload();
 const searchTerm = ref("");
 const selectedNamespace = ref("");
 const selectedSymbols = ref(new Set<number>());
-const currentPage = ref(1);
-const itemsPerPage = ref(50);
+
+const tableContainerRef = ref<HTMLElement | null>(null);
+const { height: tableContainerHeight } = useElementSize(tableContainerRef);
+
+const ROW_HEIGHT = 41; // Height of a table row in pixels.
+
+const itemsPerPage = ref(0);
+const onResize = ({ height }: { width: number; height: number }) => {
+	itemsPerPage.value = Math.max(1, Math.floor((height - 5 * ROW_HEIGHT) / ROW_HEIGHT));
+	// console.log("onResize", width, height);
+};
 
 watch([searchTerm, selectedNamespace], () => {
 	selectedSymbols.value.clear();
-	currentPage.value = 1;
-});
-
-watch(itemsPerPage, () => {
 	currentPage.value = 1;
 });
 
@@ -460,7 +466,6 @@ type EditableSymbol = {
 	originalNamespace?: string;
 };
 const editingSymbol = ref<EditableSymbol | null>(null);
-const tableContainerRef = ref<HTMLElement | null>(null);
 const importFileInput = ref<HTMLInputElement | null>(null);
 
 const validationErrors = ref({
@@ -475,7 +480,6 @@ const handleSort = (key: SortKey) => {
 		sortKey.value = key;
 		sortDirection.value = "asc";
 	}
-	currentPage.value = 1;
 };
 
 const uniqueNamespaces = computed(() => {
@@ -508,22 +512,20 @@ const totalPages = computed(() => {
 	return Math.ceil((filteredSymbols.value?.length || 0) / itemsPerPage.value);
 });
 
-const paginatedSymbols = computed(() => {
-	const start = (currentPage.value - 1) * itemsPerPage.value;
-	const end = start + itemsPerPage.value;
-	return filteredSymbols.value?.slice(start, end) || [];
-});
-
 watch(totalPages, (newTotal) => {
 	if (currentPage.value > newTotal) {
 		currentPage.value = Math.max(1, newTotal);
 	}
 });
 
+const paginatedSymbols = computed(() => {
+	const start = (currentPage.value - 1) * itemsPerPage.value;
+	const end = start + itemsPerPage.value;
+	return filteredSymbols.value?.slice(start, end) || [];
+});
 const gotoSymbol = (symbol: { addr: number }) => {
 	if (editingSymbol.value) return; // Prevent navigation while editing
 	emit("gotoAddress", symbol.addr);
-	emit("update:isOpen", false);
 };
 
 const beginAddSymbol = () => {
@@ -650,4 +652,10 @@ const toggleSelection = (symbolId: number) => {
 		selectedSymbols.value.add(symbolId);
 	}
 };
+
+const open = () => {
+	windowRef.value?.open();
+};
+
+defineExpose({ open });
 </script>

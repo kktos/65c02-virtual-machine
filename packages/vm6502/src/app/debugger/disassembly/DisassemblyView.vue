@@ -13,7 +13,7 @@
 					:is-maximized="isMaximized"
 					:has-selection="hasSelection"
 					@toggle-maximize="isMaximized = !isMaximized"
-					@open-symbol-manager="isSymbolManagerOpen = true"
+					@open-symbol-manager="symbolManagerRef?.open()"
 					@open-formatting-manager="isFormattingManagerOpen = true"
 					@sync-to-pc="syncToPc"
 					@explain="handleExplain"
@@ -62,11 +62,7 @@
 						@set-selection-end="(addr) => (selectionEnd = addr)"
 					/>
 				</div>
-				<SymbolManager
-					:is-open="isSymbolManagerOpen"
-					@update:is-open="(val) => (isSymbolManagerOpen = val)"
-					@goto-address="gotoAddress"
-				/>
+				<SymbolManager ref="symbolManagerRef" @goto-address="gotoAddress" />
 				<FormattingManager
 					:is-open="isFormattingManagerOpen"
 					@update:is-open="(val) => (isFormattingManagerOpen = val)"
@@ -131,7 +127,7 @@ watch(isMaximized, (isMax) => {
 	if (isMax) window.dispatchEvent(new Event("resize"));
 });
 
-const isSymbolManagerOpen = ref(false);
+const symbolManagerRef = ref<InstanceType<typeof SymbolManager> | null>(null);
 const isFormattingManagerOpen = ref(false);
 
 const { pcBreakpoints, toggleBreakpoint } = useBreakpoints();

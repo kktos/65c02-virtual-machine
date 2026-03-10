@@ -85,6 +85,7 @@ const props = withDefaults(
 
 const emit = defineEmits<{
 	(e: "close"): void;
+	(e: "resize", size: { width: number; height: number }): void;
 }>();
 
 const isOpen = ref(false);
@@ -205,6 +206,7 @@ const startResize = (event: MouseEvent) => {
 		const newWidth = Math.max(props.minWidth, startWidth + e.clientX - startX);
 		const newHeight = Math.max(props.minHeight, startHeight + e.clientY - startY);
 		size.value = { width: newWidth, height: newHeight };
+		emit("resize", size.value);
 	};
 
 	const onMouseUp = () => {
