@@ -156,7 +156,7 @@ import MouseControl from "./machine/MouseControl.vue";
 import SoundControl from "./machine/SoundControl.vue";
 import SpeedControl from "./machine/SpeedControl.vue";
 import VideoControl from "./machine/VideoControl.vue";
-import CmdConsole from "./CmdConsole.vue";
+import CmdConsole from "./debugger/CmdConsole.vue";
 import { useCmdConsole } from "@/composables/useCmdConsole";
 import { useLogWindows } from "@/composables/useLogWindows";
 import LogWindow from "@/components/LogWindow.vue";
