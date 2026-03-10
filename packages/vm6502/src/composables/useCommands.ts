@@ -8,6 +8,8 @@ import type { Command, CommandOutput, CommandWrapper, MultiLineRequest, ParamLis
 
 const HISTORY_MAX_SIZE = 50;
 const LS_KEY_HISTORY = "vm6502-console-history";
+const END_ROUTINE_MARKER = "--END-ROUTINE--";
+
 const commandHistory = ref<string[]>(JSON.parse(localStorage.getItem(LS_KEY_HISTORY) || "[]"));
 
 const multiLineSession = ref<{
@@ -25,6 +27,8 @@ watch(
 	{ deep: true },
 );
 
+const errorHistory = ref<string[]>([]);
+
 export function useCommands() {
 	const error = ref("");
 	const success = ref<CommandOutput[]>([]);
@@ -35,10 +39,12 @@ export function useCommands() {
 	const multiLinePrompt = computed(() => multiLineSession.value?.prompt ?? "");
 
 	const processLine = async (cmdInput: string, vm: VirtualMachine) => {
+		const input = cmdInput.trim();
+
 		// Handle multi-line input
 		if (multiLineSession.value) {
-			const trimmedInput = cmdInput.trim();
-			if (trimmedInput.toUpperCase() === multiLineSession.value.terminator) {
+			const trimmedInput = input.toUpperCase();
+			if (trimmedInput === multiLineSession.value.terminator) {
 				const { onComplete, lines } = multiLineSession.value;
 				multiLineSession.value = null;
 				try {
@@ -53,14 +59,11 @@ export function useCommands() {
 			return;
 		}
 
-		const input = cmdInput.trim();
 		if (!input) return;
 
 		shouldClose.value = false;
 
 		const commandQueue = input.split(";").filter((c) => c.trim() !== "");
-		const END_ROUTINE_MARKER = "--END-ROUTINE--";
-
 		while (commandQueue.length > 0) {
 			const singleCmdTrimmed = commandQueue.shift()?.trim() as string;
 			if (singleCmdTrimmed === END_ROUTINE_MARKER) continue;
@@ -108,7 +111,19 @@ export function useCommands() {
 				continue;
 			}
 
-			const cmdSpec = COMMAND_LIST[cmdKey] as Command | CommandWrapper;
+			let cmdSpecOrAlias = COMMAND_LIST[cmdKey];
+			let cmdKeyToUse = cmdKey;
+
+			if (typeof cmdSpecOrAlias === "string") {
+				cmdKeyToUse = cmdSpecOrAlias;
+				cmdSpecOrAlias = COMMAND_LIST[cmdKeyToUse];
+			}
+
+			if (typeof cmdSpecOrAlias === "string" || !cmdSpecOrAlias) {
+				throw new Error(`Invalid command alias configuration for '${cmdKey}'.`);
+			}
+
+			const cmdSpec = cmdSpecOrAlias as Command | CommandWrapper;
 
 			const commandToRun = "base" in cmdSpec ? cmdSpec.base : cmdSpec;
 			const paramDef = cmdSpec.paramDef;
@@ -244,6 +259,43 @@ export function useCommands() {
 
 			if (typeof result === "object" && result !== null && (result as any).__isMultiLineRequest) {
 				const request = result as MultiLineRequest;
+
+				const isInsideRoutine = commandQueue.length > 0 && commandQueue.at(-1) === END_ROUTINE_MARKER;
+				if (isInsideRoutine) {
+					// Auto-feed from command queue for routines
+					const linesForMultiLine: string[] = [];
+					let foundTerminator = false;
+
+					while (commandQueue.length > 0) {
+						const nextLine = commandQueue.shift();
+						if (nextLine === undefined) break;
+
+						if (nextLine.trim().toUpperCase() === request.terminator) {
+							foundTerminator = true;
+							break;
+						}
+						linesForMultiLine.push(nextLine);
+					}
+
+					if (!foundTerminator) {
+						throw new Error(
+							`Multi-line command started in routine but terminator '${request.terminator}' was not found.`,
+						);
+					}
+
+					// Execute the callback and continue the main command loop
+					const res = await request.onComplete(linesForMultiLine);
+					if (res) {
+						if (typeof res === "string") {
+							success.value.push({ content: res, format: "text" });
+						} else if (typeof res === "object" && "content" in res) {
+							success.value.push(res);
+						}
+					}
+					continue; // Continue with the next command in the routine
+				}
+
+				// Interactive multi-line session for user input
 				if (commandQueue.length > 0) {
 					throw new Error(
 						"Commands that start multi-line mode cannot be combined with other commands using ';'.",
@@ -255,9 +307,9 @@ export function useCommands() {
 					onComplete: request.onComplete,
 					lines: [],
 				};
-				const msg = `Defining routine. Type '${request.terminator}' on a new line to finish.`;
+				const msg = `Type '${request.terminator}' on a new line to finish.`;
 				success.value.push({ content: msg, format: "text" });
-				return;
+				return; // Exit to wait for user input
 			}
 
 			if (result) {
@@ -313,8 +365,15 @@ export function useCommands() {
 		}
 	};
 
+	watch(error, (err) => {
+		if (err) {
+			errorHistory.value.push(err);
+		}
+	});
+
 	return {
 		error,
+		errorHistory,
 		success,
 		isLoading,
 		progress,
