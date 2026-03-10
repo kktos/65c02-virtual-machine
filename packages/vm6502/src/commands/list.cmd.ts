@@ -1,9 +1,9 @@
-import type { Command, ParamList } from "@/composables/useCommands";
 import { useBreakpoints } from "@/composables/useBreakpoints";
 import { formatAddress } from "@/lib/hex.utils";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import type { Ref } from "vue";
 import { useRoutines } from "@/composables/useRoutines";
+import type { Command, ParamList } from "@/types/command";
 
 function listHooks() {
 	const { breakpoints } = useBreakpoints();
@@ -11,14 +11,16 @@ function listHooks() {
 
 	if (hooks.length === 0) return "No hooks defined.";
 
-	const output = hooks.map((bp) => {
-		const type = bp.type.toUpperCase().padEnd(6);
-		const addr = `${formatAddress(bp.address)}`.padEnd(9);
-		const state = (bp.enabled ? "on" : "off").padEnd(6);
-		return `${type} ${addr} ${state} ${bp.command}`;
+	const header = "| Type | Address | State | Command |\n|---|---|---|---|";
+	const rows = hooks.map((bp) => {
+		const type = bp.type.toUpperCase();
+		const addr = formatAddress(bp.address);
+		const state = bp.enabled ? "on" : "off";
+		const command = bp.command;
+		return `| ${type} | ${addr} | ${state} | ${command} |`;
 	});
 
-	return `TYPE   ADDRESS   STATE  COMMAND\n${output.join("\n")}`;
+	return `${header}\n${rows.join("\n")}`;
 }
 
 function listRoutines() {
@@ -26,7 +28,7 @@ function listRoutines() {
 	const routineNames = getRoutineNames();
 	if (routineNames.length === 0) return "No routines defined.";
 
-	return "Defined routines:\n" + routineNames.map((name) => `- ${name}`).join("\n");
+	return routineNames.map((name) => `* \`${name}\``).join("\n");
 }
 
 export const listCmd: Command = {
@@ -35,13 +37,20 @@ export const listCmd: Command = {
 	group: "Console",
 	fn: (_vm: VirtualMachine, _progress: Ref<number>, params: ParamList) => {
 		const cmd = params[0] as string;
+		let content: string;
 		switch (cmd.toUpperCase()) {
 			case "HOOKS":
-				return listHooks();
+				content = listHooks();
+				break;
 			case "ROUTINES":
-				return listRoutines();
+				content = listRoutines();
+				break;
 			default:
 				throw new Error("Invalid list name");
 		}
+		return {
+			content,
+			format: "markdown",
+		};
 	},
 };

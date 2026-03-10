@@ -20,7 +20,7 @@ export type Command = {
 	description: string;
 	paramDef?: ParamDef[];
 	group: string;
-	fn: (vm: VirtualMachine, progress: Ref<number>, params: ParamList) => Promise<CommandResult> | string;
+	fn: (vm: VirtualMachine, progress: Ref<number>, params: ParamList) => Promise<CommandResult> | CommandResult;
 	closeOnSuccess?: boolean;
 };
 export type CommandWrapper = {

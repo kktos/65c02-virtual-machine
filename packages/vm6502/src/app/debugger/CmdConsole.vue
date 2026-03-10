@@ -63,8 +63,8 @@
 					@keydown.up.prevent="handleHistoryUp"
 					@keydown.down.prevent="handleHistoryDown"
 					@keydown.escape="handleEscape"
-					class="flex-1 bg-transparent border-none outline-none placeholder-gray-700 font-mono text-xs disabled:text-gray-500"
-					:style="{ color: fontColor }"
+					class="flex-1 bg-transparent border-none outline-none placeholder-gray-700 text-xs disabled:text-gray-500"
+					:style="{ color: fontColor, fontFamily: fontFamily }"
 					spellcheck="false"
 					autocomplete="off"
 				/>
@@ -138,12 +138,14 @@ const handleEnter = async () => {
 	print(prompt.value + currentInput, "input");
 
 	if (await executeCommand(currentInput, vm.value)) {
-		if (success.value) {
-			const output = success.value;
-			if (typeof output === "string") {
-				print(`\n${output}`);
-			} else if (typeof output === "object" && output.content) {
-				print(`\n${output.content}`, "output", output.format);
+		if (success.value.length > 0) {
+			let isFirstNonEmpty = true;
+			for (const output of success.value) {
+				if (output.content) {
+					const contentToPrint = isFirstNonEmpty ? `\n${output.content}` : output.content;
+					print(contentToPrint, "output", output.format);
+					isFirstNonEmpty = false;
+				}
 			}
 		}
 	} else {

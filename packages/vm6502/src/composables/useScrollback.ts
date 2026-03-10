@@ -8,13 +8,11 @@ export function useScrollback() {
 	const logs: Ref<LogEntry[]> = ref([]);
 
 	const print = (text: string, type: LogEntry["type"] = "output", format: LogEntry["format"] = "text") => {
-		const lines = text.split("\n");
-		for (const line of lines) {
-			logs.value.push({ id: nextId++, text: line, type, format });
-		}
-		while (logs.value.length > BUFFER_SIZE) {
-			logs.value.shift();
-		}
+		if (format === "text") {
+			const lines = text.split("\n");
+			for (const line of lines) logs.value.push({ id: nextId++, text: line, type, format });
+		} else logs.value.push({ id: nextId++, text, type, format });
+		while (logs.value.length > BUFFER_SIZE) logs.value.shift();
 	};
 
 	const printError = (text: string) => {

@@ -4,7 +4,7 @@ import { useRoutines } from "./useRoutines";
 import { ExpressionParser } from "@/lib/expressionParser";
 import { COMMAND_LIST, typedKeys } from "@/commands";
 import { minimonitor } from "@/lib/mini-monitor";
-import type { Command, CommandWrapper, ParamList, MultiLineRequest } from "@/types/command";
+import type { Command, CommandOutput, CommandWrapper, MultiLineRequest, ParamList } from "@/types/command";
 
 const HISTORY_MAX_SIZE = 50;
 const LS_KEY_HISTORY = "vm6502-console-history";
@@ -27,7 +27,7 @@ watch(
 
 export function useCommands() {
 	const error = ref("");
-	const success = ref("");
+	const success = ref<CommandOutput[]>([]);
 	const isLoading = ref(false);
 	const progress = ref(0);
 	const shouldClose = ref(false);
@@ -43,7 +43,7 @@ export function useCommands() {
 				multiLineSession.value = null;
 				try {
 					const res = await onComplete(lines);
-					if (res) success.value = success.value ? success.value + "\n" + res : res;
+					if (res) success.value.push({ content: res, format: "text" });
 				} catch (e: any) {
 					error.value = e.message || "Execution failed";
 				}
@@ -86,9 +86,12 @@ export function useCommands() {
 				const routineCmds = getRoutine(routineName);
 				if (!routineCmds) throw new Error(`Routine '${routineName}' not found.`);
 
-				commandQueue.unshift(...routineCmds.filter((line) => !line.trim().startsWith(";")), END_ROUTINE_MARKER);
+				commandQueue.unshift(
+					...routineCmds.filter((line) => !line.trim().startsWith(";") && line.trim() !== ""),
+					END_ROUTINE_MARKER,
+				);
 				const msg = `Executing routine '${routineName}'...`;
-				success.value = success.value ? success.value + "\n" + msg : msg;
+				success.value.push({ content: msg, format: "text" });
 				continue;
 			}
 
@@ -97,7 +100,7 @@ export function useCommands() {
 			if (!cmdKey) {
 				try {
 					const output = minimonitor(singleCmdTrimmed, vm) + "\n";
-					success.value = success.value ? `${success.value}\n${output}` : output;
+					success.value.push({ content: output, format: "text" });
 					// oxlint-disable-next-line no-unused-vars
 				} catch (e) {
 					if (cmd) throw new Error(`Unknown command: ${cmd}`);
@@ -252,13 +255,19 @@ export function useCommands() {
 					onComplete: request.onComplete,
 					lines: [],
 				};
-				const msg = `Defining routine. Type '${request.terminator}' to finish.`;
-				success.value = success.value ? success.value + "\n" + msg : msg;
+				const msg = `Defining routine. Type '${request.terminator}' on a new line to finish.`;
+				success.value.push({ content: msg, format: "text" });
 				return;
 			}
 
-			const resultMessage = result;
-			if (resultMessage) success.value = success.value ? success.value + "\n" + resultMessage : resultMessage;
+			if (result) {
+				if (typeof result === "string") {
+					success.value.push({ content: result, format: "text" });
+				} else if (typeof result === "object" && "content" in result) {
+					// It's a CommandOutput
+					success.value.push(result);
+				}
+			}
 			if (cmdSpec.closeOnSuccess) shouldClose.value = true;
 		}
 	};
@@ -274,7 +283,7 @@ export function useCommands() {
 		isLoading.value = true;
 		progress.value = 0;
 		error.value = "";
-		success.value = "";
+		success.value = [];
 		shouldClose.value = false;
 
 		let input = cmdInput;

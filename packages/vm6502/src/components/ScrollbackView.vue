@@ -1,8 +1,10 @@
 <template>
-	<div ref="scrollContainer" class="p-2" @scroll="handleScroll">
-		<div v-for="log in logs" :key="log.id" :class="getLogClass(log)">
-			<div v-if="log.format === 'markdown'" class="markdown-preview" v-html="renderMarkdown(log.text)"></div>
-			<pre v-else class="whitespace-pre-wrap break-words">{{ log.text }}</pre>
+	<div ref="scrollContainer" class="flex flex-col p-2 overflow-y-auto" @scroll="handleScroll">
+		<div class="mt-auto">
+			<div v-for="log in logs" :key="log.id" :class="getLogClass(log)">
+				<div v-if="log.format === 'markdown'" class="markdown-preview" v-html="renderMarkdown(log.text)"></div>
+				<div v-else class="whitespace-pre-wrap break-words">{{ log.text }}</div>
+			</div>
 		</div>
 	</div>
 </template>
@@ -80,5 +82,21 @@ watch(
 .markdown-preview :deep(strong) {
 	font-weight: bold;
 	color: #e5e7eb;
+}
+.markdown-preview :deep(table) {
+	border-collapse: collapse;
+	margin-bottom: 0.8em;
+	/* font-family: monospace; */
+}
+.markdown-preview :deep(th),
+.markdown-preview :deep(td) {
+	border: 1px solid #374151;
+	padding: 0.5em 0.8em;
+	text-align: left;
+}
+.markdown-preview :deep(th) {
+	background-color: #1f2937;
+	font-weight: bold;
+	color: #d1d5db;
 }
 </style>
