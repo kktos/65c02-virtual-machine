@@ -17,7 +17,7 @@
 		<div class="p-4 flex flex-col h-full bg-gray-800/95 text-gray-200">
 			<p class="text-xs text-gray-400 -mt-2 mb-4">
 				Browse, search, and manage symbols across all namespaces. Click a symbol to navigate. ({{
-					tableContainerHeight
+					isCtrlPressed
 				}})
 			</p>
 
@@ -117,6 +117,17 @@
 									<ArrowDown v-if="sortKey === 'scope' && sortDirection === 'desc'" class="h-4 w-4" />
 								</div>
 							</TableHead>
+							<TableHead
+								v-if="shouldDisplayDisk"
+								@click="handleSort('disk')"
+								class="cursor-pointer hover:bg-gray-700/50"
+							>
+								<div class="flex items-center gap-2 text-gray-300">
+									Disk
+									<ArrowUp v-if="sortKey === 'disk' && sortDirection === 'asc'" class="h-4 w-4" />
+									<ArrowDown v-if="sortKey === 'disk' && sortDirection === 'desc'" class="h-4 w-4" />
+								</div>
+							</TableHead>
 							<TableHead class="w-[100px] text-gray-300">Actions</TableHead>
 						</TableRow>
 					</TableHeader>
@@ -176,6 +187,8 @@
 									</option>
 								</select>
 							</TableCell>
+							<!-- disk -->
+							<TableCell v-if="shouldDisplayDisk" />
 							<TableCell class="text-right align-top">
 								<div class="flex items-center justify-end gap-1 mt-1">
 									<button
@@ -258,6 +271,14 @@
 										</option>
 									</select>
 								</TableCell>
+								<TableCell v-if="shouldDisplayDisk" class="align-top px-0">
+									<Input
+										:value="editingSymbol.disk"
+										class="h-8 bg-gray-900 border-gray-600"
+										disabled
+										title="Disk cannot be changed"
+									/>
+								</TableCell>
 								<TableCell class="align-top px-0">
 									<div class="flex items-center justify-end gap-1 mt-1 mr-2">
 										<button
@@ -306,6 +327,9 @@
 									formatAddress(symbol.addr)
 								}}</TableCell>
 								<TableCell>{{ symbol.scope }}</TableCell>
+								<TableCell v-if="shouldDisplayDisk" class="truncate" :title="symbol.disk">
+									{{ symbol.disk }}
+								</TableCell>
 								<TableCell>
 									<div class="flex items-center justify-end gap-1" @click.stop>
 										<button
@@ -337,7 +361,7 @@
 						</template>
 
 						<TableRow v-if="filteredSymbols?.length === 0 && !editingSymbol">
-							<TableCell colspan="6" class="text-center text-gray-500 py-8">
+							<TableCell :colspan="shouldDisplayDisk ? 7 : 6" class="text-center text-gray-500 py-8">
 								No symbols found.
 							</TableCell>
 						</TableRow>
@@ -403,7 +427,7 @@ import { formatAddress, toHex } from "@/lib/hex.utils";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import { useFileDownload } from "@/composables/useFileDownload";
 import { useDiskStorage } from "@/composables/useDiskStorage";
-import { useElementSize } from "@vueuse/core";
+import { useKeyModifier } from "@vueuse/core";
 
 const emit = defineEmits<{
 	(e: "gotoAddress", address: number): void;
@@ -411,6 +435,8 @@ const emit = defineEmits<{
 
 const windowRef = ref<InstanceType<typeof FloatingWindow> | null>(null);
 const currentPage = ref(1);
+const isCtrlPressed = useKeyModifier("Control");
+const shouldDisplayDisk = ref(false);
 
 const vm = inject<Ref<VirtualMachine>>("vm");
 const {
@@ -431,14 +457,12 @@ const selectedNamespace = ref("");
 const selectedSymbols = ref(new Set<number>());
 
 const tableContainerRef = ref<HTMLElement | null>(null);
-const { height: tableContainerHeight } = useElementSize(tableContainerRef);
 
 const ROW_HEIGHT = 41; // Height of a table row in pixels.
 
 const itemsPerPage = ref(0);
 const onResize = ({ height }: { width: number; height: number }) => {
 	itemsPerPage.value = Math.max(1, Math.floor((height - 5 * ROW_HEIGHT) / ROW_HEIGHT));
-	// console.log("onResize", width, height);
 };
 
 watch([searchTerm, selectedNamespace], () => {
@@ -461,6 +485,7 @@ type EditableSymbol = {
 	ns: string;
 	scope: string;
 	src?: string;
+	disk?: string;
 	isNew?: boolean;
 	originalAddress?: number;
 	originalNamespace?: string;
@@ -655,6 +680,7 @@ const toggleSelection = (symbolId: number) => {
 
 const open = () => {
 	windowRef.value?.open();
+	shouldDisplayDisk.value = !!isCtrlPressed.value;
 };
 
 defineExpose({ open });
