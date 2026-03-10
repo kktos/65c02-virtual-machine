@@ -108,10 +108,10 @@ export function useSymbols() {
 	const initSymbols = async (machineName: string, newSymbols?: SymbolDict) => {
 		storeName = `${machineName.replace(/ /g, "_").toLowerCase()}_symbols`;
 		activeNamespaces.value.clear();
+		diskKey = "*";
 
 		if (!newSymbols) return;
 
-		diskKey = "*";
 		const db = await getDb();
 		const tx = db.transaction(storeName as unknown as "symbols", "readwrite");
 		const index = tx.store.index("by-disk");

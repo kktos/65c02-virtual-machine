@@ -115,13 +115,12 @@ const loadMachine = async (newMachine?: MachineConfig) => {
 
 	{
 		const { executeCommand } = useCommands();
-		const initScript = selectedMachine.value.routines?.init;
-		if (initScript) await executeCommand(initScript, newVm);
-	}
-
-	{
 		const { initSymbols, setDiskKey } = useSymbols();
 		await initSymbols(selectedMachine.value.name);
+
+		const initScript = selectedMachine.value.routines?.init;
+		if (initScript) await executeCommand(initScript, newVm);
+
 		setDiskKey("*");
 	}
 

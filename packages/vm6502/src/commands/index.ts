@@ -198,7 +198,7 @@ export const COMMAND_LIST: Record<string, Command | CommandWrapper> = {
 	FIND: { ...findLabel, group: "Symbols" },
 	FONT: { ...font, group: "Console" },
 	HOOK: hook,
-	LABELS: { ...labelsCmd, group: "Symbols" },
+	LABELS: labelsCmd,
 	M1: {
 		description: "set MemViewer(1) <address>",
 		paramDef: ["address"],

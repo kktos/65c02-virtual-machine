@@ -1,12 +1,13 @@
-import type { Command } from "@/composables/useCommands";
 import { useSymbols } from "@/composables/useSymbols";
 import { parseValue } from "@/lib/parse.utils";
+import type { Command } from "@/types/command";
 
 const { addManySymbols } = useSymbols();
 
 export const labelsCmd: Command = {
 	description: "Define multiple labels. Usage: LABELS <namespace> [<scope>] ... END",
 	paramDef: ["string", "string?"],
+	group: "Symbols",
 	fn: (_vm, _progress, params) => {
 		const namespace = params[0] as string;
 		const scope = (params[1] as string) || "main";
@@ -33,11 +34,10 @@ export const labelsCmd: Command = {
 					symbols.push({ ns: namespace, label, addr, scope });
 				}
 
-				if (symbols.length > 0) {
-					await addManySymbols(symbols);
-					return `Defined ${symbols.length} labels in namespace '${namespace}' (scope: ${scope}).`;
-				}
-				return "No labels defined.";
+				if (symbols.length === 0) return "No labels defined.";
+
+				await addManySymbols(symbols);
+				return `Defined ${symbols.length} labels in namespace '${namespace}' (scope: ${scope}).`;
 			},
 		};
 	},
