@@ -2,15 +2,9 @@ import { computed, ref, watch } from "vue";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import { useRoutines } from "./useRoutines";
 import { ExpressionParser } from "@/lib/expressionParser";
-import {
-	COMMAND_LIST,
-	typedKeys,
-	type Command,
-	type CommandWrapper,
-	type MultiLineRequest,
-	type ParamList,
-} from "@/commands";
+import { COMMAND_LIST, typedKeys } from "@/commands";
 import { minimonitor } from "@/lib/mini-monitor";
+import type { Command, CommandWrapper, ParamList, MultiLineRequest } from "@/types/command";
 
 const HISTORY_MAX_SIZE = 50;
 const LS_KEY_HISTORY = "vm6502-console-history";
@@ -263,7 +257,7 @@ export function useCommands() {
 				return;
 			}
 
-			const resultMessage = result as string;
+			const resultMessage = result;
 			if (resultMessage) success.value = success.value ? success.value + "\n" + resultMessage : resultMessage;
 			if (cmdSpec.closeOnSuccess) shouldClose.value = true;
 		}

@@ -1,23 +1,27 @@
 import { ref, readonly, type Ref } from "vue";
-
-export interface LogLine {
-	text: string;
-	color?: string;
-}
+import type { LogEntry } from "@/types/scrollback";
 
 const BUFFER_SIZE = 500;
+let nextId = 0;
 
 export function useScrollback() {
-	const logs: Ref<LogLine[]> = ref([]);
+	const logs: Ref<LogEntry[]> = ref([]);
 
-	const print = (text: string, color = "") => {
+	const print = (text: string, type: LogEntry["type"] = "output", format: LogEntry["format"] = "text") => {
 		const lines = text.split("\n");
-		for (const line of lines) logs.value.push({ text: line, color });
-		if (logs.value.length > BUFFER_SIZE) logs.value.shift();
+		for (const line of lines) {
+			logs.value.push({ id: nextId++, text: line, type, format });
+		}
+		while (logs.value.length > BUFFER_SIZE) {
+			logs.value.shift();
+		}
 	};
 
 	const printError = (text: string) => {
-		print(text, "text-red-400");
+		// The class 'text-red-400' is now applied based on the 'error' type
+		// in the ScrollbackView.vue component.
+		if (!text) return;
+		print(text, "error");
 	};
 
 	const clear = () => {

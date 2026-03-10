@@ -51,20 +51,30 @@
 			@click="focusInput"
 			:style="{ fontSize: fontSize + 'px', fontFamily: fontFamily, color: fontColor }"
 		/>
-		<div class="flex items-center gap-1 p-1">
-			<span class="text-gray-500 font-bold select-none">{{ prompt }}</span>
-			<input
-				ref="inputRef"
-				v-model="inputText"
-				@keydown.enter="handleEnter"
-				@keydown.up.prevent="handleHistoryUp"
-				@keydown.down.prevent="handleHistoryDown"
-				@keydown.escape="handleEscape"
-				class="flex-1 bg-transparent border-none outline-none placeholder-gray-700 font-mono text-xs"
-				:style="{ color: fontColor }"
-				spellcheck="false"
-				autocomplete="off"
-			/>
+		<div class="p-1 border-t border-gray-900/50">
+			<div class="flex items-center gap-1">
+				<Loader2 v-if="isLoading" class="w-4 h-4 text-cyan-400 animate-spin shrink-0" />
+				<span v-else class="text-gray-500 font-bold select-none">{{ prompt }}</span>
+				<input
+					ref="inputRef"
+					v-model="inputText"
+					:disabled="isLoading"
+					@keydown.enter="handleEnter"
+					@keydown.up.prevent="handleHistoryUp"
+					@keydown.down.prevent="handleHistoryDown"
+					@keydown.escape="handleEscape"
+					class="flex-1 bg-transparent border-none outline-none placeholder-gray-700 font-mono text-xs disabled:text-gray-500"
+					:style="{ color: fontColor }"
+					spellcheck="false"
+					autocomplete="off"
+				/>
+			</div>
+			<div v-if="isLoading && progress > 0" class="h-0.5 bg-gray-700/50 w-full mt-1 rounded">
+				<div
+					class="h-0.5 bg-cyan-400 rounded transition-all duration-150 ease-linear"
+					:style="{ width: progress + '%' }"
+				/>
+			</div>
 		</div>
 	</div>
 </template>
@@ -78,7 +88,7 @@ import { useMachine } from "@/composables/useMachine";
 import { useConsoleSettings } from "@/composables/useConsoleSettings";
 import { computed, nextTick, onMounted, ref, watch } from "vue";
 import { useRoutineEditor } from "@/composables/useRoutineEditor";
-import { FileCode2, ZoomOut, ZoomIn, Trash2 } from "lucide-vue-next";
+import { FileCode2, ZoomOut, ZoomIn, Trash2, Loader2 } from "lucide-vue-next";
 import { useEventBus } from "@vueuse/core";
 
 const { height, fontSize, fontFamily, fontColor, loadSettings, increaseFontSize, decreaseFontSize } =
@@ -91,7 +101,17 @@ const historyIndex = ref(-1);
 
 const { logs, print, printError, clear } = useScrollback();
 const { isConsoleVisible, hideConsole, BUS_KEY } = useCmdConsole();
-const { executeCommand, success, error, commandHistory, shouldClose, isMultiLine, multiLinePrompt } = useCommands();
+const {
+	isLoading,
+	progress,
+	executeCommand,
+	success,
+	error,
+	commandHistory,
+	shouldClose,
+	isMultiLine,
+	multiLinePrompt,
+} = useCommands();
 const { vm } = useMachine();
 
 const { open } = useRoutineEditor();
@@ -115,10 +135,17 @@ const handleEnter = async () => {
 	// In multi-line mode, we want to be able to submit empty lines.
 	if (!isMultiLine.value && !currentInput) return;
 
-	print(prompt.value + currentInput);
+	print(prompt.value + currentInput, "input");
 
 	if (await executeCommand(currentInput, vm.value)) {
-		if (success.value) print("\n" + success.value);
+		if (success.value) {
+			const output = success.value;
+			if (typeof output === "string") {
+				print(`\n${output}`);
+			} else if (typeof output === "object" && output.content) {
+				print(`\n${output.content}`, "output", output.format);
+			}
+		}
 	} else {
 		printError(error.value);
 	}

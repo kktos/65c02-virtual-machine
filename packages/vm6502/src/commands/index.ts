@@ -28,43 +28,9 @@ import { setY } from "./setY.cmd";
 import { speed } from "./speed.cmd";
 import { undefLabel } from "./undefLabel.cmd";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
-import type { Ref } from "vue";
 import { routineCmd } from "./routine.cmd";
 import { explainCmd } from "./explainCode.cmd";
-
-type ParamType = "byte" | "word" | "long" | "number" | "address" | "range" | "string" | "rest";
-type ParamDef = ParamType | `${ParamType}?` | string;
-export type ParamList = (string | number | { start: number; end: number } | undefined)[];
-
-export type MultiLineRequest = {
-	__isMultiLineRequest: true;
-	prompt: string;
-	terminator: string;
-	onComplete: (lines: string[]) => string | Promise<string>;
-};
-
-export type Command = {
-	description: string;
-	paramDef?: ParamDef[];
-	group: string;
-	fn: (
-		vm: VirtualMachine,
-		progress: Ref<number>,
-		params: ParamList,
-	) => string | Promise<string> | MultiLineRequest | Promise<MultiLineRequest>;
-	closeOnSuccess?: boolean;
-};
-export type CommandWrapper = {
-	description: string;
-	paramDef?: ParamDef[];
-	base: Command;
-	staticParams?: {
-		prepend?: (string | number)[];
-		append?: (string | number)[];
-	};
-	closeOnSuccess?: boolean;
-	group?: string;
-};
+import type { Command, CommandWrapper, ParamList } from "@/types/command";
 
 export function typedKeys<T extends object>(obj: T): (keyof T)[] {
 	return Object.keys(obj) as (keyof T)[];

@@ -1,4 +1,4 @@
-import { computed, ref } from "vue";
+import { computed, ref, type Ref } from "vue";
 import { useSettings } from "./useSettings";
 import { toast } from "vue-sonner";
 import { useDiskStorage } from "./useDiskStorage";
@@ -40,15 +40,45 @@ const geminiModels = [
 ];
 
 const EXPLAIN_CODE_SYSTEM_PROMPT = `
-	You are a world-class 65C02 CPU reverse engineer and assembly language expert.
-	Analyze the provided block of 65C02 assembly code
-	that is running on a %%MACHINE%% stored on a disk named %%DISK%%
-	and provide a concise,
-	single-paragraph explanation of its overall purpose and function,
-	focusing on the high-level logic (e.g., 'This loop copies X bytes from address A to address B').
-	When possible, try to list first the inputs of the routine and then the outputs.
-	List the memory addresses (variables) that are used by the routine.
-`.replaceAll("\n", " ");
+You are a world-class 65C02 CPU reverse engineer and assembly language expert.
+You are analyzing code running on a %%MACHINE%% loaded from a disk named %%DISK%%.
+When analyzing any routine, always identify: its inputs, its outputs, and the memory
+addresses (variables) it references.`
+	.replaceAll("\n", " ")
+	.trim();
+
+const EXPLAIN_CODE_USER_PROMPT_CONCISE = `
+Analyze this 65C02 assembly code and explain its purpose.
+Format the output as Markdown.
+Start with a short, high-level summary in a single paragraph.
+Then, use bullet points to list:
+- **Inputs**: Registers and/or memory locations read.
+- **Outputs**: Registers and/or memory locations written to.
+- **Key Memory Addresses**: Any other important memory locations referenced.
+
+The original code is:
+\`\`\`asm
+%%CODE%%
+\`\`\``
+	.replaceAll("\n", " ")
+	.trim();
+
+const EXPLAIN_CODE_USER_PROMPT_DETAILED = `
+Analyze this 65C02 assembly code and produce a fully commented version.
+For each instruction or logical block, add an inline comment explaining what it does
+and why. Precede the commented listing with a short header block that describes:
+- Overall purpose of the routine
+- Inputs (registers/memory on entry)
+- Outputs (registers/memory on exit)
+- Side effects and memory addresses modified
+
+Return the result as a code block using the same formatting as the input.
+
+<code>
+%%CODE%%
+</code>`
+	.replaceAll("\n", " ")
+	.trim();
 
 const explanation = ref<string | null>(null);
 const isLoading = ref(false);
@@ -64,7 +94,12 @@ export function useGemini() {
 
 	const isConfigured = computed(() => !!apiKey.value);
 
-	async function explainCode(codeBlock: string): Promise<string | null> {
+	async function explainCode(
+		codeBlock: string,
+		mode: "DETAILED" | "CONCISE" = "CONCISE",
+		options: { updatePanel?: boolean; progress?: Ref<number> } = {},
+	): Promise<string | null> {
+		const { updatePanel = true, progress } = options;
 		if (!isConfigured.value) {
 			toast.error("Gemini API Key is not configured in the settings.", { position: "bottom-center" });
 			return null;
@@ -76,9 +111,25 @@ export function useGemini() {
 		).replaceAll("%%MACHINE%%", selectedMachine.value.name);
 
 		isLoading.value = true;
-		explanation.value = null;
+		if (updatePanel) {
+			explanation.value = null;
+		}
 
-		const userQuery = `Analyze this 65C02 assembly code block and explain its function: \n\n${codeBlock}`;
+		let progressInterval: ReturnType<typeof setInterval> | undefined;
+		if (progress) {
+			progress.value = 1;
+			let currentProgress = 1;
+			progressInterval = setInterval(() => {
+				if (currentProgress < 95) {
+					currentProgress += 1;
+					progress.value = currentProgress;
+				}
+			}, 200);
+		}
+
+		const userQuery = (
+			mode === "DETAILED" ? EXPLAIN_CODE_USER_PROMPT_DETAILED : EXPLAIN_CODE_USER_PROMPT_CONCISE
+		).replaceAll("%%CODE%%", codeBlock);
 
 		const payload = {
 			contents: [{ parts: [{ text: userQuery }] }],
@@ -108,7 +159,9 @@ export function useGemini() {
 			const text = result?.candidates?.[0]?.content?.parts?.[0]?.text;
 
 			if (text) {
-				explanation.value = text;
+				if (updatePanel) {
+					explanation.value = text;
+				}
 				return text;
 			} else {
 				console.warn("Gemini API Warning: Response was empty or malformed.", result);
@@ -123,6 +176,8 @@ export function useGemini() {
 			return null;
 		} finally {
 			isLoading.value = false;
+			if (progressInterval) clearInterval(progressInterval);
+			if (progress) progress.value = 100;
 		}
 	}
 

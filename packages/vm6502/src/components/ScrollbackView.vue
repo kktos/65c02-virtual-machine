@@ -1,31 +1,84 @@
 <template>
-	<div class="h-full flex flex-col">
-		<div class="flex-1 overflow-y-auto overflow-x-hidden p-2 flex flex-col" ref="containerRef">
-			<div class="mt-auto space-y-0.5">
-				<div v-for="(line, i) in logs" :key="i" :class="line.color" class="whitespace-pre-wrap">
-					{{ line.text || "\u00A0" }}
-				</div>
-				<div ref="logEndRef"></div>
-			</div>
+	<div ref="scrollContainer" class="p-2" @scroll="handleScroll">
+		<div v-for="log in logs" :key="log.id" :class="getLogClass(log)">
+			<div v-if="log.format === 'markdown'" class="markdown-preview" v-html="renderMarkdown(log.text)"></div>
+			<pre v-else class="whitespace-pre-wrap break-words">{{ log.text }}</pre>
 		</div>
 	</div>
 </template>
 
 <script setup lang="ts">
 import { ref, watch, nextTick } from "vue";
-import type { LogLine } from "@/composables/useScrollback";
+import type { LogEntry } from "@/types/scrollback";
+import { marked } from "marked";
+import DOMPurify from "dompurify";
 
 const props = defineProps<{
-	logs: readonly LogLine[];
+	logs: LogEntry[];
 }>();
 
-const logEndRef = ref<HTMLElement | null>(null);
+const scrollContainer = ref<HTMLElement | null>(null);
+const isScrolledToBottom = ref(true);
+
+const getLogClass = (log: LogEntry) => {
+	return {
+		"text-gray-400": log.type === "input",
+		"text-red-400": log.type === "error",
+	};
+};
+
+const renderMarkdown = (markdown: string) => {
+	return DOMPurify.sanitize(marked.parse(markdown) as string);
+};
+
+const handleScroll = () => {
+	const el = scrollContainer.value;
+	if (el) {
+		isScrolledToBottom.value = el.scrollHeight - el.scrollTop - el.clientHeight < 1;
+	}
+};
 
 watch(
-	() => props.logs.length,
-	async () => {
-		await nextTick();
-		logEndRef.value?.scrollIntoView({ behavior: "smooth" });
+	() => props.logs,
+	() => {
+		if (isScrolledToBottom.value) {
+			nextTick(() => {
+				scrollContainer.value?.scrollTo({ top: scrollContainer.value.scrollHeight, behavior: "auto" });
+			});
+		}
 	},
+	{ deep: true },
 );
 </script>
+
+<style scoped>
+.markdown-preview {
+	white-space: normal;
+}
+.markdown-preview :deep(p) {
+	margin-bottom: 0.8em;
+}
+.markdown-preview :deep(ul) {
+	list-style-type: disc;
+	padding-left: 1.5em;
+	margin-bottom: 0.8em;
+}
+.markdown-preview :deep(code) {
+	background-color: #374151;
+	padding: 0.1em 0.3em;
+	border-radius: 0.2em;
+	font-family: monospace;
+}
+.markdown-preview :deep(pre) {
+	background-color: #111827;
+	padding: 0.5em;
+	border-radius: 0.3em;
+	overflow-x: auto;
+	margin-bottom: 0.8em;
+	border: 1px solid #374151;
+}
+.markdown-preview :deep(strong) {
+	font-weight: bold;
+	color: #e5e7eb;
+}
+</style>
