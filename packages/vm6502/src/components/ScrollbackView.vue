@@ -96,7 +96,17 @@ watch(
 }
 .markdown-preview :deep(th) {
 	background-color: #1f2937;
+	font-weight: normal;
+}
+.markdown-preview :deep(h1),
+.markdown-preview :deep(h2),
+.markdown-preview :deep(h3),
+.markdown-preview :deep(h4),
+.markdown-preview :deep(h5),
+.markdown-preview :deep(h6) {
 	font-weight: bold;
-	color: #d1d5db;
+	margin-bottom: 0.6em;
+	border-left: 3px solid;
+	padding-left: 0.6em;
 }
 </style>
