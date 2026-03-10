@@ -1,13 +1,15 @@
-import type { Command, ParamList } from "@/composables/useCommands";
 import { useGemini } from "@/composables/useGemini";
 import { useMachine } from "@/composables/useMachine";
 import { disassembleRange, formatDisassemblyAsText } from "@/lib/disassembler";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import type { Ref } from "vue";
+import type { Command, ParamList } from ".";
 
-export const explain: Command = {
+export const explainCmd: Command = {
 	description: "explain code from <address> to <address>",
 	paramDef: ["address", "address"],
+	group: "A.I.",
+	closeOnSuccess: true,
 	fn: async (vm: VirtualMachine, _progress: Ref<number>, params: ParamList) => {
 		const readByte = (address: number, debug = true) => (debug ? vm.readDebug(address) : vm.read(address)) ?? 0;
 		const { registers } = useMachine();

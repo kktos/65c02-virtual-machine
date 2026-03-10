@@ -4,7 +4,6 @@ import { execAddBP } from "./addBP.cmd";
 import { defCode } from "./defCode.cmd";
 import { defData } from "./defData.cmd";
 import { defLabel } from "./defLabel.cmd";
-import { explain } from "./explainCode.cmd";
 import { findLabel } from "./findLabel.cmd";
 import { font } from "./font.cmd";
 import { gl } from "./gl.cmd";
@@ -31,6 +30,7 @@ import { undefLabel } from "./undefLabel.cmd";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import type { Ref } from "vue";
 import { routineCmd } from "./routine.cmd";
+import { explainCmd } from "./explainCode.cmd";
 
 type ParamType = "byte" | "word" | "long" | "number" | "address" | "range" | "string" | "rest";
 type ParamDef = ParamType | `${ParamType}?` | string;
@@ -302,7 +302,7 @@ export const COMMAND_LIST: Record<string, Command | CommandWrapper> = {
 		fn: execRemoveBP("read"),
 		group: "Breakpoints",
 	},
-	EXPLAIN: { ...explain, closeOnSuccess: true, group: "AI" },
+	EXPLAIN: explainCmd,
 	LOG: { ...logCmd, group: "Logging" },
 	ROUTINE: routineCmd,
 	HELP: cmdHelp,

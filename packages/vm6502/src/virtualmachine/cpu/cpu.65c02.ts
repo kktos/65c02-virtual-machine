@@ -69,7 +69,13 @@ const isHyperCallActive = true;
 // Re-export breakpoint functions for external use
 export { addBreakpoint, removeBreakpoint, clearBreakpoints, setBreakOnBrk };
 
-export function initCPU(systemBus: IBus, regView: DataView, videoSystem: Video | null, memView: Uint8Array, stackMetaView: Uint8Array) {
+export function initCPU(
+	systemBus: IBus,
+	regView: DataView,
+	videoSystem: Video | null,
+	memView: Uint8Array,
+	stackMetaView: Uint8Array,
+) {
 	bus = systemBus;
 	registersView = regView;
 	video = videoSystem;
@@ -412,7 +418,7 @@ function lsr(value: number): number {
 	return result;
 }
 
-function executeInstruction(): number {
+export function executeInstruction(): number {
 	if (!registersView || !bus) return 0;
 
 	let pc = registersView.getUint16(REG_PC_OFFSET, true);
@@ -1887,7 +1893,8 @@ function executeInstruction(): number {
 			}
 			case 0xde: {
 				// DEC Absolute,X
-				const addr = (bus.read(pc, true) | (bus.read(pc + 1, true) << 8)) + registersView.getUint8(REG_X_OFFSET);
+				const addr =
+					(bus.read(pc, true) | (bus.read(pc + 1, true) << 8)) + registersView.getUint8(REG_X_OFFSET);
 				pc += 2;
 				const value = bus.read(addr);
 				const result = (value - 1) & 0xff;
@@ -1932,7 +1939,8 @@ function executeInstruction(): number {
 			}
 			case 0xfe: {
 				// INC Absolute,X
-				const addr = (bus.read(pc, true) | (bus.read(pc + 1, true) << 8)) + registersView.getUint8(REG_X_OFFSET);
+				const addr =
+					(bus.read(pc, true) | (bus.read(pc + 1, true) << 8)) + registersView.getUint8(REG_X_OFFSET);
 				pc += 2;
 				const value = bus.read(addr);
 				const result = (value + 1) & 0xff;

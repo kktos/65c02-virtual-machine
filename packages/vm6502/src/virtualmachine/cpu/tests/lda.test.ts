@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
-import { step } from "../emulator";
 import { REG_A_OFFSET, REG_PC_OFFSET, REG_STATUS_OFFSET } from "../shared-memory";
 import { getFlag, N, setupCpu, Z } from "./testUtils";
+import { executeInstruction } from "../cpu.65c02";
 
 describe("CPU - LDA (Load Accumulator)", () => {
 	// --- Immediate ---
@@ -9,7 +9,7 @@ describe("CPU - LDA (Load Accumulator)", () => {
 		const { bus, registersView } = setupCpu({ a: 0x00, status: Z });
 		bus.load(0x0600, [0xa9, 0x42]); // LDA #$42
 
-		const cycles = step();
+		const cycles = executeInstruction();
 
 		expect(registersView.getUint8(REG_A_OFFSET)).toBe(0x42);
 		expect(getFlag(registersView.getUint8(REG_STATUS_OFFSET), Z)).toBe(false);
@@ -22,7 +22,7 @@ describe("CPU - LDA (Load Accumulator)", () => {
 		const { bus, registersView } = setupCpu({ a: 0x42, status: 0 });
 		bus.load(0x0600, [0xa9, 0x00]); // LDA #$00
 
-		const cycles = step();
+		const cycles = executeInstruction();
 
 		expect(registersView.getUint8(REG_A_OFFSET)).toBe(0x00);
 		expect(getFlag(registersView.getUint8(REG_STATUS_OFFSET), Z)).toBe(true);
@@ -34,7 +34,7 @@ describe("CPU - LDA (Load Accumulator)", () => {
 		const { bus, registersView } = setupCpu({ a: 0x42, status: 0 });
 		bus.load(0x0600, [0xa9, 0x80]); // LDA #$80
 
-		const cycles = step();
+		const cycles = executeInstruction();
 
 		expect(registersView.getUint8(REG_A_OFFSET)).toBe(0x80);
 		expect(getFlag(registersView.getUint8(REG_STATUS_OFFSET), Z)).toBe(false);
@@ -48,7 +48,7 @@ describe("CPU - LDA (Load Accumulator)", () => {
 		bus.load(0x0600, [0xa5, 0x10]); // LDA $10
 		bus.write(0x0010, 0xab);
 
-		const cycles = step();
+		const cycles = executeInstruction();
 
 		expect(registersView.getUint8(REG_A_OFFSET)).toBe(0xab);
 		expect(cycles).toBe(3);
@@ -61,7 +61,7 @@ describe("CPU - LDA (Load Accumulator)", () => {
 		bus.load(0x0600, [0xb5, 0x10]); // LDA $10,X
 		bus.write(0x0015, 0xcd);
 
-		const cycles = step();
+		const cycles = executeInstruction();
 
 		expect(registersView.getUint8(REG_A_OFFSET)).toBe(0xcd);
 		expect(cycles).toBe(4);
@@ -74,7 +74,7 @@ describe("CPU - LDA (Load Accumulator)", () => {
 		bus.load(0x0600, [0xad, 0x34, 0x12]); // LDA $1234
 		bus.write(0x1234, 0xef);
 
-		const cycles = step();
+		const cycles = executeInstruction();
 
 		expect(registersView.getUint8(REG_A_OFFSET)).toBe(0xef);
 		expect(cycles).toBe(4);
@@ -87,7 +87,7 @@ describe("CPU - LDA (Load Accumulator)", () => {
 		bus.load(0x0600, [0xbd, 0x34, 0x12]); // LDA $1234,X
 		bus.write(0x1244, 0xfa);
 
-		const cycles = step();
+		const cycles = executeInstruction();
 
 		expect(registersView.getUint8(REG_A_OFFSET)).toBe(0xfa);
 		expect(cycles).toBe(4);
@@ -99,7 +99,7 @@ describe("CPU - LDA (Load Accumulator)", () => {
 		bus.load(0x0600, [0xbd, 0xff, 0x12]); // LDA $12FF,X
 		bus.write(0x1300, 0xfb);
 
-		const cycles = step();
+		const cycles = executeInstruction();
 
 		expect(registersView.getUint8(REG_A_OFFSET)).toBe(0xfb);
 		expect(cycles).toBe(5);
@@ -112,7 +112,7 @@ describe("CPU - LDA (Load Accumulator)", () => {
 		bus.load(0x0600, [0xb9, 0x34, 0x12]); // LDA $1234,Y
 		bus.write(0x1244, 0xfc);
 
-		const cycles = step();
+		const cycles = executeInstruction();
 
 		expect(registersView.getUint8(REG_A_OFFSET)).toBe(0xfc);
 		expect(cycles).toBe(4);
@@ -124,7 +124,7 @@ describe("CPU - LDA (Load Accumulator)", () => {
 		bus.load(0x0600, [0xb9, 0xff, 0x12]); // LDA $12FF,Y
 		bus.write(0x1300, 0xfd);
 
-		const cycles = step();
+		const cycles = executeInstruction();
 
 		expect(registersView.getUint8(REG_A_OFFSET)).toBe(0xfd);
 		expect(cycles).toBe(5);
@@ -141,7 +141,7 @@ describe("CPU - LDA (Load Accumulator)", () => {
 		// Value at $4050
 		bus.write(0x4050, 0xde);
 
-		const cycles = step();
+		const cycles = executeInstruction();
 
 		expect(registersView.getUint8(REG_A_OFFSET)).toBe(0xde);
 		expect(cycles).toBe(6);
@@ -158,7 +158,7 @@ describe("CPU - LDA (Load Accumulator)", () => {
 		// Value at $5040 + Y ($10) = $5050
 		bus.write(0x5050, 0xbe);
 
-		const cycles = step();
+		const cycles = executeInstruction();
 
 		expect(registersView.getUint8(REG_A_OFFSET)).toBe(0xbe);
 		expect(cycles).toBe(5);
@@ -174,7 +174,7 @@ describe("CPU - LDA (Load Accumulator)", () => {
 		// Value at $50F0 + Y ($10) = $5100
 		bus.write(0x5100, 0xbf);
 
-		const cycles = step();
+		const cycles = executeInstruction();
 
 		expect(registersView.getUint8(REG_A_OFFSET)).toBe(0xbf);
 		expect(cycles).toBe(6);

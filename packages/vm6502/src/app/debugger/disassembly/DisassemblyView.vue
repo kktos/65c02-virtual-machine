@@ -122,9 +122,7 @@ const { address, memory, registers } = defineProps<Props>();
 const isMaximized = ref(false);
 
 const containerClasses = computed(() => {
-	if (isMaximized.value) {
-		return "fixed inset-0 bg-gray-900 z-50 flex flex-col p-4 border border-cyan-500";
-	}
+	if (isMaximized.value) return "fixed inset-0 bg-gray-900 z-50 flex flex-col p-4 border border-cyan-500";
 	// Classes for inline mode
 	return "p-4 bg-gray-800 rounded-lg shadow-xl h-full flex flex-col";
 });
