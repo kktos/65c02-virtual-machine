@@ -15,6 +15,7 @@
 		>
 			<span class="font-bold text-gray-300 uppercase tracking-wider text-[10px]">Console</span>
 			<div class="flex items-center gap-1">
+				<TriangleAlert v-if="errorHistory.length > 0" color="#ff9a21" class="w-4 h-4" />
 				<button
 					@click="openRoutineEditor"
 					title="Open Routine Editor"
@@ -88,7 +89,7 @@ import { useMachine } from "@/composables/useMachine";
 import { useConsoleSettings } from "@/composables/useConsoleSettings";
 import { computed, nextTick, onMounted, ref, watch } from "vue";
 import { useRoutineEditor } from "@/composables/useRoutineEditor";
-import { FileCode2, ZoomOut, ZoomIn, Trash2, Loader2 } from "lucide-vue-next";
+import { FileCode2, ZoomOut, ZoomIn, Trash2, Loader2, TriangleAlert } from "lucide-vue-next";
 import { useEventBus } from "@vueuse/core";
 
 const { height, fontSize, fontFamily, fontColor, loadSettings, increaseFontSize, decreaseFontSize } =
@@ -107,6 +108,7 @@ const {
 	executeCommand,
 	success,
 	error,
+	errorHistory,
 	commandHistory,
 	shouldClose,
 	isMultiLine,
@@ -150,6 +152,7 @@ const handleEnter = async () => {
 		}
 	} else {
 		printError(error.value);
+		error.value = "";
 	}
 	if (shouldClose.value) hideConsole();
 
