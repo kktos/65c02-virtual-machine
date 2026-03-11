@@ -4,6 +4,8 @@ import type { Command, CommandResult, ParamList } from "@/types/command";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import type { Ref } from "vue";
 
+const HEADER = `| Address | Namespace | Scope | Label | Disk |\n|---|---|---|---|---|`;
+
 export const findLabelCmd: Command = {
 	description: "Find labels matching a query (address or label). Params: <query> [namespace?]",
 	paramDef: ["string", "string?"],
@@ -16,11 +18,9 @@ export const findLabelCmd: Command = {
 
 		const results = findSymbols(query, namespace);
 
-		if (results.length === 0) {
+		if (results.length === 0)
 			return `No labels found matching '${query}'` + (namespace ? ` in namespace '${namespace}'.` : ".");
-		}
 
-		const header = `| Address | Namespace | Scope | Label | Disk |\n|---|---|---|---|---|`;
 		const rows = results
 			.sort((a, b) => a.addr - b.addr)
 			.map((sym) => {
@@ -29,7 +29,7 @@ export const findLabelCmd: Command = {
 			})
 			.join("\n");
 
-		const output = `${header}\n${rows}`;
+		const output = `${HEADER}\n${rows}`;
 
 		return {
 			content: `Found ${results.length} labels:\n\n${output}`,

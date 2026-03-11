@@ -201,7 +201,7 @@ export function useSymbols() {
 					}
 
 					if (isHex) {
-						const addrStr = toHex(entry.addr, 4);
+						const addrStr = toHex(entry.addr, 0);
 						if (addrStr.startsWith(hexQuery)) results.push(entry);
 					}
 				}
