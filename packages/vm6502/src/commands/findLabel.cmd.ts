@@ -1,13 +1,14 @@
-import type { Command, ParamList } from "@/composables/useCommands";
 import { useSymbols } from "@/composables/useSymbols";
 import { formatAddress } from "@/lib/hex.utils";
+import type { Command, CommandResult, ParamList } from "@/types/command";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import type { Ref } from "vue";
 
-export const findLabel: Command = {
+export const findLabelCmd: Command = {
 	description: "Find labels matching a query (address or label). Params: <query> [namespace?]",
 	paramDef: ["string", "string?"],
-	fn: async (_vm: VirtualMachine, _progress: Ref<number>, params: ParamList) => {
+	group: "Symbols",
+	fn: async (_vm: VirtualMachine, _progress: Ref<number>, params: ParamList): Promise<CommandResult> => {
 		const query = params[0] as string;
 		const namespace = (params[1] as string) || "";
 
@@ -19,14 +20,20 @@ export const findLabel: Command = {
 			return `No labels found matching '${query}'` + (namespace ? ` in namespace '${namespace}'.` : ".");
 		}
 
-		const output = results
+		const header = `| Address | Namespace | Scope | Label | Disk |\n|---|---|---|---|---|`;
+		const rows = results
 			.sort((a, b) => a.addr - b.addr)
 			.map((sym) => {
 				const addr = `${formatAddress(sym.addr)}`;
-				return `${addr.padEnd(9)} ${sym.ns.padEnd(10)} ${sym.scope.padEnd(10)} ${sym.label}`;
+				return `| ${addr} | ${sym.ns} | ${sym.scope} | ${sym.label} | ${sym.disk} |`;
 			})
 			.join("\n");
 
-		return `Found ${results.length} labels:\nADDR      NAMESPACE  SCOPE      LABEL\n${output}`;
+		const output = `${header}\n${rows}`;
+
+		return {
+			content: `Found ${results.length} labels:\n\n${output}`,
+			format: "markdown",
+		};
 	},
 };
