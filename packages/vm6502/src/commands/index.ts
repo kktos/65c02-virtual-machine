@@ -102,48 +102,48 @@ const cmdHelp: Command = {
 			}
 			if (groupName === "Monitor") {
 				commandsInGroup.push({
-					key: "<addr>",
+					key: "`addr`",
 					aliases: [],
 					cmd: {
 						group: "Monitor",
-						description: "Displays byte at <addr>",
+						description: "Displays byte at `addr`",
 						fn: () => "",
 					},
 				});
 				commandsInGroup.push({
-					key: "<addr>L",
+					key: "`addr`L",
 					aliases: [],
 					cmd: {
 						group: "Monitor",
-						description: "Disassembles 32 lines from <addr>",
+						description: "Disassembles 32 lines from `addr`",
 						fn: () => "",
 					},
 				});
 				commandsInGroup.push({
-					key: "<start>.<end>",
+					key: "`start`.`end`",
 					aliases: [],
 					cmd: {
 						group: "Monitor",
-						description: "Displays bytes from <start> to <end>",
+						description: "Displays bytes from `start` to `end`",
 						fn: () => "",
 					},
 				});
 				commandsInGroup.push({
-					key: "<start>.<end>L",
+					key: "`start`.`end`L",
 					aliases: [],
 					cmd: {
 						group: "Monitor",
-						description: "Disassembles from <start> to <end>",
+						description: "Disassembles from `start` to `end`",
 						fn: () => "",
 					},
 				});
 				commandsInGroup.push({
-					key: "<addr>:",
+					key: "`addr`:",
 					aliases: [],
 					cmd: {
 						paramDef: ["byte|word|long|string"],
 						group: "Monitor",
-						description: "Write bytes / words / longs / strings(\":bit7=1 | ':bit7=0) at <addr>",
+						description: "Write bytes / words / longs / strings(\":bit7=1 | ':bit7=0) at `addr`",
 						fn: () => "",
 					},
 				});
@@ -152,8 +152,8 @@ const cmdHelp: Command = {
 			const commandHelp = commandsInGroup
 				.map(({ key, cmd, aliases }) => {
 					const allNames = [key, ...aliases].sort().join(", ");
-					const params = cmd.paramDef?.map((p) => `${p}`).join(" ") || "";
-					const description = cmd.description?.replace(/\n/g, "<br/>") || "";
+					const params = cmd.paramDef?.map((p) => `${p.replaceAll("|", "\\|")}`).join(" ") || "";
+					const description = cmd.description?.replaceAll("|", "\\|").replace(/\n/g, "<br/>") || "";
 					return `| ${allNames} | ${params} | ${description} |`;
 				})
 				.join("\n");
