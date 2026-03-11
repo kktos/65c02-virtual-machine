@@ -270,8 +270,8 @@ export function disassemble(
 			}
 			case "IND": {
 				const ind = ((operandBytes[1] ?? 0) << 8) | (operandBytes[0] ?? 0);
-				const label = getLabelForAddress(ind, scope);
-				line.opr = `(${label ?? `$${toHex(ind, 4)}`})`;
+				const symbol = getSymbolForAddress(ind);
+				line.opr = `(${symbol?.label ?? `!! $${toHex(ind, 4)}`})`;
 				line.oprn = ind;
 				const lo = readByte(ind, false);
 				const hi = readByte((ind + 1) & 0xffff, false);
@@ -352,8 +352,6 @@ export function disassemble(
 		disassembly.push(line);
 		pc += bytes;
 	}
-
-	// console.log("Disassembly:", toHex(fromAddress, 4), lineCount, disassembly);
 
 	return disassembly;
 }
