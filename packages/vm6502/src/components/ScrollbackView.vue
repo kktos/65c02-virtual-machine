@@ -1,26 +1,37 @@
 <template>
-	<div ref="scrollContainer" class="flex flex-col p-2 overflow-y-auto" @scroll="handleScroll">
-		<div class="mt-auto">
-			<div v-for="log in logs" :key="log.id" :class="getLogClass(log)">
-				<div v-if="log.format === 'markdown'" class="markdown-preview" v-html="renderMarkdown(log.text)"></div>
-				<div v-else class="whitespace-pre-wrap break-words">{{ log.text || "\u00A0" }}</div>
+	<ScrollArea ref="scrollAreaComponentRef" class="p-2">
+		<div class="flex flex-col min-h-full">
+			<div class="mt-auto">
+				<div v-for="log in logs" :key="log.id" :class="getLogClass(log)">
+					<div
+						v-if="log.format === 'markdown'"
+						class="markdown-preview"
+						v-html="renderMarkdown(log.text)"
+					></div>
+					<div v-else class="whitespace-pre-wrap break-words">{{ log.text || "\u00A0" }}</div>
+				</div>
 			</div>
 		</div>
-	</div>
+	</ScrollArea>
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick } from "vue";
+import { onBeforeUnmount, onMounted, ref, watch, nextTick, type Ref } from "vue";
 import type { LogEntry } from "@/types/scrollback";
 import { marked } from "marked";
 import DOMPurify from "dompurify";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 const props = defineProps<{
-	logs: LogEntry[];
+	logs: readonly LogEntry[];
 }>();
 
 const scrollContainer = ref<HTMLElement | null>(null);
 const isScrolledToBottom = ref(true);
+const scrollAreaComponentRef = ref<{
+	viewport: Ref<HTMLElement | undefined>;
+	scrollToBottom: () => void;
+} | null>(null);
 
 const getLogClass = (log: LogEntry) => {
 	return {
@@ -34,18 +45,29 @@ const renderMarkdown = (markdown: string) => {
 };
 
 const handleScroll = () => {
-	const el = scrollContainer.value;
+	const el = scrollContainer.value; // This is now the viewport
 	if (el) {
 		isScrolledToBottom.value = el.scrollHeight - el.scrollTop - el.clientHeight < 1;
 	}
 };
+
+onMounted(() => {
+	if (scrollAreaComponentRef.value) {
+		scrollContainer.value = scrollAreaComponentRef.value.viewport ?? null;
+		scrollContainer.value?.addEventListener("scroll", handleScroll);
+	}
+});
+
+onBeforeUnmount(() => {
+	scrollContainer.value?.removeEventListener("scroll", handleScroll);
+});
 
 watch(
 	() => props.logs,
 	() => {
 		if (isScrolledToBottom.value) {
 			nextTick(() => {
-				scrollContainer.value?.scrollTo({ top: scrollContainer.value.scrollHeight, behavior: "auto" });
+				scrollAreaComponentRef.value?.scrollToBottom();
 			});
 		}
 	},
