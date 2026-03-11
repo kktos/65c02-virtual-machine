@@ -268,7 +268,7 @@ export function disassemble(
 			case "ABS": {
 				effectiveAddress = ((operandBytes[1] ?? 0) << 8) | (operandBytes[0] ?? 0);
 				line.oprn = effectiveAddress;
-				const match = findSymbolWithOffset(effectiveAddress, undefined, 32);
+				const match = findSymbolWithOffset(effectiveAddress, scope, 32);
 				if (match) {
 					line.comment = match.symbol.scope ? `= [${match.symbol.scope}]` : "";
 					if (match.offset === 0) {
@@ -334,7 +334,7 @@ export function disassemble(
 			case "IND": {
 				const ind = ((operandBytes[1] ?? 0) << 8) | (operandBytes[0] ?? 0);
 				line.oprn = ind;
-				const match = findSymbolWithOffset(ind, undefined, 32);
+				const match = findSymbolWithOffset(ind, scope, 32);
 				let baseOpr: string;
 				if (match) {
 					if (match.offset === 0) {
@@ -344,7 +344,7 @@ export function disassemble(
 						baseOpr = `${match.symbol.label}${offsetStr}`;
 					}
 				} else {
-					baseOpr = `!! $${toHex(ind, 4)}`;
+					baseOpr = `$${toHex(ind, 4)}`;
 				}
 				line.opr = `(${baseOpr})`;
 				const lo = readByte(ind, false);
@@ -569,7 +569,7 @@ export async function generateLabels(
 		// If we found a target that needs a label, add it
 		if (target !== null) {
 			const currentScope = vm.getScope(target);
-			if (labelPrefix !== null && !getLabelForAddress(target, currentScope)) {
+			if (labelPrefix !== null && !getLabelForAddress(target, [currentScope])) {
 				const label =
 					labelPrefix === "L"
 						? `L${toHex(target, 4)}`

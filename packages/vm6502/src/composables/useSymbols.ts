@@ -1,4 +1,4 @@
-import { computed, ref } from "vue";
+import { computed, readonly, ref } from "vue";
 import { openDB, type DBSchema } from "idb";
 import { toHex } from "@/lib/hex.utils";
 
@@ -32,10 +32,12 @@ interface MetadataDB extends DBSchema {
 const activeNamespaces = ref<Map<string, boolean>>(new Map());
 const systemDict = ref<SymbolDict>({});
 const diskDict = ref<SymbolDict>({});
+const scopeSearchPath = ref<string[]>([]);
 const symbolsState = computed(() => ({
 	dictA: systemDict.value,
 	dictB: diskDict.value,
 	activeNamespaces: activeNamespaces.value,
+	// scopeSearchPath: scopeSearchPath.value,
 }));
 
 const DB_NAME = "vm6502_metadata";
@@ -46,6 +48,10 @@ export function useSymbols() {
 	const setDiskKey = (newKey: string) => {
 		diskKey = newKey;
 		loadSymbolsFromDb();
+	};
+
+	const setScopeSearchPath = (path: string[]) => {
+		scopeSearchPath.value = path;
 	};
 
 	const getDb = async () => {
@@ -511,54 +517,48 @@ export function useSymbols() {
 		await tx.done;
 	};
 
-	const getSymbolForAddress = (address: number, scope?: string) => {
+	const getSymbolForAddress = (address: number, scopeOrPath?: string | string[]) => {
+		let finalPath: string[];
+		if (Array.isArray(scopeOrPath)) finalPath = scopeOrPath;
+		else finalPath = [scopeOrPath, ...scopeSearchPath.value].filter(Boolean) as string[];
+
 		const search = (dict: SymbolDict) => {
-			const map = dict[address];
-			if (!map) return undefined;
-			for (const ns in map) {
-				if (!activeNamespaces.value.get(ns)) continue;
-				const sym = map[ns];
-				if (scope && sym?.scope !== scope) continue;
-				return sym;
+			const namespaces = dict[address];
+			if (!namespaces) return undefined;
+
+			for (const scope of finalPath) {
+				for (const ns in namespaces) {
+					if (!activeNamespaces.value.get(ns)) continue;
+					const sym = namespaces[ns];
+					if (sym?.scope === scope) {
+						return sym; // Found a match in the current priority scope
+					}
+				}
 			}
-			return undefined;
+			return undefined; // Nothing found in the specified path
 		};
 		return search(diskDict.value) ?? search(systemDict.value);
 	};
 
-	const getLabelForAddress = (address: number, scope?: string) => {
-		const search = (dict: SymbolDict) => {
-			const map = dict[address];
-			if (!map) return undefined;
-			for (const ns in map) {
-				if (!activeNamespaces.value.get(ns)) continue;
-				const sym = map[ns];
-				if (scope && sym?.scope !== scope) continue;
-				return sym?.label;
-			}
-			return undefined;
-		};
-		return search(diskDict.value) ?? search(systemDict.value);
+	const getLabelForAddress = (address: number, scopeOrPath?: string | string[]) => {
+		return getSymbolForAddress(address, scopeOrPath)?.label;
 	};
 
 	const findSymbolWithOffset = (
 		address: number,
-		scope?: string,
+		scopeOrPath?: string | string[],
 		maxLookback = 16,
 	): { symbol: SymbolEntry; offset: number } | null => {
 		// 1. Try exact match first
-		const sym = getSymbolForAddress(address, scope);
+		const sym = getSymbolForAddress(address, scopeOrPath);
 		if (sym) return { symbol: sym, offset: 0 };
 
 		// 2. Look backwards for a nearby label
 		for (let i = 1; i <= maxLookback; i++) {
 			const lookbackAddress = address - i;
 			if (lookbackAddress < 0) break;
-
-			const foundSym = getSymbolForAddress(lookbackAddress, scope);
-			if (foundSym) {
-				return { symbol: foundSym, offset: i };
-			}
+			const foundSym = getSymbolForAddress(lookbackAddress, scopeOrPath);
+			if (foundSym) return { symbol: foundSym, offset: i };
 		}
 
 		return null;
@@ -593,6 +593,9 @@ export function useSymbols() {
 	return {
 		initSymbols,
 		setDiskKey,
+
+		setScopeSearchPath,
+		scopeSearchPath: readonly(scopeSearchPath),
 
 		addSymbolsFromText,
 		generateTextFromSymbols,

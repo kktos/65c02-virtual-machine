@@ -77,9 +77,9 @@ export function useDisassemblyScroll(
 
 	const handleScroll = (event: WheelEvent) => {
 		if (event.deltaY < 0) {
-			scrollUp();
+			scrollUp(event.ctrlKey ? 10 : 1);
 		} else {
-			scrollDown();
+			scrollDown(event.ctrlKey ? 10 : 1);
 		}
 	};
 

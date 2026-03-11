@@ -29,6 +29,7 @@ import { stepCmd } from "./step.cmd";
 import { glCmd } from "./gl.cmd";
 import { setCmd } from "./set.cmd";
 import { findLabelCmd } from "./findLabel.cmd";
+import { scopePathCmd } from "./scopePath.cmd";
 
 export function typedKeys<T extends object>(obj: T): (keyof T)[] {
 	return Object.keys(obj) as (keyof T)[];
@@ -181,10 +182,11 @@ export const COMMAND_LIST = {
 	S: "STEP",
 	RESET: reset,
 	REBOOT: reboot,
-
 	SPEED: speed,
+
 	D: { ...setDisasmView, group: "Viewers" },
 	M: { ...setMemView, group: "Viewers" },
+
 	CODE: { ...defCode, group: "Memory" },
 	DB: {
 		description: "define n bytes at `address` with n = `word`",
@@ -214,6 +216,7 @@ export const COMMAND_LIST = {
 	FIND: findLabelCmd,
 	HOOK: hook,
 	LABELS: labelsCmd,
+	SCOPEPATH: scopePathCmd,
 
 	FONT: { ...font, group: "Console" },
 	M1: {

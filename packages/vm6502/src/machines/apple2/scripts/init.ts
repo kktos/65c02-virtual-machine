@@ -1,5 +1,6 @@
 export const initRoutine = `
 	LABELS SYSTEM
+		$0100 STACK
 		$0200 INPUTBUF
 		$03f0 BRKV
 		$03f2 SOFTEV
@@ -155,6 +156,8 @@ export const initRoutine = `
 		$ff69 MONZ
 		$fce2 INIT_SYSTEM
 	END
+
+	SCOPEPATH main io rom
 
 	font "PRINTCHAR21"
 `;
