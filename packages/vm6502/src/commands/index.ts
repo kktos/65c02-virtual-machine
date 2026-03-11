@@ -17,13 +17,8 @@ import { execRemoveBP } from "./removeBP.cmd";
 import { renLabel } from "./renLabel.cmd";
 import { reset } from "./reset.cmd";
 import { run } from "./run.cmd";
-import { setA } from "./setA.cmd";
 import { setDisasmView } from "./setDisasmView.cmd";
 import { setMemView } from "./setMemView.cmd";
-import { setPC } from "./setPC.cmd";
-import { setSP } from "./setSP.cmd";
-import { setX } from "./setX.cmd";
-import { setY } from "./setY.cmd";
 import { speed } from "./speed.cmd";
 import { undefLabel } from "./undefLabel.cmd";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
@@ -33,6 +28,8 @@ import type { Command, CommandResult, CommandWrapper, ParamList } from "@/types/
 import { useCommands } from "@/composables/useCommands";
 import { stepCmd } from "./step.cmd";
 import { glCmd } from "./gl.cmd";
+import { set8bitRegisterCmd } from "./set8bitRegister.cmd";
+import { set16bitRegisterCmd } from "./set16bitRegister.cmd";
 
 export function typedKeys<T extends object>(obj: T): (keyof T)[] {
 	return Object.keys(obj) as (keyof T)[];
@@ -168,11 +165,41 @@ const cmdHelp: Command = {
 };
 
 export const COMMAND_LIST: Record<string, Command | CommandWrapper | string> = {
-	"A=": { ...setA, group: "Monitor" },
-	"X=": { ...setX, group: "Monitor" },
-	"Y=": { ...setY, group: "Monitor" },
-	"PC=": { ...setPC, group: "Monitor" },
-	"SP=": { ...setSP, group: "Monitor" },
+	"A=": {
+		description: "Set value to Accumulator",
+		paramDef: ["byte"],
+		base: set8bitRegisterCmd,
+		staticParams: { prepend: ["A"] },
+		group: "Monitor",
+	},
+	"X=": {
+		description: "Set value to X register",
+		paramDef: ["byte"],
+		base: set8bitRegisterCmd,
+		staticParams: { prepend: ["X"] },
+		group: "Monitor",
+	},
+	"Y=": {
+		description: "Set value to Y register",
+		paramDef: ["byte"],
+		base: set8bitRegisterCmd,
+		staticParams: { prepend: ["Y"] },
+		group: "Monitor",
+	},
+	"PC=": {
+		description: "Set value to Program Counter",
+		paramDef: ["word"],
+		base: set16bitRegisterCmd,
+		staticParams: { prepend: ["PC"] },
+		group: "Monitor",
+	},
+	"SP=": {
+		description: "Set value to Stack Pointer",
+		paramDef: ["byte"],
+		base: set8bitRegisterCmd,
+		staticParams: { prepend: ["SP"] },
+		group: "Monitor",
+	},
 	GL: glCmd,
 
 	RUN: run,
