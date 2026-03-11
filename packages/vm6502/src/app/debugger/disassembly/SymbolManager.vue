@@ -210,7 +210,10 @@
 						</TableRow>
 
 						<!-- Symbol Rows -->
-						<template v-for="symbol in paginatedSymbols" :key="`${symbol.addr}-${symbol.ns}`">
+						<template
+							v-for="symbol in paginatedSymbols"
+							:key="`${symbol.addr}-${symbol.ns}-${symbol.disk}`"
+						>
 							<!-- Inline Edit Row -->
 							<TableRow
 								v-if="
