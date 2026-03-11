@@ -2,7 +2,7 @@ import { computed, ref, watch } from "vue";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import { useRoutines } from "./useRoutines";
 import { ExpressionParser } from "@/lib/expressionParser";
-import { COMMAND_LIST, typedKeys } from "@/commands";
+import { COMMAND_LIST, type COMMANDS } from "@/commands";
 import { minimonitor } from "@/lib/mini-monitor";
 import type { Command, CommandOutput, CommandWrapper, MultiLineRequest, ParamList } from "@/types/command";
 
@@ -68,7 +68,21 @@ export function useCommands() {
 			const singleCmdTrimmed = commandQueue.shift()?.trim() as string;
 			if (singleCmdTrimmed === END_ROUTINE_MARKER) continue;
 
-			const cmd = singleCmdTrimmed.split(" ")[0]?.toUpperCase() as string;
+			const userParams: ParamList = [];
+
+			// Match identifier, then optional whitespace, then the rest
+			const match = singleCmdTrimmed.match(/^([a-zA-Z_][a-zA-Z0-9_]*)\s*(.*)/s);
+			if (!match) return null;
+
+			let cmd = match[1].toUpperCase() as COMMANDS;
+			let paramStr = match[2].trim();
+
+			// Assignment: rest starts with '=' (after optional spaces, already trimmed)
+			if (paramStr.startsWith("=")) {
+				userParams.push(cmd);
+				paramStr = paramStr.slice(1).trim();
+				cmd = "SET";
+			}
 
 			if (cmd === "IF") {
 				const parser = new ExpressionParser(singleCmdTrimmed.substring(2), vm);
@@ -98,9 +112,8 @@ export function useCommands() {
 				continue;
 			}
 
-			const cmdKey = typedKeys(COMMAND_LIST).find((key) => cmd === key);
-
-			if (!cmdKey) {
+			const isValidCmd = !!COMMAND_LIST[cmd];
+			if (!isValidCmd) {
 				try {
 					const output = minimonitor(singleCmdTrimmed, vm) + "\n";
 					success.value.push({ content: output, format: "text" });
@@ -111,25 +124,15 @@ export function useCommands() {
 				continue;
 			}
 
-			let cmdSpecOrAlias = COMMAND_LIST[cmdKey];
-			let cmdKeyToUse = cmdKey;
+			let cmdSpecOrAlias = COMMAND_LIST[cmd];
+			if (typeof cmdSpecOrAlias === "string") cmdSpecOrAlias = COMMAND_LIST[cmdSpecOrAlias as COMMANDS];
 
-			if (typeof cmdSpecOrAlias === "string") {
-				cmdKeyToUse = cmdSpecOrAlias;
-				cmdSpecOrAlias = COMMAND_LIST[cmdKeyToUse];
-			}
-
-			if (typeof cmdSpecOrAlias === "string" || !cmdSpecOrAlias) {
-				throw new Error(`Invalid command alias configuration for '${cmdKey}'.`);
-			}
+			if (typeof cmdSpecOrAlias === "string" || !cmdSpecOrAlias)
+				throw new Error(`Invalid command alias configuration for '${cmd}'.`);
 
 			const cmdSpec = cmdSpecOrAlias as Command | CommandWrapper;
-
 			const commandToRun = "base" in cmdSpec ? cmdSpec.base : cmdSpec;
 			const paramDef = cmdSpec.paramDef;
-
-			let paramStr = singleCmdTrimmed.slice(cmdKey.length).trim();
-			const userParams: ParamList = [];
 
 			if (paramDef)
 				for (let i = 0; i < paramDef.length; i++) {
@@ -139,9 +142,7 @@ export function useCommands() {
 
 					if (!paramStr && !isOptional) {
 						const requiredRemaining = paramDef.slice(i).filter((p) => !p.endsWith("?")).length;
-						if (requiredRemaining > 0) {
-							throw new Error(`Missing required parameter(s) for "${cmdKey}".`);
-						}
+						if (requiredRemaining > 0) throw new Error(`Missing required parameter(s) for "${cmd}".`);
 						break; // All remaining are optional
 					}
 
@@ -240,7 +241,7 @@ export function useCommands() {
 							paramStr = originalParamStr;
 							continue;
 						}
-						throw lastError || new Error(`Invalid parameter for "${cmdKey}".`);
+						throw lastError || new Error(`Invalid parameter for "${cmd}".`);
 					}
 					userParams.push(parsedValue);
 				}

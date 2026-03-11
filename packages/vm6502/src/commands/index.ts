@@ -28,11 +28,18 @@ import type { Command, CommandResult, CommandWrapper, ParamList } from "@/types/
 import { useCommands } from "@/composables/useCommands";
 import { stepCmd } from "./step.cmd";
 import { glCmd } from "./gl.cmd";
-import { set8bitRegisterCmd } from "./set8bitRegister.cmd";
-import { set16bitRegisterCmd } from "./set16bitRegister.cmd";
+import { setCmd } from "./set.cmd";
 
 export function typedKeys<T extends object>(obj: T): (keyof T)[] {
 	return Object.keys(obj) as (keyof T)[];
+}
+
+function d(g: string, d: string) {
+	return {
+		description: d,
+		group: g,
+		fn: () => "",
+	};
 }
 
 const cmdHelp: Command = {
@@ -78,28 +85,6 @@ const cmdHelp: Command = {
 
 			output += `\n## ${groupName}\n\n| Command(s) | Parameters | Description |\n|---|---|---|\n`;
 			const commandsInGroup = groups[groupName]!;
-			if (groupName === "Scripting") {
-				commandsInGroup.push({
-					key: "DO",
-					aliases: [],
-					cmd: {
-						group: "Scripting",
-						description: "Execute a defined routine.",
-						paramDef: ["string"],
-						fn: () => "",
-					},
-				});
-				commandsInGroup.push({
-					key: "IF",
-					aliases: [],
-					cmd: {
-						group: "Scripting",
-						description: "Conditional: IF <expression> [THEN] <command>",
-						paramDef: ["expr"],
-						fn: () => "",
-					},
-				});
-			}
 			if (groupName === "Monitor") {
 				commandsInGroup.push({
 					key: "`addr`",
@@ -164,42 +149,29 @@ const cmdHelp: Command = {
 	},
 };
 
-export const COMMAND_LIST: Record<string, Command | CommandWrapper | string> = {
-	"A=": {
-		description: "Set value to Accumulator",
-		paramDef: ["byte"],
-		base: set8bitRegisterCmd,
-		staticParams: { prepend: ["A"] },
-		group: "Monitor",
+export type COMMANDS = keyof typeof COMMAND_LIST;
+
+export const COMMAND_LIST = {
+	IF: {
+		description: "Conditional: IF <expression> [THEN] <command>",
+		paramDef: ["expr"],
+		fn: () => "",
+		group: "Scripting",
 	},
-	"X=": {
-		description: "Set value to X register",
-		paramDef: ["byte"],
-		base: set8bitRegisterCmd,
-		staticParams: { prepend: ["X"] },
-		group: "Monitor",
+	DO: {
+		group: "Scripting",
+		description: "Execute a defined routine.",
+		paramDef: ["string"],
+		fn: () => "",
 	},
-	"Y=": {
-		description: "Set value to Y register",
-		paramDef: ["byte"],
-		base: set8bitRegisterCmd,
-		staticParams: { prepend: ["Y"] },
-		group: "Monitor",
-	},
-	"PC=": {
-		description: "Set value to Program Counter",
-		paramDef: ["word"],
-		base: set16bitRegisterCmd,
-		staticParams: { prepend: ["PC"] },
-		group: "Monitor",
-	},
-	"SP=": {
-		description: "Set value to Stack Pointer",
-		paramDef: ["byte"],
-		base: set8bitRegisterCmd,
-		staticParams: { prepend: ["SP"] },
-		group: "Monitor",
-	},
+
+	SET: setCmd,
+	"A=": d("Monitor", "Set value to Accumulator"),
+	"X=": d("Monitor", "Set value to X register"),
+	"Y=": d("Monitor", "Set value to Y register"),
+	"PC=": d("Monitor", "Set value to Program Counter"),
+	"SP=": d("Monitor", "Set value to Stack Pointer"),
+
 	GL: glCmd,
 
 	RUN: run,
@@ -344,4 +316,4 @@ export const COMMAND_LIST: Record<string, Command | CommandWrapper | string> = {
 		},
 		group: "Console",
 	},
-};
+} satisfies Record<string, Command | CommandWrapper | string>;
