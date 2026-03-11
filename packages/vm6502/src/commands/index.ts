@@ -4,7 +4,6 @@ import { execAddBP } from "./addBP.cmd";
 import { defCode } from "./defCode.cmd";
 import { defData } from "./defData.cmd";
 import { defLabel } from "./defLabel.cmd";
-import { findLabel } from "./findLabel.cmd";
 import { font } from "./font.cmd";
 import { hook } from "./hook.cmd";
 import { labelsCmd } from "./labels.cmd";
@@ -29,6 +28,7 @@ import { useCommands } from "@/composables/useCommands";
 import { stepCmd } from "./step.cmd";
 import { glCmd } from "./gl.cmd";
 import { setCmd } from "./set.cmd";
+import { findLabelCmd } from "./findLabel.cmd";
 
 export function typedKeys<T extends object>(obj: T): (keyof T)[] {
 	return Object.keys(obj) as (keyof T)[];
@@ -207,13 +207,15 @@ export const COMMAND_LIST = {
 		staticParams: { prepend: ["string"] },
 		group: "Memory",
 	},
+
 	DEF: { ...defLabel, group: "Symbols" },
-	UNDEF: { ...undefLabel, group: "Symbols" },
+	UNDEF: undefLabel,
 	REN: { ...renLabel, group: "Symbols" },
-	FIND: { ...findLabel, group: "Symbols" },
-	FONT: { ...font, group: "Console" },
+	FIND: findLabelCmd,
 	HOOK: hook,
 	LABELS: labelsCmd,
+
+	FONT: { ...font, group: "Console" },
 	M1: {
 		description: "set MemViewer(1) `address`",
 		paramDef: ["address"],
@@ -235,6 +237,7 @@ export const COMMAND_LIST = {
 		staticParams: { append: [3] },
 		group: "Viewers",
 	},
+
 	BP: {
 		description: "Add execution breakpoint",
 		paramDef: ["range|address"],

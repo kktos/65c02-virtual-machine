@@ -347,8 +347,6 @@ export function useSymbols() {
 			return;
 		}
 
-		console.log("recordsToDelete", recordsToDelete);
-
 		// Batch delete from DB in parallel
 		const deletePromises = recordsToDelete.map((r) => store.delete(r.id!));
 		await Promise.all(deletePromises);
