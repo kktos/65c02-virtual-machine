@@ -541,6 +541,29 @@ export function useSymbols() {
 		return search(diskDict.value) ?? search(systemDict.value);
 	};
 
+	const findSymbolWithOffset = (
+		address: number,
+		scope?: string,
+		maxLookback = 16,
+	): { symbol: SymbolEntry; offset: number } | null => {
+		// 1. Try exact match first
+		const sym = getSymbolForAddress(address, scope);
+		if (sym) return { symbol: sym, offset: 0 };
+
+		// 2. Look backwards for a nearby label
+		for (let i = 1; i <= maxLookback; i++) {
+			const lookbackAddress = address - i;
+			if (lookbackAddress < 0) break;
+
+			const foundSym = getSymbolForAddress(lookbackAddress, scope);
+			if (foundSym) {
+				return { symbol: foundSym, offset: i };
+			}
+		}
+
+		return null;
+	};
+
 	const getAddressForLabel = (label: string, namespace = "") => {
 		const upperSymbol = label.toUpperCase();
 		const search = (dict: SymbolDict) => {
@@ -576,6 +599,7 @@ export function useSymbols() {
 
 		getLabelForAddress,
 		getSymbolForAddress,
+		findSymbolWithOffset,
 		getAddressForLabel,
 
 		getNamespaceList,
