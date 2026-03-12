@@ -1,6 +1,6 @@
 <template>
 	<ScrollArea ref="scrollAreaComponentRef" class="p-2">
-		<div class="flex flex-col min-h-full">
+		<div class="flex flex-col h-full">
 			<div class="mt-auto">
 				<div v-for="log in logs" :key="log.id" :class="getLogClass(log)">
 					<div
@@ -76,6 +76,12 @@ watch(
 </script>
 
 <style scoped>
+/* This is needed to force the intermediate div added by the ScrollArea's underlying library (reka-ui) to take up the full height.
+Without this, the h-full on our flex container has no effect, and mt-auto doesn't work. */
+:deep([data-reka-scroll-area-viewport] > div) {
+	height: 100%;
+}
+
 .markdown-preview {
 	white-space: normal;
 }
