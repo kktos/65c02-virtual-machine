@@ -121,12 +121,37 @@ const openRoutineEditor = (event: MouseEvent) => open(event);
 onMounted(() => loadSettings());
 const clearConsole = () => clear();
 
-useEventBus<void>(BUS_KEY).on(clearConsole);
+useEventBus<string>(BUS_KEY).on((cmd: string, args: unknown[]) => {
+	switch (cmd) {
+		case "cls":
+			clearConsole();
+			break;
+		case "print":
+			print(args[1] as string, "output", args[0] as "text" | "markdown");
+			break;
+	}
+});
 
 watch(
 	() => isConsoleVisible.value,
 	(visible) => {
 		if (visible) nextTick(() => inputRef.value?.focus());
+	},
+);
+
+watch(
+	() => success.value,
+	(success) => {
+		if (success.length > 0) {
+			let isFirstNonEmpty = true;
+			for (const output of success) {
+				if (output.content) {
+					const contentToPrint = isFirstNonEmpty ? `\n${output.content}` : output.content;
+					print(contentToPrint, "output", output.format);
+					isFirstNonEmpty = false;
+				}
+			}
+		}
 	},
 );
 

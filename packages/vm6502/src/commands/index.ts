@@ -218,7 +218,6 @@ export const COMMAND_LIST = {
 	LABELS: labelsCmd,
 	SCOPEPATH: scopePathCmd,
 
-	FONT: { ...font, group: "Console" },
 	M1: {
 		description: "set MemViewer(1) `address`",
 		paramDef: ["address"],
@@ -289,10 +288,10 @@ export const COMMAND_LIST = {
 		fn: execRemoveBP("read"),
 		group: "Breakpoints",
 	},
+
 	EXPLAIN: explainCmd,
 	LOG: { ...logCmd, group: "Logging" },
 	ROUTINE: routineCmd,
-	HELP: cmdHelp,
 	EDITROUTINES: {
 		description: "Open the routine editor window.",
 		fn: () => {
@@ -302,6 +301,9 @@ export const COMMAND_LIST = {
 		closeOnSuccess: true,
 		group: "Scripting",
 	},
+
+	FONT: { ...font, group: "Console" },
+	HELP: cmdHelp,
 	ERR: {
 		description: "Error History",
 		fn: () => {
@@ -313,7 +315,22 @@ export const COMMAND_LIST = {
 		group: "Console",
 	},
 	LIST: listCmd,
-	PRINT: { ...printCmd, group: "Console" },
+	PRINT: {
+		description:
+			"Prints evaluated expressions to the console. Args can be strings, numbers, or expressions (e.g. A, X+1, mem[PC]).",
+		paramDef: ["rest?"],
+		base: printCmd,
+		staticParams: { prepend: ["text"] },
+		group: "Console",
+	},
+	PRINTMD: {
+		description:
+			"Prints evaluated expressions to the console. Args can be strings, numbers, or expressions (e.g. A, X+1, mem[PC]).",
+		paramDef: ["rest?"],
+		base: printCmd,
+		staticParams: { prepend: ["markdown"] },
+		group: "Console",
+	},
 	CLS: {
 		description: "Clear console",
 		fn: (_vm, _progress, _params: ParamList) => {

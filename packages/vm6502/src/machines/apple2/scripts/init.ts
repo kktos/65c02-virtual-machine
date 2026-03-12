@@ -160,4 +160,6 @@ export const initRoutine = `
 	SCOPEPATH main io rom
 
 	font "PRINTCHAR21"
+
+	printmd "**Apple //e**"
 `;

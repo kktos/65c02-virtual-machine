@@ -16,8 +16,6 @@ export function useScrollback() {
 	};
 
 	const printError = (text: string) => {
-		// The class 'text-red-400' is now applied based on the 'error' type
-		// in the ScrollbackView.vue component.
 		if (!text) return;
 		print(text, "error");
 	};

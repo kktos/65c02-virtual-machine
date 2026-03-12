@@ -8,7 +8,7 @@ export type LogEntry = {
 
 const EVENTBUS_KEY = "cmd-console-clear";
 const isConsoleVisible = ref(false);
-const clearConsoleBus = useEventBus<void>(EVENTBUS_KEY);
+const consoleBus = useEventBus<string>(EVENTBUS_KEY);
 
 const showConsole = () => {
 	isConsoleVisible.value = true;
@@ -19,7 +19,11 @@ const hideConsole = () => {
 };
 
 const clearConsole = () => {
-	clearConsoleBus.emit();
+	consoleBus.emit("cls");
+};
+
+const print = (type: string, text: string) => {
+	consoleBus.emit("print", [type, text]);
 };
 
 export function useCmdConsole() {
@@ -29,5 +33,6 @@ export function useCmdConsole() {
 		hideConsole,
 		clearConsole,
 		isConsoleVisible,
+		print,
 	};
 }

@@ -1,13 +1,16 @@
-import type { Command } from "@/composables/useCommands";
+import { useCmdConsole } from "@/composables/useCmdConsole";
 import { evalExpression } from "@/lib/eval.utils";
+import type { Command } from "@/types/command";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 
 export const printCmd: Command = {
 	description:
 		"Prints evaluated expressions to the console. Args can be strings, numbers, or expressions (e.g. A, X+1, mem[PC]).",
-	paramDef: ["rest?"],
+	paramDef: ["string", "rest?"],
+	group: "Console",
 	fn: (vm: VirtualMachine, _progress, params) => {
-		const rest = params[0] as string | undefined;
+		const type = params[0] as string;
+		const rest = params[1] as string | undefined;
 		if (!rest) return "";
 
 		const matches = rest.match(/(?:"[^"]*"|[^,]+)/g);
@@ -23,6 +26,8 @@ export const printCmd: Command = {
 			return evalExpression(currentArg, vm);
 		});
 
-		return evaluatedArgs.join(" ");
+		useCmdConsole().print(type, evaluatedArgs.join(" "));
+
+		return "";
 	},
 };
