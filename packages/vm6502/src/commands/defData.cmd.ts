@@ -1,6 +1,6 @@
-import type { Command, ParamList } from "@/composables/useCommands";
 import { useFormatting, type DataType } from "@/composables/useDataFormattings";
 import { formatAddress } from "@/lib/hex.utils";
+import type { Command, ParamList } from "@/types/command";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import type { Ref } from "vue";
 
@@ -8,7 +8,8 @@ const TYPES = new Set(["byte", "word", "string"]);
 
 export const defData: Command = {
 	description: "Define data region of type <string> at <address> with length <word>.",
-	paramDef: ["string", "address", "word"],
+	paramDef: ["name", "address", "word"],
+	group: "Memory",
 	fn: async (_vm: VirtualMachine, _progress: Ref<number>, params: ParamList) => {
 		const type = params[0] as string;
 		if (!TYPES.has(type)) throw new Error("Invalid data type.");

@@ -6,7 +6,7 @@ const { addManySymbols } = useSymbols();
 
 export const labelsCmd: Command = {
 	description: "Define multiple labels. Usage: LABELS <namespace> [<scope>] ... END",
-	paramDef: ["string", "string?"],
+	paramDef: ["name", "name?"],
 	group: "Symbols",
 	fn: (_vm, _progress, params) => {
 		const namespace = params[0] as string;

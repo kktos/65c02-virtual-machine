@@ -6,7 +6,7 @@ import type { Ref } from "vue";
 
 export const glCmd: Command = {
 	description: "Generate labels for a memory `range` with optional memory `scope`",
-	paramDef: ["range", "string?"],
+	paramDef: ["range", "name?"],
 	group: "Symbols",
 	fn: async (vm: VirtualMachine, progress: Ref<number>, params: ParamList) => {
 		const { start: from, end: to } = params[0] as { start: number; end: number };

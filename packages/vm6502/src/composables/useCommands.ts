@@ -1,7 +1,7 @@
 import { computed, ref, watch } from "vue";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import { useRoutines } from "./useRoutines";
-import { ExpressionParser } from "@/lib/expressionParser";
+import { ExpressionParser, TokenType } from "@/lib/expressionParser";
 import { COMMAND_LIST, type COMMANDS } from "@/commands";
 import { minimonitor } from "@/lib/mini-monitor";
 import type { Command, CommandOutput, CommandWrapper, MultiLineRequest, ParamList } from "@/types/command";
@@ -216,26 +216,30 @@ export function useCommands() {
 									break;
 								}
 								case "string": {
-									// if (paramStr.startsWith('"') || paramStr.startsWith("'")) {
 									const parser = new ExpressionParser(paramStr, vm);
+									if (parser.peek().type !== TokenType.STRING) {
+										throw new Error("Expected a quoted string literal.");
+									}
 									const value = parser.parse();
-									if (typeof value !== "string") throw new Error("Expected a string literal.");
-
+									if (typeof value !== "string") {
+										// This should not happen if the first token is a string and it's not followed by operators
+										throw new Error("Internal error parsing string literal.");
+									}
 									parsedValue = value;
 									const restIndex = parser.getRestIndex();
 									paramStr = paramStr.substring(restIndex).trim();
-									// }
-									// else {
-									// 	// Unquoted string, take until the next space.
-									// 	const spaceIdx = paramStr.indexOf(" ");
-									// 	if (spaceIdx === -1) {
-									// 		parsedValue = paramStr;
-									// 		paramStr = "";
-									// 	} else {
-									// 		parsedValue = paramStr.substring(0, spaceIdx);
-									// 		paramStr = paramStr.substring(spaceIdx).trim();
-									// 	}
-									// }
+									break;
+								}
+								case "name": {
+									// Unquoted literal, take until the next space.
+									const spaceIdx = paramStr.indexOf(" ");
+									if (spaceIdx === -1) {
+										parsedValue = paramStr;
+										paramStr = "";
+									} else {
+										parsedValue = paramStr.substring(0, spaceIdx);
+										paramStr = paramStr.substring(spaceIdx).trim();
+									}
 									break;
 								}
 								case "number": {

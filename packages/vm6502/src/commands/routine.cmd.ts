@@ -1,9 +1,9 @@
 import { useRoutines } from "@/composables/useRoutines";
-import type { Command } from ".";
+import type { Command } from "@/types/command";
 
 export const routineCmd: Command = {
 	description: "Define a routine on multiple lines, ended by END.",
-	paramDef: ["string"],
+	paramDef: ["name"],
 	group: "Scripting",
 	fn: (_vm, _progress, params) => {
 		const routineName = params[0] as string;

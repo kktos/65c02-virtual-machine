@@ -8,7 +8,7 @@ import type { Ref } from "vue";
 export const explainCmd: Command = {
 	description:
 		"explain code from <range> [mode?] [output?]. Mode can be CONCISE (default) or DETAILED. Output can be CONSOLE (default) or ASNOTE (to create a Note).",
-	paramDef: ["range", "string?", "string?"],
+	paramDef: ["range", "name?", "name?"],
 	group: "A.I.",
 	closeOnSuccess: false,
 	fn: async (vm: VirtualMachine, progress: Ref<number>, params: ParamList): Promise<CommandResult> => {

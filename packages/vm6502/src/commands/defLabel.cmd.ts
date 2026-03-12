@@ -1,12 +1,13 @@
-import type { Command, ParamList } from "@/composables/useCommands";
 import { useSymbols } from "@/composables/useSymbols";
 import { formatAddress } from "@/lib/hex.utils";
+import type { Command, ParamList } from "@/types/command";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import type { Ref } from "vue";
 
 export const defLabel: Command = {
 	description: "Define a label <label> at <address> [scope?]",
-	paramDef: ["string", "address", "string?"],
+	paramDef: ["name", "address", "name?"],
+	group: "Symbols",
 	fn: async (vm: VirtualMachine, _progress: Ref<number>, params: ParamList) => {
 		const fulllabel = params[0] as string;
 		const address = params[1] as number;

@@ -184,7 +184,7 @@ export const COMMAND_LIST = {
 	REBOOT: reboot,
 	SPEED: speed,
 
-	D: { ...setDisasmView, group: "Viewers" },
+	D: setDisasmView,
 	M: { ...setMemView, group: "Viewers" },
 
 	CODE: { ...defCode, group: "Memory" },
@@ -210,9 +210,9 @@ export const COMMAND_LIST = {
 		group: "Memory",
 	},
 
-	DEF: { ...defLabel, group: "Symbols" },
+	DEF: defLabel,
 	UNDEF: undefLabel,
-	REN: { ...renLabel, group: "Symbols" },
+	REN: renLabel,
 	FIND: findLabelCmd,
 	HOOK: hook,
 	LABELS: labelsCmd,
@@ -290,7 +290,7 @@ export const COMMAND_LIST = {
 	},
 
 	EXPLAIN: explainCmd,
-	LOG: { ...logCmd, group: "Logging" },
+	LOG: logCmd,
 	ROUTINE: routineCmd,
 	EDITROUTINES: {
 		description: "Open the routine editor window.",

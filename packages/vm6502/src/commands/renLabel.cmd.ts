@@ -1,12 +1,13 @@
-import type { Command, ParamList } from "@/composables/useCommands";
 import { useSymbols } from "@/composables/useSymbols";
 import { formatAddress } from "@/lib/hex.utils";
+import type { Command, ParamList } from "@/types/command";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import type { Ref } from "vue";
 
 export const renLabel: Command = {
 	description: "Rename a user-defined label. Params: <old_label> <new_label> [scope?]",
-	paramDef: ["string", "string", "string?"],
+	paramDef: ["name", "name", "name?"],
+	group: "Symbols",
 	fn: async (_vm: VirtualMachine, _progress: Ref<number>, params: ParamList) => {
 		const oldLabel = params[0] as string;
 		const newLabel = params[1] as string;

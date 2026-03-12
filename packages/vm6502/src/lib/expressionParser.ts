@@ -254,7 +254,7 @@ export class ExpressionParser {
 		this.tokens.push({ type: TokenType.EOF, value: 0, text: "", start: i, end: i });
 	}
 
-	private peek(): Token {
+	public peek(): Token {
 		return this.tokens[this.pos] as Token;
 	}
 

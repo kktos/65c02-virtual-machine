@@ -8,7 +8,7 @@ const HEADER = `| Address | Namespace | Scope | Label | Disk |\n|---|---|---|---
 
 export const findLabelCmd: Command = {
 	description: "Find labels matching a query (address or label). Params: <query> [namespace?]",
-	paramDef: ["string", "string?"],
+	paramDef: ["name", "name?"],
 	group: "Symbols",
 	fn: async (_vm: VirtualMachine, _progress: Ref<number>, params: ParamList): Promise<CommandResult> => {
 		const query = params[0] as string;

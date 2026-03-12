@@ -48,7 +48,7 @@ function listHistory() {
 
 export const listCmd: Command = {
 	description: "List <hooks|routines|history>.",
-	paramDef: ["string"],
+	paramDef: ["name"],
 	group: "Console",
 	fn: (_vm: VirtualMachine, _progress: Ref<number>, params: ParamList) => {
 		const cmd = params[0] as string;
