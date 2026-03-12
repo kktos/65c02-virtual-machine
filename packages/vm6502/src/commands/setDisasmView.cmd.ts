@@ -10,7 +10,7 @@ import type { Ref } from "vue";
 
 export const setDisasmView: Command = {
 	description: "Set disasm <address>, or disasm a <range> to console / to file <string>",
-	paramDef: ["range|address", "name|string?"],
+	paramDef: ["range|address", "string?"],
 	group: "Viewers",
 	fn: async (vm: VirtualMachine, _progress: Ref<number>, params: ParamList) => {
 		const val = params[0];
@@ -24,7 +24,6 @@ export const setDisasmView: Command = {
 
 		if (typeof val === "object" && val !== null && "start" in val) {
 			const { start, end } = val as { start: number; end: number };
-			if (start >= end) throw new Error("Start address must be less than end address.");
 
 			const readByte = (address: number, debug = true) => (debug ? vm.readDebug(address) : vm.read(address)) ?? 0;
 			const { registers } = useMachine();

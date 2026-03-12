@@ -1,5 +1,5 @@
 import { useConsoleSettings } from "@/composables/useConsoleSettings";
-import { ExpressionParser } from "@/lib/expressionParser";
+import { ExpressionParser, TokenType } from "@/lib/expressionParser";
 import { toHex } from "@/lib/hex.utils";
 import type { Command, ParamList } from "@/types/command";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
@@ -20,9 +20,10 @@ export const font: Command = {
 		for (const arg of args) {
 			try {
 				const parser = new ExpressionParser(arg, vm);
-				const val = parser.parse();
-				if (typeof val === "string") {
-					fontFamily.value = val;
+				const result = parser.parse();
+				const val = result.value;
+				if (result.type === TokenType.STRING) {
+					fontFamily.value = val as string;
 					continue;
 				}
 

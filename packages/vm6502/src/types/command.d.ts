@@ -5,8 +5,13 @@ export type CommandOutput = {
 
 export type CommandResult = string | CommandOutput | MultiLineRequest;
 
-type ParamType = "byte" | "word" | "long" | "number" | "address" | "range" | "string" | "rest";
-type ParamDef = ParamType | `${ParamType}?` | string;
+type ParamType = "byte" | "word" | "number" | "address" | "range" | "string" | "bool" | "name" | "rest";
+type ParamDef =
+	| ParamType
+	| `${ParamType}?`
+	| `${ParamType}|${ParamType}`
+	| `${ParamType}|${ParamType}|${ParamType}`
+	| `${ParamType}|${ParamType}|${ParamType}|${ParamType}`;
 export type ParamList = (string | number | { start: number; end: number } | undefined)[];
 
 export type MultiLineRequest = {
@@ -22,15 +27,19 @@ export type Command = {
 	group: string;
 	fn: (vm: VirtualMachine, progress: Ref<number>, params: ParamList) => Promise<CommandResult> | CommandResult;
 	closeOnSuccess?: boolean;
-};
-export type CommandWrapper = {
-	description: string;
-	paramDef?: ParamDef[];
-	base: Command;
 	staticParams?: {
 		prepend?: (string | number)[];
 		append?: (string | number)[];
 	};
-	closeOnSuccess?: boolean;
-	group?: string;
 };
+// export type CommandWrapper = {
+// 	description: string;
+// 	paramDef?: ParamDef[];
+// 	base: Command;
+// 	staticParams?: {
+// 		prepend?: (string | number)[];
+// 		append?: (string | number)[];
+// 	};
+// 	closeOnSuccess?: boolean;
+// 	group?: string;
+// };

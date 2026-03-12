@@ -6,21 +6,16 @@ import type { Ref } from "vue";
 
 const TYPES = new Set(["byte", "word", "string"]);
 
-export const defData: Command = {
-	description: "Define data region of type <string> at <address> with length <word>.",
-	paramDef: ["name", "address", "word"],
-	group: "Memory",
-	fn: async (_vm: VirtualMachine, _progress: Ref<number>, params: ParamList) => {
-		const type = params[0] as string;
-		if (!TYPES.has(type)) throw new Error("Invalid data type.");
+export const defDataFn: Command["fn"] = async (_vm: VirtualMachine, _progress: Ref<number>, params: ParamList) => {
+	const type = params[0] as string;
+	if (!TYPES.has(type)) throw new Error("Invalid data type.");
 
-		const address = params[1] as number;
-		const length = params[2] as number;
+	const address = params[1] as number;
+	const length = params[2] as number;
 
-		const { addFormatting } = useFormatting();
+	const { addFormatting } = useFormatting();
 
-		addFormatting(address, type as DataType, length);
+	addFormatting(address, type as DataType, length);
 
-		return `Data region set for $${formatAddress(address)}: $${type}[${length}]`;
-	},
+	return `Data region set for ${formatAddress(address)}: $${type}[${length}]`;
 };

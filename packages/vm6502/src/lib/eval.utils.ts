@@ -18,10 +18,10 @@ const formatFlags = (p: number): string => {
 
 export const evalExpression = (arg: string, vm: VirtualMachine): string => {
 	const parser = new ExpressionParser(arg, vm);
-	const value = parser.parse();
-	if (typeof value === "string") {
-		return value;
-	}
+	const result = parser.parse();
+	const value = result.value;
+	if (typeof value === "string") return value;
+	if (value === undefined) return "<undefined>";
 
 	const upperArg = arg.toUpperCase();
 

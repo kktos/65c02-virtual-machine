@@ -11,10 +11,12 @@ import { useSymbols } from "@/composables/useSymbols";
 
 export enum TokenType {
 	EOF,
-	NUMBER,
+	INTEGER,
+	FLOAT,
 	IDENTIFIER, // Register or Label
 	STRING,
 	// Operators
+	COMMA,
 	PLUS,
 	MINUS,
 	MUL,
@@ -33,6 +35,7 @@ export enum TokenType {
 	LPAREN,
 	RPAREN,
 	// Special
+	COLON,
 	MEM_START, // mem[
 	RBRACKET, // ]
 }
@@ -45,9 +48,15 @@ export interface Token {
 	end: number;
 }
 
+export interface ParsedResult {
+	type: TokenType;
+	value: number | string | undefined;
+	raw: string;
+}
+
 export class ExpressionParser {
 	private tokens: Token[] = [];
-	private pos = 0;
+	public pos = 0;
 	private vm: VirtualMachine;
 
 	constructor(input: string, vm: VirtualMachine) {
@@ -123,29 +132,37 @@ export class ExpressionParser {
 					i++;
 				}
 				if (hex.length === 0) throw new Error(`Invalid hex at ${start}`);
-				this.tokens.push({ type: TokenType.NUMBER, value: parseInt(hex, 16), text: `$${hex}`, start, end: i });
+				this.tokens.push({ type: TokenType.INTEGER, value: parseInt(hex, 16), text: `$${hex}`, start, end: i });
 				continue;
 			}
 
 			// Decimal/Float number
 			if (/[0-9]/.test(char) || (char === "." && i + 1 < input.length && /[0-9]/.test(input[i + 1] as string))) {
-				let numStr = "";
-
-				while (i < input.length && /[0-9]/.test(input[i] as string)) {
-					numStr += input[i];
+				const start = i;
+				while (i < input.length) {
+					const c = input.charCodeAt(i);
+					if (c < 48 || c > 57) break;
 					i++;
 				}
 
 				if (i < input.length && input[i] === ".") {
-					numStr += ".";
 					i++;
-					while (i < input.length && /[0-9]/.test(input[i] as string)) {
-						numStr += input[i];
+					while (i < input.length) {
+						const c = input.charCodeAt(i);
+						if (c < 48 || c > 57) break;
 						i++;
 					}
 				}
 
-				this.tokens.push({ type: TokenType.NUMBER, value: parseFloat(numStr), text: numStr, start, end: i });
+				const numStr = input.slice(start, i);
+				const isFloat = numStr.includes(".");
+				this.tokens.push({
+					type: isFloat ? TokenType.FLOAT : TokenType.INTEGER,
+					value: parseFloat(numStr),
+					text: numStr,
+					start,
+					end: i,
+				});
 				continue;
 			}
 
@@ -246,6 +263,12 @@ export class ExpressionParser {
 				case "]":
 					this.tokens.push({ type: TokenType.RBRACKET, value: 0, text: "]", start, end: i + 1 });
 					break;
+				case ",":
+					this.tokens.push({ type: TokenType.COMMA, value: 0, text: ",", start, end: i + 1 });
+					break;
+				case ":":
+					this.tokens.push({ type: TokenType.COLON, value: 0, text: ":", start, end: i + 1 });
+					break;
 				default:
 					break loop;
 			}
@@ -254,15 +277,19 @@ export class ExpressionParser {
 		this.tokens.push({ type: TokenType.EOF, value: 0, text: "", start: i, end: i });
 	}
 
-	public peek(): Token {
-		return this.tokens[this.pos] as Token;
+	public peek() {
+		return this.tokens[this.pos];
 	}
 
-	private consume(): Token {
-		return this.tokens[this.pos++] as Token;
+	public eof() {
+		return this.tokens[this.pos].type === TokenType.EOF;
 	}
 
-	private match(type: TokenType): boolean {
+	public consume() {
+		return this.tokens[this.pos++];
+	}
+
+	public match(type: TokenType): boolean {
 		if (this.peek().type === type) {
 			this.consume();
 			return true;
@@ -306,12 +333,12 @@ export class ExpressionParser {
 		return 0;
 	}
 
-	public parse(precedence = 0): number | string | undefined {
+	public parse(precedence = 0): ParsedResult {
 		let token = this.consume();
 		let left = this.nud(token);
 
-		while (left !== undefined && precedence < this.getPrecedence(this.peek().type)) {
-			if (typeof left === "string")
+		while (left.value !== undefined && precedence < this.getPrecedence(this.peek().type)) {
+			if (typeof left.value === "string")
 				throw new Error(`Operator ${this.peek().text} cannot be applied to a string.`);
 
 			token = this.consume();
@@ -321,19 +348,23 @@ export class ExpressionParser {
 		return left;
 	}
 
-	private nud(token: Token) {
+	private nud(token: Token): ParsedResult {
 		switch (token.type) {
 			case TokenType.STRING:
-				return token.text;
-			case TokenType.NUMBER:
-				return token.value;
+				return { type: TokenType.STRING, value: token.text, raw: token.text };
+			case TokenType.INTEGER:
+				return { type: TokenType.INTEGER, value: token.value, raw: token.text };
+			case TokenType.FLOAT:
+				return { type: TokenType.FLOAT, value: token.value, raw: token.text };
 			case TokenType.IDENTIFIER:
-				return this.resolveIdentifier(token.text);
+				return { type: TokenType.IDENTIFIER, value: this.resolveIdentifier(token.text), raw: token.text };
 			case TokenType.MEM_START: {
-				let addr = this.parse();
+				const addrRes = this.parse();
+				let addr = addrRes.value;
 				if (!this.match(TokenType.RBRACKET)) throw new Error("Expected ']'");
 				if (typeof addr === "string") addr = this.resolveIdentifier(addr);
-				return addr !== undefined ? this.vm.read(addr) : undefined;
+				const value = addr !== undefined ? this.vm.read(addr) : undefined;
+				return { type: TokenType.INTEGER, value, raw: token.text };
 			}
 			case TokenType.LPAREN: {
 				const val = this.parse();
@@ -341,57 +372,91 @@ export class ExpressionParser {
 				return val;
 			}
 			case TokenType.MINUS: {
-				const num = this.parse(100);
-				if (typeof num !== "number") throw new Error("Expected a number after '-'.");
-				return -num;
+				const res = this.parse(100);
+				if (typeof res.value !== "number") throw new Error("Expected a number after '-'.");
+				return { type: res.type, value: -res.value, raw: token.text };
 			}
 			case TokenType.PLUS:
 				return this.parse(100);
 			default:
-				throw new Error(`Unexpected token: ${token.text}`);
+				if (token.type === TokenType.EOF) return { type: TokenType.EOF, value: undefined, raw: token.text };
+				throw new Error(`Unexpected token at start of expression: ${token.text}`);
 		}
 	}
 
-	private led(token: Token, left: number): number {
+	private led(token: Token, left: ParsedResult): ParsedResult {
 		const precedence = this.getPrecedence(token.type);
-		const right = this.parse(precedence);
+		const rightRes = this.parse(precedence);
 
-		if (typeof right !== "number") throw new Error(`Right-hand side of operator ${token.text} must be a number.`);
+		if (typeof left.value !== "number")
+			throw new Error(`Left-hand side of operator ${token.text} must be a number.`);
+		if (typeof rightRes.value !== "number")
+			throw new Error(`Right-hand side of operator ${token.text} must be a number.`);
 
+		const leftVal = left.value;
+		const rightVal = rightRes.value;
+
+		let resultType =
+			left.type === TokenType.FLOAT || rightRes.type === TokenType.FLOAT ? TokenType.FLOAT : TokenType.INTEGER;
+
+		if (token.type === TokenType.DIV) {
+			resultType = TokenType.FLOAT;
+		} else if (token.type >= TokenType.AND && token.type <= TokenType.GTE) {
+			// Bitwise and boolean ops always result in an integer
+			resultType = TokenType.INTEGER;
+		}
+
+		let resultValue: number;
 		switch (token.type) {
 			case TokenType.PLUS:
-				return left + right;
+				resultValue = leftVal + rightVal;
+				break;
 			case TokenType.MINUS:
-				return left - right;
+				resultValue = leftVal - rightVal;
+				break;
 			case TokenType.MUL:
-				return left * right;
+				resultValue = leftVal * rightVal;
+				break;
 			case TokenType.DIV:
-				return left / right;
+				resultValue = leftVal / rightVal;
+				break;
 			case TokenType.AND:
-				return left & right;
+				resultValue = leftVal & rightVal;
+				break;
 			case TokenType.OR:
-				return left | right;
+				resultValue = leftVal | rightVal;
+				break;
 			case TokenType.XOR:
-				return left ^ right;
+				resultValue = leftVal ^ rightVal;
+				break;
 			case TokenType.BOOL_AND:
-				return left && right ? 1 : 0;
+				resultValue = leftVal && rightVal ? 1 : 0;
+				break;
 			case TokenType.BOOL_OR:
-				return left || right ? 1 : 0;
+				resultValue = leftVal || rightVal ? 1 : 0;
+				break;
 			case TokenType.EQ:
-				return left === right ? 1 : 0;
+				resultValue = leftVal === rightVal ? 1 : 0;
+				break;
 			case TokenType.NEQ:
-				return left !== right ? 1 : 0;
+				resultValue = leftVal !== rightVal ? 1 : 0;
+				break;
 			case TokenType.LT:
-				return left < right ? 1 : 0;
+				resultValue = leftVal < rightVal ? 1 : 0;
+				break;
 			case TokenType.GT:
-				return left > right ? 1 : 0;
+				resultValue = leftVal > rightVal ? 1 : 0;
+				break;
 			case TokenType.LTE:
-				return left <= right ? 1 : 0;
+				resultValue = leftVal <= rightVal ? 1 : 0;
+				break;
 			case TokenType.GTE:
-				return left >= right ? 1 : 0;
+				resultValue = leftVal >= rightVal ? 1 : 0;
+				break;
 			default:
 				throw new Error(`Unknown operator: ${token.text}`);
 		}
+		return { type: resultType, value: resultValue, raw: token.text };
 	}
 
 	private resolveIdentifier(name: string) {

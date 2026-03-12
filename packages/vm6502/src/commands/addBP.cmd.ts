@@ -1,7 +1,7 @@
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import { useBreakpoints } from "@/composables/useBreakpoints";
 import type { Ref } from "vue";
-import type { ParamList } from ".";
+import type { ParamList } from "@/types/command";
 
 export const execAddBP = (type: "pc" | "access" | "write" | "read") => {
 	return async (vm: VirtualMachine, _p: Ref<number>, params: ParamList) => {
