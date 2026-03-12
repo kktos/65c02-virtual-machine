@@ -302,7 +302,7 @@ export const COMMAND_LIST = {
 		group: "Scripting",
 	},
 
-	FONT: { ...font, group: "Console" },
+	FONT: font,
 	HELP: cmdHelp,
 	ERR: {
 		description: "Error History",

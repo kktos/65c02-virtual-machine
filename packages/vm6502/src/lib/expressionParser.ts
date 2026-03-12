@@ -13,6 +13,7 @@ export enum TokenType {
 	EOF,
 	NUMBER,
 	IDENTIFIER, // Register or Label
+	STRING,
 	// Operators
 	PLUS,
 	MINUS,
@@ -61,6 +62,53 @@ export class ExpressionParser {
 
 			if (/\s/.test(char)) {
 				i++;
+				continue;
+			}
+
+			// Strings
+			if (char === '"' || char === "'") {
+				const quote = char;
+				const start = i;
+				i++; // consume opening quote
+				let str = "";
+				while (i < input.length && input[i] !== quote) {
+					let c = input[i] as string;
+					if (c === "\\") {
+						// escape sequence
+						i++;
+						if (i >= input.length) throw new Error(`Unterminated escape sequence at ${i}`);
+						c = input[i] as string;
+						switch (c) {
+							case "n":
+								str += "\n";
+								break;
+							case "t":
+								str += "\t";
+								break;
+							case "r":
+								str += "\r";
+								break;
+							case "\\":
+								str += "\\";
+								break;
+							case '"':
+								str += '"';
+								break;
+							case "'":
+								str += "'";
+								break;
+							default:
+								str += c; // Keep the character as is if it's an unknown escape
+						}
+					} else {
+						str += c;
+					}
+					i++;
+				}
+				if (i >= input.length || input[i] !== quote)
+					throw new Error(`Unterminated string literal starting at ${start}`);
+				i++; // consume closing quote
+				this.tokens.push({ type: TokenType.STRING, value: 0, text: str, start, end: i });
 				continue;
 			}
 
@@ -259,11 +307,14 @@ export class ExpressionParser {
 		return 0;
 	}
 
-	public parse(precedence = 0): number {
+	public parse(precedence = 0): number | string {
 		let token = this.consume();
 		let left = this.nud(token);
 
 		while (precedence < this.getPrecedence(this.peek().type)) {
+			if (typeof left === "string")
+				throw new Error(`Operator ${this.peek().text} cannot be applied to a string.`);
+
 			token = this.consume();
 			left = this.led(token, left);
 		}
@@ -271,15 +322,18 @@ export class ExpressionParser {
 		return left;
 	}
 
-	private nud(token: Token): number {
+	private nud(token: Token): number | string {
 		switch (token.type) {
+			case TokenType.STRING:
+				return token.text;
 			case TokenType.NUMBER:
 				return token.value;
 			case TokenType.IDENTIFIER:
 				return this.resolveIdentifier(token.text);
 			case TokenType.MEM_START: {
-				const addr = this.parse();
+				let addr = this.parse();
 				if (!this.match(TokenType.RBRACKET)) throw new Error("Expected ']'");
+				if (typeof addr === "string") addr = this.resolveIdentifier(addr);
 				return this.vm.read(addr);
 			}
 			case TokenType.LPAREN: {
@@ -299,6 +353,8 @@ export class ExpressionParser {
 	private led(token: Token, left: number): number {
 		const precedence = this.getPrecedence(token.type);
 		const right = this.parse(precedence);
+
+		if (typeof right !== "number") throw new Error(`Right-hand side of operator ${token.text} must be a number.`);
 
 		switch (token.type) {
 			case TokenType.PLUS:

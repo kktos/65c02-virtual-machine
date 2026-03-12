@@ -90,7 +90,12 @@ export function useCommands() {
 				const restIndex = parser.getRestIndex();
 				let rest = singleCmdTrimmed.substring(2 + restIndex).trim();
 				if (rest.toUpperCase().startsWith("THEN")) rest = rest.substring(4).trim();
-				if (condition !== 0) commandQueue.unshift(rest);
+
+				let isTrue = false;
+				if (typeof condition === "string") isTrue = condition.length > 0;
+				else isTrue = condition !== 0;
+
+				if (isTrue) commandQueue.unshift(rest);
 				continue;
 			}
 
@@ -171,6 +176,11 @@ export function useCommands() {
 								case "address": {
 									const parser = new ExpressionParser(paramStr, vm);
 									const value = parser.parse();
+									if (typeof value === "string") {
+										throw new Error(
+											`Expected a number for parameter type ${type}, but got a string.`,
+										);
+									}
 									const restIndex = parser.getRestIndex();
 									paramStr = paramStr.substring(restIndex).trim();
 
@@ -223,6 +233,11 @@ export function useCommands() {
 								case "number": {
 									const parser = new ExpressionParser(paramStr, vm);
 									parsedValue = parser.parse();
+									if (typeof parsedValue === "string") {
+										throw new Error(
+											`Expected a number for parameter type ${type}, but got a string.`,
+										);
+									}
 									break;
 								}
 								default:
