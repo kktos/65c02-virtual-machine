@@ -16,15 +16,7 @@ export const printCmd: Command = {
 		const matches = rest.match(/(?:"[^"]*"|[^,]+)/g);
 		if (!matches) return rest;
 
-		// The try/catch is outside map, so it will throw and be caught by useCommands
-		const evaluatedArgs = matches.map((arg) => {
-			const currentArg = arg.trim();
-			if (currentArg.startsWith('"') && currentArg.endsWith('"')) {
-				return currentArg.substring(1, currentArg.length - 1);
-			}
-			// This will throw if it fails
-			return evalExpression(currentArg, vm);
-		});
+		const evaluatedArgs = matches.map((arg) => evalExpression(arg, vm));
 
 		useCmdConsole().print(type, evaluatedArgs.join(" "));
 

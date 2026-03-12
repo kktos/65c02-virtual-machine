@@ -1,7 +1,7 @@
 import { useEmulatorSpeed } from "@/composables/useEmulatorSpeed";
+import type { Command, ParamList } from "@/types/command";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import type { Ref } from "vue";
-import type { Command, ParamList } from ".";
 
 export const speed: Command = {
 	description: "Set the Machine speed in MHz.",

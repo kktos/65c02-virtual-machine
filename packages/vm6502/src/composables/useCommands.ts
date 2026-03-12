@@ -181,6 +181,11 @@ export function useCommands() {
 											`Expected a number for parameter type ${type}, but got a string.`,
 										);
 									}
+									if (value === undefined) {
+										throw new Error(
+											`Expected a number for parameter type ${type}, but got undefined.`,
+										);
+									}
 									const restIndex = parser.getRestIndex();
 									paramStr = paramStr.substring(restIndex).trim();
 
@@ -211,31 +216,35 @@ export function useCommands() {
 									break;
 								}
 								case "string": {
-									let value: string;
-									if (paramStr.startsWith('"')) {
-										const endQuoteIdx = paramStr.indexOf('"', 1);
-										if (endQuoteIdx === -1) throw new Error("Unterminated string literal");
-										value = paramStr.substring(1, endQuoteIdx);
-										paramStr = paramStr.substring(endQuoteIdx + 1).trim();
-									} else {
-										const spaceIdx = paramStr.indexOf(" ");
-										if (spaceIdx === -1) {
-											value = paramStr;
-											paramStr = "";
-										} else {
-											value = paramStr.substring(0, spaceIdx);
-											paramStr = paramStr.substring(spaceIdx).trim();
-										}
-									}
+									// if (paramStr.startsWith('"') || paramStr.startsWith("'")) {
+									const parser = new ExpressionParser(paramStr, vm);
+									const value = parser.parse();
+									if (typeof value !== "string") throw new Error("Expected a string literal.");
+
 									parsedValue = value;
+									const restIndex = parser.getRestIndex();
+									paramStr = paramStr.substring(restIndex).trim();
+									// }
+									// else {
+									// 	// Unquoted string, take until the next space.
+									// 	const spaceIdx = paramStr.indexOf(" ");
+									// 	if (spaceIdx === -1) {
+									// 		parsedValue = paramStr;
+									// 		paramStr = "";
+									// 	} else {
+									// 		parsedValue = paramStr.substring(0, spaceIdx);
+									// 		paramStr = paramStr.substring(spaceIdx).trim();
+									// 	}
+									// }
 									break;
 								}
 								case "number": {
 									const parser = new ExpressionParser(paramStr, vm);
 									parsedValue = parser.parse();
-									if (typeof parsedValue === "string") {
+
+									if (typeof parsedValue !== "number") {
 										throw new Error(
-											`Expected a number for parameter type ${type}, but got a string.`,
+											`Expected a number for parameter type ${type}, but got a ${typeof parsedValue}.`,
 										);
 									}
 									break;

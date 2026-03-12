@@ -248,7 +248,6 @@ export class ExpressionParser {
 					break;
 				default:
 					break loop;
-				// throw new Error(`Unknown character: ${char} at ${i}`);
 			}
 			i++;
 		}
@@ -307,11 +306,11 @@ export class ExpressionParser {
 		return 0;
 	}
 
-	public parse(precedence = 0): number | string {
+	public parse(precedence = 0): number | string | undefined {
 		let token = this.consume();
 		let left = this.nud(token);
 
-		while (precedence < this.getPrecedence(this.peek().type)) {
+		while (left !== undefined && precedence < this.getPrecedence(this.peek().type)) {
 			if (typeof left === "string")
 				throw new Error(`Operator ${this.peek().text} cannot be applied to a string.`);
 
@@ -322,7 +321,7 @@ export class ExpressionParser {
 		return left;
 	}
 
-	private nud(token: Token): number | string {
+	private nud(token: Token) {
 		switch (token.type) {
 			case TokenType.STRING:
 				return token.text;
@@ -334,15 +333,18 @@ export class ExpressionParser {
 				let addr = this.parse();
 				if (!this.match(TokenType.RBRACKET)) throw new Error("Expected ']'");
 				if (typeof addr === "string") addr = this.resolveIdentifier(addr);
-				return this.vm.read(addr);
+				return addr !== undefined ? this.vm.read(addr) : undefined;
 			}
 			case TokenType.LPAREN: {
 				const val = this.parse();
 				if (!this.match(TokenType.RPAREN)) throw new Error("Expected ')'");
 				return val;
 			}
-			case TokenType.MINUS:
-				return -this.parse(100);
+			case TokenType.MINUS: {
+				const num = this.parse(100);
+				if (typeof num !== "number") throw new Error("Expected a number after '-'.");
+				return -num;
+			}
 			case TokenType.PLUS:
 				return this.parse(100);
 			default:
@@ -392,7 +394,7 @@ export class ExpressionParser {
 		}
 	}
 
-	private resolveIdentifier(name: string): number {
+	private resolveIdentifier(name: string) {
 		const up = name.toUpperCase();
 		switch (up) {
 			case "A":
@@ -414,6 +416,7 @@ export class ExpressionParser {
 		const addr = getAddressForLabel(name);
 		if (addr !== undefined) return addr;
 
-		throw new Error(`Unknown identifier: ${name}`);
+		return undefined;
+		// throw new Error(`Unknown identifier: ${name}`);
 	}
 }
