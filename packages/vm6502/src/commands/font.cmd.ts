@@ -1,47 +1,29 @@
 import { useConsoleSettings } from "@/composables/useConsoleSettings";
-import { ExpressionParser, TokenType } from "@/lib/expressionParser";
 import { toHex } from "@/lib/hex.utils";
 import type { Command, ParamList } from "@/types/command";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import type { Ref } from "vue";
 
+const { fontFamily, fontSize, fontColor, MIN_SIZE, MAX_SIZE } = useConsoleSettings();
+
 export const font: Command = {
 	description: 'Set console font properties. Usage: font [name] [size] [color]. Ex: font "arial", 14, $FF0000',
 	paramDef: ["rest?"],
 	group: "Console",
-	fn: (vm: VirtualMachine, _progress: Ref<number>, params: ParamList) => {
-		const rest = params[0] as string | undefined;
-		const { fontFamily, fontSize, fontColor } = useConsoleSettings();
+	fn: (_vm: VirtualMachine, _progress: Ref<number>, params: ParamList) => {
+		if (params.length === 0)
+			return `Font: '${fontFamily.value}', Size: ${fontSize.value}px, Color: ${fontColor.value}`;
 
-		if (!rest) return `Font: '${fontFamily.value}', Size: ${fontSize.value}px, Color: ${fontColor.value}`;
-
-		const args = rest.match(/(?:"[^"]*"|[^, \t]+)/g) || [];
-
-		for (const arg of args) {
-			try {
-				const parser = new ExpressionParser(arg, vm);
-				const result = parser.parse();
-				const val = result.value;
-				if (result.type === TokenType.STRING) {
-					fontFamily.value = val as string;
+		for (const arg of params) {
+			if (typeof arg === "number") {
+				if (arg < MAX_SIZE && arg > MIN_SIZE) {
+					fontSize.value = arg;
 					continue;
 				}
-
-				const isHex = arg.startsWith("$") || arg.startsWith("0x");
-
-				if (isHex) {
-					const hex = toHex(val & 0xffffff, 6);
-					fontColor.value = `#${hex}`;
-				} else {
-					if (val < 100) {
-						fontSize.value = val;
-					} else {
-						const hex = toHex(val & 0xffffff, 6);
-						fontColor.value = `#${hex}`;
-					}
-				}
-				// oxlint-disable-next-line no-unused-vars
-			} catch (e) {
+				const hex = toHex(arg & 0xffffff, 6);
+				fontColor.value = `#${hex}`;
+			}
+			if (typeof arg === "string") {
 				fontFamily.value = arg;
 			}
 		}

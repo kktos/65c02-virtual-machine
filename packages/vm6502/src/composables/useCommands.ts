@@ -219,12 +219,8 @@ export function useCommands() {
 
 			let finalParams: ParamList = userParams;
 			if (cmdSpec.staticParams) {
-				if (cmdSpec.staticParams.prepend) {
-					finalParams = [...cmdSpec.staticParams.prepend, ...finalParams];
-				}
-				if (cmdSpec.staticParams.append) {
-					finalParams = [...finalParams, ...cmdSpec.staticParams.append];
-				}
+				if (cmdSpec.staticParams.prepend) finalParams = [...cmdSpec.staticParams.prepend, ...finalParams];
+				if (cmdSpec.staticParams.append) finalParams = [...finalParams, ...cmdSpec.staticParams.append];
 			}
 
 			const result = await cmdSpec.fn(vm, progress, finalParams);

@@ -5,6 +5,9 @@ const LS_KEY_FONT_SIZE = "vm6502-console-font-size";
 const LS_KEY_FONT_FAMILY = "vm6502-console-font-family";
 const LS_KEY_FONT_COLOR = "vm6502-console-font-color";
 
+const MIN_SIZE = 8;
+const MAX_SIZE = 24;
+
 const height = ref(200);
 const fontSize = ref(12);
 const fontFamily = ref("monospace"); // Default font
@@ -30,17 +33,19 @@ watch(fontFamily, (newFamily) => localStorage.setItem(LS_KEY_FONT_FAMILY, newFam
 watch(fontColor, (newColor) => localStorage.setItem(LS_KEY_FONT_COLOR, newColor));
 
 const increaseFontSize = () => {
-	if (fontSize.value < 24) fontSize.value++;
+	if (MAX_SIZE) fontSize.value++;
 };
 
 const decreaseFontSize = () => {
-	if (fontSize.value > 8) fontSize.value--;
+	if (fontSize.value > MIN_SIZE) fontSize.value--;
 };
 
 export function useConsoleSettings() {
 	return {
 		height,
 		fontSize,
+		MAX_SIZE,
+		MIN_SIZE,
 		fontFamily,
 		fontColor,
 		loadSettings,
