@@ -152,7 +152,7 @@
 
 		<div
 			class="font-mono text-xs overflow-y-hidden flex-grow min-h-0 bg-gray-900 p-2 rounded-md"
-			@wheel="handleWheel"
+			@wheel="throttledWheelHandler"
 			@mouseup="endSelection"
 			@mouseleave="endSelection"
 		>
@@ -400,6 +400,7 @@ import { useBreakpoints } from "@/composables/useBreakpoints";
 import { useDebuggerNav } from "@/composables/useDebuggerNav";
 import { useDisassembly } from "@/composables/useDisassembly";
 import { useFormatting } from "@/composables/useDataFormattings";
+import { useThrottleFn } from "@vueuse/core";
 import { formatAddress } from "@/lib/hex.utils";
 import type { DebugGroup } from "@/types/machine.interface";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
@@ -950,7 +951,7 @@ const getAsciiClass = (byte: number | undefined, highlighted = false, selected =
 	return byte & 0x80 ? "bg-transparent text-green-300" : "bg-green-300 text-black";
 };
 
-const handleWheel = (event: WheelEvent) => {
+const throttledWheelHandler = useThrottleFn((event: WheelEvent) => {
 	event.preventDefault();
 	const scrollAmount = BYTES_PER_LINE * (event.ctrlKey ? visibleRowCount.value : 1);
 
@@ -963,5 +964,5 @@ const handleWheel = (event: WheelEvent) => {
 		const newAddress = startAddress.value - scrollAmount;
 		startAddress.value = Math.max(newAddress, 0);
 	}
-};
+}, 16); // Throttle to ~60fps to prevent jank on high-precision scroll wheels
 </script>
