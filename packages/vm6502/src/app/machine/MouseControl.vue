@@ -1,10 +1,17 @@
 <template>
-	<div v-if="hasMouse" class="flex items-center space-x-3 bg-gray-800 p-2 rounded-lg shadow-md border border-gray-700">
+	<div
+		v-if="hasMouse"
+		class="flex items-center space-x-3 bg-gray-800 p-2 rounded-lg shadow-md border border-gray-700"
+	>
 		<button
 			ref="trigger"
 			@click="toggleLock"
 			class="group flex items-center justify-center w-10 h-10 rounded border transition-colors shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
-			:class="element ? 'bg-green-700 border-green-500 text-white' : 'bg-gray-700 border-gray-600 text-gray-400 hover:bg-gray-600'"
+			:class="
+				element
+					? 'bg-green-700 border-green-500 text-white'
+					: 'bg-gray-700 border-gray-600 text-gray-400 hover:bg-gray-600'
+			"
 			:title="element ? 'Mouse captured (Press ESC to release)' : 'Click to capture mouse'"
 		>
 			<MousePointer2 class="h-5 w-5" />

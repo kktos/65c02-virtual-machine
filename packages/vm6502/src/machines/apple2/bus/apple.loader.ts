@@ -1,7 +1,13 @@
 import type { AppleBus } from "../apple.bus";
 import { RAM_OFFSET } from "../memory.consts";
 
-export function loadMemoryChunks(bus: AppleBus, address: number, data: Uint8Array, bank: number = 0, tag?: string): void {
+export function loadMemoryChunks(
+	bus: AppleBus,
+	address: number,
+	data: Uint8Array,
+	bank: number = 0,
+	tag?: string,
+): void {
 	switch (tag) {
 		// If loading into the Language Card range ($D000+), load into ROM buffer
 		case "lgcard.rom": {

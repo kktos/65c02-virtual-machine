@@ -1,7 +1,14 @@
 <template>
 	<Accordion type="multiple" v-model="openItems" class="w-full space-y-1">
-		<AccordionItem v-for="(group, gIdx) in debugOptions" :key="gIdx" :value="`item-${gIdx}`" class="border-b border-gray-700/50 last:border-0">
-			<AccordionTrigger class="py-2 text-[10px] font-bold text-gray-500 uppercase tracking-wider hover:no-underline hover:text-gray-300">
+		<AccordionItem
+			v-for="(group, gIdx) in debugOptions"
+			:key="gIdx"
+			:value="`item-${gIdx}`"
+			class="border-b border-gray-700/50 last:border-0"
+		>
+			<AccordionTrigger
+				class="py-2 text-[10px] font-bold text-gray-500 uppercase tracking-wider hover:no-underline hover:text-gray-300"
+			>
 				{{ group.label }}
 			</AccordionTrigger>
 			<AccordionContent class="pb-3 pt-1">

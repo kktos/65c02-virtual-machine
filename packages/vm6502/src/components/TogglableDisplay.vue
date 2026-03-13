@@ -13,10 +13,16 @@
 		<div v-if="displayMode === 'tabs'" class="h-full">
 			<Tabs default-value="tab1" class="h-full flex flex-col">
 				<TabsList class="bg-gray-900/80 p-1 shrink-0">
-					<TabsTrigger value="tab1" class="data-[state=active]:bg-gray-700 data-[state=active]:text-cyan-300 text-gray-400">
+					<TabsTrigger
+						value="tab1"
+						class="data-[state=active]:bg-gray-700 data-[state=active]:text-cyan-300 text-gray-400"
+					>
 						<slot name="tab1-title"></slot>
 					</TabsTrigger>
-					<TabsTrigger value="tab2" class="data-[state=active]:bg-gray-700 data-[state=active]:text-cyan-300 text-gray-400">
+					<TabsTrigger
+						value="tab2"
+						class="data-[state=active]:bg-gray-700 data-[state=active]:text-cyan-300 text-gray-400"
+					>
 						<slot name="tab2-title"></slot>
 					</TabsTrigger>
 				</TabsList>

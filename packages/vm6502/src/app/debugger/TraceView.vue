@@ -5,8 +5,16 @@
 			<div class="flex space-x-2">
 				<Popover>
 					<PopoverTrigger as-child>
-						<button class="p-1 rounded text-gray-400 hover:text-gray-200 hover:bg-gray-700 transition-colors" title="Trace Settings">
-							<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+						<button
+							class="p-1 rounded text-gray-400 hover:text-gray-200 hover:bg-gray-700 transition-colors"
+							title="Trace Settings"
+						>
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								class="h-4 w-4"
+								viewBox="0 0 20 20"
+								fill="currentColor"
+							>
 								<path
 									fill-rule="evenodd"
 									d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z"
@@ -30,7 +38,11 @@
 					</PopoverContent>
 				</Popover>
 
-				<button @click="refreshTrace" class="p-1 rounded text-gray-400 hover:text-gray-200 hover:bg-gray-700 transition-colors" title="Refresh Trace">
+				<button
+					@click="refreshTrace"
+					class="p-1 rounded text-gray-400 hover:text-gray-200 hover:bg-gray-700 transition-colors"
+					title="Refresh Trace"
+				>
 					<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
 						<path
 							fill-rule="evenodd"
@@ -39,7 +51,11 @@
 						/>
 					</svg>
 				</button>
-				<button @click="clearTrace" class="p-1 rounded text-gray-400 hover:text-red-400 hover:bg-gray-700 transition-colors" title="Clear Trace">
+				<button
+					@click="clearTrace"
+					class="p-1 rounded text-gray-400 hover:text-red-400 hover:bg-gray-700 transition-colors"
+					title="Clear Trace"
+				>
 					<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
 						<path
 							fill-rule="evenodd"
@@ -79,7 +95,9 @@
 						</td>
 					</tr>
 					<tr v-if="traceHistory.length === 0">
-						<td colspan="3" class="py-4 text-center text-gray-600 italic">No trace data. Enable tracing in controls.</td>
+						<td colspan="3" class="py-4 text-center text-gray-600 italic">
+							No trace data. Enable tracing in controls.
+						</td>
 					</tr>
 				</tbody>
 			</table>

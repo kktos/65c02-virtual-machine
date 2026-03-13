@@ -5,7 +5,9 @@
 				@click="setActiveTab('disassembly')"
 				:class="[
 					'px-4 py-3 text-sm font-medium transition duration-150',
-					activeTab === 'disassembly' ? 'text-cyan-400 border-b-2 border-cyan-400' : 'text-gray-400 hover:text-white hover:bg-gray-700/50',
+					activeTab === 'disassembly'
+						? 'text-cyan-400 border-b-2 border-cyan-400'
+						: 'text-gray-400 hover:text-white hover:bg-gray-700/50',
 				]"
 			>
 				Disassembly
@@ -14,7 +16,9 @@
 				@click="setActiveTab('memory')"
 				:class="[
 					'px-4 py-3 text-sm font-medium transition duration-150',
-					activeTab === 'memory' ? 'text-cyan-400 border-b-2 border-cyan-400' : 'text-gray-400 hover:text-white hover:bg-gray-700/50',
+					activeTab === 'memory'
+						? 'text-cyan-400 border-b-2 border-cyan-400'
+						: 'text-gray-400 hover:text-white hover:bg-gray-700/50',
 				]"
 			>
 				Memory Viewer
@@ -23,7 +27,9 @@
 				@click="setActiveTab('breakpoints')"
 				:class="[
 					'px-4 py-3 text-sm font-medium transition duration-150',
-					activeTab === 'breakpoints' ? 'text-cyan-400 border-b-2 border-cyan-400' : 'text-gray-400 hover:text-white hover:bg-gray-700/50',
+					activeTab === 'breakpoints'
+						? 'text-cyan-400 border-b-2 border-cyan-400'
+						: 'text-gray-400 hover:text-white hover:bg-gray-700/50',
 				]"
 			>
 				Breakpoints

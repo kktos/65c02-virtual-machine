@@ -44,9 +44,14 @@
 						@click="onRegionClick(region)"
 						:title="`${region.name} ($${region.start.toString(16).toUpperCase()} - $${(region.start + region.size - 1).toString(16).toUpperCase()})${region.bank === undefined && totalBanks > 1 ? ' (Mirrored)' : ''}`"
 					>
-						<Layers v-if="region.bank === undefined && totalBanks > 1" class="w-3 h-3 absolute top-0.5 right-0.5 text-white/70" />
+						<Layers
+							v-if="region.bank === undefined && totalBanks > 1"
+							class="w-3 h-3 absolute top-0.5 right-0.5 text-white/70"
+						/>
 						<Lock v-if="!region.removable" class="w-3 h-3 absolute top-0.5 left-0.5 text-white/70" />
-						<span class="text-xs text-white font-bold text-center mix-blend-difference whitespace-nowrap px-2">
+						<span
+							class="text-xs text-white font-bold text-center mix-blend-difference whitespace-nowrap px-2"
+						>
 							{{ region.name }}
 						</span>
 					</div>
@@ -59,9 +64,16 @@
 			<div class="flex flex-col space-y-2 min-h-0">
 				<h3 class="text-sm font-bold uppercase text-gray-500 tracking-wider shrink-0">Regions</h3>
 				<ul class="space-y-1 overflow-y-auto pr-2 -mr-2 flex-1">
-					<li v-for="region in removableRegions" :key="region.name" class="flex items-center justify-between text-sm p-2 bg-gray-900/50 rounded">
+					<li
+						v-for="region in removableRegions"
+						:key="region.name"
+						class="flex items-center justify-between text-sm p-2 bg-gray-900/50 rounded"
+					>
 						<div class="flex items-center space-x-3">
-							<div class="w-4 h-4 rounded-sm border border-white/10" :style="{ backgroundColor: region.color }"></div>
+							<div
+								class="w-4 h-4 rounded-sm border border-white/10"
+								:style="{ backgroundColor: region.color }"
+							></div>
 							<span class="font-mono text-gray-200">{{ region.name }}</span>
 							<span class="text-gray-400">{{ formatRange(region) }}</span>
 						</div>
@@ -78,7 +90,10 @@
 			<!-- Form to add new region -->
 			<div class="flex flex-col space-y-2">
 				<h3 class="text-sm font-bold uppercase text-gray-500 tracking-wider">Add New Region</h3>
-				<form @submit.prevent="addNewRegion" class="flex flex-col gap-3 p-4 bg-gray-900/50 rounded-lg border border-gray-700/50">
+				<form
+					@submit.prevent="addNewRegion"
+					class="flex flex-col gap-3 p-4 bg-gray-900/50 rounded-lg border border-gray-700/50"
+				>
 					<div class="flex items-center gap-3">
 						<label for="new-region-name" class="text-sm text-gray-400 w-16">Name</label>
 						<input
@@ -115,7 +130,10 @@
 							class="h-8 w-12 p-0.5 bg-gray-800 border border-gray-600 rounded cursor-pointer"
 						/>
 					</div>
-					<button type="submit" class="mt-2 px-4 py-2 text-sm font-bold bg-cyan-600 hover:bg-cyan-500 text-white rounded-md w-full">
+					<button
+						type="submit"
+						class="mt-2 px-4 py-2 text-sm font-bold bg-cyan-600 hover:bg-cyan-500 text-white rounded-md w-full"
+					>
 						Add Region
 					</button>
 				</form>
@@ -150,7 +168,9 @@ const prevBank = () => {
 	if (currentBank.value > 0) currentBank.value--;
 };
 
-const visibleRegions = computed(() => regions.value.filter((r) => r.bank === undefined || r.bank === currentBank.value));
+const visibleRegions = computed(() =>
+	regions.value.filter((r) => r.bank === undefined || r.bank === currentBank.value),
+);
 const removableRegions = computed(() => visibleRegions.value.filter((region) => region.removable !== false));
 
 const newRegion = ref({

@@ -1,6 +1,11 @@
 import type { Dict } from "@/types/dict.type";
 import type { Video } from "@/types/video.interface";
-import { MACHINE_STATE_OFFSET2, MACHINE_STATE_OFFSET3, REG_BORDERCOLOR_OFFSET, REG_TBCOLOR_OFFSET } from "@/virtualmachine/cpu/shared-memory";
+import {
+	MACHINE_STATE_OFFSET2,
+	MACHINE_STATE_OFFSET3,
+	REG_BORDERCOLOR_OFFSET,
+	REG_TBCOLOR_OFFSET,
+} from "@/virtualmachine/cpu/shared-memory";
 import type { AppleBus } from "../apple.bus";
 import { RAM_OFFSET } from "../memory.consts";
 import { DHGRPaletteRGB, IIgsPaletteRGB } from "./constants";
@@ -91,10 +96,24 @@ export class AppleVideo implements Video {
 	private borderOverrideColorLatch = false;
 	private borderColorIdx = 2;
 
-	private renderText40!: (startRow: number, isPage2: boolean, bgIdx: number, fgIdx: number, isAltCharset: boolean) => void;
+	private renderText40!: (
+		startRow: number,
+		isPage2: boolean,
+		bgIdx: number,
+		fgIdx: number,
+		isAltCharset: boolean,
+	) => void;
 	private renderText80!: (startRow: number, bgIdx: number, fgIdx: number, isAltCharset: boolean) => void;
 
-	constructor(parent: Worker, mem: Uint8Array, width: number, height: number, registers: DataView, ram: Uint8Array, payload?: unknown) {
+	constructor(
+		parent: Worker,
+		mem: Uint8Array,
+		width: number,
+		height: number,
+		registers: DataView,
+		ram: Uint8Array,
+		payload?: unknown,
+	) {
 		this.parent = parent;
 		this.buffer = mem;
 		this.registers = registers;
@@ -254,7 +273,9 @@ export class AppleVideo implements Video {
 		if (this.overrides.videoPage === "PAGE1") isPage2 = false;
 		else if (this.overrides.videoPage === "PAGE2") isPage2 = true;
 
-		const isAltCharset = this.overrides.mouseChars === "ON" || (this.overrides.mouseChars === "OFF" ? false : (stateByte2 & APPLE_ALTCHAR_MASK) !== 0);
+		const isAltCharset =
+			this.overrides.mouseChars === "ON" ||
+			(this.overrides.mouseChars === "OFF" ? false : (stateByte2 & APPLE_ALTCHAR_MASK) !== 0);
 
 		if (this.overrides.wannaShowDebug) {
 			this.debugText.drawRect(0, 0, this.targetWidth, 11, this.overrides.dbgTextBgColor ?? 15);

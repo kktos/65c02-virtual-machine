@@ -8,7 +8,7 @@
 		"build": "vue-tsc -b && vite build",
 		"test": "vitest",
 		"oxlint": "oxlint",
-		"oxfmt": "oxfmt",
+		"oxfmt": "oxfmt -c ../../.oxfmtrc.json",
 		"lint:ci": "biome ci ./src",
 		"lint:fix": "biome check --write --unsafe ./src",
 		"format:fix": "biome format --write ./src",

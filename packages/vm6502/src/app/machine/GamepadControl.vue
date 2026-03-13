@@ -21,7 +21,11 @@
 							{{ device.label }}
 						</h4>
 						<div class="space-y-2">
-							<div v-for="control in device.controls" :key="control.id" class="flex items-center justify-between text-xs">
+							<div
+								v-for="control in device.controls"
+								:key="control.id"
+								class="flex items-center justify-between text-xs"
+							>
 								<span class="text-gray-300">{{ control.label }}</span>
 								<button
 									@click="startMapping(getUniqueControlId(device, control))"
@@ -38,7 +42,10 @@
 						</div>
 					</div>
 					<div class="mt-2 flex justify-end">
-						<button @click="showMapping = false" class="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 rounded text-xs text-gray-300 transition-colors">
+						<button
+							@click="showMapping = false"
+							class="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 rounded text-xs text-gray-300 transition-colors"
+						>
 							Done
 						</button>
 					</div>
@@ -125,7 +132,8 @@ watch(showMapping, (isOpen) => {
 	if (!isOpen) listeningFor.value = null;
 });
 
-const getUniqueControlId = (device: MachineInputDevice, control: MachineInputControl) => `${device.label}::${control.id}`;
+const getUniqueControlId = (device: MachineInputDevice, control: MachineInputControl) =>
+	`${device.label}::${control.id}`;
 
 const startMapping = (controlId: string) => {
 	listeningFor.value = controlId;

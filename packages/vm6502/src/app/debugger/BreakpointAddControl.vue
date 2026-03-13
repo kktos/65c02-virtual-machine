@@ -1,6 +1,9 @@
 <template>
 	<div class="flex gap-2 p-2 bg-gray-800 rounded-md items-center shrink-0">
-		<select v-model="newBpType" class="bg-gray-700 text-white text-xs rounded p-1 border border-gray-600 focus:border-indigo-500 outline-none">
+		<select
+			v-model="newBpType"
+			class="bg-gray-700 text-white text-xs rounded p-1 border border-gray-600 focus:border-indigo-500 outline-none"
+		>
 			<option value="pc">PC</option>
 			<option value="read">Read</option>
 			<option value="write">Write</option>
@@ -14,7 +17,12 @@
 			class="bg-gray-700 text-white text-xs rounded p-1 border border-gray-600 focus:border-indigo-500 outline-none w-24 font-mono"
 			@keydown.enter="handleAddBreakpoint"
 		/>
-		<button @click="handleAddBreakpoint" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs px-3 py-1 rounded transition-colors">Add</button>
+		<button
+			@click="handleAddBreakpoint"
+			class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs px-3 py-1 rounded transition-colors"
+		>
+			Add
+		</button>
 	</div>
 </template>
 

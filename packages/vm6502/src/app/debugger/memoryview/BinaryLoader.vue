@@ -11,17 +11,24 @@
 				<FileDown class="h-4 w-4" />
 			</Button>
 		</SheetTrigger>
-		<SheetContent side="right" class="bg-gray-900 border-gray-700 text-gray-100 w-[400px] flex flex-col h-full overflow-hidden">
+		<SheetContent
+			side="right"
+			class="bg-gray-900 border-gray-700 text-gray-100 w-[400px] flex flex-col h-full overflow-hidden"
+		>
 			<SheetHeader class="shrink-0">
 				<SheetTitle class="text-gray-100">Binary Library</SheetTitle>
 				<SheetDescription class="text-gray-400">
-					Load a binary file into memory at address ${{ address.toString(16).toUpperCase().padStart(4, "0") }}.
+					Load a binary file into memory at address ${{
+						address.toString(16).toUpperCase().padStart(4, "0")
+					}}.
 				</SheetDescription>
 			</SheetHeader>
 
 			<ScrollArea class="mt-6 flex-1 min-h-0 pr-4">
 				<div class="space-y-4">
-					<div v-if="savedBinaries.length === 0" class="text-center text-gray-500 py-8">No binaries saved. Upload one to get started.</div>
+					<div v-if="savedBinaries.length === 0" class="text-center text-gray-500 py-8">
+						No binaries saved. Upload one to get started.
+					</div>
 
 					<div
 						v-for="bin in savedBinaries"
@@ -43,10 +50,18 @@
 								/>
 							</div>
 							<div class="flex space-x-2 shrink-0">
-								<button @click="saveRename" class="p-1.5 text-green-400 hover:bg-gray-700 rounded" title="Save">
+								<button
+									@click="saveRename"
+									class="p-1.5 text-green-400 hover:bg-gray-700 rounded"
+									title="Save"
+								>
 									<Check class="h-5 w-5" />
 								</button>
-								<button @click="cancelEditing" class="p-1.5 text-red-400 hover:bg-gray-700 rounded" title="Cancel">
+								<button
+									@click="cancelEditing"
+									class="p-1.5 text-red-400 hover:bg-gray-700 rounded"
+									title="Cancel"
+								>
 									<X class="h-5 w-5" />
 								</button>
 							</div>
@@ -59,13 +74,25 @@
 								<div class="text-xs text-gray-500">{{ formatSize(bin.size) }}</div>
 							</div>
 							<div class="flex space-x-2 shrink-0">
-								<button @click="handleLoadBinary(bin.key)" class="p-1.5 text-green-400 hover:bg-gray-700 rounded" title="Load to Memory">
+								<button
+									@click="handleLoadBinary(bin.key)"
+									class="p-1.5 text-green-400 hover:bg-gray-700 rounded"
+									title="Load to Memory"
+								>
 									<FileDown class="h-5 w-5" />
 								</button>
-								<button @click="startEditing(bin)" class="p-1.5 text-blue-400 hover:bg-gray-700 rounded" title="Rename">
+								<button
+									@click="startEditing(bin)"
+									class="p-1.5 text-blue-400 hover:bg-gray-700 rounded"
+									title="Rename"
+								>
 									<Pencil class="h-5 w-5" />
 								</button>
-								<button @click="handleDeleteBinary(bin.key)" class="p-1.5 text-red-400 hover:bg-gray-700 rounded" title="Delete">
+								<button
+									@click="handleDeleteBinary(bin.key)"
+									class="p-1.5 text-red-400 hover:bg-gray-700 rounded"
+									title="Delete"
+								>
 									<X class="h-5 w-5" />
 								</button>
 							</div>
@@ -112,7 +139,11 @@ const editingName = ref("");
 const editInput = ref<HTMLInputElement | null>(null);
 
 const formatSize = (bytes: number) =>
-	bytes < 1024 ? `${bytes} B` : bytes < 1024 * 1024 ? `${(bytes / 1024).toFixed(1)} KB` : `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+	bytes < 1024
+		? `${bytes} B`
+		: bytes < 1024 * 1024
+			? `${(bytes / 1024).toFixed(1)} KB`
+			: `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 
 // biome-ignore lint/suspicious/noAssignInExpressions: <compact>
 const refreshLibrary = async () => (savedBinaries.value = await getAllBinaries());
@@ -131,7 +162,8 @@ const handleLoadBinary = async (key: IDBValidKey) => {
 	const bin = await loadBinary(key);
 	if (bin && vm?.value) {
 		const data = new Uint8Array(bin.data);
-		for (let i = 0; i < data.length; i++) vm.value.writeDebug(props.address + i, data[i]!, props.debugOverrides || {});
+		for (let i = 0; i < data.length; i++)
+			vm.value.writeDebug(props.address + i, data[i]!, props.debugOverrides || {});
 		isLibraryOpen.value = false;
 	}
 };

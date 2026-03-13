@@ -20,7 +20,12 @@
 								@select="selectMachine(machine)"
 								class="text-sm data-[highlighted]:bg-gray-700 data-[highlighted]:text-yellow-300 cursor-pointer text-gray-300"
 							>
-								<Check :class="['mr-2 h-4 w-4', selectedMachine.name === machine.name ? 'opacity-100' : 'opacity-0']" />
+								<Check
+									:class="[
+										'mr-2 h-4 w-4',
+										selectedMachine.name === machine.name ? 'opacity-100' : 'opacity-0',
+									]"
+								/>
 								{{ machine.name }}
 							</CommandItem>
 						</CommandGroup>

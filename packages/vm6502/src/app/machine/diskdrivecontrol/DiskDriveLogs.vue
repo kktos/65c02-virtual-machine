@@ -1,6 +1,9 @@
 <template>
 	<Sheet :open="open" @update:open="$emit('update:open', $event)">
-		<SheetContent side="right" class="bg-gray-900 border-gray-700 text-gray-100 w-[400px] flex flex-col h-full overflow-hidden">
+		<SheetContent
+			side="right"
+			class="bg-gray-900 border-gray-700 text-gray-100 w-[400px] flex flex-col h-full overflow-hidden"
+		>
 			<SheetHeader class="shrink-0">
 				<SheetTitle class="text-gray-100">SmartPort Logs</SheetTitle>
 				<SheetDescription class="text-gray-400"> Monitor disk read operations. </SheetDescription>
@@ -24,7 +27,9 @@
 			<div class="mt-4 border-t border-gray-800 pt-4 shrink-0">
 				<div class="flex justify-between items-center mb-2 px-1">
 					<h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Sector Map</h3>
-					<span class="text-[10px] text-gray-500 font-mono">{{ uniqueBlocks }} / {{ totalBlocks }} blocks</span>
+					<span class="text-[10px] text-gray-500 font-mono"
+						>{{ uniqueBlocks }} / {{ totalBlocks }} blocks</span
+					>
 				</div>
 				<div class="bg-black rounded border border-gray-800 p-1">
 					<canvas ref="mapCanvas" class="w-full h-auto block" style="image-rendering: pixelated"></canvas>
