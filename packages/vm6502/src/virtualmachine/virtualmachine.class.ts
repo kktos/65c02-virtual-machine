@@ -473,6 +473,9 @@ export class VirtualMachine {
 	public readDebug(address: number, overrides?: Dict): number {
 		return this.bus?.readDebug ? this.bus.readDebug(address, overrides) : this.read(address);
 	}
+	public search(pattern: Uint8Array, startAddress: number, endAddress: number, is7Bit: boolean) {
+		return this.bus?.search(pattern, startAddress, endAddress, is7Bit);
+	}
 
 	public readDebugRange(address: number, length: number, overrides?: Dict): Uint8Array {
 		if (this.bus?.readDebugRange) return this.bus.readDebugRange(address, length, overrides);

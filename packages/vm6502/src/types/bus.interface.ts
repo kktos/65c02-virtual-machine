@@ -29,6 +29,13 @@ export interface IBus {
 	registerTickHandler(handler: (cycles: number) => void): void;
 	unregisterTickHandler(handler: (cycles: number) => void): void;
 
+	search(
+		pattern: Uint8Array,
+		startAddress: number,
+		endAddress: number,
+		is7Bit: boolean,
+	): { address: number; location: string }[];
+
 	/** Optional method to handle keyboard input. */
 	pressKey?(key: string, code?: string, ctrl?: boolean, shift?: boolean, alt?: boolean, meta?: boolean): void;
 

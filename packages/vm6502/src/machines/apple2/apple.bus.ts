@@ -782,6 +782,119 @@ export class AppleBus implements IBus {
 		this.memory[RAM_OFFSET + address] = value & 0xff;
 	}
 
+	public search(
+		pattern: Uint8Array,
+		startAddress: number,
+		endAddress = 0xffffff,
+		is7Bit = false,
+	): { address: number; location: string }[] {
+		const results: { address: number; location: string }[] = [];
+		const len = pattern.length;
+
+		const regions = [
+			{
+				name: "Main RAM",
+				data: (off: number) => this.memory[RAM_OFFSET + off],
+				start: 0x0000,
+				end: 0xbfff,
+				bankTest: (b: number) => b === 0,
+			},
+			{
+				name: "Aux RAM",
+				data: (off: number) => this.memory[RAM_OFFSET + 0x10000 + off],
+				start: 0x0000,
+				end: 0xbfff,
+				bankTest: (b: number) => b > 0,
+			},
+
+			{
+				name: "Internal ROM",
+				data: (off: number) => this.romC[off - 0xc100],
+				start: 0xc100,
+				end: 0xcfff,
+				bankTest: (_b: number) => true,
+			},
+			{
+				name: "Slot ROM",
+				data: (off: number) => this.slotRoms[off - 0xc100],
+				start: 0xc100,
+				end: 0xcfff,
+				bankTest: (_b: number) => true,
+			},
+			{
+				name: "System ROM",
+				data: (off: number) => this.rom[off - 0xd000],
+				start: 0xd000,
+				end: 0xffff,
+				bankTest: (_b: number) => true,
+			},
+
+			{
+				name: "LC Bank 1 (Main)",
+				data: (off: number) => this.memory[RAM_OFFSET + off],
+				start: 0xd000,
+				end: 0xffff,
+				bankTest: (b: number) => b === 0,
+			},
+			{
+				name: "LC Bank 1 (Aux)",
+				data: (off: number) => this.memory[RAM_OFFSET + 0x10000 + off],
+				start: 0xd000,
+				end: 0xffff,
+				bankTest: (b: number) => b > 0,
+			},
+
+			{
+				name: "LC Bank 2 (Main)",
+				data: (off: number) => this.bank2[off - 0xd000],
+				start: 0xd000,
+				end: 0xdfff,
+				bankTest: (b: number) => b === 0,
+			},
+			{
+				name: "LC Bank 2 (Aux)",
+				data: (off: number) => this.auxbank2[off - 0xd000],
+				start: 0xd000,
+				end: 0xdfff,
+				bankTest: (b: number) => b > 0,
+			},
+		];
+
+		const startBank = startAddress >> 16;
+		const endBank = endAddress >> 16;
+
+		for (let bank = startBank; bank <= endBank; bank++) {
+			const currentStart = bank === startBank ? startAddress & 0xffff : 0x0000;
+			const currentEnd = bank === endBank ? endAddress & 0xffff : 0xffff;
+
+			for (const region of regions) {
+				if (!region.bankTest(bank)) continue;
+
+				const searchStart = Math.max(currentStart, region.start);
+				const searchEnd = Math.min(currentEnd, region.end);
+
+				if (searchStart > searchEnd) continue;
+
+				for (let addr = searchStart; addr <= searchEnd - len + 1; addr++) {
+					let match = true;
+					for (let i = 0; i < len; i++) {
+						const val = region.data(addr + i);
+						const pat = pattern[i];
+						if ((is7Bit ? val & 0x7f : val) !== (is7Bit ? pat & 0x7f : pat)) {
+							match = false;
+							break;
+						}
+					}
+					if (match) {
+						results.push({ address: (bank << 16) | addr, location: region.name });
+					}
+				}
+			}
+		}
+
+		return results;
+	}
+
 	getMachineStateSpecs(): (MachineStateSpec | [MachineStateSpec, MachineStateSpec])[] {
 		return [
 			{ id: "lcBank2", label: "Bank 2", type: "led", group: "Language Card" },
