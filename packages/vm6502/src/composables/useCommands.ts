@@ -113,8 +113,7 @@ export function useCommands() {
 					...routineCmds.filter((line) => !line.trim().startsWith(";") && line.trim() !== ""),
 					END_ROUTINE_MARKER,
 				);
-				const msg = `Executing routine '${routineName}'...`;
-				success.value.push({ content: msg, format: "text" });
+
 				continue;
 			}
 
