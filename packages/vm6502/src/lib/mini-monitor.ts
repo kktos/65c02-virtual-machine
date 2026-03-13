@@ -6,6 +6,7 @@ import type { Dict } from "@/types/dict.type";
 
 type StrippedVM = {
 	readDebug(address: number, overrides?: Dict | undefined): number | undefined;
+	readDebugRange(address: number, length: number, overrides?: Dict): Uint8Array;
 	read(address: number): number;
 	writeDebug(address: number, value: number): void;
 	getScope(address: number): string;
@@ -48,7 +49,8 @@ export function minimonitor(input: string, vm: StrippedVM) {
 				for (let i = 0; i < byteWidth; i++) vm.writeDebug(currentAddr++, (val >> (i * 8)) & 0xff);
 			}
 		}
-		return hexDump(address, currentAddr - 1, vm, formatAddr);
+		const bytes = vm.readDebugRange(address, currentAddr - address);
+		return hexDump(address, bytes, { formatAddr });
 	}
 
 	let output = "";
@@ -89,7 +91,10 @@ export function minimonitor(input: string, vm: StrippedVM) {
 		if (addr2 === undefined) {
 			const byte = vm.read(startAddr);
 			output = `${formatAddr(startAddr)}: ${toHex(byte, 2)}`;
-		} else output = hexDump(startAddr, endAddr, vm, formatAddr);
+		} else {
+			const bytes = vm.readDebugRange(startAddr, endAddr - startAddr);
+			output = hexDump(startAddr, bytes, { formatAddr });
+		}
 	}
 
 	return output;

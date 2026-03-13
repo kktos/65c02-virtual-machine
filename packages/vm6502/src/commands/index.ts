@@ -30,6 +30,7 @@ import { findLabelCmd } from "./findLabel.cmd";
 import { scopePathCmd } from "./scopePath.cmd";
 import { defDataFn } from "./defData.cmd";
 import { printCmdFn } from "./print.cmd";
+import { searchCmd } from "./search.cmd";
 
 export function typedKeys<T extends object>(obj: T): (keyof T)[] {
 	return Object.keys(obj) as (keyof T)[];
@@ -183,6 +184,7 @@ export const COMMAND_LIST = {
 	REBOOT: reboot,
 	SPEED: speed,
 
+	SEARCH: searchCmd,
 	D: setDisasmView,
 
 	CODE: defCode,

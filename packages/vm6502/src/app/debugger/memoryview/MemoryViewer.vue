@@ -511,7 +511,7 @@ const performSearch = (direction: 1 | -1) => {
 	highlightedRange.value = null;
 	if (!searchQuery.value || !vm?.value) return;
 
-	let searchBytes: number[] = [];
+	let searchBytes: number[] | Uint8Array = [];
 
 	if (searchMode.value === "hex") {
 		const clean = searchQuery.value.replace(/\s+/g, "");
@@ -519,77 +519,84 @@ const performSearch = (direction: 1 | -1) => {
 			searchError.value = "Invalid Hex";
 			return;
 		}
+		const bytes: number[] = [];
 		for (let i = 0; i < clean.length; i += 2) {
-			searchBytes.push(parseInt(clean.substring(i, i + 2), 16));
+			bytes.push(parseInt(clean.substring(i, i + 2), 16));
 		}
+		searchBytes = new Uint8Array(bytes);
 	} else {
+		const bytes: number[] = [];
 		for (let i = 0; i < searchQuery.value.length; i++) {
 			const charCode = searchQuery.value.charCodeAt(i) & 0x7f;
 			if (searchMode.value === "text_hi") {
-				searchBytes.push(charCode | 0x80);
+				bytes.push(charCode | 0x80);
 			} else {
-				searchBytes.push(charCode);
+				bytes.push(charCode);
 			}
 		}
+		searchBytes = new Uint8Array(bytes);
 	}
 
 	if (searchBytes.length === 0) return;
 
-	const bankBase = startAddress.value & 0xff0000;
-	const currentOffset = startAddress.value & 0xffff;
-	const maxSearch = searchAllBanks.value ? totalMemory : 0x10000;
+	// Determine search range
+	const rangeStart = searchAllBanks.value ? 0 : startAddress.value & 0xff0000;
+	const rangeEnd = searchAllBanks.value ? totalMemory - 1 : (startAddress.value & 0xff0000) | 0xffff;
+	const is7Bit = searchMode.value === "text_any";
 
+	// Execute search via VM/Bus
+	// Note: Assuming vm.value.search delegates to bus.search with (pattern, start, end, is7Bit)
+	// and returns { address: number, location: string }[]
+	const results = vm.value.search(searchBytes as Uint8Array, rangeStart, rangeEnd, is7Bit);
+
+	if (!results || results.length === 0) {
+		searchError.value = searchAllBanks.value ? "Not found in memory" : "Not found in current bank";
+		return;
+	}
+
+	// Find the next/prev occurrence relative to startAddress.value
 	let foundAddr = -1;
+	let foundLoc = "";
+	const currentAddr = startAddress.value;
 
-	for (let i = 1; i < maxSearch; i++) {
-		let checkAddr = 0;
-
-		if (searchAllBanks.value) {
-			let rawAddr = startAddress.value + direction * i;
-			while (rawAddr < 0) rawAddr += totalMemory;
-			while (rawAddr >= totalMemory) rawAddr -= totalMemory;
-			checkAddr = rawAddr;
+	if (direction === 1) {
+		// Forward search: Find first result > currentAddr
+		const next = results.find((r) => r.address > currentAddr);
+		if (next) {
+			foundAddr = next.address;
+			foundLoc = next.location;
 		} else {
-			const offsetToCheck = direction === 1 ? (currentOffset + i) & 0xffff : (currentOffset - i) & 0xffff;
-			checkAddr = bankBase | offsetToCheck;
+			// Wrap around to beginning
+			foundAddr = results[0].address;
+			foundLoc = results[0].location;
 		}
-
-		let match = true;
-		for (let j = 0; j < searchBytes.length; j++) {
-			let addrToRead = 0;
-			if (searchAllBanks.value) {
-				addrToRead = (checkAddr + j) % totalMemory;
-			} else {
-				addrToRead = bankBase | ((checkAddr + j) & 0xffff);
-			}
-
-			let val = vm.value.readDebug(addrToRead, debugOverrides.value);
-
-			if (searchMode.value === "text_any") {
-				val &= 0x7f;
-			}
-
-			if (val !== searchBytes[j]) {
-				match = false;
-				break;
-			}
-		}
-
-		if (match) {
-			foundAddr = checkAddr;
-			break;
+	} else {
+		// Backward search: Find last result < currentAddr
+		// Array is sorted by address ascending
+		const prev = [...results].reverse().find((r) => r.address < currentAddr);
+		if (prev) {
+			foundAddr = prev.address;
+			foundLoc = prev.location;
+		} else {
+			// Wrap around to end
+			foundAddr = results[results.length - 1].address;
+			foundLoc = results[results.length - 1].location;
 		}
 	}
 
-	if (foundAddr !== -1) {
-		highlightedRange.value = { start: foundAddr, length: searchBytes.length };
-		// Center the found address in the view and align to row boundary
-		const foundRowStart = foundAddr & 0xfffffff0;
-		const rowsBefore = Math.floor(visibleRowCount.value / 2);
-		let newStart = foundRowStart - rowsBefore * BYTES_PER_LINE;
-		if (newStart < 0) newStart = 0;
-		startAddress.value = newStart;
-	} else searchError.value = searchAllBanks.value ? "Not found in memory" : "Not found in current bank";
+	if (foundLoc && debugOverrides.value) {
+		const overrides = debugOverrides.value as Record<string, unknown>;
+		if (["BANK1", "BANK2", "ROM"].includes(foundLoc)) overrides.lcView = foundLoc;
+		else if (["INT", "SLOT"].includes(foundLoc)) overrides.cxView = foundLoc;
+	}
+
+	highlightedRange.value = { start: foundAddr, length: searchBytes.length };
+	// Center the found address in the view and align to row boundary
+	const foundRowStart = foundAddr & 0xfffffff0;
+	const rowsBefore = Math.floor(visibleRowCount.value / 2);
+	let newStart = foundRowStart - rowsBefore * BYTES_PER_LINE;
+	if (newStart < 0) newStart = 0;
+	startAddress.value = newStart;
 };
 
 // --- Context Menu ---

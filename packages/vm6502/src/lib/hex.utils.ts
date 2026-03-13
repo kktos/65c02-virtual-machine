@@ -9,27 +9,45 @@ export function toHex(v: number | undefined, pad = 2) {
 }
 
 export function hexDump(
-	startAddr: number,
-	endAddr: number,
-	vm: { read: (addr: number) => number },
-	formatAddr: (addr: number) => string,
+	addr: number,
+	bytes: Uint8Array,
+	options?: {
+		bytesPerLine?: number;
+		formatAddr?: (addr: number) => string;
+		highlight?: { start: number; length: number };
+	},
 ) {
-	let output = "";
+	const output: string[] = [];
 
-	for (let addr = startAddr; addr <= endAddr; ) {
-		const lineAddr = addr;
-		const bytes = [];
-		const chars = [];
-		let line = `${formatAddr(lineAddr)}: `;
-		for (let i = 0; i < 16 && addr <= endAddr; i++, addr++) {
-			const byte = vm.read(addr);
-			bytes.push(toHex(byte, 2));
-			chars.push(byte >= 32 && byte <= 126 ? String.fromCharCode(byte) : ".");
+	const formatAddrFn = options?.formatAddr ?? formatAddress;
+	const bytesPerLine = options?.bytesPerLine ?? 16;
+	const len = bytes.length;
+	const highlight = options?.highlight;
+	const highlightEnd = highlight ? highlight.start + highlight.length : -1;
+
+	for (let i = 0; i < len; i += bytesPerLine) {
+		const chunk = bytes.subarray(i, i + bytesPerLine);
+		const hexParts: string[] = [];
+		const asciiParts: string[] = [];
+
+		for (let j = 0; j < chunk.length; j++) {
+			let byte = chunk[j];
+			const currentAddr = addr + i + j;
+			const isHighlighted = highlight && currentAddr >= highlight.start && currentAddr < highlightEnd;
+
+			const hex = toHex(byte, 2);
+			hexParts.push(isHighlighted ? `**${hex}**` : hex);
+
+			byte = byte & 0x7f;
+			const char = byte >= 32 && byte <= 126 ? String.fromCharCode(byte) : ".";
+			asciiParts.push(isHighlighted ? `**${char}**` : char);
 		}
-		line += bytes.join(" ").padEnd(16 * 3 - 1);
-		line += `  ${chars.join("")}`;
-		if (output) output += "\n";
-		output += line;
+
+		const hexString = hexParts.join(" ").replace(/\*\* \*\*/g, " ");
+		const asciiString = asciiParts.join("").replace(/\*\*\*\*/g, "");
+
+		// Note: alignment will be imperfect with markdown.
+		output.push(`${formatAddrFn(addr + i)}:&nbsp;${hexString}&nbsp;&nbsp;${asciiString}`);
 	}
-	return output;
+	return output.join("<br/>");
 }

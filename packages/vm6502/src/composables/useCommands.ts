@@ -197,7 +197,7 @@ export function useCommands() {
 
 						// range <start>:<end>
 						if (parser.match(TokenType.COLON)) {
-							if (!allowedTypes.includes("range"))
+							if (!hasRestParam && !allowedTypes.includes("range"))
 								throw new Error(`Expected a [${allowedTypes.join(" or ")}].`);
 							const secondValue = parser.parse();
 							if (secondValue.type !== TokenType.INTEGER)

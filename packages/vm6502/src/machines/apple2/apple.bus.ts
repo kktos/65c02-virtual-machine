@@ -47,6 +47,17 @@ import { Speaker } from "./speaker";
 // IIgs default colors - white on blue
 const DEFAULT_TEXT_COLORS = 0xf2;
 
+const MEM_SCOPES = ["main", "aux", "io", "int_rom", "slot_rom", "rom", "lc_bank1", "lc_bank2"];
+type MemScopeOverride = { lcView: "BANK2" | "BANK1" | "ROM"; cxView: "INT" | "SLOT" };
+type MemScopeOverrideValues = MemScopeOverride[keyof MemScopeOverride];
+type MemRegionSearch = {
+	name: MemScopeOverrideValues | "MAIN";
+	data: (off: number) => number;
+	start: number;
+	end: number;
+	bankTest: (b: number) => boolean;
+};
+
 export class AppleBus implements IBus {
 	public memory: Uint8Array;
 	private registers?: DataView;
@@ -609,7 +620,7 @@ export class AppleBus implements IBus {
 		}
 	}
 
-	readDebug(address: number, overrides?: Record<string, unknown>): number {
+	readDebug(address: number, overrides?: MemScopeOverride): number {
 		const bank = address >> 16;
 		const addr16 = address & 0xffff;
 		if (addr16 >= 0xd000) {
@@ -656,7 +667,7 @@ export class AppleBus implements IBus {
 		return 0;
 	}
 
-	public readDebugRange(address: number, length: number, overrides?: Record<string, unknown>): Uint8Array {
+	public readDebugRange(address: number, length: number, overrides?: MemScopeOverride): Uint8Array {
 		const result = new Uint8Array(length);
 		let resultOffset = 0;
 		let currentAddress = address;
@@ -790,17 +801,28 @@ export class AppleBus implements IBus {
 	): { address: number; location: string }[] {
 		const results: { address: number; location: string }[] = [];
 		const len = pattern.length;
+		if (len === 0) return results;
 
-		const regions = [
+		type SearchTask = {
+			data: (off: number) => number;
+			location: string;
+			bank: number;
+			start: number;
+			end: number;
+		};
+
+		// 1. "Pre-compile" a list of search tasks based on the address range.
+		const searchTasks: SearchTask[] = [];
+		const allRegions: MemRegionSearch[] = [
 			{
-				name: "Main RAM",
+				name: "MAIN",
 				data: (off: number) => this.memory[RAM_OFFSET + off],
 				start: 0x0000,
 				end: 0xbfff,
 				bankTest: (b: number) => b === 0,
 			},
 			{
-				name: "Aux RAM",
+				name: "MAIN",
 				data: (off: number) => this.memory[RAM_OFFSET + 0x10000 + off],
 				start: 0x0000,
 				end: 0xbfff,
@@ -808,21 +830,21 @@ export class AppleBus implements IBus {
 			},
 
 			{
-				name: "Internal ROM",
+				name: "INT",
 				data: (off: number) => this.romC[off - 0xc100],
 				start: 0xc100,
 				end: 0xcfff,
 				bankTest: (_b: number) => true,
 			},
 			{
-				name: "Slot ROM",
+				name: "SLOT",
 				data: (off: number) => this.slotRoms[off - 0xc100],
 				start: 0xc100,
 				end: 0xcfff,
 				bankTest: (_b: number) => true,
 			},
 			{
-				name: "System ROM",
+				name: "ROM",
 				data: (off: number) => this.rom[off - 0xd000],
 				start: 0xd000,
 				end: 0xffff,
@@ -830,14 +852,14 @@ export class AppleBus implements IBus {
 			},
 
 			{
-				name: "LC Bank 1 (Main)",
+				name: "BANK1",
 				data: (off: number) => this.memory[RAM_OFFSET + off],
 				start: 0xd000,
 				end: 0xffff,
 				bankTest: (b: number) => b === 0,
 			},
 			{
-				name: "LC Bank 1 (Aux)",
+				name: "BANK1",
 				data: (off: number) => this.memory[RAM_OFFSET + 0x10000 + off],
 				start: 0xd000,
 				end: 0xffff,
@@ -845,14 +867,14 @@ export class AppleBus implements IBus {
 			},
 
 			{
-				name: "LC Bank 2 (Main)",
+				name: "BANK2",
 				data: (off: number) => this.bank2[off - 0xd000],
 				start: 0xd000,
 				end: 0xdfff,
 				bankTest: (b: number) => b === 0,
 			},
 			{
-				name: "LC Bank 2 (Aux)",
+				name: "BANK2",
 				data: (off: number) => this.auxbank2[off - 0xd000],
 				start: 0xd000,
 				end: 0xdfff,
@@ -864,35 +886,61 @@ export class AppleBus implements IBus {
 		const endBank = endAddress >> 16;
 
 		for (let bank = startBank; bank <= endBank; bank++) {
-			const currentStart = bank === startBank ? startAddress & 0xffff : 0x0000;
-			const currentEnd = bank === endBank ? endAddress & 0xffff : 0xffff;
+			const bankStartAddr16 = bank === startBank ? startAddress & 0xffff : 0x0000;
+			const bankEndAddr16 = bank === endBank ? endAddress & 0xffff : 0xffff;
 
-			for (const region of regions) {
+			for (const region of allRegions) {
 				if (!region.bankTest(bank)) continue;
 
-				const searchStart = Math.max(currentStart, region.start);
-				const searchEnd = Math.min(currentEnd, region.end);
+				const searchStart = Math.max(bankStartAddr16, region.start);
+				const searchEnd = Math.min(bankEndAddr16, region.end);
 
-				if (searchStart > searchEnd) continue;
-
-				for (let addr = searchStart; addr <= searchEnd - len + 1; addr++) {
-					let match = true;
-					for (let i = 0; i < len; i++) {
-						const val = region.data(addr + i);
-						const pat = pattern[i];
-						if ((is7Bit ? val & 0x7f : val) !== (is7Bit ? pat & 0x7f : pat)) {
-							match = false;
-							break;
-						}
-					}
-					if (match) {
-						results.push({ address: (bank << 16) | addr, location: region.name });
-					}
+				if (searchStart <= searchEnd) {
+					searchTasks.push({
+						data: region.data,
+						location: region.name,
+						bank,
+						start: searchStart,
+						end: searchEnd,
+					});
 				}
 			}
 		}
 
-		return results;
+		// 2. Execute the search tasks.
+		for (const task of searchTasks) {
+			for (let addr = task.start; addr <= task.end - len + 1; addr++) {
+				let match = true;
+				for (let i = 0; i < len; i++) {
+					if (
+						(is7Bit ? task.data(addr + i) & 0x7f : task.data(addr + i)) !==
+						(is7Bit ? pattern[i] & 0x7f : pattern[i])
+					) {
+						match = false;
+						break;
+					}
+				}
+				if (match) results.push({ address: (task.bank << 16) | addr, location: task.location });
+			}
+		}
+
+		// 3. De-duplicate results from non-banked ROM regions
+		const finalResults: { address: number; location: string }[] = [];
+		const seenSharedAddresses = new Set<number>();
+
+		for (const result of results) {
+			const isShared = result.location === "ROM" || result.location === "INT" || result.location === "SLOT";
+			if (isShared) {
+				const addr16 = result.address & 0xffff;
+				if (!seenSharedAddresses.has(addr16)) {
+					finalResults.push(result);
+					seenSharedAddresses.add(addr16);
+				}
+			} else {
+				finalResults.push(result);
+			}
+		}
+		return finalResults;
 	}
 
 	getMachineStateSpecs(): (MachineStateSpec | [MachineStateSpec, MachineStateSpec])[] {
@@ -1000,7 +1048,7 @@ export class AppleBus implements IBus {
 	}
 
 	public getScopes?() {
-		return ["main", "aux", "io", "int_rom", "slot_rom", "rom", "lc_bank1", "lc_bank2"];
+		return MEM_SCOPES;
 	}
 
 	public getBank?(address: number): number {
