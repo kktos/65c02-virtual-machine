@@ -854,18 +854,34 @@ const startEditing = async (index: number, mode: "hex" | "ascii") => {
 
 const handleKeyDown = (index: number, event: KeyboardEvent, mode: "hex" | "ascii") => {
 	let direction = 0;
-	if (event.key === "ArrowUp") direction = -BYTES_PER_LINE;
-	else if (event.key === "ArrowDown") direction = BYTES_PER_LINE;
-	else if (event.key === "ArrowLeft") direction = -1;
-	else if (event.key === "ArrowRight") direction = 1;
-	else if (event.key === " " && mode === "hex") direction = 1;
-	else if (event.key === "Enter") direction = 1;
-	else if (event.key === "Escape") return (event.target as HTMLElement).blur();
-	else {
-		if (mode === "hex" && event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) {
-			if (!/^[0-9a-fA-F]$/.test(event.key)) event.preventDefault();
+
+	switch (event.key) {
+		case "ArrowUp":
+			direction = -BYTES_PER_LINE;
+			break;
+		case "ArrowDown":
+			direction = BYTES_PER_LINE;
+			break;
+		case "ArrowLeft":
+			direction = -1;
+			break;
+		case "Enter":
+		case "ArrowRight":
+			direction = 1;
+			break;
+		case "Escape":
+			return (event.target as HTMLElement).blur();
+		default: {
+			if (mode !== "hex") break;
+			if (event.key === " ") {
+				direction = 1;
+				break;
+			}
+			if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) {
+				if (!/^[0-9a-fA-F]$/.test(event.key)) event.preventDefault();
+			}
+			return;
 		}
-		return;
 	}
 
 	event.preventDefault();
@@ -889,9 +905,7 @@ const handleKeyDown = (index: number, event: KeyboardEvent, mode: "hex" | "ascii
 
 		nextTick(() => {
 			const newTargetIndex = targetAbs - startAddress.value;
-			if (newTargetIndex >= 0 && newTargetIndex < visibleBytes) {
-				startEditing(newTargetIndex, mode);
-			}
+			if (newTargetIndex >= 0 && newTargetIndex < visibleBytes) startEditing(newTargetIndex, mode);
 		});
 	}
 };
@@ -900,9 +914,8 @@ const handleHexChange = (index: number, event: Event) => {
 	const target = event.target as HTMLInputElement;
 	if (editingIndex.value === index && editingMode.value === "hex") editingValue.value = target.value;
 	const value = parseInt(target.value, 16);
-	if (!Number.isNaN(value) && value >= 0 && value <= 0xff && debugOverrides.value) {
+	if (!Number.isNaN(value) && value >= 0 && value <= 0xff && debugOverrides.value)
 		vm?.value.writeDebug(startAddress.value + index, value, debugOverrides.value);
-	}
 
 	if (target.value.length === 2) {
 		const nextIndex = index + 1;
