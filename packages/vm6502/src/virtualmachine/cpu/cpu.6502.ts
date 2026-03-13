@@ -1,4 +1,4 @@
-import type { IBus } from "./bus.interface";
+import type { IBus } from "../../types/bus.interface";
 import {
 	FLAG_N_MASK,
 	FLAG_Z_MASK,

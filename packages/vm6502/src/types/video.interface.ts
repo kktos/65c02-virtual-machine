@@ -1,4 +1,4 @@
-import type { IBus } from "@/virtualmachine/cpu/bus.interface";
+import type { IBus } from "@/types/bus.interface";
 import type { Dict } from "./dict.type";
 
 export interface Video {

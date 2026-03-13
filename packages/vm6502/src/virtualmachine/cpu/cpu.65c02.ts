@@ -16,7 +16,7 @@ import {
 	setStepBPAddress,
 	stepBPAddress,
 } from "./breakpoints";
-import type { IBus } from "./bus.interface";
+import type { IBus } from "../../types/bus.interface";
 import {
 	FLAG_5_MASK,
 	FLAG_B_MASK,

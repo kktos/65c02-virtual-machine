@@ -1,4 +1,4 @@
-import type { IBus } from "@/virtualmachine/cpu/bus.interface";
+import type { IBus } from "@/types/bus.interface";
 import type { ISlotCard } from "../slotcard.interface";
 import { AY38910 } from "./ay38910";
 import { VIA6522 } from "./via6522";

@@ -1,7 +1,7 @@
 import type { MachineConfig } from "@/types/machine.interface";
 import type { Video } from "@/types/video.interface";
 import { BP_PC, bankedBreakpoints, breakpointMap } from "./breakpoints";
-import type { IBus } from "./bus.interface";
+import type { IBus } from "../../types/bus.interface";
 import {
 	addBreakpoint,
 	clearBreakpoints,

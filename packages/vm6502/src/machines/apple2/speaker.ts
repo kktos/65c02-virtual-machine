@@ -1,4 +1,4 @@
-import type { IBus } from "@/virtualmachine/cpu/bus.interface";
+import type { IBus } from "@/types/bus.interface";
 
 const HIGH_LEVEL = 0.25; // Lower volume to avoid clipping
 const LOW_LEVEL = -0.25;

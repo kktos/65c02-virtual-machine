@@ -1,4 +1,4 @@
-import type { IBus } from "../bus.interface";
+import type { IBus } from "../../../types/bus.interface";
 
 /**
  * A mock implementation of the Bus for isolated CPU testing.

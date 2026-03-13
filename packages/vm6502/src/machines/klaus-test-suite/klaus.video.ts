@@ -1,6 +1,6 @@
 import { hslToRgb } from "@/lib/colors.utils";
 import type { Video } from "@/types/video.interface";
-import type { IBus } from "@/virtualmachine/cpu/bus.interface";
+import type { IBus } from "@/types/bus.interface";
 
 export class KlausVideo implements Video {
 	private parent: Worker;

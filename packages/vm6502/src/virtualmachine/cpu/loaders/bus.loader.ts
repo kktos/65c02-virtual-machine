@@ -1,5 +1,5 @@
 import type { MachineConfig } from "@/types/machine.interface";
-import type { IBus } from "../bus.interface";
+import type { IBus } from "../../../types/bus.interface";
 
 // Vite-specific way to handle dynamic imports in workers.
 const busModules = import.meta.glob("../../../machines/*/*.bus.ts");

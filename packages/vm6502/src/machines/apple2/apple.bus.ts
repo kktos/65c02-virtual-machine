@@ -1,5 +1,5 @@
 import type { Dict } from "@/types/dict.type";
-import type { IBus, MachineStateSpec } from "@/virtualmachine/cpu/bus.interface";
+import type { IBus, MachineStateSpec } from "@/types/bus.interface";
 import {
 	INPUT_ANALOG_0_OFFSET,
 	INPUT_ANALOG_1_OFFSET,

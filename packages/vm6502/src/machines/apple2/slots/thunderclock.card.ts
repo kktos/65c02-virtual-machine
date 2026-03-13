@@ -1,4 +1,4 @@
-import type { IBus } from "@/virtualmachine/cpu/bus.interface";
+import type { IBus } from "@/types/bus.interface";
 import type { ISlotCard } from "./slotcard.interface";
 
 export class ThunderClockCard implements ISlotCard {

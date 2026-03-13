@@ -1,4 +1,4 @@
-import type { IBus } from "@/virtualmachine/cpu/bus.interface";
+import type { IBus } from "@/types/bus.interface";
 import {
 	FLAG_C_MASK,
 	INPUT_ANALOG_0_OFFSET,

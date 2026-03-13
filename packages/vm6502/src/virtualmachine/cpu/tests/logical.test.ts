@@ -1,7 +1,7 @@
 // c:\devwork\65c02-virtual-machine\packages\vm6502\src\cpu\tests\logical.test.ts
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { IBus } from "../bus.interface";
+import type { IBus } from "../../../types/bus.interface";
 import { initCPU, stepInstruction } from "../cpu.65c02";
 import { setRunning } from "../cpu.6502";
 import { FLAG_N_MASK, FLAG_Z_MASK, REG_A_OFFSET, REG_PC_OFFSET, REG_STATUS_OFFSET } from "../shared-memory";
