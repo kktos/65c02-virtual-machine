@@ -18,7 +18,9 @@ const formatAddr = (addr: number) => {
 	return `$${bank}/${offset}`;
 };
 
-export function minimonitor(input: string, vm: StrippedVM) {
+export function minimonitor(input: string, vm: StrippedVM): { content: string; format: "markdown" | "text" } {
+	let output = "";
+
 	const trimmed = input.trim();
 
 	// Write command: <addr>: <values>
@@ -50,10 +52,10 @@ export function minimonitor(input: string, vm: StrippedVM) {
 			}
 		}
 		const bytes = vm.readDebugRange(address, currentAddr - address);
-		return hexDump(address, bytes, { formatAddr });
+		output = hexDump(address, bytes, { formatAddr });
+		return { content: output, format: "markdown" };
 	}
 
-	let output = "";
 	const upperInput = trimmed.toUpperCase();
 	const isDisassembly = upperInput.endsWith("L");
 	const cleanInput = isDisassembly ? trimmed.slice(0, -1).trim() : trimmed;
@@ -73,29 +75,33 @@ export function minimonitor(input: string, vm: StrippedVM) {
 		if (addr2 !== undefined) {
 			if (startAddr > addr2) throw new Error("Start address must be less than end address.");
 			const lines = disassembleRange(readByte, vm.getScope(startAddr), startAddr, addr2, registers);
-			output = formatDisassemblyAsText(lines);
+			output = formatDisassemblyAsText(lines, {
+				withOrg: false,
+				withAddr: true,
+				withBytes: true,
+				asMarkdown: true,
+			});
 		} else {
 			const lines = disassemble(readByte, vm.getScope(startAddr), startAddr, 32, registers);
 			output = formatDisassemblyAsText(lines, {
 				withOrg: false,
 				withAddr: true,
 				withBytes: true,
+				asMarkdown: true,
 			});
 		}
-	} else {
-		const startAddr = addr1;
-		const endAddr = addr2 ?? startAddr;
-
-		if (startAddr > endAddr) throw new Error("Start address must be less than or equal to end address.");
-
-		if (addr2 === undefined) {
-			const byte = vm.read(startAddr);
-			output = `${formatAddr(startAddr)}: ${toHex(byte, 2)}`;
-		} else {
-			const bytes = vm.readDebugRange(startAddr, endAddr - startAddr);
-			output = hexDump(startAddr, bytes, { formatAddr });
-		}
+		return { content: output, format: "markdown" };
 	}
 
-	return output;
+	const startAddr = addr1;
+	const endAddr = addr2 ?? startAddr;
+	if (startAddr > endAddr) throw new Error("Start address must be less than or equal to end address.");
+	if (addr2 === undefined) {
+		const byte = vm.read(startAddr);
+		output = `${formatAddr(startAddr)}: ${toHex(byte, 2)}`;
+	} else {
+		const bytes = vm.readDebugRange(startAddr, endAddr - startAddr);
+		output = hexDump(startAddr, bytes, { formatAddr });
+	}
+	return { content: output, format: "markdown" };
 }
