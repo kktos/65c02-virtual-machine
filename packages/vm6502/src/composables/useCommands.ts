@@ -160,8 +160,11 @@ export function useCommands() {
 	const processLine = async (
 		cmdInput: string,
 		vm: VirtualMachine,
-	): Promise<{ success: CommandOutput[]; error?: string }> => {
-		const result: { success: CommandOutput[]; error?: string } = { success: [] };
+	): Promise<{ success: CommandOutput[]; shouldClose: boolean; error?: string }> => {
+		const result: { success: CommandOutput[]; shouldClose: boolean; error?: string } = {
+			success: [],
+			shouldClose: false,
+		};
 
 		const input = cmdInput.trim();
 
@@ -239,7 +242,7 @@ export function useCommands() {
 					vm.play();
 				} else {
 					// @ts-expect-error
-					success.value.push(output);
+					result.success.push(output);
 				}
 
 				continue;
@@ -354,13 +357,13 @@ export function useCommands() {
 
 			if (cmdResult) {
 				if (typeof cmdResult === "string") {
-					success.value.push({ content: cmdResult, format: "text" });
+					result.success.push({ content: cmdResult, format: "text" });
 				} else if (typeof cmdResult === "object" && "content" in cmdResult) {
 					// It's a CommandOutput
 					result.success.push(cmdResult);
 				}
 			}
-			if (cmdSpec.closeOnSuccess) shouldClose.value = true;
+			if (cmdSpec.closeOnSuccess) result.shouldClose = true;
 		}
 		return result;
 	};
@@ -377,7 +380,7 @@ export function useCommands() {
 		progress.value = 0;
 		error.value = "";
 		success.value = [];
-		shouldClose.value = false;
+		// shouldClose.value = false;
 
 		let input = cmdInput;
 		if (!input.trim() && !multiLineSession.value) input = "HELP";
@@ -391,8 +394,9 @@ export function useCommands() {
 					error.value = result.error;
 					break;
 				} else if (result.success) {
-					success.value = result.success;
+					success.value.push(...result.success);
 				}
+				shouldClose.value = result.shouldClose;
 			}
 
 			const cleanInput = cmdInput.trim();
