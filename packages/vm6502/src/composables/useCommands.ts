@@ -38,6 +38,12 @@ watch(
 
 const errorHistory = ref<string[]>([]);
 
+type CommandRunResult = {
+	success: CommandOutput[];
+	error?: string;
+	shouldClose: boolean;
+};
+
 function parseUserCommand(singleCmdTrimmed: string, vm: VirtualMachine) {
 	const cmdParser = new ExpressionParser(singleCmdTrimmed, vm);
 	const userParams: ParamList = [];
@@ -148,6 +154,79 @@ function parseCommandParams(
 	return userParams;
 }
 
+function handleJsrOutput(output: any, vm: VirtualMachine, result: CommandRunResult) {
+	const { addBreakpoint } = useBreakpoints();
+	const jsrAddress = output.address ?? vm.sharedRegisters.getUint16(REG_PC_OFFSET, true);
+	const fakeReturnAddress = 0xfffe;
+	const breakpointAddress = 0xffff;
+
+	const sp = vm.sharedRegisters.getUint8(REG_SP_OFFSET);
+	if (sp < 2) {
+		result.error = "Stack overflow risk.  SP < 2.  Cannot execute JSR command.";
+		return;
+	}
+
+	const pc = vm.sharedRegisters.getUint16(REG_PC_OFFSET, true);
+	const a = vm.sharedRegisters.getUint8(REG_A_OFFSET);
+	const x = vm.sharedRegisters.getUint8(REG_X_OFFSET);
+	const y = vm.sharedRegisters.getUint8(REG_Y_OFFSET);
+	const p = vm.sharedRegisters.getUint8(REG_STATUS_OFFSET);
+	const lines = [`pc=${pc}`, `sp=${sp}`, `a=${a}`, `x=${x}`, `y=${y}`, `p=${p}`, `print "done"`];
+
+	addBreakpoint({ type: "pc", address: breakpointAddress, isTemporary: true, command: lines.join("\n") }, vm);
+
+	vm.sharedRegisters.setUint8(REG_SP_OFFSET, sp - 2);
+	vm.writeDebug(0x0100 + sp, fakeReturnAddress >> 8);
+	vm.writeDebug(0x0100 + sp - 1, fakeReturnAddress & 0xff);
+	vm.sharedRegisters.setUint16(REG_PC_OFFSET, jsrAddress, true);
+	vm.play();
+}
+
+function handleNonCommandOutput(output: any, result: CommandRunResult, vm: VirtualMachine) {
+	if (output && "type" in output && output.type === "JSR") {
+		handleJsrOutput(output, vm, result);
+	} else {
+		result.success.push(output);
+	}
+}
+
+function handleIfCommand(cmdParser: ExpressionParser, singleCmdTrimmed: string, commandQueue: string[]) {
+	const expr = cmdParser.parse();
+	const condition = expr.value;
+	let isTrue = false;
+	if (typeof condition === "string") isTrue = condition.length > 0;
+	else isTrue = condition !== 0;
+
+	if (!isTrue) return;
+
+	let token = cmdParser.peek();
+	if (token.type === TokenType.IDENTIFIER && token.text.toUpperCase() === "THEN") {
+		cmdParser.consume();
+		token = cmdParser.peek();
+	}
+
+	const restIndex = cmdParser.getRestIndex();
+	const rest = singleCmdTrimmed.substring(restIndex).trim();
+	commandQueue.unshift(rest);
+}
+
+function handleDoCommand(cmdParser: ExpressionParser, commandQueue: string[]) {
+	const token = cmdParser.peek();
+	if (token.type !== TokenType.IDENTIFIER) throw new Error("DO needs a routine name.");
+	cmdParser.consume();
+	if (!cmdParser.eof()) throw new Error("Too many parameters for DO; it needs only a routine name.");
+
+	const routineName = token.text;
+	const { getRoutine } = useRoutines();
+	const routineCmds = getRoutine(routineName);
+	if (!routineCmds) throw new Error(`Routine '${routineName}' not found.`);
+
+	commandQueue.unshift(
+		...routineCmds.filter((line) => !line.trim().startsWith(";") && line.trim() !== ""),
+		END_ROUTINE_MARKER,
+	);
+}
+
 export function useCommands() {
 	const error = ref("");
 	const success = ref<CommandOutput[]>([]);
@@ -157,18 +236,11 @@ export function useCommands() {
 	const isMultiLine = computed(() => multiLineSession.value !== null);
 	const multiLinePrompt = computed(() => multiLineSession.value?.prompt ?? "");
 
-	const processLine = async (
-		cmdInput: string,
-		vm: VirtualMachine,
-	): Promise<{ success: CommandOutput[]; shouldClose: boolean; error?: string }> => {
-		const result: { success: CommandOutput[]; shouldClose: boolean; error?: string } = {
-			success: [],
-			shouldClose: false,
-		};
+	const processLine = async (cmdInput: string, vm: VirtualMachine): Promise<CommandRunResult> => {
+		const result: CommandRunResult = { success: [], shouldClose: false };
 
 		const input = cmdInput.trim();
 
-		// Handle multi-line input
 		if (multiLineSession.value) {
 			const trimmedInput = input.toUpperCase();
 			if (trimmedInput === multiLineSession.value.terminator) {
@@ -188,12 +260,9 @@ export function useCommands() {
 
 		if (!input) return result;
 
-		shouldClose.value = false;
-
 		const commandQueue = input.split(";").filter((c) => c.trim() !== "");
 		while (commandQueue.length > 0) {
 			const singleCmdTrimmed = commandQueue.shift()?.trim() as string;
-
 			if (singleCmdTrimmed === END_ROUTINE_MARKER) continue;
 
 			const {
@@ -203,155 +272,75 @@ export function useCommands() {
 				userParams,
 				isValidCmd,
 			} = parseUserCommand(singleCmdTrimmed, vm);
-
 			let paramIndex = initialParamIndex;
 
 			if (!isValidCmd) {
 				const output = minimonitor(singleCmdTrimmed, vm);
-				// success.value.push(output);
-
-				if (output && "type" in output && output.type === "JSR") {
-					const { addBreakpoint } = useBreakpoints();
-					const jsrAddress = output.address ?? vm.sharedRegisters.getUint16(REG_PC_OFFSET, true);
-					const fakeReturnAddress = 0xfffe;
-					const breakpointAddress = 0xffff;
-
-					const sp = vm.sharedRegisters.getUint8(REG_SP_OFFSET);
-					if (sp < 2) {
-						result.error = "Stack overflow risk.  SP < 2.  Cannot execute JSR command.";
-						continue;
-					}
-
-					const pc = vm.sharedRegisters.getUint16(REG_PC_OFFSET, true);
-					const a = vm.sharedRegisters.getUint8(REG_A_OFFSET);
-					const x = vm.sharedRegisters.getUint8(REG_X_OFFSET);
-					const y = vm.sharedRegisters.getUint8(REG_Y_OFFSET);
-					const p = vm.sharedRegisters.getUint8(REG_STATUS_OFFSET);
-					const lines = [`pc=${pc}`, `sp=${sp}`, `a=${a}`, `x=${x}`, `y=${y}`, `p=${p}`, `print "done"`];
-					addBreakpoint(
-						{ type: "pc", address: breakpointAddress, isTemporary: true, command: lines.join("\n") },
-						vm,
-					);
-
-					vm.sharedRegisters.setUint8(REG_SP_OFFSET, sp - 2);
-					vm.writeDebug(0x0100 + sp, fakeReturnAddress >> 8);
-					vm.writeDebug(0x0100 + sp - 1, fakeReturnAddress & 0xff);
-
-					vm.sharedRegisters.setUint16(REG_PC_OFFSET, jsrAddress, true);
-
-					vm.play();
-				} else {
-					// @ts-expect-error
-					result.success.push(output);
-				}
-
+				handleNonCommandOutput(output, result, vm);
+				if (result.error) break;
 				continue;
 			}
 
 			if (cmd === "IF") {
-				const expr = cmdParser.parse();
-				const condition = expr.value;
-
-				let isTrue = false;
-				if (typeof condition === "string") isTrue = condition.length > 0;
-				else isTrue = condition !== 0;
-
-				if (isTrue) {
-					let token = cmdParser.peek();
-					if (token.type === TokenType.IDENTIFIER && token.text.toUpperCase() === "THEN") {
-						cmdParser.consume();
-						token = cmdParser.peek();
-					}
-
-					const restIndex = cmdParser.getRestIndex();
-					let rest = singleCmdTrimmed.substring(restIndex).trim();
-					commandQueue.unshift(rest);
-				}
+				handleIfCommand(cmdParser, singleCmdTrimmed, commandQueue);
 				continue;
 			}
 
 			if (cmd === "DO") {
-				const token = cmdParser.peek();
-				if (token.type !== TokenType.IDENTIFIER) throw new Error("DO needs a routine name.");
-				cmdParser.consume();
-				if (!cmdParser.eof()) throw new Error("Too many parameters for DO; it needs only a routine name.");
-
-				const routineName = token.text;
-				const { getRoutine } = useRoutines();
-				const routineCmds = getRoutine(routineName);
-				if (!routineCmds) throw new Error(`Routine '${routineName}' not found.`);
-
-				commandQueue.unshift(
-					...routineCmds.filter((line) => !line.trim().startsWith(";") && line.trim() !== ""),
-					END_ROUTINE_MARKER,
-				);
-
+				handleDoCommand(cmdParser, commandQueue);
 				continue;
 			}
 
 			let cmdSpecOrAlias: Command | string = COMMAND_LIST[cmd];
 			if (typeof cmdSpecOrAlias === "string") cmdSpecOrAlias = COMMAND_LIST[cmdSpecOrAlias as COMMANDS];
-
 			if (typeof cmdSpecOrAlias === "string" || !cmdSpecOrAlias)
 				throw new Error(`Invalid command alias configuration for '${cmd}'.`);
 
 			const cmdSpec = cmdSpecOrAlias;
-
 			const finalParams = parseCommandParams(cmdParser, cmd, paramIndex, userParams, cmdSpec);
 			const cmdResult = await cmdSpec.fn(vm, progress, finalParams);
 
 			if (typeof cmdResult === "object" && cmdResult !== null && (cmdResult as any).__isMultiLineRequest) {
 				const request = cmdResult as MultiLineRequest;
-
 				const isInsideRoutine = commandQueue.length > 0 && commandQueue.at(-1) === END_ROUTINE_MARKER;
 				if (isInsideRoutine) {
-					// Auto-feed from command queue for routines
 					const linesForMultiLine: string[] = [];
 					let foundTerminator = false;
-
 					while (commandQueue.length > 0) {
 						const nextLine = commandQueue.shift();
 						if (nextLine === undefined) break;
-
 						if (nextLine.trim().toUpperCase() === request.terminator) {
 							foundTerminator = true;
 							break;
 						}
 						linesForMultiLine.push(nextLine);
 					}
-
-					if (!foundTerminator) {
+					if (!foundTerminator)
 						throw new Error(
 							`Multi-line command started in routine but terminator '${request.terminator}' was not found.`,
 						);
-					}
-
-					// Execute the callback and continue the main command loop
 					const res = await request.onComplete(linesForMultiLine);
 					if (res) {
-						if (typeof res === "string") {
-							result.success.push({ content: res, format: "text" });
-						} else if (typeof res === "object" && "content" in res) {
-							result.success.push(res);
-						}
+						if (typeof res === "string") result.success.push({ content: res, format: "text" });
+						else if (typeof res === "object" && "content" in res) result.success.push(res);
 					}
-					continue; // Continue with the next command in the routine
+					continue;
 				}
 
-				// Interactive multi-line session for user input
-				if (commandQueue.length > 0) {
+				if (commandQueue.length > 0)
 					throw new Error(
 						"Commands that start multi-line mode cannot be combined with other commands using ';'.",
 					);
-				}
 				multiLineSession.value = {
 					prompt: request.prompt,
 					terminator: request.terminator,
 					onComplete: request.onComplete,
 					lines: [],
 				};
-				const msg = `Type '${request.terminator}' on a new line to finish.`;
-				result.success.push({ content: msg, format: "text" });
+				result.success.push({
+					content: `Type '${request.terminator}' on a new line to finish.`,
+					format: "text",
+				});
 				return result;
 			}
 
@@ -359,7 +348,6 @@ export function useCommands() {
 				if (typeof cmdResult === "string") {
 					result.success.push({ content: cmdResult, format: "text" });
 				} else if (typeof cmdResult === "object" && "content" in cmdResult) {
-					// It's a CommandOutput
 					result.success.push(cmdResult);
 				}
 			}
@@ -373,18 +361,16 @@ export function useCommands() {
 			error.value = "Virtual Machine not initialized.";
 			return false;
 		}
-
 		if (isLoading.value) return false;
 
 		isLoading.value = true;
 		progress.value = 0;
 		error.value = "";
 		success.value = [];
-		// shouldClose.value = false;
+		shouldClose.value = false;
 
 		let input = cmdInput;
 		if (!input.trim() && !multiLineSession.value) input = "HELP";
-
 		const lines = input.split(/\r?\n/);
 
 		try {
@@ -393,10 +379,9 @@ export function useCommands() {
 				if (result.error) {
 					error.value = result.error;
 					break;
-				} else if (result.success) {
-					success.value.push(...result.success);
 				}
-				shouldClose.value = result.shouldClose;
+				if (result.success.length > 0) success.value.push(...result.success);
+				if (result.shouldClose) shouldClose.value = true;
 			}
 
 			const cleanInput = cmdInput.trim();
@@ -405,7 +390,6 @@ export function useCommands() {
 				if (commandHistory.value.length > HISTORY_MAX_SIZE)
 					commandHistory.value.splice(0, commandHistory.value.length - HISTORY_MAX_SIZE);
 			}
-
 			return !error.value;
 		} catch (e: any) {
 			error.value = e.message || "Execution failed";
@@ -416,9 +400,7 @@ export function useCommands() {
 	};
 
 	watch(error, (err) => {
-		if (err) {
-			errorHistory.value.push(err);
-		}
+		if (err) errorHistory.value.push(err);
 	});
 
 	return {
