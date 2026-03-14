@@ -38,6 +38,116 @@ watch(
 
 const errorHistory = ref<string[]>([]);
 
+function parseUserCommand(singleCmdTrimmed: string, vm: VirtualMachine) {
+	const cmdParser = new ExpressionParser(singleCmdTrimmed, vm);
+	const userParams: ParamList = [];
+	let paramIndex = 0;
+	let cmd = "" as COMMANDS;
+	let isValidCmd = false;
+	const tok = cmdParser.peek();
+
+	if (cmdParser.match(TokenType.IDENTIFIER)) {
+		const nextTok = cmdParser.peek();
+		if (nextTok?.type === TokenType.ASSIGN) {
+			cmd = "SET";
+			paramIndex = 1;
+			userParams.push(tok.text);
+			cmdParser.consume();
+		} else {
+			cmd = tok.text.toUpperCase() as COMMANDS;
+		}
+		isValidCmd = !!COMMAND_LIST[cmd];
+	}
+
+	return { cmd, cmdParser, paramIndex, userParams, isValidCmd };
+}
+
+function parseCommandParams(
+	cmdParser: ExpressionParser,
+	cmd: COMMANDS,
+	paramIndex: number,
+	userParams: ParamList,
+	cmdSpec: Command,
+) {
+	const paramDef = cmdSpec.paramDef;
+	const hasRestParam = paramDef?.at(-1)?.startsWith("rest");
+	const paramCount = paramDef?.length ?? 0;
+	const minParamCount = paramDef?.filter((p) => !p.endsWith("?")).length ?? 0;
+
+	while (!cmdParser.eof()) {
+		if (!hasRestParam && paramIndex >= paramCount) throw new Error(`Too many parameters for command "${cmd}".`);
+
+		let paramDefStr = paramDef?.[paramIndex] ?? "rest";
+		const isOptional = paramDefStr.endsWith("?");
+		if (isOptional) paramDefStr = paramDefStr.slice(0, -1) as ParamDef;
+		const allowedTypes = paramDefStr.split("|");
+
+		const paramValue = cmdParser.parse();
+		cmdParser.match(TokenType.COMMA);
+		paramIndex++;
+
+		let parsedValue: string | number | undefined | { start: number; end: number };
+		switch (paramValue.type) {
+			case TokenType.STRING:
+				if (!(hasRestParam || allowedTypes.includes("string")))
+					throw new Error(`Expected a [${allowedTypes.join(" or ")}].`);
+				parsedValue = paramValue.value;
+				break;
+			case TokenType.IDENTIFIER:
+				if (allowedTypes.includes("name")) {
+					parsedValue = paramValue.raw;
+					break;
+				}
+				if (
+					!(
+						hasRestParam ||
+						allowedTypes.includes("byte") ||
+						allowedTypes.includes("word") ||
+						allowedTypes.includes("address")
+					)
+				)
+					throw new Error(`Expected a [${allowedTypes.join(" or ")}].`);
+				parsedValue = paramValue.value as number;
+				break;
+			case TokenType.FLOAT:
+				if (!(hasRestParam || allowedTypes.includes("number")))
+					throw new Error(`Expected a [${allowedTypes.join(" or ")}].`);
+				parsedValue = paramValue.value;
+				break;
+			case TokenType.INTEGER:
+				if (
+					!(
+						hasRestParam ||
+						allowedTypes.includes("byte") ||
+						allowedTypes.includes("word") ||
+						allowedTypes.includes("range") ||
+						allowedTypes.includes("address")
+					)
+				)
+					throw new Error(`Expected a [${allowedTypes.join(" or ")}].`);
+
+				if (cmdParser.match(TokenType.COLON)) {
+					const secondValue = cmdParser.parse();
+					if (secondValue.type !== TokenType.INTEGER)
+						throw new Error(`Expected a [${allowedTypes.join(" or ")}].`);
+					let start = paramValue.value as number;
+					let end = secondValue.value as number;
+					if (start > end) [start, end] = [end, start];
+					parsedValue = { start, end };
+				} else {
+					parsedValue = paramValue.value;
+				}
+				break;
+			default:
+				throw new Error(`Unsupported token type ${paramValue.type}`);
+		}
+		userParams.push(parsedValue);
+	}
+
+	if (paramIndex < minParamCount) throw new Error(`Missing required parameter(s) for "${cmd}".`);
+	return userParams;
+}
+
 export function useCommands() {
 	const error = ref("");
 	const success = ref<CommandOutput[]>([]);
@@ -47,7 +157,12 @@ export function useCommands() {
 	const isMultiLine = computed(() => multiLineSession.value !== null);
 	const multiLinePrompt = computed(() => multiLineSession.value?.prompt ?? "");
 
-	const processLine = async (cmdInput: string, vm: VirtualMachine) => {
+	const processLine = async (
+		cmdInput: string,
+		vm: VirtualMachine,
+	): Promise<{ success: CommandOutput[]; error?: string }> => {
+		const result: { success: CommandOutput[]; error?: string } = { success: [] };
+
 		const input = cmdInput.trim();
 
 		// Handle multi-line input
@@ -58,17 +173,17 @@ export function useCommands() {
 				multiLineSession.value = null;
 				try {
 					const res = await onComplete(lines);
-					if (res) success.value.push({ content: res, format: "text" });
+					if (res) result.success.push({ content: res, format: "text" });
 				} catch (e: any) {
-					error.value = e.message || "Execution failed";
+					result.error = e.message || "Execution failed";
 				}
 			} else {
 				multiLineSession.value.lines.push(cmdInput);
 			}
-			return;
+			return result;
 		}
 
-		if (!input) return;
+		if (!input) return result;
 
 		shouldClose.value = false;
 
@@ -78,27 +193,15 @@ export function useCommands() {
 
 			if (singleCmdTrimmed === END_ROUTINE_MARKER) continue;
 
-			const userParams: ParamList = [];
+			const {
+				cmd,
+				cmdParser,
+				paramIndex: initialParamIndex,
+				userParams,
+				isValidCmd,
+			} = parseUserCommand(singleCmdTrimmed, vm);
 
-			const cmdParser = new ExpressionParser(singleCmdTrimmed, vm);
-
-			let paramIndex = 0;
-			let isValidCmd = false;
-			let cmd = "" as COMMANDS;
-			const tok = cmdParser.peek();
-
-			if (cmdParser.match(TokenType.IDENTIFIER)) {
-				const nextTok = cmdParser.peek();
-
-				if (nextTok?.type === TokenType.ASSIGN) {
-					cmd = "SET";
-					paramIndex = 1;
-					userParams.push(tok.text);
-					cmdParser.consume();
-				} else cmd = tok.text.toUpperCase() as COMMANDS;
-
-				isValidCmd = !!COMMAND_LIST[cmd];
-			}
+			let paramIndex = initialParamIndex;
 
 			if (!isValidCmd) {
 				const output = minimonitor(singleCmdTrimmed, vm);
@@ -112,7 +215,7 @@ export function useCommands() {
 
 					const sp = vm.sharedRegisters.getUint8(REG_SP_OFFSET);
 					if (sp < 2) {
-						error.value = "Stack overflow risk.  SP < 2.  Cannot execute JSR command.";
+						result.error = "Stack overflow risk.  SP < 2.  Cannot execute JSR command.";
 						continue;
 					}
 
@@ -143,8 +246,8 @@ export function useCommands() {
 			}
 
 			if (cmd === "IF") {
-				const result = cmdParser.parse();
-				const condition = result.value;
+				const expr = cmdParser.parse();
+				const condition = expr.value;
 
 				let isTrue = false;
 				if (typeof condition === "string") isTrue = condition.length > 0;
@@ -190,105 +293,12 @@ export function useCommands() {
 				throw new Error(`Invalid command alias configuration for '${cmd}'.`);
 
 			const cmdSpec = cmdSpecOrAlias;
-			const paramDef = cmdSpec.paramDef;
-			const hasRestParam = paramDef?.at(-1)?.startsWith("rest");
-			const paramCount = paramDef?.length ?? 0;
-			const minParamCount = paramDef?.filter((p) => !p.endsWith("?")).length ?? 0;
 
-			let parsedValue: string | number | undefined | { start: number; end: number };
+			const finalParams = parseCommandParams(cmdParser, cmd, paramIndex, userParams, cmdSpec);
+			const cmdResult = await cmdSpec.fn(vm, progress, finalParams);
 
-			while (!cmdParser.eof()) {
-				if (!hasRestParam && paramIndex >= paramCount)
-					throw new Error(`Too many parameters for command "${cmd}".`);
-
-				let paramDefStr = paramDef?.[paramIndex] ?? "rest";
-				const isOptional = paramDefStr.endsWith("?");
-				if (isOptional) paramDefStr = paramDefStr.slice(0, -1) as ParamDef;
-				const allowedTypes = paramDefStr.split("|");
-
-				const paramValue = cmdParser.parse();
-
-				cmdParser.match(TokenType.COMMA);
-				paramIndex++;
-
-				switch (paramValue.type) {
-					case TokenType.STRING: {
-						if (!(hasRestParam || allowedTypes.includes("string")))
-							throw new Error(`Expected a [${allowedTypes.join(" or ")}].`);
-						parsedValue = paramValue.value;
-						break;
-					}
-					case TokenType.IDENTIFIER: {
-						if (allowedTypes.includes("name")) {
-							parsedValue = paramValue.raw;
-							break;
-						}
-
-						const isValidType =
-							hasRestParam ||
-							allowedTypes.includes("byte") ||
-							allowedTypes.includes("word") ||
-							allowedTypes.includes("address");
-
-						if (!isValidType) throw new Error(`Expected a [${allowedTypes.join(" or ")}].`);
-
-						parsedValue = paramValue.value as number;
-						break;
-					}
-					case TokenType.FLOAT: {
-						if (!(hasRestParam || allowedTypes.includes("number")))
-							throw new Error(`Expected a [${allowedTypes.join(" or ")}].`);
-						parsedValue = paramValue.value;
-						break;
-					}
-					case TokenType.INTEGER: {
-						const isValidType =
-							hasRestParam ||
-							allowedTypes.includes("byte") ||
-							allowedTypes.includes("word") ||
-							allowedTypes.includes("range") ||
-							allowedTypes.includes("address");
-
-						if (!isValidType) throw new Error(`Expected a [${allowedTypes.join(" or ")}].`);
-
-						// if (type === "byte" && (value > 0xff || value < -128))
-						// 	throw new Error(`Byte value out of range: ${value}`);
-						// if (type === "word" && (value > 0xffff || value < -32768))
-						// 	throw new Error(`Word value out of range: ${value}`);
-						// if (type === "address" && (value > 0xffffff || value < 0))
-						// 	throw new Error(`Address out of range: ${value}`);
-
-						// range <start>:<end>
-						if (cmdParser.match(TokenType.COLON)) {
-							if (!hasRestParam && !allowedTypes.includes("range"))
-								throw new Error(`Expected a [${allowedTypes.join(" or ")}].`);
-							const secondValue = cmdParser.parse();
-							if (secondValue.type !== TokenType.INTEGER)
-								throw new Error(`Expected a [${allowedTypes.join(" or ")}].`);
-							let start = paramValue.value as number;
-							let end = secondValue.value as number;
-							if (start > end) [start, end] = [end, start];
-							parsedValue = { start, end };
-						} else parsedValue = paramValue.value;
-						break;
-					}
-				}
-
-				userParams.push(parsedValue);
-			}
-
-			if (paramIndex < minParamCount) throw new Error(`Missing required parameter(s) for "${cmd}".`);
-
-			let finalParams: ParamList = userParams;
-			if (cmdSpec.staticParams) {
-				if (cmdSpec.staticParams.prepend) finalParams = [...cmdSpec.staticParams.prepend, ...finalParams];
-				if (cmdSpec.staticParams.append) finalParams = [...finalParams, ...cmdSpec.staticParams.append];
-			}
-
-			const result = await cmdSpec.fn(vm, progress, finalParams);
-
-			if (typeof result === "object" && result !== null && (result as any).__isMultiLineRequest) {
-				const request = result as MultiLineRequest;
+			if (typeof cmdResult === "object" && cmdResult !== null && (cmdResult as any).__isMultiLineRequest) {
+				const request = cmdResult as MultiLineRequest;
 
 				const isInsideRoutine = commandQueue.length > 0 && commandQueue.at(-1) === END_ROUTINE_MARKER;
 				if (isInsideRoutine) {
@@ -317,9 +327,9 @@ export function useCommands() {
 					const res = await request.onComplete(linesForMultiLine);
 					if (res) {
 						if (typeof res === "string") {
-							success.value.push({ content: res, format: "text" });
+							result.success.push({ content: res, format: "text" });
 						} else if (typeof res === "object" && "content" in res) {
-							success.value.push(res);
+							result.success.push(res);
 						}
 					}
 					continue; // Continue with the next command in the routine
@@ -338,20 +348,21 @@ export function useCommands() {
 					lines: [],
 				};
 				const msg = `Type '${request.terminator}' on a new line to finish.`;
-				success.value.push({ content: msg, format: "text" });
-				return; // Exit to wait for user input
+				result.success.push({ content: msg, format: "text" });
+				return result;
 			}
 
-			if (result) {
-				if (typeof result === "string") {
-					success.value.push({ content: result, format: "text" });
-				} else if (typeof result === "object" && "content" in result) {
+			if (cmdResult) {
+				if (typeof cmdResult === "string") {
+					success.value.push({ content: cmdResult, format: "text" });
+				} else if (typeof cmdResult === "object" && "content" in cmdResult) {
 					// It's a CommandOutput
-					success.value.push(result);
+					result.success.push(cmdResult);
 				}
 			}
 			if (cmdSpec.closeOnSuccess) shouldClose.value = true;
 		}
+		return result;
 	};
 
 	const executeCommand = async (cmdInput: string, vm: VirtualMachine | null) => {
@@ -375,8 +386,13 @@ export function useCommands() {
 
 		try {
 			for (const line of lines) {
-				await processLine(line, vm);
-				if (error.value) break;
+				const result = await processLine(line, vm);
+				if (result.error) {
+					error.value = result.error;
+					break;
+				} else if (result.success) {
+					success.value = result.success;
+				}
 			}
 
 			const cleanInput = cmdInput.trim();

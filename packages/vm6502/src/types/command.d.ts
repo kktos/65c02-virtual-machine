@@ -32,14 +32,3 @@ export type Command = {
 		append?: (string | number)[];
 	};
 };
-// export type CommandWrapper = {
-// 	description: string;
-// 	paramDef?: ParamDef[];
-// 	base: Command;
-// 	staticParams?: {
-// 		prepend?: (string | number)[];
-// 		append?: (string | number)[];
-// 	};
-// 	closeOnSuccess?: boolean;
-// 	group?: string;
-// };
