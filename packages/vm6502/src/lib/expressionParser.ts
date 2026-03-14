@@ -41,6 +41,32 @@ export enum TokenType {
 	RBRACKET, // ]
 }
 
+const TWO_CHAR_OPS: Record<string, TokenType> = {
+	"==": TokenType.EQ,
+	"!=": TokenType.NEQ,
+	"<=": TokenType.LTE,
+	">=": TokenType.GTE,
+	"&&": TokenType.BOOL_AND,
+	"||": TokenType.BOOL_OR,
+};
+const ONE_CHAR_OPS: Record<string, TokenType> = {
+	"+": TokenType.PLUS,
+	"-": TokenType.MINUS,
+	"*": TokenType.MUL,
+	"/": TokenType.DIV,
+	"=": TokenType.ASSIGN,
+	"&": TokenType.AND,
+	"|": TokenType.OR,
+	"^": TokenType.XOR,
+	"<": TokenType.LT,
+	">": TokenType.GT,
+	"(": TokenType.LPAREN,
+	")": TokenType.RPAREN,
+	"]": TokenType.RBRACKET,
+	",": TokenType.COMMA,
+	":": TokenType.COLON,
+};
+
 export interface Token {
 	type: TokenType;
 	value: number; // For numbers
@@ -67,8 +93,9 @@ export class ExpressionParser {
 
 	private tokenize(input: string) {
 		let i = 0;
-		loop: while (i < input.length) {
+		while (i < input.length) {
 			const char = input[i] as string;
+			const code = char.charCodeAt(0);
 
 			if (/\s/.test(char)) {
 				i++;
@@ -168,18 +195,33 @@ export class ExpressionParser {
 			}
 
 			// Identifiers (Registers, Labels, or mem)
-			if (/[a-zA-Z_]/.test(char)) {
-				let ident = "";
-				while (i < input.length && /[a-zA-Z0-9_]/.test(input[i] as string)) {
-					ident += input[i];
-					i++;
+			// /[a-zA-Z_]/
+			if ((code >= 65 && code <= 90) || (code >= 97 && code <= 122) || code === 95) {
+				const start = i;
+				while (i < input.length) {
+					const c = input.charCodeAt(i);
+					if (
+						(c >= 65 && c <= 90) || // A-Z
+						(c >= 97 && c <= 122) || // a-z
+						(c >= 48 && c <= 57) || // 0-9
+						c === 95 // _
+					) {
+						i++;
+					} else break;
 				}
+				const ident = input.slice(start, i);
 
 				let isMem = false;
 				if (ident.toLowerCase() === "mem") {
 					// Look ahead for '['
 					let j = i;
-					while (j < input.length && /\s/.test(input[j] as string)) j++;
+					// skip whitespace
+					while (j < input.length) {
+						const c = input.charCodeAt(j);
+						if (c === 32 || c === 9 || c === 13 || c === 10) j++;
+						else break;
+					}
+
 					if (j < input.length && input[j] === "[") {
 						i = j + 1; // Skip '['
 						this.tokens.push({ type: TokenType.MEM_START, value: 0, text: "mem[", start, end: i });
@@ -193,89 +235,19 @@ export class ExpressionParser {
 			}
 
 			// Operators
-			const twoChar = input.substr(i, 2);
-			if (twoChar === "==") {
-				this.tokens.push({ type: TokenType.EQ, value: 0, text: "==", start, end: i + 2 });
-				i += 2;
-				continue;
-			}
-			if (twoChar === "!=") {
-				this.tokens.push({ type: TokenType.NEQ, value: 0, text: "!=", start, end: i + 2 });
-				i += 2;
-				continue;
-			}
-			if (twoChar === "<=") {
-				this.tokens.push({ type: TokenType.LTE, value: 0, text: "<=", start, end: i + 2 });
-				i += 2;
-				continue;
-			}
-			if (twoChar === ">=") {
-				this.tokens.push({ type: TokenType.GTE, value: 0, text: ">=", start, end: i + 2 });
-				i += 2;
-				continue;
-			}
-			if (twoChar === "&&") {
-				this.tokens.push({ type: TokenType.BOOL_AND, value: 0, text: "&&", start, end: i + 2 });
-				i += 2;
-				continue;
-			}
-			if (twoChar === "||") {
-				this.tokens.push({ type: TokenType.BOOL_OR, value: 0, text: "||", start, end: i + 2 });
-				i += 2;
+			const twoChar = input.substring(i, i + 2);
+			const opType = TWO_CHAR_OPS[twoChar] ?? ONE_CHAR_OPS[char];
+			const opLen = TWO_CHAR_OPS[twoChar] !== undefined ? 2 : 1;
+
+			if (opType !== undefined) {
+				const text = input.substring(i, i + opLen);
+				i += opLen;
+				this.tokens.push({ type: opType, value: 0, text, start, end: i });
 				continue;
 			}
 
-			// Single char ops
-			switch (char) {
-				case "+":
-					this.tokens.push({ type: TokenType.PLUS, value: 0, text: "+", start, end: i + 1 });
-					break;
-				case "-":
-					this.tokens.push({ type: TokenType.MINUS, value: 0, text: "-", start, end: i + 1 });
-					break;
-				case "*":
-					this.tokens.push({ type: TokenType.MUL, value: 0, text: "*", start, end: i + 1 });
-					break;
-				case "/":
-					this.tokens.push({ type: TokenType.DIV, value: 0, text: "/", start, end: i + 1 });
-					break;
-				case "=":
-					this.tokens.push({ type: TokenType.ASSIGN, value: 0, text: "=", start, end: i + 1 });
-					break;
-				case "&":
-					this.tokens.push({ type: TokenType.AND, value: 0, text: "&", start, end: i + 1 });
-					break;
-				case "|":
-					this.tokens.push({ type: TokenType.OR, value: 0, text: "|", start, end: i + 1 });
-					break;
-				case "^":
-					this.tokens.push({ type: TokenType.XOR, value: 0, text: "^", start, end: i + 1 });
-					break;
-				case "<":
-					this.tokens.push({ type: TokenType.LT, value: 0, text: "<", start, end: i + 1 });
-					break;
-				case ">":
-					this.tokens.push({ type: TokenType.GT, value: 0, text: ">", start, end: i + 1 });
-					break;
-				case "(":
-					this.tokens.push({ type: TokenType.LPAREN, value: 0, text: "(", start, end: i + 1 });
-					break;
-				case ")":
-					this.tokens.push({ type: TokenType.RPAREN, value: 0, text: ")", start, end: i + 1 });
-					break;
-				case "]":
-					this.tokens.push({ type: TokenType.RBRACKET, value: 0, text: "]", start, end: i + 1 });
-					break;
-				case ",":
-					this.tokens.push({ type: TokenType.COMMA, value: 0, text: ",", start, end: i + 1 });
-					break;
-				case ":":
-					this.tokens.push({ type: TokenType.COLON, value: 0, text: ":", start, end: i + 1 });
-					break;
-				default:
-					break loop;
-			}
-			i++;
+			throw new Error(`Invalid character "${char}" at pos ${i}`);
+			// i++;
 		}
 		this.tokens.push({ type: TokenType.EOF, value: 0, text: "", start: i, end: i });
 	}
