@@ -153,6 +153,7 @@ watch(
 			}
 		}
 	},
+	{ deep: true },
 );
 
 const prompt = computed(() => (isMultiLine.value ? multiLinePrompt.value : "> "));
@@ -165,16 +166,16 @@ const handleEnter = async () => {
 	print(prompt.value + currentInput, "input");
 
 	if (await executeCommand(currentInput, vm.value)) {
-		if (success.value.length > 0) {
-			let isFirstNonEmpty = true;
-			for (const output of success.value) {
-				if (output.content) {
-					const contentToPrint = isFirstNonEmpty ? `\n${output.content}` : output.content;
-					print(contentToPrint, "output", output.format);
-					isFirstNonEmpty = false;
-				}
-			}
-		}
+		// if (success.value.length > 0) {
+		// 	let isFirstNonEmpty = true;
+		// 	for (const output of success.value) {
+		// 		if (output.content) {
+		// 			const contentToPrint = isFirstNonEmpty ? `\n${output.content}` : output.content;
+		// 			print(contentToPrint, "output", output.format);
+		// 			isFirstNonEmpty = false;
+		// 		}
+		// 	}
+		// }
 	} else {
 		printError(error.value);
 		error.value = "";
