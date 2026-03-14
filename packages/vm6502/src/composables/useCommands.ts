@@ -134,8 +134,6 @@ export function useCommands() {
 					vm.sharedRegisters.setUint16(REG_PC_OFFSET, jsrAddress, true);
 
 					vm.play();
-
-					// success.value.push({ content: `${formatAddress(jsrAddress)}`, format: "text" });
 				} else {
 					// @ts-expect-error
 					success.value.push(output);
@@ -145,26 +143,34 @@ export function useCommands() {
 			}
 
 			if (cmd === "IF") {
-				const parser = new ExpressionParser(singleCmdTrimmed.substring(2), vm);
-				const result = parser.parse();
+				const result = cmdParser.parse();
 				const condition = result.value;
-				const restIndex = parser.getRestIndex();
-				let rest = singleCmdTrimmed.substring(2 + restIndex).trim();
-				if (rest.toUpperCase().startsWith("THEN")) rest = rest.substring(4).trim();
 
 				let isTrue = false;
 				if (typeof condition === "string") isTrue = condition.length > 0;
 				else isTrue = condition !== 0;
 
-				if (isTrue) commandQueue.unshift(rest);
+				if (isTrue) {
+					let token = cmdParser.peek();
+					if (token.type === TokenType.IDENTIFIER && token.text.toUpperCase() === "THEN") {
+						cmdParser.consume();
+						token = cmdParser.peek();
+					}
+
+					const restIndex = cmdParser.getRestIndex();
+					let rest = singleCmdTrimmed.substring(restIndex).trim();
+					commandQueue.unshift(rest);
+				}
 				continue;
 			}
 
 			if (cmd === "DO") {
-				const parts = singleCmdTrimmed.split(/\s+/);
-				if (parts.length < 2) throw new Error("Routine name missing for DO command.");
+				const token = cmdParser.peek();
+				if (token.type !== TokenType.IDENTIFIER) throw new Error("DO needs a routine name.");
+				cmdParser.consume();
+				if (!cmdParser.eof()) throw new Error("Too many parameters for DO; it needs only a routine name.");
 
-				const routineName = parts[1] as string;
+				const routineName = token.text;
 				const { getRoutine } = useRoutines();
 				const routineCmds = getRoutine(routineName);
 				if (!routineCmds) throw new Error(`Routine '${routineName}' not found.`);

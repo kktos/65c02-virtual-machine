@@ -21,7 +21,7 @@ import { undefLabel } from "./undefLabel.cmd";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import { routineCmd } from "./routine.cmd";
 import { explainCmd } from "./explainCode.cmd";
-import type { Command, CommandResult, ParamList } from "@/types/command";
+import type { Command, CommandResult, ParamDef, ParamList } from "@/types/command";
 import { useCommands } from "@/composables/useCommands";
 import { stepCmd } from "./step.cmd";
 import { glCmd } from "./gl.cmd";
@@ -36,10 +36,11 @@ export function typedKeys<T extends object>(obj: T): (keyof T)[] {
 	return Object.keys(obj) as (keyof T)[];
 }
 
-function d(g: string, d: string) {
+function d(g: string, d: string, p?: ParamDef[]) {
 	return {
 		description: d,
 		group: g,
+		paramDef: p,
 		fn: () => "",
 	};
 }
@@ -153,18 +154,8 @@ const cmdHelp: Command = {
 export type COMMANDS = keyof typeof COMMAND_LIST;
 
 export const COMMAND_LIST = {
-	IF: {
-		description: "Conditional: IF <expression> [THEN] <command>",
-		paramDef: ["bool"],
-		fn: () => "",
-		group: "Scripting",
-	},
-	DO: {
-		group: "Scripting",
-		description: "Execute a defined routine.",
-		paramDef: ["string"],
-		fn: () => "",
-	},
+	IF: d("Scripting", "Conditional: IF `expression` [THEN] `command`", ["expr"] as unknown as ParamDef[]),
+	DO: d("Scripting", "Execute a defined routine.", ["name"]),
 
 	SET: setCmd,
 	"A=": d("Monitor", "Set value to Accumulator"),
