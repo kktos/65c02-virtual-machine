@@ -19,7 +19,11 @@ const HISTORY_MAX_SIZE = 50;
 const LS_KEY_HISTORY = "vm6502-console-history";
 const END_ROUTINE_MARKER = "--END-ROUTINE--";
 
+type QueueItem = { type: "line" | "marker"; value: string };
+
 const commandHistory = ref<string[]>(JSON.parse(localStorage.getItem(LS_KEY_HISTORY) || "[]") as string[]);
+const { addBreakpoint } = useBreakpoints();
+const { getRoutine } = useRoutines();
 
 const multiLineSession = ref<{
 	prompt: string;
@@ -155,7 +159,6 @@ function parseCommandParams(
 }
 
 function handleJsrOutput(output: any, vm: VirtualMachine, result: CommandRunResult) {
-	const { addBreakpoint } = useBreakpoints();
 	const jsrAddress = output.address ?? vm.sharedRegisters.getUint16(REG_PC_OFFSET, true);
 	const fakeReturnAddress = 0xfffe;
 	const breakpointAddress = 0xffff;
@@ -190,7 +193,7 @@ function handleNonCommandOutput(output: any, result: CommandRunResult, vm: Virtu
 	}
 }
 
-function handleIfCommand(cmdParser: ExpressionParser, singleCmdTrimmed: string, commandQueue: string[]) {
+function handleIfCommand(cmdParser: ExpressionParser, singleCmdTrimmed: string, commandQueue: QueueItem[]) {
 	const expr = cmdParser.parse();
 	const condition = expr.value;
 	let isTrue = false;
@@ -207,24 +210,24 @@ function handleIfCommand(cmdParser: ExpressionParser, singleCmdTrimmed: string, 
 
 	const restIndex = cmdParser.getRestIndex();
 	const rest = singleCmdTrimmed.substring(restIndex).trim();
-	commandQueue.unshift(rest);
+	commandQueue.unshift({ type: "line", value: rest });
 }
 
-function handleDoCommand(cmdParser: ExpressionParser, commandQueue: string[]) {
+function handleDoCommand(cmdParser: ExpressionParser, commandQueue: QueueItem[]) {
 	const token = cmdParser.peek();
 	if (token.type !== TokenType.IDENTIFIER) throw new Error("DO needs a routine name.");
 	cmdParser.consume();
 	if (!cmdParser.eof()) throw new Error("Too many parameters for DO; it needs only a routine name.");
 
 	const routineName = token.text;
-	const { getRoutine } = useRoutines();
 	const routineCmds = getRoutine(routineName);
 	if (!routineCmds) throw new Error(`Routine '${routineName}' not found.`);
 
-	commandQueue.unshift(
-		...routineCmds.filter((line) => !line.trim().startsWith(";") && line.trim() !== ""),
-		END_ROUTINE_MARKER,
-	);
+	const items: QueueItem[] = routineCmds
+		.filter((line) => !line.trim().startsWith(";") && line.trim() !== "")
+		.map((line) => ({ type: "line", value: line }));
+
+	commandQueue.unshift(...items, { type: "marker", value: END_ROUTINE_MARKER });
 }
 
 export function useCommands() {
@@ -260,10 +263,16 @@ export function useCommands() {
 
 		if (!input) return result;
 
-		const commandQueue = input.split(";").filter((c) => c.trim() !== "");
+		const commandQueue: QueueItem[] = input
+			.split(";")
+			.filter((c) => c.trim() !== "")
+			.map((c) => ({ type: "line", value: c.trim() }));
+
 		while (commandQueue.length > 0) {
-			const singleCmdTrimmed = commandQueue.shift()?.trim() as string;
-			if (singleCmdTrimmed === END_ROUTINE_MARKER) continue;
+			const item = commandQueue.shift()!;
+			if (item.type === "marker") continue;
+
+			const singleCmdTrimmed = item.value;
 
 			const {
 				cmd,
@@ -302,18 +311,18 @@ export function useCommands() {
 
 			if (typeof cmdResult === "object" && cmdResult !== null && (cmdResult as any).__isMultiLineRequest) {
 				const request = cmdResult as MultiLineRequest;
-				const isInsideRoutine = commandQueue.length > 0 && commandQueue.at(-1) === END_ROUTINE_MARKER;
+				const isInsideRoutine = commandQueue.length > 0 && commandQueue.some((i) => i.type === "marker");
 				if (isInsideRoutine) {
 					const linesForMultiLine: string[] = [];
 					let foundTerminator = false;
 					while (commandQueue.length > 0) {
-						const nextLine = commandQueue.shift();
-						if (nextLine === undefined) break;
-						if (nextLine.trim().toUpperCase() === request.terminator) {
+						const nextItem = commandQueue.shift();
+						if (nextItem === undefined) break;
+						if (nextItem.type === "line" && nextItem.value.trim().toUpperCase() === request.terminator) {
 							foundTerminator = true;
 							break;
 						}
-						linesForMultiLine.push(nextLine);
+						if (nextItem.type === "line") linesForMultiLine.push(nextItem.value);
 					}
 					if (!foundTerminator)
 						throw new Error(
