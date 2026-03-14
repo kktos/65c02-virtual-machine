@@ -127,6 +127,7 @@ useEventBus<string>(BUS_KEY).on((cmd: string, args: unknown[]) => {
 			clearConsole();
 			break;
 		case "print":
+			console.log("PRINT", args);
 			print(args[1] as string, "output", args[0] as "text" | "markdown");
 			break;
 	}

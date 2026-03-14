@@ -155,7 +155,14 @@ function parseCommandParams(
 	}
 
 	if (paramIndex < minParamCount) throw new Error(`Missing required parameter(s) for "${cmd}".`);
-	return userParams;
+
+	let finalParams: ParamList = userParams;
+	if (cmdSpec.staticParams) {
+		if (cmdSpec.staticParams.prepend) finalParams = [...cmdSpec.staticParams.prepend, ...finalParams];
+		if (cmdSpec.staticParams.append) finalParams = [...finalParams, ...cmdSpec.staticParams.append];
+	}
+
+	return finalParams;
 }
 
 function handleJsrOutput(output: any, vm: VirtualMachine, result: CommandRunResult) {
@@ -360,12 +367,10 @@ export function useCommands() {
 			}
 
 			if (cmdResult) {
-				if (typeof cmdResult === "string") {
-					result.success.push({ content: cmdResult, format: "text" });
-				} else if (typeof cmdResult === "object" && "content" in cmdResult) {
-					result.success.push(cmdResult);
-				}
+				if (typeof cmdResult === "string") result.success.push({ content: cmdResult, format: "text" });
+				else result.success.push(cmdResult);
 			}
+
 			if (cmdSpec.closeOnSuccess) result.shouldClose = true;
 		}
 		return result;
