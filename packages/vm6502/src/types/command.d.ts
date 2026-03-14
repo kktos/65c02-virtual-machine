@@ -14,11 +14,16 @@ type ParamDef =
 	| `${ParamType}|${ParamType}|${ParamType}|${ParamType}`;
 export type ParamList = (string | number | { start: number; end: number } | undefined)[];
 
+export type ResultOnLinePayload = { content?: string; prompt?: string; error?: string } | void;
+export type ResultOnLineFn = ResultOnLinePayload | Promise<ResultOnLinePayload>;
+
 export type MultiLineRequest = {
 	__isMultiLineRequest: true;
 	prompt: string;
+	lines?: string[];
 	terminator: string;
 	onComplete: (lines: string[]) => string | Promise<string>;
+	onLine?: (line: string) => ResultOnLineFn;
 };
 
 export type Command = {

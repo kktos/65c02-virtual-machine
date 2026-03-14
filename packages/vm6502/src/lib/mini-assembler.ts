@@ -13,14 +13,32 @@ for (const [byteStr, info] of Object.entries(opcodeMap)) {
 const BYTE_MODES = new Set(["ZP", "ZPX", "ZPY", "IDX", "IDY", "ZPI"]);
 const WORD_MODES = new Set(["ABS", "ABX", "ABY", "IND", "IAX"]);
 
+type AssemblerResult = { bytes: number[]; error?: string };
+type AssemblerOptions = {
+	parseExpression: (expr: string) => number;
+	defineSymbol: (name: string, value: number) => void;
+};
+
 export function assemble(
 	pc: number,
 	text: string,
-	resolveSymbol: (symbol: string) => number | undefined,
-): { bytes: number[]; error?: string } {
+	{ parseExpression, defineSymbol }: AssemblerOptions,
+): AssemblerResult {
 	// Normalize spaces
-	const cleanText = text.trim().replace(/\s+/g, " ");
+	let cleanText = text.trim().replace(/\s+/g, " ");
 	if (!cleanText) return { bytes: [] };
+
+	// Handle labels (e.g., "LABEL: LDA #$00" or "LABEL:")
+	const colonIdx = cleanText.indexOf(":");
+	if (colonIdx !== -1) {
+		const potentialLabel = cleanText.substring(0, colonIdx).trim();
+		// A valid label should not contain internal spaces
+		if (potentialLabel && !potentialLabel.includes(" ")) {
+			defineSymbol(potentialLabel, pc);
+			cleanText = cleanText.substring(colonIdx + 1).trim();
+			if (!cleanText) return { bytes: [] };
+		}
+	}
 
 	const spaceIdx = cleanText.indexOf(" ");
 	let mnemonic = (spaceIdx === -1 ? cleanText : cleanText.substring(0, spaceIdx)).toUpperCase();
@@ -54,18 +72,18 @@ export function assemble(
 			mode = "ACC";
 		} else if (operandStr.startsWith("#")) {
 			mode = "IMM";
-			value = parseExpression(operandStr.substring(1), resolveSymbol);
+			value = parseExpression(operandStr.substring(1));
 		} else if (operandStr.startsWith("(") && upperOp.endsWith(",X)")) {
 			mode = mnemonic === "JMP" ? "IAX" : "IDX";
-			value = parseExpression(operandStr.slice(1, -3), resolveSymbol);
+			value = parseExpression(operandStr.slice(1, -3));
 		} else if (operandStr.startsWith("(") && upperOp.endsWith("),Y")) {
 			mode = "IDY";
-			value = parseExpression(operandStr.slice(1, -3), resolveSymbol);
+			value = parseExpression(operandStr.slice(1, -3));
 		} else if (operandStr.startsWith("(") && operandStr.endsWith(")")) {
 			mode = mnemonic === "JMP" ? "IND" : "ZPI";
-			value = parseExpression(operandStr.slice(1, -1), resolveSymbol);
+			value = parseExpression(operandStr.slice(1, -1));
 		} else if (upperOp.endsWith(",X")) {
-			value = parseExpression(operandStr.slice(0, -2), resolveSymbol);
+			value = parseExpression(operandStr.slice(0, -2));
 			if (forceMode === "byte") mode = "ZPX";
 			else if (forceMode === "word") mode = "ABX";
 			else mode = value <= 0xff ? "ZPX" : "ABX";
@@ -76,7 +94,7 @@ export function assemble(
 				else if (mode === "ABX" && modes.has("ZPX") && value <= 0xff) mode = "ZPX";
 			}
 		} else if (upperOp.endsWith(",Y")) {
-			value = parseExpression(operandStr.slice(0, -2), resolveSymbol);
+			value = parseExpression(operandStr.slice(0, -2));
 			if (forceMode === "byte") mode = "ZPY";
 			else if (forceMode === "word") mode = "ABY";
 			else mode = value <= 0xff ? "ZPY" : "ABY";
@@ -87,7 +105,7 @@ export function assemble(
 			}
 		} else {
 			// ABS, ZP, REL
-			value = parseExpression(operandStr, resolveSymbol);
+			value = parseExpression(operandStr);
 			if (modes.has("REL")) {
 				mode = "REL";
 			} else {
@@ -128,12 +146,4 @@ export function assemble(
 	}
 
 	return { bytes };
-}
-
-function parseExpression(expr: string, resolveSymbol: (s: string) => number | undefined): number {
-	expr = expr.trim();
-	if (expr.startsWith("$")) return parseInt(expr.substring(1), 16);
-	if (/^-?\d+$/.test(expr)) return parseInt(expr, 10);
-	const resolved = resolveSymbol(expr);
-	return resolved !== undefined ? resolved : NaN;
 }

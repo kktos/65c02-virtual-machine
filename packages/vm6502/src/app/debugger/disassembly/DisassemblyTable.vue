@@ -185,7 +185,7 @@ import AddSymbolPopover from "@/components/AddSymbolPopover.vue";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useSettings } from "@/composables/useSettings";
 import { useSymbols } from "@/composables/useSymbols";
-import { assemble } from "@/lib/assembler";
+import { assemble } from "@/lib/mini-assembler";
 import type { DisassemblyLine } from "@/types/disassemblyline.interface";
 import type { EmulatorRegisters } from "@/types/emulatorstate.interface";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
@@ -363,18 +363,25 @@ const cancelEdit = () => {
 	asmError.value = "";
 };
 
+const parseExpression = (expr: string): number => {
+	expr = expr.trim();
+	if (expr.startsWith("$")) return parseInt(expr.substring(1), 16);
+	if (/^-?\d+$/.test(expr)) return parseInt(expr, 10);
+	const resolved = getAddressForLabel(expr);
+	return resolved !== undefined ? resolved : NaN;
+};
+
 const commitEdit = () => {
 	if (editingAddress.value === null) return;
 
-	const result = assemble(editingAddress.value, editText.value, (label) => getAddressForLabel(label));
+	const result = assemble(editingAddress.value, editText.value, parseExpression);
 	if (result.error) {
 		asmError.value = result.error;
 		return;
 	}
-	if (vm?.value && result.bytes.length > 0) {
-		for (let i = 0; i < result.bytes.length; i++) {
+	if (vm?.value) {
+		for (let i = 0; i < result.bytes.length; i++)
 			vm.value.writeDebug(editingAddress.value + i, result.bytes[i] as number);
-		}
 	}
 
 	// fake mod to trigger watch for disassembly update

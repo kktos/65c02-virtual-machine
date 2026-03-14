@@ -25,20 +25,9 @@ const commandHistory = ref<string[]>(JSON.parse(localStorage.getItem(LS_KEY_HIST
 const { addBreakpoint } = useBreakpoints();
 const { getRoutine } = useRoutines();
 
-const multiLineSession = ref<{
-	prompt: string;
-	terminator: string;
-	onComplete: (lines: string[]) => string | Promise<string>;
-	lines: string[];
-} | null>(null);
+const multiLineSession = ref<MultiLineRequest | null>(null);
 
-watch(
-	commandHistory,
-	(history) => {
-		localStorage.setItem(LS_KEY_HISTORY, JSON.stringify(history));
-	},
-	{ deep: true },
-);
+watch(commandHistory, (history) => localStorage.setItem(LS_KEY_HISTORY, JSON.stringify(history)), { deep: true });
 
 const errorHistory = ref<string[]>([]);
 
@@ -269,13 +258,21 @@ export function useCommands() {
 				const { onComplete, lines } = multiLineSession.value;
 				multiLineSession.value = null;
 				try {
-					const res = await onComplete(lines);
+					const res = await onComplete(lines ?? []);
 					if (res) result.success.push({ content: res, format: "text" });
 				} catch (e: any) {
 					result.error = e.message || "Execution failed";
 				}
 			} else {
-				multiLineSession.value.lines.push(cmdInput);
+				multiLineSession.value.lines?.push(cmdInput);
+				if (multiLineSession.value.onLine) {
+					const res = await multiLineSession.value.onLine(cmdInput);
+					if (res) {
+						if (res.error) result.error = res.error;
+						if (res.content) result.success.push({ content: res.content, format: "text" });
+						if (res.prompt) multiLineSession.value.prompt = res.prompt;
+					}
+				}
 			}
 			return result;
 		}
@@ -354,9 +351,11 @@ export function useCommands() {
 						"Commands that start multi-line mode cannot be combined with other commands using ';'.",
 					);
 				multiLineSession.value = {
+					__isMultiLineRequest: true,
 					prompt: request.prompt,
 					terminator: request.terminator,
 					onComplete: request.onComplete,
+					onLine: request.onLine,
 					lines: [],
 				};
 				result.success.push({

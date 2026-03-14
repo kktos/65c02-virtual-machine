@@ -30,6 +30,7 @@ import { findLabelCmd } from "./findLabel.cmd";
 import { scopePathCmd } from "./scopePath.cmd";
 import { defDataFn } from "./defData.cmd";
 import { printCmdFn } from "./print.cmd";
+import { asmCmd } from "./asm.cmd";
 import { searchCmd } from "./search.cmd";
 
 export function typedKeys<T extends object>(obj: T): (keyof T)[] {
@@ -174,6 +175,7 @@ export const COMMAND_LIST = {
 	REBOOT: reboot,
 	SPEED: speed,
 
+	ASM: asmCmd,
 	SEARCH: searchCmd,
 	D: setDisasmView,
 
