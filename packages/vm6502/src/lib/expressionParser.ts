@@ -82,7 +82,7 @@ export interface ParsedResult {
 }
 
 export class ExpressionParser {
-	public tokens: Token[] = [];
+	private tokens: Token[] = [];
 	public pos = 0;
 	private vm: VirtualMachine;
 

@@ -230,6 +230,18 @@ function handleDoCommand(cmdParser: ExpressionParser, commandQueue: QueueItem[])
 	commandQueue.unshift(...items, { type: "marker", value: END_ROUTINE_MARKER });
 }
 
+function resolveAlias(cmd: COMMANDS) {
+	let cmdSpecOrAlias: Command | string = COMMAND_LIST[cmd];
+	if (typeof cmdSpecOrAlias === "string") cmdSpecOrAlias = COMMAND_LIST[cmdSpecOrAlias as COMMANDS];
+	if (typeof cmdSpecOrAlias === "string" || !cmdSpecOrAlias)
+		throw new Error(`Invalid command alias configuration for '${cmd}'.`);
+	return cmdSpecOrAlias;
+}
+
+function isMultiLineRequest(r: unknown): r is MultiLineRequest {
+	return typeof r === "object" && r !== null && "__isMultiLineRequest" in r;
+}
+
 export function useCommands() {
 	const error = ref("");
 	const success = ref<CommandOutput[]>([]);
@@ -300,39 +312,33 @@ export function useCommands() {
 				continue;
 			}
 
-			let cmdSpecOrAlias: Command | string = COMMAND_LIST[cmd];
-			if (typeof cmdSpecOrAlias === "string") cmdSpecOrAlias = COMMAND_LIST[cmdSpecOrAlias as COMMANDS];
-			if (typeof cmdSpecOrAlias === "string" || !cmdSpecOrAlias)
-				throw new Error(`Invalid command alias configuration for '${cmd}'.`);
-
-			const cmdSpec = cmdSpecOrAlias;
+			const cmdSpec = resolveAlias(cmd);
 			const finalParams = parseCommandParams(cmdParser, cmd, paramIndex, userParams, cmdSpec);
 			const cmdResult = await cmdSpec.fn(vm, progress, finalParams);
 
-			if (typeof cmdResult === "object" && cmdResult !== null && (cmdResult as any).__isMultiLineRequest) {
-				const request = cmdResult as MultiLineRequest;
+			if (isMultiLineRequest(cmdResult)) {
+				const request = cmdResult;
 				const isInsideRoutine = commandQueue.length > 0 && commandQueue.some((i) => i.type === "marker");
 				if (isInsideRoutine) {
 					const linesForMultiLine: string[] = [];
 					let foundTerminator = false;
 					while (commandQueue.length > 0) {
 						const nextItem = commandQueue.shift();
-						if (nextItem === undefined) break;
-						if (nextItem.type === "line" && nextItem.value.trim().toUpperCase() === request.terminator) {
+						if (!nextItem) break;
+						if (nextItem.type !== "line") continue;
+
+						if (nextItem.value.trim().toUpperCase() === request.terminator) {
 							foundTerminator = true;
 							break;
 						}
-						if (nextItem.type === "line") linesForMultiLine.push(nextItem.value);
+						linesForMultiLine.push(nextItem.value);
 					}
 					if (!foundTerminator)
 						throw new Error(
 							`Multi-line command started in routine but terminator '${request.terminator}' was not found.`,
 						);
 					const res = await request.onComplete(linesForMultiLine);
-					if (res) {
-						if (typeof res === "string") result.success.push({ content: res, format: "text" });
-						else if (typeof res === "object" && "content" in res) result.success.push(res);
-					}
+					if (res) result.success.push({ content: res, format: "text" });
 					continue;
 				}
 
