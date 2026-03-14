@@ -1,4 +1,3 @@
-/** biome-ignore-all lint/suspicious/noAssignInExpressions: <compactness> */
 import type { Breakpoint } from "@/types/breakpoint.interface";
 
 export class BreakpointError extends Error {
@@ -46,10 +45,10 @@ export function addBreakpoint(type: Breakpoint["type"], startAddress: number, en
 			flag = BP_READ | BP_WRITE;
 			break;
 	}
+
 	for (let i = startAddress; i <= endAddress; i++) {
 		// i is a physical address here
 		const logicalAddr = i & 0xffff;
-		// biome-ignore lint/style/noNonNullAssertion: <expected>
 		breakpointMap[logicalAddr]! |= flag;
 		const oldFlags = bankedBreakpoints.get(i) ?? 0;
 		bankedBreakpoints.set(i, oldFlags | flag);

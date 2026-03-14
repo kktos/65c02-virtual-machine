@@ -25,7 +25,7 @@ export const hook: Command = {
 		// To update a hook, we remove the old one and add the new one.
 		// The key for breakpoints doesn't include the command, so remove works.
 		removeBreakpoint({ type, address }, vm);
-		addBreakpoint({ type, address, command: commandToExecute }, vm);
+		addBreakpoint({ type, address, command: `${commandToExecute}\nrun` }, vm);
 
 		return `Hook set on ${type.toUpperCase()} @ ${formatAddress(address)}`;
 	},

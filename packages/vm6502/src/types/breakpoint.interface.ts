@@ -6,4 +6,5 @@ export interface Breakpoint {
 	type: BreakpointType;
 	enabled?: boolean;
 	command?: string;
+	isTemporary?: boolean;
 }

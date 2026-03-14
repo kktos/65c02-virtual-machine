@@ -426,13 +426,11 @@ export function executeInstruction(): number {
 
 	// Check for PC breakpoint before executing
 	// Only halt if we are in "run" mode. If we are single-stepping, we want to execute the instruction.
-	// biome-ignore lint/style/noNonNullAssertion: <expected>
 	if (isRunning && breakpointMap[pc]! & BP_PC) {
 		const bank = bus.getBank?.(pc) ?? 0;
 		const physicalPC = (bank << 16) | pc;
 
 		// Potential hit, do detailed check
-		// biome-ignore lint/style/noNonNullAssertion: <expected>
 		if (bankedBreakpoints.get(physicalPC)! & BP_PC) {
 			setRunning(false);
 

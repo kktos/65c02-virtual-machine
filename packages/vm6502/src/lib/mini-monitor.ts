@@ -1,5 +1,5 @@
 import { useMachine } from "@/composables/useMachine";
-import { disassembleRange, formatDisassemblyAsText, disassemble } from "./disassembler";
+import { disassemble, disassembleRange, formatDisassemblyAsText } from "./disassembler";
 import { toHex, hexDump } from "./hex.utils";
 import { parseHexValue } from "./parse.utils";
 import type { Dict } from "@/types/dict.type";
@@ -12,14 +12,26 @@ type StrippedVM = {
 	getScope(address: number): string;
 };
 
+type ReturnValue =
+	| {
+			content: string;
+			format: "markdown" | "text";
+	  }
+	| {
+			type: string;
+			address?: number;
+			returnAddress?: number;
+	  };
+
 const formatAddr = (addr: number) => {
 	const bank = ((addr >> 16) & 0xff).toString(16).toUpperCase().padStart(2, "0");
 	const offset = (addr & 0xffff).toString(16).toUpperCase().padStart(4, "0");
 	return `$${bank}/${offset}`;
 };
 
-export function minimonitor(input: string, vm: StrippedVM): { content: string; format: "markdown" | "text" } {
+export function minimonitor(input: string, vm: StrippedVM): ReturnValue {
 	let output = "";
+	let commandRequest: ReturnValue | undefined;
 
 	const trimmed = input.trim();
 
@@ -54,6 +66,24 @@ export function minimonitor(input: string, vm: StrippedVM): { content: string; f
 		const bytes = vm.readDebugRange(address, currentAddr - address);
 		output = hexDump(address, bytes, { formatAddr });
 		return { content: output, format: "markdown" };
+	}
+
+	// G command: JSR to address
+	if (trimmed.toUpperCase().endsWith("G")) {
+		let jsrAddressStr = trimmed.substring(0, trimmed.length - 1).trim();
+		let jsrAddress: number | undefined;
+
+		if (jsrAddressStr !== "") {
+			const cleanAddr = jsrAddressStr.startsWith("$") ? jsrAddressStr.slice(1) : jsrAddressStr;
+			jsrAddress = parseHexValue(cleanAddr, 0xffffff);
+		}
+
+		commandRequest = {
+			type: "JSR",
+			address: jsrAddress,
+		};
+
+		return commandRequest;
 	}
 
 	const upperInput = trimmed.toUpperCase();
@@ -103,5 +133,6 @@ export function minimonitor(input: string, vm: StrippedVM): { content: string; f
 		const bytes = vm.readDebugRange(startAddr, endAddr - startAddr);
 		output = hexDump(startAddr, bytes, { formatAddr });
 	}
+
 	return { content: output, format: "markdown" };
 }

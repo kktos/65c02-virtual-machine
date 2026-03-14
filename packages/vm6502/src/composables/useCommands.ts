@@ -5,12 +5,21 @@ import { ExpressionParser, TokenType } from "@/lib/expressionParser";
 import { COMMAND_LIST, type COMMANDS } from "@/commands";
 import { minimonitor } from "@/lib/mini-monitor";
 import type { Command, CommandOutput, MultiLineRequest, ParamDef, ParamList } from "@/types/command";
+import { useBreakpoints } from "./useBreakpoints";
+import {
+	REG_A_OFFSET,
+	REG_PC_OFFSET,
+	REG_SP_OFFSET,
+	REG_STATUS_OFFSET,
+	REG_X_OFFSET,
+	REG_Y_OFFSET,
+} from "@/virtualmachine/cpu/shared-memory";
 
 const HISTORY_MAX_SIZE = 50;
 const LS_KEY_HISTORY = "vm6502-console-history";
 const END_ROUTINE_MARKER = "--END-ROUTINE--";
 
-const commandHistory = ref<string[]>(JSON.parse(localStorage.getItem(LS_KEY_HISTORY) || "[]"));
+const commandHistory = ref<string[]>(JSON.parse(localStorage.getItem(LS_KEY_HISTORY) || "[]") as string[]);
 
 const multiLineSession = ref<{
 	prompt: string;
@@ -73,6 +82,7 @@ export function useCommands() {
 
 			const cmdParser = new ExpressionParser(singleCmdTrimmed, vm);
 
+			let paramIndex = 0;
 			let isValidCmd = false;
 			let cmd = "" as COMMANDS;
 			const tok = cmdParser.peek();
@@ -80,15 +90,57 @@ export function useCommands() {
 			if (cmdParser.match(TokenType.IDENTIFIER)) {
 				const nextTok = cmdParser.peek();
 
-				if (nextTok?.type === TokenType.ASSIGN) cmd = "SET";
-				else cmd = tok.text.toUpperCase() as COMMANDS;
+				if (nextTok?.type === TokenType.ASSIGN) {
+					cmd = "SET";
+					paramIndex = 1;
+					userParams.push(tok.text);
+					cmdParser.consume();
+				} else cmd = tok.text.toUpperCase() as COMMANDS;
 
 				isValidCmd = !!COMMAND_LIST[cmd];
 			}
 
 			if (!isValidCmd) {
 				const output = minimonitor(singleCmdTrimmed, vm);
-				success.value.push(output);
+				// success.value.push(output);
+
+				if (output && "type" in output && output.type === "JSR") {
+					const { addBreakpoint } = useBreakpoints();
+					const jsrAddress = output.address ?? vm.sharedRegisters.getUint16(REG_PC_OFFSET, true);
+					const fakeReturnAddress = 0xfffe;
+					const breakpointAddress = 0xffff;
+
+					const sp = vm.sharedRegisters.getUint8(REG_SP_OFFSET);
+					if (sp < 2) {
+						error.value = "Stack overflow risk.  SP < 2.  Cannot execute JSR command.";
+						continue;
+					}
+
+					const pc = vm.sharedRegisters.getUint16(REG_PC_OFFSET, true);
+					const a = vm.sharedRegisters.getUint8(REG_A_OFFSET);
+					const x = vm.sharedRegisters.getUint8(REG_X_OFFSET);
+					const y = vm.sharedRegisters.getUint8(REG_Y_OFFSET);
+					const p = vm.sharedRegisters.getUint8(REG_STATUS_OFFSET);
+					const lines = [`pc=${pc}`, `sp=${sp}`, `a=${a}`, `x=${x}`, `y=${y}`, `p=${p}`, `print "done"`];
+					addBreakpoint(
+						{ type: "pc", address: breakpointAddress, isTemporary: true, command: lines.join("\n") },
+						vm,
+					);
+
+					vm.sharedRegisters.setUint8(REG_SP_OFFSET, sp - 2);
+					vm.writeDebug(0x0100 + sp, fakeReturnAddress >> 8);
+					vm.writeDebug(0x0100 + sp - 1, fakeReturnAddress & 0xff);
+
+					vm.sharedRegisters.setUint16(REG_PC_OFFSET, jsrAddress, true);
+
+					vm.play();
+
+					// success.value.push({ content: `${formatAddress(jsrAddress)}`, format: "text" });
+				} else {
+					// @ts-expect-error
+					success.value.push(output);
+				}
+
 				continue;
 			}
 
@@ -138,8 +190,6 @@ export function useCommands() {
 			const minParamCount = paramDef?.filter((p) => !p.endsWith("?")).length ?? 0;
 
 			let parsedValue: string | number | undefined | { start: number; end: number };
-			let paramIndex = 0;
-			// const parser = new ExpressionParser(paramStr, vm);
 
 			while (!cmdParser.eof()) {
 				if (!hasRestParam && paramIndex >= paramCount)
@@ -163,9 +213,20 @@ export function useCommands() {
 						break;
 					}
 					case TokenType.IDENTIFIER: {
-						if (!(hasRestParam || allowedTypes.includes("name")))
-							throw new Error(`Expected a [${allowedTypes.join(" or ")}].`);
-						parsedValue = paramValue.raw;
+						if (allowedTypes.includes("name")) {
+							parsedValue = paramValue.raw;
+							break;
+						}
+
+						const isValidType =
+							hasRestParam ||
+							allowedTypes.includes("byte") ||
+							allowedTypes.includes("word") ||
+							allowedTypes.includes("address");
+
+						if (!isValidType) throw new Error(`Expected a [${allowedTypes.join(" or ")}].`);
+
+						parsedValue = paramValue.value as number;
 						break;
 					}
 					case TokenType.FLOAT: {

@@ -19,7 +19,7 @@ export const execAddBP = (type: "pc" | "access" | "write" | "read") => {
 		}
 
 		const { addBreakpoint } = useBreakpoints();
-		addBreakpoint({ type, address: addr, endAddress: endAddr, enabled: true }, vm);
+		addBreakpoint({ type, address: addr, endAddress: endAddr }, vm);
 
 		const rangeStr = endAddr ? `-$${endAddr.toString(16).toUpperCase()}` : "";
 		return `Breakpoint (${type}) added at $${addr.toString(16).toUpperCase()}${rangeStr}`;

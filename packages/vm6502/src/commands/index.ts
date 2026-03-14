@@ -176,7 +176,6 @@ export const COMMAND_LIST = {
 	GL: glCmd,
 
 	RUN: run,
-	G: "RUN",
 	PAUSE: pause,
 	STEP: stepCmd,
 	S: "STEP",

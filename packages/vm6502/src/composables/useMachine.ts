@@ -33,6 +33,8 @@ const registers: EmulatorRegisters = reactive({
 	N: false,
 });
 
+const { executeCommand } = useCommands();
+
 const setupVmListeners = (targetVm: VirtualMachine) => {
 	targetVm.onmessage = async (event) => {
 		const { type, error, message, address, breakpointType } = event.data;
@@ -66,12 +68,11 @@ const setupVmListeners = (targetVm: VirtualMachine) => {
 				break;
 			}
 			case "breakpointHit": {
-				const { getBreakpoint } = useBreakpoints();
+				const { getBreakpoint, removeBreakpoint } = useBreakpoints();
 				const bp = getBreakpoint({ type: breakpointType, address });
+				if (bp?.isTemporary) removeBreakpoint(bp, targetVm);
 				if (bp?.command) {
-					const { executeCommand } = useCommands();
 					await executeCommand(bp?.command, targetVm);
-					targetVm.play();
 					break;
 				}
 				targetVm.refreshVideo();
