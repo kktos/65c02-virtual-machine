@@ -43,7 +43,6 @@ export const searchCmd: Command = {
 		}
 
 		if (bytes.length === 0) throw new Error("Empty search pattern.");
-		if (start > end) throw new Error("Invalid range: start > end.");
 
 		// Assumes vm.search wraps bus.search(pattern, start, end, is7Bit)
 		const results = vm.search(new Uint8Array(bytes), start, end, is7Bit);

@@ -29,7 +29,7 @@ const WORD_REGISTERS = {
 
 export const setCmd: Command = {
 	description: "",
-	paramDef: ["byte|word"],
+	paramDef: ["name", "byte|word"],
 	group: "Monitor",
 	fn: (vm: VirtualMachine, _progress: Ref<number>, params: ParamList) => {
 		const reg = (params[0] as string).toUpperCase() as Register;

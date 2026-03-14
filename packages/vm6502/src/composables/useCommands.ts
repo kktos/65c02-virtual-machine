@@ -66,22 +66,30 @@ export function useCommands() {
 		const commandQueue = input.split(";").filter((c) => c.trim() !== "");
 		while (commandQueue.length > 0) {
 			const singleCmdTrimmed = commandQueue.shift()?.trim() as string;
+
 			if (singleCmdTrimmed === END_ROUTINE_MARKER) continue;
 
 			const userParams: ParamList = [];
 
-			// Match identifier, then optional whitespace, then the rest
-			const match = singleCmdTrimmed.match(/^([a-zA-Z_][a-zA-Z0-9_]*)\s*(.*)/s);
-			if (!match) return null;
+			const cmdParser = new ExpressionParser(singleCmdTrimmed, vm);
 
-			let cmd = match[1].toUpperCase() as COMMANDS;
-			let paramStr = match[2].trim();
+			let isValidCmd = false;
+			let cmd = "" as COMMANDS;
+			const tok = cmdParser.peek();
 
-			// Assignment: rest starts with '=' (after optional spaces, already trimmed)
-			if (paramStr.startsWith("=")) {
-				userParams.push(cmd);
-				paramStr = paramStr.slice(1).trim();
-				cmd = "SET";
+			if (cmdParser.match(TokenType.IDENTIFIER)) {
+				const nextTok = cmdParser.peek();
+
+				if (nextTok?.type === TokenType.ASSIGN) cmd = "SET";
+				else cmd = tok.text.toUpperCase() as COMMANDS;
+
+				isValidCmd = !!COMMAND_LIST[cmd];
+			}
+
+			if (!isValidCmd) {
+				const output = minimonitor(singleCmdTrimmed, vm);
+				success.value.push(output);
+				continue;
 			}
 
 			if (cmd === "IF") {
@@ -117,18 +125,6 @@ export function useCommands() {
 				continue;
 			}
 
-			const isValidCmd = !!COMMAND_LIST[cmd];
-			if (!isValidCmd) {
-				try {
-					const output = minimonitor(singleCmdTrimmed, vm) + "\n";
-					success.value.push({ content: output, format: "text" });
-					// oxlint-disable-next-line no-unused-vars
-				} catch (e) {
-					if (cmd) throw new Error(`Unknown command: ${cmd}`);
-				}
-				continue;
-			}
-
 			let cmdSpecOrAlias: Command | string = COMMAND_LIST[cmd];
 			if (typeof cmdSpecOrAlias === "string") cmdSpecOrAlias = COMMAND_LIST[cmdSpecOrAlias as COMMANDS];
 
@@ -143,9 +139,9 @@ export function useCommands() {
 
 			let parsedValue: string | number | undefined | { start: number; end: number };
 			let paramIndex = 0;
-			const parser = new ExpressionParser(paramStr, vm);
+			// const parser = new ExpressionParser(paramStr, vm);
 
-			while (!parser.eof()) {
+			while (!cmdParser.eof()) {
 				if (!hasRestParam && paramIndex >= paramCount)
 					throw new Error(`Too many parameters for command "${cmd}".`);
 
@@ -154,9 +150,9 @@ export function useCommands() {
 				if (isOptional) paramDefStr = paramDefStr.slice(0, -1) as ParamDef;
 				const allowedTypes = paramDefStr.split("|");
 
-				const paramValue = parser.parse();
+				const paramValue = cmdParser.parse();
 
-				parser.match(TokenType.COMMA);
+				cmdParser.match(TokenType.COMMA);
 				paramIndex++;
 
 				switch (paramValue.type) {
@@ -196,10 +192,10 @@ export function useCommands() {
 						// 	throw new Error(`Address out of range: ${value}`);
 
 						// range <start>:<end>
-						if (parser.match(TokenType.COLON)) {
+						if (cmdParser.match(TokenType.COLON)) {
 							if (!hasRestParam && !allowedTypes.includes("range"))
 								throw new Error(`Expected a [${allowedTypes.join(" or ")}].`);
-							const secondValue = parser.parse();
+							const secondValue = cmdParser.parse();
 							if (secondValue.type !== TokenType.INTEGER)
 								throw new Error(`Expected a [${allowedTypes.join(" or ")}].`);
 							let start = paramValue.value as number;

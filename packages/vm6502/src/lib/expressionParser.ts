@@ -32,6 +32,7 @@ export enum TokenType {
 	GT,
 	LTE,
 	GTE,
+	ASSIGN,
 	LPAREN,
 	RPAREN,
 	// Special
@@ -55,7 +56,7 @@ export interface ParsedResult {
 }
 
 export class ExpressionParser {
-	private tokens: Token[] = [];
+	public tokens: Token[] = [];
 	public pos = 0;
 	private vm: VirtualMachine;
 
@@ -186,9 +187,8 @@ export class ExpressionParser {
 					}
 				}
 
-				if (!isMem) {
-					this.tokens.push({ type: TokenType.IDENTIFIER, value: 0, text: ident, start, end: i });
-				}
+				if (!isMem) this.tokens.push({ type: TokenType.IDENTIFIER, value: 0, text: ident, start, end: i });
+
 				continue;
 			}
 
@@ -238,6 +238,9 @@ export class ExpressionParser {
 					break;
 				case "/":
 					this.tokens.push({ type: TokenType.DIV, value: 0, text: "/", start, end: i + 1 });
+					break;
+				case "=":
+					this.tokens.push({ type: TokenType.ASSIGN, value: 0, text: "=", start, end: i + 1 });
 					break;
 				case "&":
 					this.tokens.push({ type: TokenType.AND, value: 0, text: "&", start, end: i + 1 });
