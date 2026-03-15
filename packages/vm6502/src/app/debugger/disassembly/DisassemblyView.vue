@@ -13,8 +13,6 @@
 					:is-maximized="isMaximized"
 					:has-selection="hasSelection"
 					@toggle-maximize="isMaximized = !isMaximized"
-					@open-symbol-manager="symbolManagerRef?.open()"
-					@open-formatting-manager="isFormattingManagerOpen = true"
 					@sync-to-pc="syncToPc"
 					@explain="handleExplain"
 					@goto-address="gotoAddress"
@@ -63,11 +61,7 @@
 					/>
 				</div>
 				<SymbolManager ref="symbolManagerRef" @goto-address="gotoAddress" />
-				<FormattingManager
-					:is-open="isFormattingManagerOpen"
-					@update:is-open="(val) => (isFormattingManagerOpen = val)"
-					@goto-address="gotoAddress"
-				/>
+				<FormattingManager @goto-address="gotoAddress" />
 				<ExplanationDrawer
 					v-model:open="isExplanationOpen"
 					:explanation="explanationText"
@@ -126,9 +120,6 @@ const containerClasses = computed(() => {
 watch(isMaximized, (isMax) => {
 	if (isMax) window.dispatchEvent(new Event("resize"));
 });
-
-const symbolManagerRef = ref<InstanceType<typeof SymbolManager> | null>(null);
-const isFormattingManagerOpen = ref(false);
 
 const { pcBreakpoints, toggleBreakpoint } = useBreakpoints();
 const { jumpEvent } = useDisassembly();

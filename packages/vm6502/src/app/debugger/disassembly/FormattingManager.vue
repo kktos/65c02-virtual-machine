@@ -1,17 +1,19 @@
 <template>
-	<Dialog :open="isOpen" @update:open="(val) => emit('update:isOpen', val)">
-		<DialogContent class="sm:max-w-4xl h-[80vh] flex flex-col bg-gray-800 border-gray-700 text-gray-200">
-			<DialogHeader>
-				<DialogTitle class="text-gray-100"
-					><Binary class="h-8 w-8 inline-block mr-2 align-middle" />Formatting Rules</DialogTitle
-				>
-				<DialogDescription class="text-gray-400">
-					Manage data formatting rules across all groups.
-				</DialogDescription>
-			</DialogHeader>
-
+	<FloatingWindow
+		title="Formatting Rules"
+		id="formatting_manager"
+		:options="{
+			defaultWidth: 900,
+			defaultHeight: 60,
+			minWidth: 480,
+			minHeight: 400,
+			contentScrollable: false,
+		}"
+	>
+		<div class="flex flex-col h-full bg-gray-800 text-gray-200 p-4">
+			<div class="text-gray-400 mb-4">Manage data formatting rules across all groups.</div>
 			<!-- Search and Filter -->
-			<div class="flex justify-between items-center my-4 gap-4">
+			<div class="flex justify-between items-center mb-4 gap-4">
 				<Input
 					v-model="searchTerm"
 					placeholder="Search address..."
@@ -290,16 +292,16 @@
 					</TableBody>
 				</Table>
 			</div>
-		</DialogContent>
-	</Dialog>
+		</div>
+	</FloatingWindow>
 </template>
 
 <script setup lang="ts">
-import { ArrowDown, ArrowUp, Binary, Check, Pencil, PlusCircle, Trash2, X, Download, Upload } from "lucide-vue-next";
+import { ArrowDown, ArrowUp, Check, Pencil, PlusCircle, Trash2, X, Download, Upload } from "lucide-vue-next";
 import { computed, inject, type Ref, ref } from "vue";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import FloatingWindow from "@/components/FloatingWindow.vue";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { type DataBlock, useFormatting } from "@/composables/useDataFormattings";
@@ -308,12 +310,7 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import { useDiskStorage } from "@/composables/useDiskStorage";
 import { useFileDownload } from "@/composables/useFileDownload";
 
-defineProps<{
-	isOpen: boolean;
-}>();
-
 const emit = defineEmits<{
-	(e: "update:isOpen", value: boolean): void;
 	(e: "gotoAddress", address: number): void;
 }>();
 
@@ -419,7 +416,6 @@ const getPreview = (rule: { address: number | string; length: number | string; t
 const gotoRule = (rule: { address: number }) => {
 	if (editingRule.value) return;
 	emit("gotoAddress", rule.address);
-	emit("update:isOpen", false);
 };
 
 const cancelEdit = () => {

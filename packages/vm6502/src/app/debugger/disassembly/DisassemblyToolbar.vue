@@ -18,14 +18,14 @@
 				</div>
 			</button>
 			<button
-				@click="$emit('openSymbolManager')"
+				@click="openWindow('symbol_manager')"
 				title="Symbol Manager"
 				class="p-1 rounded text-gray-500 transition-colors hover:text-gray-300 hover:bg-gray-700"
 			>
 				<Tags class="h-4 w-4" />
 			</button>
 			<button
-				@click="$emit('openFormattingManager')"
+				@click="openWindow('formatting_manager')"
 				title="Formatting Manager"
 				class="p-1 rounded text-gray-500 transition-colors hover:text-gray-300 hover:bg-gray-700"
 			>
@@ -199,6 +199,7 @@ import { useFormatting } from "@/composables/useDataFormattings";
 import { useSettings } from "@/composables/useSettings";
 import { useSymbols } from "@/composables/useSymbols";
 import { useGemini } from "@/composables/useGemini";
+import { useFloatingWindows } from "@/composables/useFloatingWindows";
 
 const props = defineProps<{
 	isFollowingPc: boolean;
@@ -214,12 +215,11 @@ const emit = defineEmits<{
 	(e: "syncToPc"): void;
 	(e: "explain"): void;
 	(e: "gotoAddress", address: number): void;
-	(e: "openSymbolManager"): void;
-	(e: "openFormattingManager"): void;
 	(e: "toggle-maximize"): void;
 	(e: "generateLabels"): void;
 }>();
 
+const { open: openWindow } = useFloatingWindows();
 const { getNamespaceList, toggleNamespace } = useSymbols();
 const { getFormattingGroups, toggleFormattingGroup } = useFormatting();
 const { settings } = useSettings();
