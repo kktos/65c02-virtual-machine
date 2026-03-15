@@ -9,6 +9,7 @@
 			minHeight: 400,
 			contentScrollable: false,
 		}"
+		@resize="onResize"
 	>
 		<template #icon>
 			<Binary class="h-4 w-4 text-gray-300" />
@@ -61,6 +62,8 @@
 				ref="formattingTableRef"
 				:search-term="searchTerm"
 				:selected-group="selectedGroup"
+				:items-per-page="itemsPerPage"
+				class="flex-1 min-h-0"
 				@goto-address="handleGotoAddress"
 			/>
 		</div>
@@ -89,6 +92,12 @@ const { downloadFile } = useFileDownload();
 const searchTerm = ref("");
 const selectedGroup = ref("");
 const formattingTableRef = ref<InstanceType<typeof FormattingTable> | null>(null);
+
+const ROW_HEIGHT = 41;
+const itemsPerPage = ref(10);
+const onResize = ({ height }: { width: number; height: number }) => {
+	itemsPerPage.value = Math.max(1, Math.floor((height - 5 * ROW_HEIGHT) / ROW_HEIGHT));
+};
 
 const importFileInput = ref<HTMLInputElement | null>(null);
 

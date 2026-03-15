@@ -184,6 +184,7 @@ import { formatAddress } from "@/lib/hex.utils";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import SymbolEditRow from "./SymbolEditRow.vue";
 import { useSymbolEditing } from "@/composables/useSymbolEditing";
+import { usePagination } from "@/composables/usePagination";
 
 const props = defineProps<{
 	searchTerm: string;
@@ -201,7 +202,6 @@ const { findSymbols } = useSymbols();
 const { pcBreakpoints, toggleBreakpoint } = useBreakpoints();
 const { editingSymbol, beginAddSymbol: _beginAddSymbol, beginEdit } = useSymbolEditing();
 
-const currentPage = ref(1);
 const selectedSymbols = ref(new Set<number>());
 const tableContainerRef = ref<HTMLElement | null>(null);
 
@@ -220,25 +220,15 @@ const filteredSymbols = computed(() => {
 	);
 });
 
+const {
+	currentPage,
+	totalPages,
+	paginatedItems: paginatedSymbols,
+} = usePagination(filteredSymbols, () => props.itemsPerPage);
+
 const isAllSelected = computed(() => {
 	if (!filteredSymbols.value || filteredSymbols.value.length === 0) return false;
 	return filteredSymbols.value.every((s) => selectedSymbols.value.has(s.id!));
-});
-
-const totalPages = computed(() => {
-	return Math.ceil((filteredSymbols.value?.length || 0) / props.itemsPerPage);
-});
-
-watch(totalPages, (newTotal) => {
-	if (currentPage.value > newTotal) {
-		currentPage.value = Math.max(1, newTotal);
-	}
-});
-
-const paginatedSymbols = computed(() => {
-	const start = (currentPage.value - 1) * props.itemsPerPage;
-	const end = start + props.itemsPerPage;
-	return filteredSymbols.value?.slice(start, end) || [];
 });
 
 const gotoSymbol = (symbol: { addr: number }) => {
