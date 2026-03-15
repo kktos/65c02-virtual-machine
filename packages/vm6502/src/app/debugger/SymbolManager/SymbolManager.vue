@@ -89,125 +89,56 @@
 									title="Select All/None"
 								/>
 							</TableHead>
-							<TableHead @click="handleSort('ns')" class="cursor-pointer hover:bg-gray-700/50">
-								<div class="flex items-center gap-2 text-gray-300">
-									Namespace
-									<ArrowUp v-if="sortKey === 'ns' && sortDirection === 'asc'" class="h-4 w-4" />
-									<ArrowDown v-if="sortKey === 'ns' && sortDirection === 'desc'" class="h-4 w-4" />
-								</div>
-							</TableHead>
-							<TableHead @click="handleSort('label')" class="cursor-pointer hover:bg-gray-700/50">
-								<div class="flex items-center gap-2 text-gray-300">
-									Label
-									<ArrowUp v-if="sortKey === 'label' && sortDirection === 'asc'" class="h-4 w-4" />
-									<ArrowDown v-if="sortKey === 'label' && sortDirection === 'desc'" class="h-4 w-4" />
-								</div>
-							</TableHead>
-							<TableHead @click="handleSort('addr')" class="cursor-pointer hover:bg-gray-700/50">
-								<div class="flex items-center gap-2 text-gray-300">
-									Address
-									<ArrowUp v-if="sortKey === 'addr' && sortDirection === 'asc'" class="h-4 w-4" />
-									<ArrowDown v-if="sortKey === 'addr' && sortDirection === 'desc'" class="h-4 w-4" />
-								</div>
-							</TableHead>
-							<TableHead @click="handleSort('scope')" class="cursor-pointer hover:bg-gray-700/50">
-								<div class="flex items-center gap-2 text-gray-300">
-									Scope
-									<ArrowUp v-if="sortKey === 'scope' && sortDirection === 'asc'" class="h-4 w-4" />
-									<ArrowDown v-if="sortKey === 'scope' && sortDirection === 'desc'" class="h-4 w-4" />
-								</div>
-							</TableHead>
-							<TableHead
-								v-if="shouldDisplayDisk"
-								@click="handleSort('disk')"
-								class="cursor-pointer hover:bg-gray-700/50"
+							<SortableTableHeader
+								sort-key="ns"
+								:current-key="sortKey"
+								:direction="sortDirection"
+								@sort="handleSort('ns')"
 							>
-								<div class="flex items-center gap-2 text-gray-300">
-									Disk
-									<ArrowUp v-if="sortKey === 'disk' && sortDirection === 'asc'" class="h-4 w-4" />
-									<ArrowDown v-if="sortKey === 'disk' && sortDirection === 'desc'" class="h-4 w-4" />
-								</div>
-							</TableHead>
+								Namespace
+							</SortableTableHeader>
+							<SortableTableHeader
+								sort-key="label"
+								:current-key="sortKey"
+								:direction="sortDirection"
+								@sort="handleSort('label')"
+							>
+								Label
+							</SortableTableHeader>
+							<SortableTableHeader
+								sort-key="addr"
+								:current-key="sortKey"
+								:direction="sortDirection"
+								@sort="handleSort('addr')"
+							>
+								Address
+							</SortableTableHeader>
+							<SortableTableHeader
+								sort-key="scope"
+								:current-key="sortKey"
+								:direction="sortDirection"
+								@sort="handleSort('scope')"
+							>
+								Scope
+							</SortableTableHeader>
+							<SortableTableHeader
+								v-if="shouldDisplayDisk"
+								sort-key="disk"
+								:current-key="sortKey"
+								:direction="sortDirection"
+								@sort="handleSort('disk')"
+							>
+								Disk
+							</SortableTableHeader>
 							<TableHead class="w-[100px] text-gray-300">Actions</TableHead>
 						</TableRow>
 					</TableHeader>
 					<TableBody>
 						<!-- New Symbol Row (Add Mode) -->
-						<TableRow
+						<SymbolEditRow
 							v-if="editingSymbol && editingSymbol.isNew"
-							class="bg-gray-700/50 hover:bg-gray-700/50"
-						>
-							<TableCell />
-							<TableCell class="align-top">
-								<Input
-									v-model="editingSymbol.ns"
-									placeholder="user"
-									class="h-8 bg-gray-900 border-gray-600"
-								/>
-							</TableCell>
-							<TableCell class="align-top">
-								<div>
-									<Input
-										v-model="editingSymbol.label"
-										placeholder="LABEL_NAME"
-										class="h-8 bg-gray-900 border-gray-600"
-										:class="{ 'border-red-500': validationErrors.label }"
-									/>
-									<p
-										class="text-red-400 text-xs mt-1 h-4"
-										:class="{ invisible: !validationErrors.label }"
-									>
-										{{ validationErrors.label || "Error" }}
-									</p>
-								</div>
-							</TableCell>
-							<TableCell class="align-top">
-								<div>
-									<Input
-										v-model="editingSymbol.addr"
-										placeholder="$C000"
-										class="h-8 bg-gray-900 border-gray-600 font-mono w-20"
-										:class="{ 'border-red-500': validationErrors.addr }"
-									/>
-									<p
-										class="text-red-400 text-xs mt-1 h-4"
-										:class="{ invisible: !validationErrors.addr }"
-									>
-										{{ validationErrors.addr || "Error" }}
-									</p>
-								</div>
-							</TableCell>
-							<TableCell class="align-top">
-								<select
-									v-model="editingSymbol.scope"
-									class="h-8 w-full rounded-md border border-gray-600 bg-gray-900 px-2 py-1 text-sm text-gray-200 focus:outline-none"
-								>
-									<option v-for="scope in availableScopes" :key="scope" :value="scope">
-										{{ scope }}
-									</option>
-								</select>
-							</TableCell>
-							<!-- disk -->
-							<TableCell v-if="shouldDisplayDisk" />
-							<TableCell class="text-right align-top">
-								<div class="flex items-center justify-end gap-1 mt-1">
-									<button
-										@click="saveEdit"
-										class="p-1 text-green-400 hover:bg-gray-600 rounded"
-										title="Save"
-									>
-										<Check class="h-4 w-4" />
-									</button>
-									<button
-										@click="cancelEdit"
-										class="p-1 text-red-400 hover:bg-gray-600 rounded"
-										title="Cancel"
-									>
-										<X class="h-4 w-4" />
-									</button>
-								</div>
-							</TableCell>
-						</TableRow>
+							:should-display-disk="shouldDisplayDisk"
+						/>
 
 						<!-- Symbol Rows -->
 						<template
@@ -215,92 +146,15 @@
 							:key="`${symbol.addr}-${symbol.ns}-${symbol.disk}`"
 						>
 							<!-- Inline Edit Row -->
-							<TableRow
+							<SymbolEditRow
 								v-if="
 									editingSymbol &&
 									!editingSymbol.isNew &&
 									editingSymbol.originalAddress === symbol.addr &&
 									editingSymbol.originalNamespace === symbol.ns
 								"
-								class="bg-gray-700/50 hover:bg-gray-700/50"
-							>
-								<TableCell />
-								<TableCell class="align-top px-0 w-[130px]">
-									<Input
-										v-model="editingSymbol.ns"
-										placeholder="user"
-										class="h-8 bg-gray-900 border-gray-600"
-									/>
-								</TableCell>
-								<TableCell class="align-top px-0">
-									<!-- <div> -->
-									<Input
-										v-model="editingSymbol.label"
-										placeholder="LABEL_NAME"
-										class="h-8 bg-gray-900 border-gray-600 w-[258px]"
-										:class="{ 'border-red-500': validationErrors.label }"
-									/>
-									<p
-										class="text-red-400 text-xs mt-1 h-4 pl-2"
-										:class="{ invisible: !validationErrors.label }"
-									>
-										{{ validationErrors.label || "Error" }}
-									</p>
-									<!-- </div> -->
-								</TableCell>
-								<TableCell class="align-top px-0 w-[131px]">
-									<div>
-										<Input
-											v-model="editingSymbol.addr"
-											placeholder="$C000"
-											class="h-8 bg-gray-900 border-gray-600 font-mono"
-											:class="{ 'border-red-500': validationErrors.addr }"
-										/>
-										<p
-											class="text-red-400 text-xs mt-1 h-4"
-											:class="{ invisible: !validationErrors.addr }"
-										>
-											{{ validationErrors.addr || "Error" }}
-										</p>
-									</div>
-								</TableCell>
-								<TableCell class="align-top px-0 w-[78px]">
-									<select
-										v-model="editingSymbol.scope"
-										class="h-8 w-full rounded-md border border-gray-600 bg-gray-900 px-2 py-1 text-sm text-gray-200 focus:outline-none"
-									>
-										<option v-for="scope in availableScopes" :key="scope" :value="scope">
-											{{ scope }}
-										</option>
-									</select>
-								</TableCell>
-								<TableCell v-if="shouldDisplayDisk" class="align-top px-0">
-									<Input
-										:value="editingSymbol.disk"
-										class="h-8 bg-gray-900 border-gray-600"
-										disabled
-										title="Disk cannot be changed"
-									/>
-								</TableCell>
-								<TableCell class="align-top px-0">
-									<div class="flex items-center justify-end gap-1 mt-1 mr-2">
-										<button
-											@click="saveEdit"
-											class="p-1 text-green-400 hover:bg-gray-600 rounded"
-											title="Save"
-										>
-											<Check class="h-4 w-4" />
-										</button>
-										<button
-											@click="cancelEdit"
-											class="p-1 text-red-400 hover:bg-gray-600 rounded"
-											title="Cancel"
-										>
-											<X class="h-4 w-4" />
-										</button>
-									</div>
-								</TableCell>
-							</TableRow>
+								:should-display-disk="shouldDisplayDisk"
+							/>
 
 							<!-- Display Row -->
 							<TableRow
@@ -403,9 +257,6 @@
 
 <script setup lang="ts">
 import {
-	ArrowDown,
-	ArrowUp,
-	Check,
 	Download,
 	FileText,
 	OctagonPause,
@@ -414,7 +265,6 @@ import {
 	Tags,
 	Trash2,
 	Upload,
-	X,
 	ChevronLeft,
 	ChevronRight,
 } from "lucide-vue-next";
@@ -426,11 +276,15 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useBreakpoints } from "@/composables/useBreakpoints";
 import { useSymbols, type SymbolEntry } from "@/composables/useSymbols";
-import { formatAddress, toHex } from "@/lib/hex.utils";
+import { formatAddress } from "@/lib/hex.utils";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import { useFileDownload } from "@/composables/useFileDownload";
 import { useDiskStorage } from "@/composables/useDiskStorage";
 import { useKeyModifier } from "@vueuse/core";
+import { useTableSort } from "@/composables/useTableSort";
+import SortableTableHeader from "@/components/SortableTableHeader.vue";
+import { useSymbolEditing } from "@/composables/useSymbolEditing";
+import SymbolEditRow from "./SymbolEditRow.vue";
 
 const emit = defineEmits<{
 	(e: "gotoAddress", address: number): void;
@@ -442,17 +296,10 @@ const isCtrlPressed = useKeyModifier("Control");
 const shouldDisplayDisk = ref(false);
 
 const vm = inject<Ref<VirtualMachine>>("vm");
-const {
-	addSymbol,
-	removeManySymbols,
-	updateSymbol,
-	findSymbols,
-	getNamespaceList,
-	addSymbolsFromText,
-	generateTextFromSymbols,
-	diskKey,
-} = useSymbols();
+const { removeManySymbols, findSymbols, getNamespaceList, addSymbolsFromText, generateTextFromSymbols, diskKey } =
+	useSymbols();
 const { pcBreakpoints, toggleBreakpoint } = useBreakpoints();
+const { editingSymbol, beginAddSymbol: _beginAddSymbol, beginEdit } = useSymbolEditing();
 const { downloadFile } = useFileDownload();
 
 const searchTerm = ref("");
@@ -473,42 +320,17 @@ watch([searchTerm, selectedNamespace], () => {
 	currentPage.value = 1;
 });
 
-const availableScopes = computed(() => {
-	return vm?.value?.getScopes() ?? ["main"];
-});
-
 type SortKey = keyof SymbolEntry;
-const sortKey = ref<SortKey>("addr");
-const sortDirection = ref<"asc" | "desc">("asc");
+const { sortKey, sortDirection, handleSort, resolveAndCompare } = useTableSort<SortKey>("addr");
 
-type EditableSymbol = {
-	id: number;
-	label: string;
-	addr: string | number; // string during input
-	ns: string;
-	scope: string;
-	src?: string;
-	disk?: string;
-	isNew?: boolean;
-	originalAddress?: number;
-	originalNamespace?: string;
-};
-const editingSymbol = ref<EditableSymbol | null>(null);
 const importFileInput = ref<HTMLInputElement | null>(null);
 
-const validationErrors = ref({
-	addr: "",
-	label: "",
+const filteredSymbols = computed(() => {
+	const symbols = findSymbols(searchTerm.value, selectedNamespace.value);
+	return symbols.sort((a, b) =>
+		resolveAndCompare(a, b, (item, key) => (item[key] !== undefined ? (item[key] as string | number) : "")),
+	);
 });
-
-const handleSort = (key: SortKey) => {
-	if (sortKey.value === key) {
-		sortDirection.value = sortDirection.value === "asc" ? "desc" : "asc";
-	} else {
-		sortKey.value = key;
-		sortDirection.value = "asc";
-	}
-};
 
 const uniqueNamespaces = computed(() => {
 	const nsList = getNamespaceList();
@@ -519,21 +341,6 @@ const uniqueNamespaces = computed(() => {
 const isAllSelected = computed(() => {
 	if (!filteredSymbols.value || filteredSymbols.value.length === 0) return false;
 	return filteredSymbols.value.every((s) => selectedSymbols.value.has(s.id!));
-});
-
-const filteredSymbols = computed(() => {
-	const symbols = findSymbols(searchTerm.value, selectedNamespace.value);
-	const key = sortKey.value;
-	if (key) {
-		symbols.sort((a, b) => {
-			const valA = a[key] as string | number;
-			const valB = b[key] as string | number;
-			const comparison = valA > valB ? 1 : valA < valB ? -1 : 0;
-			return sortDirection.value === "asc" ? comparison : -comparison;
-		});
-	}
-
-	return symbols;
 });
 
 const totalPages = computed(() => {
@@ -557,72 +364,8 @@ const gotoSymbol = (symbol: { addr: number }) => {
 };
 
 const beginAddSymbol = () => {
-	editingSymbol.value = {
-		label: "",
-		addr: "", // Start with empty string for input
-		ns: "user",
-		scope: "main",
-		isNew: true,
-		id: 0,
-	};
+	_beginAddSymbol();
 	if (tableContainerRef.value) tableContainerRef.value.scrollTop = 0;
-};
-
-const beginEdit = (symbol: SymbolEntry) => {
-	editingSymbol.value = {
-		...JSON.parse(JSON.stringify(symbol)), // deep copy
-		addr: toHex(symbol.addr, 6), // show hex string in input
-		isNew: false,
-		originalAddress: symbol.addr,
-		originalNamespace: symbol.ns,
-	};
-};
-
-const saveEdit = async () => {
-	if (!editingSymbol.value) return;
-
-	validationErrors.value = { addr: "", label: "" };
-	let hasErrors = false;
-
-	const symbol = editingSymbol.value;
-	const addressHex = String(symbol.addr).replace("$", "");
-	const address = parseInt(addressHex, 16);
-	const namespace = symbol.ns?.trim() || "user";
-
-	if (Number.isNaN(address) || address < 0 || address > 0xffffff) {
-		validationErrors.value.addr = "Invalid hex address (e.g., C000).";
-		hasErrors = true;
-	}
-
-	const label = symbol.label.trim();
-	if (!label) {
-		validationErrors.value.label = "Label cannot be empty.";
-		hasErrors = true;
-	}
-
-	if (hasErrors) return;
-
-	const scope = symbol.scope?.trim() || "main";
-
-	if (symbol.isNew) {
-		try {
-			await addSymbol(address, label, namespace, scope);
-		} catch (e) {
-			validationErrors.value.label = "Duplicate label.";
-			hasErrors = true;
-		}
-	} else {
-		await updateSymbol(editingSymbol.value.id, address, label, namespace, scope);
-	}
-
-	if (hasErrors) return;
-
-	editingSymbol.value = null;
-};
-
-const cancelEdit = () => {
-	editingSymbol.value = null;
-	validationErrors.value = { addr: "", label: "" };
 };
 
 const triggerImport = () => {
