@@ -143,8 +143,6 @@ function parseCommandParams(
 		userParams.push(parsedValue);
 	}
 
-	console.log("----userParams", userParams);
-
 	if (paramIndex < minParamCount) throw new Error(`Missing required parameter(s) for "${cmd}".`);
 
 	let finalParams: ParamList = userParams;
