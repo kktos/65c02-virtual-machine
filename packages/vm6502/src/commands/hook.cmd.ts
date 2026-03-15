@@ -1,7 +1,7 @@
 import { useBreakpoints } from "@/composables/useBreakpoints";
 import { formatAddress } from "@/lib/hex.utils";
 import type { Breakpoint } from "@/types/breakpoint.interface";
-import type { Command, ParamList } from "@/types/command";
+import type { Command, ParamList, ParamListItemIdentifier } from "@/types/command";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 
 export const hook: Command = {
@@ -9,7 +9,7 @@ export const hook: Command = {
 	paramDef: ["name", "address", "rest"],
 	group: "Breakpoints",
 	fn: (vm: VirtualMachine, _progress, params: ParamList) => {
-		const type = params[0] as Breakpoint["type"];
+		const type = (params[0] as ParamListItemIdentifier).text as Breakpoint["type"];
 		const address = params[1] as number;
 		const commandToExecute = params[2] as string;
 

@@ -1,6 +1,6 @@
 import { useSymbols } from "@/composables/useSymbols";
 import { formatAddress } from "@/lib/hex.utils";
-import type { Command, CommandResult, ParamList } from "@/types/command";
+import type { Command, CommandResult, ParamList, ParamListItemIdentifier } from "@/types/command";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import type { Ref } from "vue";
 
@@ -11,15 +11,17 @@ export const findLabelCmd: Command = {
 	paramDef: ["name", "name?"],
 	group: "Symbols",
 	fn: async (_vm: VirtualMachine, _progress: Ref<number>, params: ParamList): Promise<CommandResult> => {
-		const query = params[0] as string;
-		const namespace = (params[1] as string) || "";
+		const query = params[0] as ParamListItemIdentifier;
+		const namespace = params[1] as ParamListItemIdentifier | undefined;
 
 		const { findSymbols } = useSymbols();
 
-		const results = findSymbols(query, namespace);
+		const results = findSymbols(query.text, namespace?.text);
 
 		if (results.length === 0)
-			return `No labels found matching '${query}'` + (namespace ? ` in namespace '${namespace}'.` : ".");
+			return (
+				`No labels found matching '${query.text}'` + (namespace ? ` in namespace '${namespace.text}'.` : ".")
+			);
 
 		const rows = results
 			.sort((a, b) => a.addr - b.addr)

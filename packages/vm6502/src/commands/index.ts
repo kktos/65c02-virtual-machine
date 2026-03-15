@@ -22,7 +22,7 @@ import { undefLabel } from "./undefLabel.cmd";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import { routineCmd } from "./routine.cmd";
 import { explainCmd } from "./explainCode.cmd";
-import type { Command, CommandResult, ParamDef, ParamList } from "@/types/command";
+import type { Command, CommandResult, ParamDef, ParamList, ParamListItemIdentifier } from "@/types/command";
 import { useCommands } from "@/composables/useCommands";
 import { stepCmd } from "./step.cmd";
 import { glCmd } from "./gl.cmd";
@@ -51,8 +51,8 @@ const cmdHelp: Command = {
 	description: "Lists all available commands. Can be filtered by group name (e.g., HELP cons).",
 	paramDef: ["name?"],
 	group: "Console",
-	fn: (_vm: VirtualMachine, _progress, _params: ParamList): CommandResult => {
-		const groupFilter = (_params[0] as string | undefined)?.toUpperCase();
+	fn: (_vm: VirtualMachine, _progress, params: ParamList): CommandResult => {
+		const groupFilter = params[0] as ParamListItemIdentifier | undefined;
 		const groups: Record<string, { key: string; cmd: Command; aliases: string[] }[]> = {};
 		const commandAliases: Record<string, string[]> = {};
 
@@ -85,7 +85,7 @@ const cmdHelp: Command = {
 		const sortedGroupNames = Object.keys(groups).sort();
 
 		for (const groupName of sortedGroupNames) {
-			if (groupFilter && !groupName.toUpperCase().startsWith(groupFilter)) continue;
+			if (groupFilter && !groupName.toUpperCase().startsWith(groupFilter.text.toUpperCase())) continue;
 
 			output += `\n## ${groupName}\n\n| Command(s) | Parameters | Description |\n|---|---|---|\n`;
 			const commandsInGroup = groups[groupName]!;

@@ -1,6 +1,6 @@
 import { useSymbols } from "@/composables/useSymbols";
 import { parseValue } from "@/lib/parse.utils";
-import type { Command } from "@/types/command";
+import type { Command, ParamListItemIdentifier } from "@/types/command";
 
 const { addManySymbols } = useSymbols();
 
@@ -9,8 +9,8 @@ export const labelsCmd: Command = {
 	paramDef: ["name", "name?"],
 	group: "Symbols",
 	fn: (_vm, _progress, params) => {
-		const namespace = params[0] as string;
-		const scope = (params[1] as string) || "main";
+		const namespace = params[0] as ParamListItemIdentifier;
+		const scope = (params[1] as ParamListItemIdentifier)?.text || "main";
 
 		return {
 			__isMultiLineRequest: true,
@@ -31,13 +31,13 @@ export const labelsCmd: Command = {
 					const label = parts[1];
 					const addr = parseValue(addrStr, 0xffffff);
 
-					symbols.push({ ns: namespace, label, addr, scope });
+					symbols.push({ ns: namespace.text, label, addr, scope });
 				}
 
 				if (symbols.length === 0) return "No labels defined.";
 
 				await addManySymbols(symbols);
-				return `Defined ${symbols.length} labels in namespace '${namespace}' (scope: ${scope}).`;
+				return `Defined ${symbols.length} labels in namespace '${namespace.text}' (scope: ${scope}).`;
 			},
 		};
 	},

@@ -13,7 +13,7 @@ type ParamDef =
 	| `${ParamType}|${ParamType}|${ParamType}`
 	| `${ParamType}|${ParamType}|${ParamType}|${ParamType}`;
 
-export type ParamListItemIdentifier = { text: string };
+export type ParamListItemIdentifier = { text: string; value: number | string | undefined };
 export type ParamListItemRange = { start: number; end: number };
 
 export type ParamListItem = string | number | undefined | ParamListItemRange | ParamListItemIdentifier;

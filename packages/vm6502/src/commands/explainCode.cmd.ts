@@ -2,7 +2,7 @@ import { useGemini } from "@/composables/useGemini";
 import { useMachine } from "@/composables/useMachine";
 import { disassembleRange, formatDisassemblyAsText } from "@/lib/disassembler";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
-import type { Command, CommandResult, ParamList } from "@/types/command";
+import type { Command, CommandResult, ParamList, ParamListItemIdentifier } from "@/types/command";
 import type { Ref } from "vue";
 
 export const explainCmd: Command = {
@@ -23,8 +23,8 @@ export const explainCmd: Command = {
 		let mode: "DETAILED" | "CONCISE" = "CONCISE";
 		let outputTarget: "ASNOTE" | "CONSOLE" = "CONSOLE";
 
-		const p1 = (params[1] as string)?.toUpperCase();
-		const p2 = (params[2] as string)?.toUpperCase();
+		const p1 = (params[1] as ParamListItemIdentifier)?.text.toUpperCase();
+		const p2 = (params[2] as ParamListItemIdentifier)?.text.toUpperCase();
 
 		const validModes = ["DETAILED", "CONCISE"];
 		const validOutputs = ["ASNOTE", "CONSOLE"];

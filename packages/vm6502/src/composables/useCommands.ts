@@ -94,7 +94,7 @@ function parseCommandParams(
 				break;
 			case TokenType.IDENTIFIER:
 				if (allowedTypes.includes("name")) {
-					parsedValue = { text: paramValue.raw };
+					parsedValue = { text: paramValue.raw, value: paramValue.value };
 					break;
 				}
 				if (
@@ -142,6 +142,8 @@ function parseCommandParams(
 		}
 		userParams.push(parsedValue);
 	}
+
+	console.log("----userParams", userParams);
 
 	if (paramIndex < minParamCount) throw new Error(`Missing required parameter(s) for "${cmd}".`);
 

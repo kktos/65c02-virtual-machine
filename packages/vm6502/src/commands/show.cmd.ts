@@ -1,5 +1,5 @@
 import { useFloatingWindows } from "@/composables/useFloatingWindows";
-import type { Command, CommandResult, ParamList } from "@/types/command";
+import type { Command, CommandResult, ParamList, ParamListItemIdentifier } from "@/types/command";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import type { Ref } from "vue";
 
@@ -10,10 +10,11 @@ export const showCmd: Command = {
 	paramDef: ["name?"],
 	group: "Console",
 	fn: (_vm: VirtualMachine, _progress: Ref<number>, params: ParamList): CommandResult => {
-		const windowID = (params[0] as string)?.toUpperCase();
+		const windowID = params[0] as ParamListItemIdentifier;
 
 		if (windowID) {
-			const window = availableWindows.value.find((win) => win.id.toUpperCase().match(windowID));
+			const id = windowID.text.toUpperCase();
+			const window = availableWindows.value.find((win) => win.id.toUpperCase().match(id));
 
 			if (!window) throw new Error(`Unknown window: '${params[0]}'`);
 			open(window.id);

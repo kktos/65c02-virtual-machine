@@ -3,7 +3,7 @@ import { formatAddress } from "@/lib/hex.utils";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import type { Ref } from "vue";
 import { useRoutines } from "@/composables/useRoutines";
-import type { Command, ParamList } from "@/types/command";
+import type { Command, ParamList, ParamListItemIdentifier } from "@/types/command";
 import { useCommands } from "@/composables/useCommands";
 
 function listHooks() {
@@ -53,9 +53,9 @@ export const listCmd: Command = {
 	paramDef: ["name"],
 	group: "Console",
 	fn: (_vm: VirtualMachine, _progress: Ref<number>, params: ParamList) => {
-		const cmd = params[0] as string;
+		const cmd = params[0] as ParamListItemIdentifier;
 		let content: string;
-		const list = LISTS.find((l) => l.match(cmd.toUpperCase()));
+		const list = LISTS.find((l) => l.match(cmd.text.toUpperCase()));
 		switch (list) {
 			case "HOOKS":
 				content = listHooks();

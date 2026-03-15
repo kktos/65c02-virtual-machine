@@ -9,9 +9,6 @@
 		"test": "vitest",
 		"oxlint": "oxlint",
 		"oxfmt": "oxfmt -c ../../.oxfmtrc.json",
-		"lint:ci": "biome ci ./src",
-		"lint:fix": "biome check --write --unsafe ./src",
-		"format:fix": "biome format --write ./src",
 		"preview": "vite preview"
 	},
 	"dependencies": {

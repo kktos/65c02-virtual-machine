@@ -33,6 +33,7 @@ export const logCmd: Command = {
 				clear(name.text);
 				return `Log window '${name.text}' cleared.`;
 			}
+			throw new Error("Unknown subcommand");
 		}
 
 		const line = params

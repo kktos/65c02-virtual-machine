@@ -157,7 +157,7 @@ export const initRoutine = `
 		$fce2 INIT_SYSTEM
 	END
 
-	SCOPEPATH main io rom
+	SCOPEPATH "main" "io" "rom"
 
 	font "PRINTCHAR21"
 
