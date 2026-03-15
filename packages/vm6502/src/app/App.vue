@@ -155,7 +155,7 @@ import CmdConsole from "./debugger/CmdConsole.vue";
 import { useCmdConsole } from "@/composables/useCmdConsole";
 import { useLogWindows } from "@/composables/useLogWindows";
 import LogWindow from "@/components/LogWindow.vue";
-import RoutineEditor from "@/app/debugger/disassembly/RoutineEditor.vue";
+import RoutineEditor from "@/app/debugger/RoutineEditor.vue";
 
 const dbgTopPanelResize = (_size: unknown) => {
 	// console.log('dbgTopPanelResize resized', size);

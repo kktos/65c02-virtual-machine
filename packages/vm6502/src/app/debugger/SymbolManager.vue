@@ -18,9 +18,7 @@
 
 		<div class="p-4 flex flex-col h-full bg-gray-800/95 text-gray-200">
 			<p class="text-xs text-gray-400 -mt-2 mb-4">
-				Browse, search, and manage symbols across all namespaces. Click a symbol to navigate. ({{
-					isCtrlPressed
-				}})
+				Browse, search, and manage symbols across all namespaces. Click a symbol to navigate.
 			</p>
 
 			<div class="flex justify-between items-center mb-4 gap-4">

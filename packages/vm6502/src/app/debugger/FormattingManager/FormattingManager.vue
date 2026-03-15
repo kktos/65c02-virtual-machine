@@ -10,8 +10,11 @@
 			contentScrollable: false,
 		}"
 	>
+		<template #icon>
+			<Binary class="h-4 w-4 text-gray-300" />
+		</template>
 		<div class="flex flex-col h-full bg-gray-800 text-gray-200 p-4">
-			<div class="text-gray-400 mb-4">Manage data formatting rules across all groups.</div>
+			<div class="text-gray-400 mb-4 -mt-2 text-xs">Manage data formatting rules across all groups.</div>
 			<!-- Search and Filter -->
 			<div class="flex justify-between items-center mb-4 gap-4">
 				<Input
@@ -297,7 +300,7 @@
 </template>
 
 <script setup lang="ts">
-import { ArrowDown, ArrowUp, Check, Pencil, PlusCircle, Trash2, X, Download, Upload } from "lucide-vue-next";
+import { ArrowDown, ArrowUp, Check, Pencil, PlusCircle, Trash2, X, Download, Upload, Binary } from "lucide-vue-next";
 import { computed, inject, type Ref, ref } from "vue";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";

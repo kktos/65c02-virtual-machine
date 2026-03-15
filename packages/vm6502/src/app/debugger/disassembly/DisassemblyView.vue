@@ -79,8 +79,8 @@
 import { computed, inject, type Ref, ref, watch } from "vue";
 import DisassemblyTable from "@/app/debugger/disassembly/DisassemblyTable.vue";
 import DisassemblyToolbar from "@/app/debugger/disassembly/DisassemblyToolbar.vue";
-import FormattingManager from "@/app/debugger/disassembly/FormattingManager.vue";
-import SymbolManager from "@/app/debugger/disassembly/SymbolManager.vue";
+import FormattingManager from "@/app/debugger/FormattingManager/FormattingManager.vue";
+import SymbolManager from "@/app/debugger/SymbolManager.vue";
 import ExplanationDrawer from "@/app/debugger/disassembly/ExplanationDrawer.vue";
 import { useBreakpoints } from "@/composables/useBreakpoints";
 import { useDebuggerNav } from "@/composables/useDebuggerNav";
