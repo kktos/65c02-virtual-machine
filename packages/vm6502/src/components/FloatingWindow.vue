@@ -45,6 +45,8 @@
 import { X, MoveDiagonal } from "lucide-vue-next";
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 
+const SNAP_THRESHOLD = 20;
+
 const props = withDefaults(
 	defineProps<{
 		title: string;
@@ -166,8 +168,28 @@ const startDrag = (event: MouseEvent) => {
 	const startTop = position.value.y;
 
 	const doDrag = (e: MouseEvent) => {
-		position.value.x = startLeft + e.clientX - startX;
-		position.value.y = startTop + e.clientY - startY;
+		let nextX = startLeft + e.clientX - startX;
+		let nextY = startTop + e.clientY - startY;
+
+		const viewportWidth = window.innerWidth;
+		const viewportHeight = window.innerHeight;
+
+		// Snap to left/right
+		if (Math.abs(nextX) < SNAP_THRESHOLD) {
+			nextX = 0;
+		} else if (Math.abs(nextX + size.value.width - viewportWidth) < SNAP_THRESHOLD) {
+			nextX = viewportWidth - size.value.width;
+		}
+
+		// Snap to top/bottom
+		if (Math.abs(nextY) < SNAP_THRESHOLD) {
+			nextY = 0;
+		} else if (Math.abs(nextY + size.value.height - viewportHeight) < SNAP_THRESHOLD) {
+			nextY = viewportHeight - size.value.height;
+		}
+
+		position.value.x = nextX;
+		position.value.y = nextY;
 	};
 
 	const stopDrag = () => {
