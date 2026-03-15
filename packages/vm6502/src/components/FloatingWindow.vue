@@ -3,7 +3,7 @@
 		v-if="isOpen"
 		ref="floatingWindow"
 		:style="floatingWindowStyle"
-		class="fixed flex flex-col bg-black/80 backdrop-blur-sm border border-gray-700 rounded-lg shadow-2xl z-50 overflow-hidden"
+		class="fixed grid grid-rows-[auto_1fr] bg-black/80 backdrop-blur-sm border border-gray-700 rounded-lg shadow-2xl z-50 overflow-hidden"
 		:class="windowClass"
 		@mousedown="bringToFront"
 	>
@@ -31,7 +31,7 @@
 		</div>
 
 		<!-- Content Slot -->
-		<div class="flex-1 relative flex flex-col" :class="{ 'overflow-auto': config.contentScrollable }">
+		<div class="relative flex flex-col min-h-0" :class="{ 'overflow-auto': config.contentScrollable }">
 			<slot />
 		</div>
 
