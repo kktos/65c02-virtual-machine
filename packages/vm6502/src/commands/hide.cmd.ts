@@ -5,7 +5,7 @@ import type { Ref } from "vue";
 
 const { availableWindows, close } = useFloatingWindows();
 export const hideCmd: Command = {
-	description: "Hide a component. Usage: HIDE `console` | `routines`.",
+	description: "Hide a window. Usage: HIDE `windowID`.",
 	paramDef: ["name"],
 	group: "Console",
 	fn: (_vm: VirtualMachine, _progress: Ref<number>, params: ParamList): CommandResult => {

@@ -6,7 +6,7 @@ import type { Ref } from "vue";
 const { availableWindows, open } = useFloatingWindows();
 
 export const showCmd: Command = {
-	description: "Show a component. Usage: SHOW `console` | `routines`.",
+	description: "Show a window. Usage: SHOW to list all the windows or SHOW `windowID`.",
 	paramDef: ["name?"],
 	group: "Console",
 	fn: (_vm: VirtualMachine, _progress: Ref<number>, params: ParamList): CommandResult => {

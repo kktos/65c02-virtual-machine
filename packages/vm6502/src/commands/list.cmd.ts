@@ -46,6 +46,8 @@ function listHistory() {
 	return `${historyList}\n`;
 }
 
+const LISTS = ["HOOKS", "ROUTINES", "HISTORY"];
+
 export const listCmd: Command = {
 	description: "List <hooks|routines|history>.",
 	paramDef: ["name"],
@@ -53,7 +55,8 @@ export const listCmd: Command = {
 	fn: (_vm: VirtualMachine, _progress: Ref<number>, params: ParamList) => {
 		const cmd = params[0] as string;
 		let content: string;
-		switch (cmd.toUpperCase()) {
+		const list = LISTS.find((l) => l.match(cmd.toUpperCase()));
+		switch (list) {
 			case "HOOKS":
 				content = listHooks();
 				break;
@@ -66,6 +69,7 @@ export const listCmd: Command = {
 			default:
 				throw new Error("Invalid list name");
 		}
+
 		return {
 			content,
 			format: "markdown",
