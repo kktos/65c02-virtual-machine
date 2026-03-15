@@ -11,7 +11,8 @@
 		<div
 			ref="dragHandle"
 			@mousedown="startDrag"
-			class="flex items-center justify-between px-3 py-1 bg-gray-900/70 border-b border-gray-700 cursor-move select-none shrink-0"
+			class="flex items-center justify-between px-3 py-1 cursor-move select-none shrink-0 transition-colors"
+			:class="isFocused ? 'bg-cyan-900/30 border-b-cyan-700' : 'bg-gray-900/70 border-b-gray-700'"
 		>
 			<div class="flex items-center gap-2 text-gray-300">
 				<slot name="icon" />
@@ -71,6 +72,7 @@
 <script lang="ts" setup>
 import { X, MoveDiagonal } from "lucide-vue-next";
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
+import { useFloatingWindows } from "@/composables/useFloatingWindows";
 
 const SNAP_THRESHOLD = 20;
 
@@ -115,6 +117,7 @@ const emit = defineEmits<{
 	(e: "resize", size: { width: number; height: number }): void;
 }>();
 
+const { register, unregister, nextZIndex, activeWindowId, setActiveWindow } = useFloatingWindows();
 const isOpen = ref(false);
 const floatingWindow = ref<HTMLElement | null>(null);
 
@@ -122,6 +125,9 @@ const floatingWindow = ref<HTMLElement | null>(null);
 const position = ref({ x: config.value.defaultX, y: config.value.defaultY });
 const size = ref({ width: config.value.defaultWidth, height: config.value.defaultHeight });
 const winSize = ref({ width: window.innerWidth, height: window.innerHeight });
+const zIndex = ref(nextZIndex());
+
+const isFocused = computed(() => activeWindowId.value === props.id);
 
 const isSnappedLeft = computed(() => position.value.x <= SNAP_THRESHOLD);
 const isSnappedTop = computed(() => position.value.y <= SNAP_THRESHOLD);
@@ -142,6 +148,7 @@ const floatingWindowStyle = computed(() => ({
 	top: `${position.value.y}px`,
 	width: `${size.value.width}px`,
 	height: `${size.value.height}px`,
+	zIndex: zIndex.value,
 }));
 
 const clampToViewport = () => {
@@ -190,6 +197,7 @@ const open = (options?: { x?: number; y?: number; width?: number; height?: numbe
 	if (options?.height) size.value.height = options.height;
 
 	isOpen.value = true;
+	bringToFront();
 	// Save new state if opened programmatically with new coordinates
 	saveState();
 	nextTick(() => clampToViewport());
@@ -197,6 +205,9 @@ const open = (options?: { x?: number; y?: number; width?: number; height?: numbe
 
 const close = () => {
 	isOpen.value = false;
+	if (isFocused.value) {
+		setActiveWindow(null);
+	}
 	saveState();
 	emit("close");
 };
@@ -207,7 +218,8 @@ const toggle = () => {
 };
 
 const bringToFront = () => {
-	// Placeholder for z-index management
+	zIndex.value = nextZIndex();
+	setActiveWindow(props.id);
 };
 
 const startDrag = (event: MouseEvent) => {
@@ -322,10 +334,17 @@ const updateWinSize = () => {
 
 onMounted(() => {
 	window.addEventListener("resize", updateWinSize);
+	register(props.id, {
+		open,
+		close,
+		toggle,
+		title: props.title,
+	});
 });
 
 onUnmounted(() => {
 	window.removeEventListener("resize", updateWinSize);
+	unregister(props.id);
 });
 
 defineExpose({

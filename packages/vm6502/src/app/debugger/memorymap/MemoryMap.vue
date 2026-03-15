@@ -10,7 +10,7 @@
 
 	<FloatingWindow
 		ref="memoryMapWindow"
-		id="memory-map"
+		id="memory_region_map"
 		title="Memory Map"
 		:options="{
 			defaultWidth: 600,

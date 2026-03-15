@@ -1,7 +1,7 @@
 <template>
 	<FloatingWindow
 		ref="windowRef"
-		id="symbol-manager"
+		id="symbol_manager"
 		title="Symbol Manager"
 		:options="{
 			defaultWidth: 960,

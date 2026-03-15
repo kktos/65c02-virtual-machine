@@ -1,30 +1,29 @@
-import { useCmdConsole } from "@/composables/useCmdConsole";
-import { useRoutineEditor } from "@/composables/useRoutineEditor";
+import { useFloatingWindows } from "@/composables/useFloatingWindows";
 import type { Command, CommandResult, ParamList } from "@/types/command";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import type { Ref } from "vue";
 
-const { showConsole } = useCmdConsole();
-const { open } = useRoutineEditor();
+const { availableWindows, open } = useFloatingWindows();
 
 export const showCmd: Command = {
 	description: "Show a component. Usage: SHOW `console` | `routines`.",
-	paramDef: ["name"],
+	paramDef: ["name?"],
 	group: "Console",
 	fn: (_vm: VirtualMachine, _progress: Ref<number>, params: ParamList): CommandResult => {
-		const component = (params[0] as string)?.toUpperCase();
+		const windowID = (params[0] as string)?.toUpperCase();
 
-		switch (component) {
-			case "CONSOLE": {
-				showConsole();
-				return "Console shown.";
+		if (windowID) {
+			const window = availableWindows.value.find((win) => win.id.toUpperCase().match(windowID));
+
+			if (!window) throw new Error(`Unknown window: '${params[0]}'`);
+			open(window.id);
+			return `Window '${window.title}' opened.`;
+		} else {
+			const winList: string[] = ["| ID | Title |", "|---|---|"];
+			for (const window of availableWindows.value) {
+				winList.push(`|${window.id}|${window.title}|`);
 			}
-			case "ROUTINES": {
-				open();
-				return "Routine Editor shown.";
-			}
-			default:
-				throw new Error(`Unknown component to show: '${params[0]}'`);
+			return { content: winList.join("\n"), format: "markdown" };
 		}
 	},
 };

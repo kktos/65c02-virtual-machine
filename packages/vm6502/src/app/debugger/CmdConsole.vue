@@ -1,7 +1,7 @@
 <template>
 	<FloatingWindow
 		ref="windowRef"
-		id="cmd-console"
+		id="cmd_console"
 		title="Console"
 		window-class="rounded-none"
 		:options="{
@@ -99,10 +99,10 @@ import ScrollbackView from "@/components/ScrollbackView.vue";
 import { useMachine } from "@/composables/useMachine";
 import { useConsoleSettings } from "@/composables/useConsoleSettings";
 import { computed, nextTick, onBeforeMount, onMounted, ref, watch } from "vue";
-import { useRoutineEditor } from "@/composables/useRoutineEditor";
 import { FileCode2, ZoomOut, ZoomIn, Trash2, Loader2, TriangleAlert, Terminal } from "lucide-vue-next";
 import { useEventBus } from "@vueuse/core";
 import FloatingWindow from "@/components/FloatingWindow.vue";
+import { useFloatingWindows } from "@/composables/useFloatingWindows";
 
 const { fontSize, fontFamily, fontColor, loadSettings, increaseFontSize, decreaseFontSize } = useConsoleSettings();
 
@@ -130,8 +130,9 @@ const {
 } = useCommands();
 const { vm } = useMachine();
 
-const { open } = useRoutineEditor();
-const openRoutineEditor = (event: MouseEvent) => open(event);
+const { open } = useFloatingWindows();
+const openRoutineEditor = () => open("routine_editor");
+
 onMounted(() => loadSettings());
 const clearConsole = () => clear();
 

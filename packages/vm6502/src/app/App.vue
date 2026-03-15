@@ -1,12 +1,7 @@
 <template>
 	<Toaster rich-colors position="top-right" />
 	<LogWindow v-for="win in logWindows.values()" :key="win.id" :window-state="win" />
-	<RoutineEditor
-		:is-open="isRoutineEditorOpen"
-		@update:is-open="closeRoutineEditor"
-		:x="routineEditorX"
-		:y="routineEditorY"
-	/>
+	<RoutineEditor />
 	<ResizablePanelGroup
 		v-if="vm"
 		direction="horizontal"
@@ -160,19 +155,11 @@ import CmdConsole from "./debugger/CmdConsole.vue";
 import { useCmdConsole } from "@/composables/useCmdConsole";
 import { useLogWindows } from "@/composables/useLogWindows";
 import LogWindow from "@/components/LogWindow.vue";
-import { useRoutineEditor } from "@/composables/useRoutineEditor";
 import RoutineEditor from "@/app/debugger/disassembly/RoutineEditor.vue";
 
 const dbgTopPanelResize = (_size: unknown) => {
 	// console.log('dbgTopPanelResize resized', size);
 };
-
-const {
-	isOpen: isRoutineEditorOpen,
-	x: routineEditorX,
-	y: routineEditorY,
-	close: closeRoutineEditor,
-} = useRoutineEditor();
 
 const { vm, registers, selectedMachine, isRunning, videoCanvas, loadMachine } = useMachine();
 const { showConsole } = useCmdConsole();

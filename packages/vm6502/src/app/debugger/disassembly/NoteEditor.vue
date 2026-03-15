@@ -1,7 +1,7 @@
 <template>
 	<FloatingWindow
 		ref="windowRef"
-		id="note-editor"
+		id="note_editor"
 		:title="windowTitle"
 		:options="{
 			defaultX: x,

@@ -62,7 +62,7 @@
 
 		<FloatingWindow
 			ref="floatingWindowRef"
-			:id="`debug-options-${category}`"
+			:id="`debug_options_${category}`"
 			:title="`${category} Settings`"
 			:options="{
 				defaultWidth: 320,

@@ -1,18 +1,14 @@
 <template>
 	<FloatingWindow
-		ref="windowRef"
-		id="routine-editor"
+		id="routine_editor"
 		title="Routine Editor"
 		:options="{
-			defaultX: x,
-			defaultY: y,
 			defaultWidth: 480,
 			defaultHeight: 320,
 			minWidth: 320,
 			minHeight: 200,
 			contentScrollable: false,
 		}"
-		@close="close"
 		@wheel.stop
 	>
 		<template #icon>
@@ -97,24 +93,13 @@
 </template>
 
 <script lang="ts" setup>
-import { ref, watch, computed, nextTick, onMounted } from "vue";
+import { ref, watch, computed, nextTick } from "vue";
 import { useRoutines } from "@/composables/useRoutines";
 import { FileCode2, Plus, Trash2 } from "lucide-vue-next";
 import FloatingWindow from "@/components/FloatingWindow.vue";
 
 const { getRoutineNames, getRoutine, setRoutine, deleteRoutine, routineExists } = useRoutines();
 
-const props = defineProps<{
-	isOpen: boolean;
-	x: number;
-	y: number;
-}>();
-
-const emit = defineEmits<{
-	(e: "update:isOpen", value: boolean): void;
-}>();
-
-const windowRef = ref<InstanceType<typeof FloatingWindow> | null>(null);
 const routineNames = computed(() => getRoutineNames().sort());
 const selectedRoutineName = ref<string | null>(null);
 const editableContent = ref("");
@@ -218,22 +203,5 @@ watch(routineNames, (newNames) => {
 		selectedRoutineName.value = null;
 		editableContent.value = "";
 	}
-});
-
-const close = () => emit("update:isOpen", false);
-
-watch(
-	() => props.isOpen,
-	(newVal) => {
-		if (newVal) {
-			windowRef.value?.open();
-		} else {
-			windowRef.value?.close();
-		}
-	},
-);
-
-onMounted(() => {
-	if (props.isOpen) windowRef.value?.open();
 });
 </script>
