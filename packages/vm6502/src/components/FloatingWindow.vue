@@ -33,29 +33,16 @@
 		<!-- Resize Handle -->
 		<div
 			v-if="resizable"
-			class="absolute bottom-0 right-0 w-4 h-4 cursor-se-resize flex items-end justify-end p-0.5 z-10"
+			class="absolute bottom-0 right-0 w-4 h-4 cursor-se-resize flex items-end justify-end z-10 text-gray-500 hover:text-cyan-300 transition-colors"
 			@mousedown.prevent="startResize"
 		>
-			<svg
-				xmlns="http://www.w3.org/2000/svg"
-				viewBox="0 0 24 24"
-				fill="none"
-				stroke="currentColor"
-				stroke-width="2"
-				stroke-linecap="round"
-				stroke-linejoin="round"
-				class="w-3 h-3 text-gray-500"
-			>
-				<path d="M21 15v6" />
-				<path d="M15 21h6" />
-				<path d="M21 21l-6-6" />
-			</svg>
+			<MoveDiagonal class="scale-x-[-1]" />
 		</div>
 	</div>
 </template>
 
 <script lang="ts" setup>
-import { X } from "lucide-vue-next";
+import { X, MoveDiagonal } from "lucide-vue-next";
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 
 const props = withDefaults(
