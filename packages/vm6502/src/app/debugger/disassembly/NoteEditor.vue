@@ -3,11 +3,13 @@
 		ref="windowRef"
 		id="note-editor"
 		:title="windowTitle"
-		:default-x="x"
-		:default-y="y"
-		:default-width="320"
-		:default-height="250"
-		:content-scrollable="false"
+		:options="{
+			defaultX: x,
+			defaultY: y,
+			defaultWidth: 320,
+			defaultHeight: 250,
+			contentScrollable: false,
+		}"
 		@close="close"
 	>
 		<template #icon>

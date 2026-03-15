@@ -12,11 +12,13 @@
 		ref="memoryMapWindow"
 		id="memory-map"
 		title="Memory Map"
-		:default-width="600"
-		:default-height="500"
-		:min-width="400"
-		:min-height="300"
-		:content-scrollable="false"
+		:options="{
+			defaultWidth: 600,
+			defaultHeight: 500,
+			minWidth: 400,
+			minHeight: 300,
+			contentScrollable: false,
+		}"
 	>
 		<template #icon>
 			<MapIcon class="h-4 w-4" />

@@ -3,11 +3,13 @@
 		ref="windowRef"
 		id="symbol-manager"
 		title="Symbol Manager"
-		:default-width="960"
-		:default-height="700"
-		:min-width="480"
-		:min-height="400"
-		:content-scrollable="false"
+		:options="{
+			defaultWidth: 960,
+			defaultHeight: 700,
+			minWidth: 480,
+			minHeight: 400,
+			contentScrollable: false,
+		}"
 		@resize="onResize"
 	>
 		<template #icon>

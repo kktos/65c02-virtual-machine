@@ -26,13 +26,13 @@
 		</div>
 
 		<!-- Content Slot -->
-		<div class="flex-1 relative flex flex-col" :class="{ 'overflow-auto': contentScrollable }">
+		<div class="flex-1 relative flex flex-col" :class="{ 'overflow-auto': config.contentScrollable }">
 			<slot />
 		</div>
 
 		<!-- Resize Handle -->
 		<div
-			v-if="resizable"
+			v-if="config.resizable"
 			class="absolute bottom-0 right-0 w-4 h-4 cursor-se-resize flex items-end justify-end z-10 text-gray-500 hover:text-cyan-300 transition-colors"
 			@mousedown.prevent="startResize"
 		>
@@ -47,31 +47,35 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 
 const SNAP_THRESHOLD = 20;
 
-const props = withDefaults(
-	defineProps<{
-		title: string;
-		id: string;
-		resizable?: boolean;
-		contentScrollable?: boolean;
-		defaultWidth?: number;
-		defaultHeight?: number;
-		minWidth?: number;
-		minHeight?: number;
-		defaultX?: number;
-		defaultY?: number;
-	}>(),
-	{
-		resizable: true,
-		contentScrollable: true,
-		defaultWidth: 320,
-		defaultHeight: 240,
-		minWidth: 200,
-		minHeight: 150,
-		defaultX: 100,
-		defaultY: 100,
-	},
-);
+export interface FloatingWindowOptions {
+	resizable?: boolean;
+	contentScrollable?: boolean;
+	defaultWidth?: number;
+	defaultHeight?: number;
+	minWidth?: number;
+	minHeight?: number;
+	defaultX?: number;
+	defaultY?: number;
+}
 
+const props = defineProps<{
+	title: string;
+	id: string;
+	options?: FloatingWindowOptions;
+}>();
+
+const defaultOptions: Required<FloatingWindowOptions> = {
+	resizable: true,
+	contentScrollable: true,
+	defaultWidth: 320,
+	defaultHeight: 240,
+	minWidth: 200,
+	minHeight: 150,
+	defaultX: 100,
+	defaultY: 100,
+};
+
+const config = computed(() => ({ ...defaultOptions, ...props.options }));
 const emit = defineEmits<{
 	(e: "close"): void;
 	(e: "resize", size: { width: number; height: number }): void;
@@ -81,8 +85,8 @@ const isOpen = ref(false);
 const floatingWindow = ref<HTMLElement | null>(null);
 
 // State for position and size
-const position = ref({ x: props.defaultX, y: props.defaultY });
-const size = ref({ width: props.defaultWidth, height: props.defaultHeight });
+const position = ref({ x: config.value.defaultX, y: config.value.defaultY });
+const size = ref({ width: config.value.defaultWidth, height: config.value.defaultHeight });
 
 const STORAGE_KEY = computed(() => `floating-window-${props.id}`);
 
@@ -212,8 +216,8 @@ const startResize = (event: MouseEvent) => {
 	const startHeight = size.value.height;
 
 	const onMouseMove = (e: MouseEvent) => {
-		const newWidth = Math.max(props.minWidth, startWidth + e.clientX - startX);
-		const newHeight = Math.max(props.minHeight, startHeight + e.clientY - startY);
+		const newWidth = Math.max(config.value.minWidth, startWidth + e.clientX - startX);
+		const newHeight = Math.max(config.value.minHeight, startHeight + e.clientY - startY);
 		size.value = { width: newWidth, height: newHeight };
 		emit("resize", size.value);
 	};

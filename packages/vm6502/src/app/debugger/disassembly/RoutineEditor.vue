@@ -3,13 +3,15 @@
 		ref="windowRef"
 		id="routine-editor"
 		title="Routine Editor"
-		:default-x="x"
-		:default-y="y"
-		:default-width="480"
-		:default-height="320"
-		:min-width="320"
-		:min-height="200"
-		:content-scrollable="false"
+		:options="{
+			defaultX: x,
+			defaultY: y,
+			defaultWidth: 480,
+			defaultHeight: 320,
+			minWidth: 320,
+			minHeight: 200,
+			contentScrollable: false,
+		}"
 		@close="close"
 		@wheel.stop
 	>
