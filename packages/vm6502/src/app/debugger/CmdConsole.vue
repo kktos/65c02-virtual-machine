@@ -1,20 +1,28 @@
 <template>
-	<div
-		v-if="isConsoleVisible"
-		:style="{ height: height + 'px' }"
-		class="absolute bottom-0 left-5 right-5 min-h-[100px] bg-gray-800/70 flex flex-col border-t border-gray-700 backdrop-blur-sm z-10"
+	<FloatingWindow
+		ref="windowRef"
+		id="cmd-console"
+		title="Console"
+		window-class="rounded-none"
+		:options="{
+			defaultWidth: defaultWidth,
+			defaultHeight: 250,
+			defaultX: 20,
+			defaultY: defaultY,
+			resizable: true,
+			snappable: true,
+			snappableResize: true,
+			closable: false,
+			contentScrollable: false,
+		}"
+		@close="onWindowClose"
 	>
-		<!-- Resize Handle -->
-		<div
-			class="absolute -top-1 left-0 right-0 h-2 cursor-row-resize hover:bg-cyan-500/50 transition-colors z-20"
-			@mousedown.prevent="startResizeLogs"
-		></div>
+		<template #icon>
+			<Terminal class="w-4 h-4" />
+		</template>
 
-		<div
-			class="flex justify-between items-center px-2 py-1 bg-gray-800/50 border-b border-gray-700 shrink-0 font-mono text-xs"
-		>
-			<span class="font-bold text-gray-300 uppercase tracking-wider text-[10px]">Console</span>
-			<div class="flex items-center gap-1">
+		<template #header-buttons>
+			<div class="flex items-center gap-1 text-gray-400">
 				<TriangleAlert v-if="errorHistory.length > 0" color="#ff9a21" class="w-4 h-4" />
 				<button
 					@click="openRoutineEditor"
@@ -45,39 +53,42 @@
 					<Trash2 class="w-4 h-4" />
 				</button>
 			</div>
-		</div>
-		<ScrollbackView
-			class="flex-1 overflow-x-hidden"
-			:logs="logs"
-			@click="focusInput"
-			:style="{ fontSize: fontSize + 'px', fontFamily: fontFamily, color: fontColor }"
-		/>
-		<div class="p-1 border-t border-gray-900/50">
-			<div class="flex items-center gap-1">
-				<Loader2 v-if="isLoading" class="w-4 h-4 text-cyan-400 animate-spin shrink-0" />
-				<span v-else class="text-gray-500 font-bold select-none">{{ prompt }}</span>
-				<input
-					ref="inputRef"
-					v-model="inputText"
-					:disabled="isLoading"
-					@keydown.enter="handleEnter"
-					@keydown.up.prevent="handleHistoryUp"
-					@keydown.down.prevent="handleHistoryDown"
-					@keydown.escape="handleEscape"
-					class="flex-1 bg-transparent border-none outline-none placeholder-gray-700 text-xs disabled:text-gray-500"
-					:style="{ color: fontColor, fontFamily: fontFamily }"
-					spellcheck="false"
-					autocomplete="off"
-				/>
+		</template>
+
+		<div class="flex flex-col h-full">
+			<ScrollbackView
+				class="flex-1 overflow-x-hidden"
+				:logs="logs"
+				@click="focusInput"
+				:style="{ fontSize: fontSize + 'px', fontFamily: fontFamily, color: fontColor }"
+			/>
+			<div class="p-1">
+				<div class="flex items-center gap-1">
+					<Loader2 v-if="isLoading" class="w-4 h-4 text-cyan-400 animate-spin shrink-0" />
+					<span v-else class="text-gray-500 font-bold select-none">{{ prompt }}</span>
+					<input
+						ref="inputRef"
+						v-model="inputText"
+						:disabled="isLoading"
+						@keydown.enter="handleEnter"
+						@keydown.up.prevent="handleHistoryUp"
+						@keydown.down.prevent="handleHistoryDown"
+						@keydown.escape.prevent="handleEscape"
+						class="flex-1 bg-transparent border-none outline-none placeholder-gray-700 text-xs disabled:text-gray-500"
+						:style="{ color: fontColor, fontFamily: fontFamily }"
+						spellcheck="false"
+						autocomplete="off"
+					/>
+				</div>
+				<div v-if="isLoading && progress > 0" class="h-0.5 bg-gray-700/50 w-full mt-1 rounded">
+					<div
+						class="h-0.5 bg-cyan-400 rounded transition-all duration-150 ease-linear"
+						:style="{ width: progress + '%' }"
+					/>
+				</div>
 			</div>
-			<div v-if="isLoading && progress > 0" class="h-0.5 bg-gray-700/50 w-full mt-1 rounded">
-				<div
-					class="h-0.5 bg-cyan-400 rounded transition-all duration-150 ease-linear"
-					:style="{ width: progress + '%' }"
-				/>
-			</div>
 		</div>
-	</div>
+	</FloatingWindow>
 </template>
 
 <script setup lang="ts">
@@ -87,20 +98,23 @@ import { useScrollback } from "@/composables/useScrollback";
 import ScrollbackView from "@/components/ScrollbackView.vue";
 import { useMachine } from "@/composables/useMachine";
 import { useConsoleSettings } from "@/composables/useConsoleSettings";
-import { computed, nextTick, onMounted, ref, watch } from "vue";
+import { computed, nextTick, onBeforeMount, onMounted, ref, watch } from "vue";
 import { useRoutineEditor } from "@/composables/useRoutineEditor";
-import { FileCode2, ZoomOut, ZoomIn, Trash2, Loader2, TriangleAlert } from "lucide-vue-next";
+import { FileCode2, ZoomOut, ZoomIn, Trash2, Loader2, TriangleAlert, Terminal } from "lucide-vue-next";
 import { useEventBus } from "@vueuse/core";
+import FloatingWindow from "@/components/FloatingWindow.vue";
 
-const { height, fontSize, fontFamily, fontColor, loadSettings, increaseFontSize, decreaseFontSize } =
-	useConsoleSettings();
+const { fontSize, fontFamily, fontColor, loadSettings, increaseFontSize, decreaseFontSize } = useConsoleSettings();
 
 const inputText = ref("");
 const inputRef = ref<HTMLInputElement | null>(null);
 let tempInput = "";
 const historyIndex = ref(-1);
+const defaultWidth = ref(200);
+const defaultY = ref(0);
 
 const { logs, print, printError, clear } = useScrollback();
+const windowRef = ref<InstanceType<typeof FloatingWindow> | null>(null);
 const { isConsoleVisible, hideConsole, BUS_KEY } = useCmdConsole();
 const {
 	isLoading,
@@ -134,8 +148,13 @@ useEventBus<string>(BUS_KEY).on((cmd: string, args: unknown[]) => {
 
 watch(
 	() => isConsoleVisible.value,
-	(visible) => {
-		if (visible) nextTick(() => inputRef.value?.focus());
+	(newVal) => {
+		if (newVal) {
+			windowRef.value?.open();
+			nextTick(() => inputRef.value?.focus());
+		} else {
+			windowRef.value?.close();
+		}
 	},
 );
 
@@ -196,24 +215,6 @@ const focusInput = () => {
 	if (!selection || selection.toString().length === 0) inputRef.value?.focus();
 };
 
-const startResizeLogs = (e: MouseEvent) => {
-	const startY = e.clientY;
-	const startHeight = height.value;
-
-	const onMouseMove = (e: MouseEvent) => {
-		const deltaY = startY - e.clientY;
-		height.value = Math.max(100, startHeight + deltaY);
-	};
-
-	const onMouseUp = () => {
-		window.removeEventListener("mousemove", onMouseMove);
-		window.removeEventListener("mouseup", onMouseUp);
-	};
-
-	window.addEventListener("mousemove", onMouseMove);
-	window.addEventListener("mouseup", onMouseUp);
-};
-
 const handleHistoryUp = () => {
 	if (commandHistory.value.length === 0) return;
 	if (historyIndex.value === -1) {
@@ -239,4 +240,17 @@ const handleHistoryDown = () => {
 const handleEscape = () => {
 	hideConsole();
 };
+
+const onWindowClose = () => {
+	hideConsole();
+};
+
+onBeforeMount(() => {
+	defaultWidth.value = window.innerWidth / 2 - 40;
+	defaultY.value = window.innerHeight - 250;
+});
+
+onMounted(() => {
+	isConsoleVisible.value = !!windowRef.value?.isOpen;
+});
 </script>
