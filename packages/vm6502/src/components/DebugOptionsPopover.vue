@@ -64,10 +64,12 @@
 			ref="floatingWindowRef"
 			:id="`debug-options-${category}`"
 			:title="`${category} Settings`"
-			:default-width="320"
-			:default-height="320"
-			:resizable="false"
-			:content-scrollable="false"
+			:options="{
+				defaultWidth: 320,
+				defaultHeight: 320,
+				resizable: false,
+				contentScrollable: false,
+			}"
 		>
 			<template #icon>
 				<Settings2 class="h-4 w-4" />
