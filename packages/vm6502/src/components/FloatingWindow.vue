@@ -4,6 +4,7 @@
 		ref="floatingWindow"
 		:style="floatingWindowStyle"
 		class="fixed flex flex-col bg-black/80 backdrop-blur-sm border border-gray-700 rounded-lg shadow-2xl z-50 overflow-hidden"
+		:class="windowClass"
 		@mousedown="bringToFront"
 	>
 		<!-- Header / Drag Handle -->
@@ -16,13 +17,17 @@
 				<slot name="icon" />
 				<span class="text-xs font-bold text-gray-200 uppercase tracking-wider">{{ title }}</span>
 			</div>
-			<button
-				@click="close"
-				class="text-gray-400 hover:text-cyan-300 hover:bg-gray-700 rounded p-1 transition-colors"
-				title="Close"
-			>
-				<X class="h-4 w-4" />
-			</button>
+			<div class="flex items-center gap-1">
+				<slot name="header-buttons" />
+				<button
+					v-if="config.closable"
+					@click="close"
+					class="text-gray-400 hover:text-cyan-300 hover:bg-gray-700 rounded p-1 transition-colors"
+					title="Close"
+				>
+					<X class="h-4 w-4" />
+				</button>
+			</div>
 		</div>
 
 		<!-- Content Slot -->
@@ -30,11 +35,33 @@
 			<slot />
 		</div>
 
+		<!-- Edge Resize Handles (when snappableResize is enabled and snapped) -->
+		<div
+			v-if="config.snappableResize && isSnappedBottom"
+			class="absolute -top-1 left-0 right-0 h-2 cursor-row-resize hover:bg-cyan-500/50 transition-colors z-20"
+			@mousedown.prevent="startResize('n', $event)"
+		></div>
+		<div
+			v-if="config.snappableResize && isSnappedTop"
+			class="absolute -bottom-1 left-0 right-0 h-2 cursor-row-resize hover:bg-cyan-500/50 transition-colors z-20"
+			@mousedown.prevent="startResize('s', $event)"
+		></div>
+		<div
+			v-if="config.snappableResize && isSnappedRight"
+			class="absolute top-0 -left-1 bottom-0 w-2 cursor-col-resize hover:bg-cyan-500/50 transition-colors z-20"
+			@mousedown.prevent="startResize('w', $event)"
+		></div>
+		<div
+			v-if="config.snappableResize && isSnappedLeft"
+			class="absolute top-0 -right-1 bottom-0 w-2 cursor-col-resize hover:bg-cyan-500/50 transition-colors z-20"
+			@mousedown.prevent="startResize('e', $event)"
+		></div>
+
 		<!-- Resize Handle -->
 		<div
-			v-if="config.resizable"
+			v-if="config.resizable && (!config.snappableResize || !isAnySnapped)"
 			class="absolute bottom-0 right-0 w-4 h-4 cursor-se-resize flex items-end justify-end z-10 text-gray-500 hover:text-cyan-300 transition-colors"
-			@mousedown.prevent="startResize"
+			@mousedown.prevent="startResize('se', $event)"
 		>
 			<MoveDiagonal class="scale-x-[-1]" />
 		</div>
@@ -56,12 +83,16 @@ export interface FloatingWindowOptions {
 	minHeight?: number;
 	defaultX?: number;
 	defaultY?: number;
+	snappable?: boolean;
+	snappableResize?: boolean;
+	closable?: boolean;
 }
 
 const props = defineProps<{
 	title: string;
 	id: string;
 	options?: FloatingWindowOptions;
+	windowClass?: string | Record<string, boolean> | (string | Record<string, boolean>)[];
 }>();
 
 const defaultOptions: Required<FloatingWindowOptions> = {
@@ -73,6 +104,9 @@ const defaultOptions: Required<FloatingWindowOptions> = {
 	minHeight: 150,
 	defaultX: 100,
 	defaultY: 100,
+	snappable: true,
+	snappableResize: false,
+	closable: true,
 };
 
 const config = computed(() => ({ ...defaultOptions, ...props.options }));
@@ -87,6 +121,19 @@ const floatingWindow = ref<HTMLElement | null>(null);
 // State for position and size
 const position = ref({ x: config.value.defaultX, y: config.value.defaultY });
 const size = ref({ width: config.value.defaultWidth, height: config.value.defaultHeight });
+const winSize = ref({ width: window.innerWidth, height: window.innerHeight });
+
+const isSnappedLeft = computed(() => position.value.x <= SNAP_THRESHOLD);
+const isSnappedTop = computed(() => position.value.y <= SNAP_THRESHOLD);
+const isSnappedRight = computed(
+	() => Math.abs(position.value.x + size.value.width - winSize.value.width) <= SNAP_THRESHOLD,
+);
+const isSnappedBottom = computed(
+	() => Math.abs(position.value.y + size.value.height - winSize.value.height) <= SNAP_THRESHOLD,
+);
+const isAnySnapped = computed(
+	() => isSnappedLeft.value || isSnappedTop.value || isSnappedRight.value || isSnappedBottom.value,
+);
 
 const STORAGE_KEY = computed(() => `floating-window-${props.id}`);
 
@@ -100,8 +147,8 @@ const floatingWindowStyle = computed(() => ({
 const clampToViewport = () => {
 	if (!floatingWindow.value) return;
 
-	const winWidth = window.innerWidth;
-	const winHeight = window.innerHeight;
+	const winWidth = winSize.value.width;
+	const winHeight = winSize.value.height;
 
 	// Ensure window is at least partially visible
 	const newX = Math.min(Math.max(0, position.value.x), winWidth - 50);
@@ -178,18 +225,20 @@ const startDrag = (event: MouseEvent) => {
 		const viewportWidth = window.innerWidth;
 		const viewportHeight = window.innerHeight;
 
-		// Snap to left/right
-		if (Math.abs(nextX) < SNAP_THRESHOLD) {
-			nextX = 0;
-		} else if (Math.abs(nextX + size.value.width - viewportWidth) < SNAP_THRESHOLD) {
-			nextX = viewportWidth - size.value.width;
-		}
+		if (config.value.snappable) {
+			// Snap to left/right
+			if (Math.abs(nextX) < SNAP_THRESHOLD) {
+				nextX = 0;
+			} else if (Math.abs(nextX + size.value.width - viewportWidth) < SNAP_THRESHOLD) {
+				nextX = viewportWidth - size.value.width;
+			}
 
-		// Snap to top/bottom
-		if (Math.abs(nextY) < SNAP_THRESHOLD) {
-			nextY = 0;
-		} else if (Math.abs(nextY + size.value.height - viewportHeight) < SNAP_THRESHOLD) {
-			nextY = viewportHeight - size.value.height;
+			// Snap to top/bottom
+			if (Math.abs(nextY) < SNAP_THRESHOLD) {
+				nextY = 0;
+			} else if (Math.abs(nextY + size.value.height - viewportHeight) < SNAP_THRESHOLD) {
+				nextY = viewportHeight - size.value.height;
+			}
 		}
 
 		position.value.x = nextX;
@@ -206,19 +255,44 @@ const startDrag = (event: MouseEvent) => {
 	window.addEventListener("mouseup", stopDrag);
 };
 
-const startResize = (event: MouseEvent) => {
+const startResize = (direction: "se" | "n" | "s" | "e" | "w", event: MouseEvent) => {
 	if (event.button !== 0) return;
 	event.stopPropagation();
 
 	const startX = event.clientX;
 	const startY = event.clientY;
+	const startLeft = position.value.x;
+	const startTop = position.value.y;
 	const startWidth = size.value.width;
 	const startHeight = size.value.height;
 
 	const onMouseMove = (e: MouseEvent) => {
-		const newWidth = Math.max(config.value.minWidth, startWidth + e.clientX - startX);
-		const newHeight = Math.max(config.value.minHeight, startHeight + e.clientY - startY);
+		const dx = e.clientX - startX;
+		const dy = e.clientY - startY;
+		let newWidth = startWidth;
+		let newHeight = startHeight;
+		let newX = startLeft;
+		let newY = startTop;
+
+		if (direction === "se") {
+			newWidth = Math.max(config.value.minWidth, startWidth + dx);
+			newHeight = Math.max(config.value.minHeight, startHeight + dy);
+		} else if (direction === "n") {
+			const rawHeight = startHeight - dy;
+			newHeight = Math.max(config.value.minHeight, rawHeight);
+			newY = startTop + (startHeight - newHeight);
+		} else if (direction === "s") {
+			newHeight = Math.max(config.value.minHeight, startHeight + dy);
+		} else if (direction === "w") {
+			const rawWidth = startWidth - dx;
+			newWidth = Math.max(config.value.minWidth, rawWidth);
+			newX = startLeft + (startWidth - newWidth);
+		} else if (direction === "e") {
+			newWidth = Math.max(config.value.minWidth, startWidth + dx);
+		}
+
 		size.value = { width: newWidth, height: newHeight };
+		position.value = { x: newX, y: newY };
 		emit("resize", size.value);
 	};
 
@@ -241,12 +315,17 @@ watch(
 	{ immediate: true },
 );
 
+const updateWinSize = () => {
+	winSize.value = { width: window.innerWidth, height: window.innerHeight };
+	clampToViewport();
+};
+
 onMounted(() => {
-	window.addEventListener("resize", clampToViewport);
+	window.addEventListener("resize", updateWinSize);
 });
 
 onUnmounted(() => {
-	window.removeEventListener("resize", clampToViewport);
+	window.removeEventListener("resize", updateWinSize);
 });
 
 defineExpose({
