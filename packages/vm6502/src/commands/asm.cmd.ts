@@ -3,13 +3,15 @@ import { useSymbols } from "@/composables/useSymbols";
 import type { Command, CommandResult } from "@/types/command";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 
+const { getAddressForLabel, addSymbol } = useSymbols();
+
 export const asmCmd: Command = {
-	description: "Start mini-assembler at <address>",
-	paramDef: ["address"],
+	description: "Start mini-assembler at `address`. if `show` is specified, displays the assembled bytes.",
+	paramDef: ["address", "name?"],
 	group: "Assembler",
 	fn: (vm: VirtualMachine, _progress, params): CommandResult => {
 		let currentAddr = (params[0] as number) & 0xffff;
-		const { getAddressForLabel, addSymbol } = useSymbols();
+		let showBytes = "SHOW".startsWith((params[1] as string).toUpperCase());
 
 		const parseExpression = (expr: string): number => {
 			const e = expr.trim();
@@ -41,12 +43,14 @@ export const asmCmd: Command = {
 					for (let i = 0; i < result.bytes.length; i++)
 						vm.writeDebug((currentAddr + i) & 0xffff, result.bytes[i] as number);
 
-					const bytesHex = result.bytes.map((b) => b.toString(16).toUpperCase().padStart(2, "0")).join(" ");
-					const output = `${currentAddr.toString(16).toUpperCase().padStart(4, "0")}: ${bytesHex.padEnd(8)} ${trimmed}`;
-
-					currentAddr = (currentAddr + result.bytes.length) & 0xffff;
-					return { content: output, prompt: getPrompt(currentAddr) };
-					// return { prompt: getPrompt(currentAddr) };
+					if (showBytes) {
+						const bytesHex = result.bytes
+							.map((b) => b.toString(16).toUpperCase().padStart(2, "0"))
+							.join(" ");
+						const output = `${currentAddr.toString(16).toUpperCase().padStart(4, "0")}: ${bytesHex.padEnd(8)} ${trimmed}`;
+						currentAddr = (currentAddr + result.bytes.length) & 0xffff;
+						return { content: output, prompt: getPrompt(currentAddr) };
+					} else return { prompt: getPrompt(currentAddr) };
 				}
 			},
 			onComplete: () => "Assembly finished.",

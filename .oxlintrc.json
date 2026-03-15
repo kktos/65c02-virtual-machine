@@ -2,7 +2,20 @@
 	"$schema": "./node_modules/oxlint/configuration_schema.json",
 	"plugins": ["vue"],
 	"categories": {},
-	"rules": {},
+	"rules": {
+		"@typescript-eslint/prefer-as-const": "error",
+
+		"no-unused-vars": [
+			"warn",
+			{
+				"vars": "all",
+				"args": "none",
+				"varsIgnorePattern": "^_",
+				"argsIgnorePattern": "^_",
+				"caughtErrorsIgnorePattern": "^_"
+			}
+		]
+	},
 	"settings": {
 		"jsx-a11y": {
 			"polymorphicPropName": null,
