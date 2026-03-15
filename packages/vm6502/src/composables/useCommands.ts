@@ -389,7 +389,6 @@ export function useCommands() {
 		shouldClose.value = false;
 
 		let input = cmdInput;
-		if (!input.trim() && !multiLineSession.value) input = "HELP";
 		const lines = input.split(/\r?\n/);
 
 		try {

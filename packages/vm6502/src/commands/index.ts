@@ -1,9 +1,9 @@
 import { useCmdConsole } from "@/composables/useCmdConsole";
-import { useRoutineEditor } from "@/composables/useRoutineEditor";
 import { execAddBP } from "./addBP.cmd";
 import { defCode } from "./defCode.cmd";
 import { defLabel } from "./defLabel.cmd";
 import { font } from "./font.cmd";
+import { hideCmd } from "./hide.cmd";
 import { hook } from "./hook.cmd";
 import { labelsCmd } from "./labels.cmd";
 import { listCmd } from "./list.cmd";
@@ -14,6 +14,7 @@ import { execRemoveBP } from "./removeBP.cmd";
 import { renLabel } from "./renLabel.cmd";
 import { reset } from "./reset.cmd";
 import { run } from "./run.cmd";
+import { showCmd } from "./show.cmd";
 import { setDisasmView } from "./setDisasmView.cmd";
 import { setMemView, setMemViewFn } from "./setMemView.cmd";
 import { speed } from "./speed.cmd";
@@ -285,15 +286,6 @@ export const COMMAND_LIST = {
 	EXPLAIN: explainCmd,
 	LOG: logCmd,
 	ROUTINE: routineCmd,
-	EDITROUTINES: {
-		description: "Open the routine editor window.",
-		fn: () => {
-			useRoutineEditor().open();
-			return "Opening routine editor...";
-		},
-		closeOnSuccess: true,
-		group: "Scripting",
-	},
 
 	FONT: font,
 	HELP: cmdHelp,
@@ -332,4 +324,7 @@ export const COMMAND_LIST = {
 		},
 		group: "Console",
 	},
+
+	SHOW: showCmd,
+	HIDE: hideCmd,
 } satisfies Record<string, Command | string>;
