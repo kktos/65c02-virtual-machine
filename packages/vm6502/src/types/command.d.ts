@@ -12,7 +12,12 @@ type ParamDef =
 	| `${ParamType}|${ParamType}`
 	| `${ParamType}|${ParamType}|${ParamType}`
 	| `${ParamType}|${ParamType}|${ParamType}|${ParamType}`;
-export type ParamList = (string | number | { start: number; end: number } | undefined)[];
+
+export type ParamListItemIdentifier = { text: string };
+export type ParamListItemRange = { start: number; end: number };
+
+export type ParamListItem = string | number | undefined | ParamListItemRange | ParamListItemIdentifier;
+export type ParamList = ParamListItem[];
 
 export type ResultOnLinePayload = { content?: string; prompt?: string; error?: string } | void;
 export type ResultOnLineFn = ResultOnLinePayload | Promise<ResultOnLinePayload>;

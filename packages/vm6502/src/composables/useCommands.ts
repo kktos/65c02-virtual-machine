@@ -4,7 +4,7 @@ import { useRoutines } from "./useRoutines";
 import { ExpressionParser, TokenType } from "@/lib/expressionParser";
 import { COMMAND_LIST, type COMMANDS } from "@/commands";
 import { minimonitor } from "@/lib/mini-monitor";
-import type { Command, CommandOutput, MultiLineRequest, ParamDef, ParamList } from "@/types/command";
+import type { Command, CommandOutput, MultiLineRequest, ParamDef, ParamList, ParamListItem } from "@/types/command";
 import { useBreakpoints } from "./useBreakpoints";
 import {
 	REG_A_OFFSET,
@@ -85,7 +85,7 @@ function parseCommandParams(
 		cmdParser.match(TokenType.COMMA);
 		paramIndex++;
 
-		let parsedValue: string | number | undefined | { start: number; end: number };
+		let parsedValue: ParamListItem;
 		switch (paramValue.type) {
 			case TokenType.STRING:
 				if (!(hasRestParam || allowedTypes.includes("string")))
@@ -94,7 +94,7 @@ function parseCommandParams(
 				break;
 			case TokenType.IDENTIFIER:
 				if (allowedTypes.includes("name")) {
-					parsedValue = paramValue.raw;
+					parsedValue = { text: paramValue.raw };
 					break;
 				}
 				if (
