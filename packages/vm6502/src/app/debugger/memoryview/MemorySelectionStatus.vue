@@ -27,10 +27,22 @@
 				>String</Button
 			>
 		</div>
+		<div class="flex-1 flex justify-end">
+			<Button
+				variant="ghost"
+				size="icon"
+				class="h-6 w-6 text-gray-400 hover:text-red-400"
+				@click="$emit('cancel-selection')"
+				title="Cancel Selection (Esc)"
+			>
+				<X class="h-4 w-4" />
+			</Button>
+		</div>
 	</div>
 </template>
 
 <script lang="ts" setup>
+import { X } from "lucide-vue-next";
 import { Button } from "@/components/ui/button";
 import { formatAddress } from "@/lib/hex.utils";
 
@@ -40,5 +52,6 @@ defineProps<{
 
 defineEmits<{
 	(e: "format", type: "byte" | "string"): void;
+	(e: "cancel-selection"): void;
 }>();
 </script>
