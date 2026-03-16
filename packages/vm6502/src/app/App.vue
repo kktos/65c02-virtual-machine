@@ -51,7 +51,7 @@
 							<StatusFlagsView :registers="registers" />
 						</div>
 
-						<StackView :stackData="vm.sharedMemory" :registers="registers" />
+						<StackView :registers="registers" />
 
 						<!-- Stack View takes the remaining space -->
 						<Tabs default-value="breakpoints" class="h-full flex flex-col min-h-0">
