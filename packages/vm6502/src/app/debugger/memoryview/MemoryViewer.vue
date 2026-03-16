@@ -183,7 +183,12 @@
 		</div>
 
 		<!-- Selection Status Bar -->
-		<MemorySelectionStatus :selected-range="selectedRange" @format="formatAs" class="shrink-0" />
+		<MemorySelectionStatus
+			:selected-range="selectedRange"
+			@format="formatAs"
+			@cancel-selection="cancelSelection"
+			class="shrink-0"
+		/>
 
 		<Popover
 			:open="contextMenu.isOpen"
@@ -263,7 +268,7 @@ import { useBreakpoints } from "@/composables/useBreakpoints";
 import { useDebuggerNav } from "@/composables/useDebuggerNav";
 import { useDisassembly } from "@/composables/useDisassembly";
 import { useFormatting } from "@/composables/useDataFormattings";
-import { useThrottleFn } from "@vueuse/core";
+import { onKeyStroke, useThrottleFn } from "@vueuse/core";
 import { formatAddress } from "@/lib/hex.utils";
 import type { DebugGroup } from "@/types/machine.interface";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
@@ -470,6 +475,14 @@ const activeDebugBadges = computed(() => {
 	return badges;
 });
 
+onKeyStroke("Escape", (e) => {
+	if (!props.isActive) return;
+	if (editingIndex.value === null && selectedRange.value) {
+		cancelSelection();
+		e.preventDefault();
+	}
+});
+
 onMounted(() => {
 	if (scrollContainer.value) {
 		// Set initial height and observe for changes
@@ -479,11 +492,6 @@ onMounted(() => {
 		});
 		resizeObserver.observe(scrollContainer.value);
 	}
-
-	// Subscribe to the UI update loop from App.vue
-	// subscribeToUiUpdates?.(() => {
-	// 	tick.value++;
-	// });
 });
 
 onUnmounted(() => {
@@ -529,11 +537,15 @@ const endSelection = () => {
 	isSelecting.value = false;
 };
 
+const cancelSelection = () => {
+	selectionAnchor.value = null;
+	selectionHead.value = null;
+};
+
 const formatAs = (type: "byte" | "string") => {
 	if (!selectedRange.value) return;
 	addFormatting(selectedRange.value.start, type, selectedRange.value.size);
-	selectionAnchor.value = null;
-	selectionHead.value = null;
+	cancelSelection();
 };
 
 const editingIndex = ref<number | null>(null);
@@ -603,9 +615,11 @@ const handleKeyDown = (index: number, event: KeyboardEvent, mode: "hex" | "ascii
 			direction = 1;
 			break;
 		case "Escape":
-			return (event.target as HTMLElement).blur();
+			(event.target as HTMLElement).blur();
+			cancelSelection();
+			return;
 		default: {
-			if (mode !== "hex") break;
+			if (mode !== "hex") return;
 			if (event.key === " ") {
 				direction = 1;
 				break;

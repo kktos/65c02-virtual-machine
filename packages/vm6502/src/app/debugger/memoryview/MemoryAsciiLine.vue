@@ -33,11 +33,7 @@
 </template>
 
 <script lang="ts" setup>
-import { inject, type Ref } from "vue";
 import { type MemoryLineProps, useMemoryLine } from "./useMemoryLine";
-import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
-
-const vm = inject<Ref<VirtualMachine>>("vm");
 
 const props = defineProps<{
 	lineIndex: number;
@@ -84,9 +80,6 @@ const onInput = (indexInLine: number, event: Event) => {
 	if (val.length > 0) {
 		let code = val.charCodeAt(0);
 		if (props.highBitEnabled) code |= 0x80;
-		if (props.debugOverrides) {
-			vm?.value.writeDebug(props.lineStartAddress + indexInLine, code, props.debugOverrides);
-		}
 		emit("change", getGlobalIndex(indexInLine), target);
 	}
 };
