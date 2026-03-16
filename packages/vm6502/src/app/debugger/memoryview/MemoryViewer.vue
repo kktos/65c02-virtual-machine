@@ -193,70 +193,32 @@
 						</td>
 
 						<td class="py-0.5 pl-4 whitespace-nowrap flex">
-							<template v-for="byteIndex in BYTES_PER_LINE" :key="byteIndex">
-								<template
-									v-if="
-										editingIndex === (lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1) &&
-										editingMode === 'ascii'
-									"
-								>
-									<input
-										type="text"
-										:value="editingValue"
-										:ref="
-											(el) =>
-												setAsciiInputRef(el, (lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1))
-										"
-										@keydown="
-											handleKeyDown(
-												(lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1),
-												$event,
-												'ascii',
-											)
-										"
-										@input="
-											handleAsciiChange(
-												(lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1),
-												$event,
-											)
-										"
-										@blur="handleBlur"
-										maxlength="1"
-										class="w-[1.2ch] text-center bg-yellow-600 focus:bg-gray-600 focus:outline-none focus:ring-1 focus:ring-cyan-500 rounded-none tabular-nums text-xs p-0 border-none font-bold"
-									/>
-								</template>
-								<template v-else>
-									<div
-										@dblclick="
-											startEditing((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1), 'ascii')
-										"
-										@mousedown="
-											startSelection((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1), $event)
-										"
-										@mouseenter="
-											updateSelection((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1))
-										"
-										:class="[
-											'w-[1.2ch] text-center tabular-nums text-xs p-0 font-bold cursor-text select-none',
-											getAsciiClass(
-												currentMemorySlice[(lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1)],
-												isHighlighted((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1)),
-												isCellSelected((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1)),
-											),
-											getBreakpointClass((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1)),
-											isCellSelected((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1))
-												? ''
-												: getDataBlockClass((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1)),
-										]"
-									>
-										{{
-											getAsciiChar(
-												currentMemorySlice[(lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1)],
-											)
-										}}
-									</div>
-								</template>
-							</template>
+							<MemoryAsciiLine
+								:line-index="lineIndex"
+								:line-data="
+									currentMemorySlice.subarray(
+										(lineIndex - 1) * BYTES_PER_LINE,
+										lineIndex * BYTES_PER_LINE,
+									)
+								"
+								:line-start-address="startAddress + (lineIndex - 1) * BYTES_PER_LINE"
+								:bytes-per-line="BYTES_PER_LINE"
+								:editing-index="editingIndex"
+								:editing-mode="editingMode"
+								:editing-value="editingValue"
+								:selection-anchor="selectionAnchor"
+								:selection-head="selectionHead"
+								:highlighted-range="highlightedRange"
+								:high-bit-enabled="highBitEnabled"
+								:debug-overrides="debugOverrides"
+								@start-editing="startEditing"
+								@start-selection="startSelection"
+								@update-selection="updateSelection"
+								@blur="handleBlur"
+								@keydown="handleKeyDown"
+								@set-ref="setAsciiInputRef"
+								@change="(idx, target) => handleAsciiChange(idx, { target } as any)"
+							/>
 						</td>
 					</tr>
 				</tbody>
@@ -330,6 +292,7 @@
 <script lang="ts" setup>
 import { Split, X } from "lucide-vue-next";
 import { computed, inject, nextTick, onMounted, onUnmounted, type Ref, ref, watch } from "vue";
+import MemoryAsciiLine from "./MemoryAsciiLine.vue";
 import AddressNavigator from "@/app/debugger/AddressNavigator.vue";
 import AddSymbolPopover from "@/components/AddSymbolPopover.vue";
 import DebugOptionsPopover from "@/components/DebugOptionsPopover.vue";
@@ -669,6 +632,13 @@ const handleBlur = () => {
 	editingMode.value = null;
 };
 
+const getAsciiChar = (byte: number | undefined) => {
+	if (byte === undefined) return "·";
+	const val = byte & 0x7f;
+	if (val >= 32 && val <= 126) return String.fromCharCode(val);
+	return "·";
+};
+
 const startEditing = async (index: number, mode: "hex" | "ascii") => {
 	if (editingIndex.value === index && editingMode.value === mode) return;
 
@@ -784,24 +754,6 @@ const handleAsciiChange = (index: number, event: Event) => {
 			(event.target as HTMLElement).blur();
 		}
 	}
-};
-
-const getAsciiChar = (byte: number | undefined) => {
-	if (byte === undefined) return "·";
-	const val = byte & 0x7f;
-	if (val >= 32 && val <= 126) return String.fromCharCode(val);
-	return "·";
-};
-
-const getAsciiClass = (byte: number | undefined, highlighted = false, selected = false) => {
-	if (selected) return "bg-blue-700 text-white";
-	if (highlighted) return "bg-yellow-600 text-white";
-	if (byte === undefined) return "text-gray-500";
-	const val = byte & 0x7f;
-	if (val < 0x20) return "text-gray-500";
-	// bit7=0 -> Inverse (Black on White)
-	// bit7=1 -> Normal (Green on Transparent)
-	return byte & 0x80 ? "bg-transparent text-green-300" : "bg-green-300 text-black";
 };
 
 const throttledWheelHandler = useThrottleFn((event: WheelEvent) => {
