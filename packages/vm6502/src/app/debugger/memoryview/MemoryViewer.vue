@@ -284,7 +284,7 @@ import { useMachine } from "@/composables/useMachine";
 import MemorySearch from "./MemorySearch.vue";
 
 const vm = inject<Ref<VirtualMachine>>("vm");
-const { addFormatting, getFormat } = useFormatting();
+const { addFormatting } = useFormatting();
 const { isRunning } = useMachine();
 
 const props = defineProps<{
@@ -370,12 +370,6 @@ const handleGoto = (addr: number) => {
 
 const highlightedRange = ref<{ start: number; length: number } | null>(null);
 
-const isHighlighted = (index: number) => {
-	if (!highlightedRange.value) return false;
-	const addr = startAddress.value + index;
-	return addr >= highlightedRange.value.start && addr < highlightedRange.value.start + highlightedRange.value.length;
-};
-
 // --- Context Menu ---
 const contextMenu = ref({
 	isOpen: false,
@@ -383,10 +377,6 @@ const contextMenu = ref({
 	y: 0,
 	address: 0,
 });
-
-const isContextMenuTarget = (index: number) => {
-	return contextMenu.value.isOpen && contextMenu.value.address === startAddress.value + index;
-};
 
 const handleContextMenu = (index: number, event: MouseEvent) => {
 	contextMenu.value = {
@@ -438,30 +428,13 @@ const disassembleHere = () => {
 	closeContextMenu();
 };
 
-const { addBreakpoint, breakpoints } = useBreakpoints();
+const { addBreakpoint } = useBreakpoints();
 
 const addBp = (type: "read" | "write" | "access") => {
 	if (!vm?.value) return;
 	const addr = contextMenu.value.address;
 	addBreakpoint({ type, address: addr }, vm.value);
 	closeContextMenu();
-};
-
-const getBreakpointClass = (index: number) => {
-	const addr = startAddress.value + index;
-	const bps = breakpoints.value.filter((b) => b.enabled && b.address === addr);
-	if (bps.length === 0) return "";
-
-	if (bps.some((b) => b.type === "access")) return "ring-2 ring-inset ring-green-500/80";
-	if (bps.some((b) => b.type === "write")) return "ring-2 ring-inset ring-red-500/80";
-	if (bps.some((b) => b.type === "read")) return "ring-2 ring-inset ring-yellow-500/80";
-	if (bps.some((b) => b.type === "pc")) return "ring-2 ring-inset ring-indigo-500/80";
-	return "";
-};
-
-const getDataBlockClass = (index: number) => {
-	const addr = startAddress.value + index;
-	return getFormat(addr) ? "bg-indigo-900/30 text-indigo-200" : "";
 };
 
 const activeDebugBadges = computed(() => {
@@ -561,14 +534,6 @@ const updateSelection = (index: number) => {
 
 const endSelection = () => {
 	isSelecting.value = false;
-};
-
-const isCellSelected = (index: number) => {
-	if (selectionAnchor.value === null || selectionHead.value === null) return false;
-	const addr = startAddress.value + index;
-	const start = Math.min(selectionAnchor.value, selectionHead.value);
-	const end = Math.max(selectionAnchor.value, selectionHead.value);
-	return addr >= start && addr <= end;
 };
 
 const formatAs = (type: "byte" | "string") => {

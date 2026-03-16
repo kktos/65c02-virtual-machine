@@ -38,13 +38,10 @@
 
 <script lang="ts" setup>
 import { inject, type Ref } from "vue";
-import { useBreakpoints } from "@/composables/useBreakpoints";
-import { useFormatting } from "@/composables/useDataFormattings";
+import { type MemoryLineProps, useMemoryLine } from "./useMemoryLine";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 
 const vm = inject<Ref<VirtualMachine>>("vm");
-const { breakpoints } = useBreakpoints();
-const { getFormat } = useFormatting();
 
 const props = defineProps<{
 	lineIndex: number;
@@ -72,19 +69,18 @@ const emit = defineEmits<{
 	(e: "change", index: number, target: HTMLInputElement): void;
 }>();
 
-const getGlobalIndex = (indexInLine: number) => (props.lineIndex - 1) * props.bytesPerLine + indexInLine;
-
-const isEditing = (indexInLine: number) =>
-	getGlobalIndex(indexInLine) === props.editingIndex && props.editingMode === "hex";
-
-const onDblClick = (indexInLine: number) => emit("start-editing", getGlobalIndex(indexInLine), "hex");
-const onMouseDown = (indexInLine: number, event: MouseEvent) =>
-	emit("start-selection", getGlobalIndex(indexInLine), event);
-const onMouseEnter = (indexInLine: number) => emit("update-selection", getGlobalIndex(indexInLine));
-const onContextMenu = (indexInLine: number, event: MouseEvent) =>
-	emit("contextmenu", getGlobalIndex(indexInLine), event);
-const onKeyDown = (indexInLine: number, event: KeyboardEvent) =>
-	emit("keydown", getGlobalIndex(indexInLine), event, "hex");
+const {
+	getGlobalIndex,
+	isEditing,
+	onDblClick,
+	onMouseDown,
+	onMouseEnter,
+	onKeyDown,
+	isHighlighted,
+	isCellSelected,
+	getBreakpointClass,
+	getDataBlockClass,
+} = useMemoryLine(props as MemoryLineProps, emit, "hex");
 
 const onInput = (indexInLine: number, event: Event) => {
 	const target = event.target as HTMLInputElement;
@@ -95,29 +91,9 @@ const onInput = (indexInLine: number, event: Event) => {
 	emit("change", getGlobalIndex(indexInLine), target);
 };
 
-const getBreakpointClass = (indexInLine: number) => {
-	const addr = props.lineStartAddress + indexInLine;
-	const bps = breakpoints.value.filter((b) => b.enabled && b.address === addr);
-	if (bps.length === 0) return "";
-	if (bps.some((b) => b.type === "access")) return "ring-2 ring-inset ring-green-500/80";
-	if (bps.some((b) => b.type === "write")) return "ring-2 ring-inset ring-red-500/80";
-	if (bps.some((b) => b.type === "read")) return "ring-2 ring-inset ring-yellow-500/80";
-	if (bps.some((b) => b.type === "pc")) return "ring-2 ring-inset ring-indigo-500/80";
-	return "";
-};
-
-const getDataBlockClass = (indexInLine: number) =>
-	getFormat(props.lineStartAddress + indexInLine) ? "bg-indigo-900/30 text-indigo-200" : "";
-
-const isHighlighted = (indexInLine: number) =>
-	props.highlightedRange &&
-	props.lineStartAddress + indexInLine >= props.highlightedRange.start &&
-	props.lineStartAddress + indexInLine < props.highlightedRange.start + props.highlightedRange.length;
 const isContextMenuTarget = (indexInLine: number) =>
 	props.contextMenu.isOpen && props.contextMenu.address === props.lineStartAddress + indexInLine;
-const isCellSelected = (indexInLine: number) =>
-	props.selectionAnchor !== null &&
-	props.selectionHead !== null &&
-	props.lineStartAddress + indexInLine >= Math.min(props.selectionAnchor, props.selectionHead) &&
-	props.lineStartAddress + indexInLine <= Math.max(props.selectionAnchor, props.selectionHead);
+
+const onContextMenu = (indexInLine: number, event: MouseEvent) =>
+	emit("contextmenu", getGlobalIndex(indexInLine), event);
 </script>

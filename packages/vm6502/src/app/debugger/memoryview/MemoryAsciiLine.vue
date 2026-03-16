@@ -32,13 +32,10 @@
 
 <script lang="ts" setup>
 import { inject, type Ref } from "vue";
-import { useBreakpoints } from "@/composables/useBreakpoints";
-import { useFormatting } from "@/composables/useDataFormattings";
+import { type MemoryLineProps, useMemoryLine } from "./useMemoryLine";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 
 const vm = inject<Ref<VirtualMachine>>("vm");
-const { breakpoints } = useBreakpoints();
-const { getFormat } = useFormatting();
 
 const props = defineProps<{
 	lineIndex: number;
@@ -65,33 +62,18 @@ const emit = defineEmits<{
 	(e: "change", index: number, target: HTMLInputElement): void;
 }>();
 
-const getGlobalIndex = (indexInLine: number) => {
-	return (props.lineIndex - 1) * props.bytesPerLine + indexInLine;
-};
-
-const isEditing = (indexInLine: number) => {
-	return getGlobalIndex(indexInLine) === props.editingIndex && props.editingMode === "ascii";
-};
-
-const onDblClick = (indexInLine: number) => {
-	emit("start-editing", getGlobalIndex(indexInLine), "ascii");
-};
-
-const onMouseDown = (indexInLine: number, event: MouseEvent) => {
-	emit("start-selection", getGlobalIndex(indexInLine), event);
-};
-
-const onMouseEnter = (indexInLine: number) => {
-	emit("update-selection", getGlobalIndex(indexInLine));
-};
-
-const onBlur = () => {
-	emit("blur");
-};
-
-const onKeyDown = (indexInLine: number, event: KeyboardEvent) => {
-	emit("keydown", getGlobalIndex(indexInLine), event, "ascii");
-};
+const {
+	getGlobalIndex,
+	isEditing,
+	onDblClick,
+	onMouseDown,
+	onMouseEnter,
+	onKeyDown,
+	isHighlighted,
+	isCellSelected,
+	getBreakpointClass,
+	getDataBlockClass,
+} = useMemoryLine(props as MemoryLineProps, emit, "ascii");
 
 const onInput = (indexInLine: number, event: Event) => {
 	const target = event.target as HTMLInputElement;
@@ -106,49 +88,13 @@ const onInput = (indexInLine: number, event: Event) => {
 	}
 };
 
+const onBlur = () => emit("blur");
+
 const getAsciiChar = (byte: number | undefined) => {
 	if (byte === undefined) return "·";
 	const val = byte & 0x7f;
 	if (val >= 32 && val <= 126) return String.fromCharCode(val);
 	return "·";
-};
-
-const isHighlighted = (indexInLine: number) => {
-	if (!props.highlightedRange) return false;
-	const addr = props.lineStartAddress + indexInLine;
-	return addr >= props.highlightedRange.start && addr < props.highlightedRange.start + props.highlightedRange.length;
-};
-
-const isCellSelected = (indexInLine: number) => {
-	if (props.selectionAnchor === null || props.selectionHead === null) return false;
-	const addr = props.lineStartAddress + indexInLine;
-	const start = Math.min(props.selectionAnchor, props.selectionHead);
-	const end = Math.max(props.selectionAnchor, props.selectionHead);
-	return addr >= start && addr <= end;
-};
-
-const getBreakpointClass = (indexInLine: number) => {
-	const addr = props.lineStartAddress + indexInLine;
-	const bps = breakpoints.value.filter((b) => b.enabled && b.address === addr);
-	if (bps.length === 0) return "";
-
-	if (bps.some((b) => b.type === "access")) return "ring-2 ring-inset ring-green-500/80";
-	if (bps.some((b) => b.type === "write")) return "ring-2 ring-inset ring-red-500/80";
-	if (bps.some((b) => b.type === "read")) return "ring-2 ring-inset ring-yellow-500/80";
-	if (bps.some((b) => b.type === "pc")) return "ring-2 ring-inset ring-indigo-500/80";
-	return "";
-};
-
-const getDataBlockClass = (indexInLine: number) => {
-	const addr = props.lineStartAddress + indexInLine;
-	return getFormat(addr) ? "bg-indigo-900/30 text-indigo-200" : "";
-
-	// for (const block of formattingRules.value.values()) {
-	// 	let len = block.length;
-	// 	if (block.type === "word") len *= 2;
-	// 	if (addr >= block.address && addr < block.address + len) return "bg-indigo-900/30 text-indigo-200";
-	// }
-	// return "";
 };
 
 const getAsciiClass = (byte: number | undefined, highlighted = false, selected = false) => {
