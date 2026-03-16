@@ -135,61 +135,33 @@
 						</td>
 
 						<td v-for="byteIndex in BYTES_PER_LINE" :key="byteIndex" class="p-0">
-							<template
-								v-if="
-									editingIndex === (lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1) &&
-									editingMode === 'hex'
+							<MemoryHexLine
+								:line-index="lineIndex"
+								:line-data="
+									currentMemorySlice.subarray(
+										(lineIndex - 1) * BYTES_PER_LINE,
+										lineIndex * BYTES_PER_LINE,
+									)
 								"
-							>
-								<input
-									type="text"
-									:value="editingValue"
-									:ref="
-										(el) => setHexInputRef(el, (lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1))
-									"
-									@keydown="
-										handleKeyDown((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1), $event, 'hex')
-									"
-									@input="handleHexChange((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1), $event)"
-									@blur="handleBlur"
-									maxlength="2"
-									class="w-full text-center bg-yellow-600 focus:bg-gray-600 focus:outline-none focus:ring-1 focus:ring-cyan-500 rounded-none tabular-nums text-xs"
-								/>
-							</template>
-							<template v-else>
-								<div
-									@dblclick="startEditing((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1), 'hex')"
-									@mousedown="
-										startSelection((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1), $event)
-									"
-									@mouseenter="updateSelection((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1))"
-									@contextmenu.prevent="
-										handleContextMenu((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1), $event)
-									"
-									:class="[
-										'w-full text-center tabular-nums text-xs py-0.5 cursor-text select-none',
-										isCellSelected((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1))
-											? 'bg-blue-700 text-white'
-											: isHighlighted((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1))
-												? 'bg-yellow-600/50 text-white font-bold'
-												: isContextMenuTarget(
-															(lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1),
-													  )
-													? 'bg-gray-600 ring-1 ring-cyan-500'
-													: getDataBlockClass(
-															(lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1),
-														),
-										getBreakpointClass((lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1)),
-									]"
-								>
-									{{
-										currentMemorySlice[(lineIndex - 1) * BYTES_PER_LINE + (byteIndex - 1)]
-											?.toString(16)
-											.toUpperCase()
-											.padStart(2, "0") ?? "  "
-									}}
-								</div>
-							</template>
+								:line-start-address="startAddress + (lineIndex - 1) * BYTES_PER_LINE"
+								:bytes-per-line="1"
+								:editing-index="editingIndex"
+								:editing-mode="editingMode"
+								:editing-value="editingValue"
+								:selection-anchor="selectionAnchor"
+								:selection-head="selectionHead"
+								:highlighted-range="highlightedRange"
+								:context-menu="contextMenu"
+								:debug-overrides="debugOverrides"
+								@start-editing="startEditing"
+								@start-selection="startSelection"
+								@update-selection="updateSelection"
+								@contextmenu="handleContextMenu"
+								@blur="handleBlur"
+								@keydown="handleKeyDown"
+								@set-ref="setHexInputRef"
+								@change="(idx, target) => handleHexChange(idx, { target } as any)"
+							/>
 						</td>
 
 						<td class="py-0.5 pl-4 whitespace-nowrap flex">
@@ -293,6 +265,7 @@
 import { Split, X } from "lucide-vue-next";
 import { computed, inject, nextTick, onMounted, onUnmounted, type Ref, ref, watch } from "vue";
 import MemoryAsciiLine from "./MemoryAsciiLine.vue";
+import MemoryHexLine from "./MemoryHexLine.vue";
 import AddressNavigator from "@/app/debugger/AddressNavigator.vue";
 import AddSymbolPopover from "@/components/AddSymbolPopover.vue";
 import DebugOptionsPopover from "@/components/DebugOptionsPopover.vue";
