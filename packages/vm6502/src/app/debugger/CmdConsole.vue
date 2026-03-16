@@ -133,7 +133,6 @@ const { vm } = useMachine();
 const { open } = useFloatingWindows();
 const openRoutineEditor = () => open("routine_editor");
 
-onMounted(() => loadSettings());
 const clearConsole = () => clear();
 
 useEventBus<string>(BUS_KEY).on((cmd: string, args: unknown[]) => {
@@ -252,6 +251,7 @@ onBeforeMount(() => {
 });
 
 onMounted(() => {
+	loadSettings();
 	isConsoleVisible.value = !!windowRef.value?.isOpen;
 });
 </script>
