@@ -13,6 +13,15 @@ export type SymbolEntry = {
 };
 export type SymbolDict = Record<number, Record<string, SymbolEntry>>;
 
+export type SearchSuggestion = {
+	label: string;
+	addr: number;
+	scope?: string;
+	icon?: string;
+	value?: string;
+};
+export type SearchProvider = (query: string) => Promise<SearchSuggestion[]> | SearchSuggestion[];
+
 interface MetadataDB extends DBSchema {
 	symbols: {
 		key: number;

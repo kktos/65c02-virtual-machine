@@ -85,10 +85,11 @@
 				@input="handleInput"
 				@focus="handleInput"
 				@blur="handleBlur"
+				@click="handleInput"
 				type="text"
-				class="w-full h-full bg-transparent text-gray-200 text-xs font-mono px-3 focus:outline-none placeholder:text-gray-600"
-				placeholder="addr or symbol"
-				title="Enter address (hex) or symbol"
+				class="w-full h-full bg-transparent text-gray-200 text-xs font-mono px-3 focus:outline-none placeholder:text-gray-500"
+				:placeholder="props.placeholder"
+				:title="props.title"
 				autocomplete="off"
 			/>
 
@@ -126,13 +127,25 @@ import { ArrowLeft, ArrowRight, History, SearchIcon, Trash2 } from "lucide-vue-n
 import { computed, ref } from "vue";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { useSymbols, type SymbolEntry } from "@/composables/useSymbols";
+import { useSymbols, type SearchSuggestion, type SearchProvider, type SymbolEntry } from "@/composables/useSymbols";
+
 import { formatAddress, toHex } from "@/lib/hex.utils";
 import { useAddressHistory } from "@/composables/useAddressHistory";
 
-const props = defineProps<{
-	name: string;
-}>();
+type SuggestionItem = SymbolEntry | SearchSuggestion;
+
+const props = withDefaults(
+	defineProps<{
+		name: string;
+		extraProviders?: SearchProvider[]; // Added extraProviders prop
+		placeholder?: string;
+		title?: string;
+	}>(),
+	{
+		placeholder: "addr or symbol",
+		title: "Enter address (hex) or symbol",
+	},
+);
 
 const emit = defineEmits<(e: "goto", address: number) => void>();
 
@@ -141,8 +154,9 @@ const { historyIndex, jumpHistory, addJumpHistory, navigateHistory, jumpToHistor
 	useAddressHistory(props.name);
 const inputValue = ref("");
 const isHistoryOpen = ref(false);
-const suggestions = ref<SymbolEntry[]>([]);
+const suggestions = ref<SuggestionItem[]>([]);
 const showSuggestions = ref(false);
+let blurTimeout: number | undefined;
 const selectedSuggestionIndex = ref(-1);
 
 const canNavigateBack = computed(() => historyIndex.value > 0);
@@ -161,23 +175,39 @@ const handleClearHistory = () => {
 };
 
 const handleInput = () => {
+	clearTimeout(blurTimeout);
 	if (!inputValue.value.trim()) {
 		suggestions.value = [];
 		showSuggestions.value = false;
 		return;
 	}
-	suggestions.value = findSymbols(inputValue.value);
-	showSuggestions.value = suggestions.value.length > 0;
-	selectedSuggestionIndex.value = -1;
-};
 
+	// 1. Local Symbol Search
+	const symbolSuggestions = findSymbols(inputValue.value);
+
+	// 2. External Provider Search
+	const providerPromises = (props.extraProviders || []).map(async (provider) => {
+		return await provider(inputValue.value);
+	});
+
+	// 3. Await and Merge
+	Promise.all(providerPromises).then((providerResults) => {
+		const allSuggestions = [
+			...symbolSuggestions,
+			...providerResults.flat(), // Flatten the array of arrays
+		];
+		suggestions.value = allSuggestions;
+		selectedSuggestionIndex.value = -1;
+		showSuggestions.value = allSuggestions.length > 0;
+	});
+};
 const closeSuggestions = () => {
 	showSuggestions.value = false;
 	selectedSuggestionIndex.value = -1;
 };
 
 const handleBlur = () => {
-	setTimeout(() => {
+	blurTimeout = window.setTimeout(() => {
 		closeSuggestions();
 	}, 150);
 };
@@ -195,8 +225,8 @@ const selectPrevSuggestion = () => {
 			(selectedSuggestionIndex.value - 1 + suggestions.value.length) % suggestions.value.length;
 };
 
-const selectSuggestion = (suggestion: SymbolEntry) => {
-	inputValue.value = suggestion.label;
+const selectSuggestion = (suggestion: SuggestionItem) => {
+	inputValue.value = (suggestion as SearchSuggestion).value ?? suggestion.label;
 	addJumpHistory(suggestion.addr);
 	emit("goto", suggestion.addr);
 	closeSuggestions();
@@ -204,7 +234,7 @@ const selectSuggestion = (suggestion: SymbolEntry) => {
 
 const handleGoto = () => {
 	if (showSuggestions.value && selectedSuggestionIndex.value !== -1) {
-		selectSuggestion(suggestions.value[selectedSuggestionIndex.value] as SymbolEntry);
+		selectSuggestion(suggestions.value[selectedSuggestionIndex.value] as SuggestionItem);
 		return;
 	}
 

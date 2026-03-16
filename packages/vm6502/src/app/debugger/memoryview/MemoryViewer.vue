@@ -9,7 +9,13 @@
 	>
 		<div class="mb-2 mt-1 flex flex-wrap items-center gap-4 shrink-0">
 			<div class="flex flex-1 items-center gap-2">
-				<AddressNavigator name="memory" @goto="handleGoto" />
+				<AddressNavigator
+					name="memory"
+					@goto="handleGoto"
+					:extra-providers="[memorySearchProvider]"
+					:placeholder="placeholder"
+					title='Enter address, symbol, start with " for text search (e.g. "HELLO), or hex bytes (e.g. A9 00)'
+				/>
 				<div class="flex items-center space-x-2 pl-2 border-l border-gray-700">
 					<input
 						type="checkbox"
@@ -24,8 +30,6 @@
 					>
 				</div>
 			</div>
-
-			<MemorySearch :current-address="startAddress" />
 
 			<BinaryLoader :address="startAddress" :debug-overrides="debugOverrides" />
 
@@ -264,6 +268,7 @@ import AddSymbolPopover from "@/components/AddSymbolPopover.vue";
 import DebugOptionsPopover from "@/components/DebugOptionsPopover.vue";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import type { SearchProvider, SearchSuggestion } from "@/composables/useSymbols";
 import { useBreakpoints } from "@/composables/useBreakpoints";
 import { useDebuggerNav } from "@/composables/useDebuggerNav";
 import { useDisassembly } from "@/composables/useDisassembly";
@@ -274,7 +279,6 @@ import type { DebugGroup } from "@/types/machine.interface";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import BinaryLoader from "./BinaryLoader.vue";
 import { useMachine } from "@/composables/useMachine";
-import MemorySearch from "./MemorySearch.vue";
 import MemorySelectionStatus from "./MemorySelectionStatus.vue";
 
 const vm = inject<Ref<VirtualMachine>>("vm");
@@ -295,6 +299,7 @@ const emit = defineEmits<{
 	(e: "update:address", address: number): void;
 }>();
 
+const placeholder = ref(`addr, symbol, "|'text, bytes`);
 const banks = vm?.value.machineConfig.memory.banks || 1;
 const totalMemory = banks * 0x10000;
 const bytesPerLine = ref(16);
@@ -360,6 +365,60 @@ watch(
 );
 
 const highBitEnabled = ref(false);
+
+const memorySearchProvider: SearchProvider = (query) => {
+	if (!vm?.value) return [];
+
+	const q = query.trim();
+	if (q.length < 2) return [];
+
+	let targetBytes: number[] = [];
+	let label = "";
+	let is7bit = false;
+
+	// 1. String Search: "foo
+	if (q.startsWith("'")) {
+		const text = q.slice(1);
+		if (text.length === 0) return [];
+		for (let i = 0; i < text.length; i++) targetBytes.push(text.charCodeAt(i));
+		label = `'${text}'`;
+	} else if (q.startsWith('"')) {
+		const text = q.slice(1);
+		if (text.length === 0) return [];
+		for (let i = 0; i < text.length; i++) targetBytes.push(text.charCodeAt(i) | 0x80);
+		label = `"${text}"`;
+	} else if (q.startsWith("*")) {
+		const text = q.slice(1);
+		if (text.length === 0) return [];
+		for (let i = 0; i < text.length; i++) targetBytes.push(text.charCodeAt(i));
+		is7bit = true;
+		label = `"${text}"`;
+	} else {
+		// 2. Hex Search: A9 00
+		const hex = q.replace(/^(\$|0x)/i, "").replace(/\s/g, "");
+		// Must be valid hex and full bytes (even length)
+		if (!/^[0-9A-Fa-f]+$/.test(hex) || hex.length % 2 !== 0) return [];
+		for (let i = 0; i < hex.length; i += 2) targetBytes.push(parseInt(hex.slice(i, i + 2), 16));
+		label = `Bytes ${q}`;
+	}
+
+	if (targetBytes.length === 0) return [];
+
+	// Use the VM's search method for efficiency and to handle memory banking correctly.
+	const searchResults = vm.value.search(new Uint8Array(targetBytes), 0, totalMemory - 1, is7bit);
+
+	if (!searchResults) return [];
+
+	const MAX_RESULTS = 20;
+	const results: SearchSuggestion[] = searchResults.slice(0, MAX_RESULTS).map((found) => ({
+		label: `${label}`,
+		addr: found.address,
+		value: q,
+		scope: "MEM",
+	}));
+
+	return results;
+};
 
 const handleGoto = (addr: number) => {
 	if (addr < totalMemory) startAddress.value = addr;
