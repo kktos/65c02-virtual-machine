@@ -11,7 +11,7 @@
 				<table class="w-full">
 					<thead>
 						<tr class="text-gray-400 sticky top-0 bg-gray-900 border-b border-gray-700 shadow-md">
-							<th class="py-1 text-left px-2 w-[4.5rem]">Addr</th>
+							<th class="py-1 text-left px-2 w-[4.0rem]">Addr</th>
 							<th class="py-1 text-left">Value</th>
 						</tr>
 					</thead>
@@ -33,15 +33,22 @@
 								}
 							"
 						>
-							<td class="py-0.5 px-2 tabular-nums text-indigo-300">
-								{{ "$" + item.address.toString(16).toUpperCase().padStart(4, "0") }}
+							<td class="py-0.5 px-1 tabular-nums text-indigo-300">
+								{{ formatAddress(item.address) }}
 							</td>
 							<td class="p-0 relative">
 								<div class="flex items-center">
 									<input
 										type="text"
-										:value="item.value?.toString(16).toUpperCase().padStart(2, '0')"
-										@input="handleByteChange(item.address, $event)"
+										:value="
+											isEditing && editingAddress === item.address
+												? editingValue
+												: toHex(item.value ?? 0)
+										"
+										@focus="startEdit(item.address, item.value, $event)"
+										@blur="cancelEdit"
+										@input="handleInput(item.address, $event)"
+										@keydown="handleKeyDown($event)"
 										maxlength="2"
 										class="w-8 text-center bg-transparent focus:bg-gray-600 focus:outline-none focus:ring-1 focus:ring-cyan-500 rounded-none tabular-nums"
 									/>
@@ -52,17 +59,17 @@
 										<span
 											@click="handleJump(item.jsrSite!)"
 											class="cursor-pointer hover:underline"
-											:title="`Jump to call site $${item.jsrSite?.toString(16).toUpperCase().padStart(4, '0')}`"
+											:title="`Jump to call site ${formatAddress(item.jsrSite ?? 0)}`"
 										>
-											{{ `$${item.jsrSite?.toString(16).toUpperCase().padStart(4, "0")}` }}
+											{{ formatAddress(item.jsrSite ?? 0) }}
 										</span>
-										<span>:&nbsp;JSR&nbsp;</span>
+										<span>:JSR&nbsp;</span>
 										<span
 											@click="handleJump(item.subroutineAddr!)"
 											class="cursor-pointer hover:underline"
-											:title="`Jump to subroutine $${item.subroutineAddr?.toString(16).toUpperCase().padStart(4, '0')}`"
+											:title="`Jump to subroutine ${formatAddress(item.subroutineAddr ?? 0)}`"
 										>
-											{{ `$${item.subroutineAddr?.toString(16).toUpperCase().padStart(4, "0")}` }}
+											{{ formatAddress(item.subroutineAddr ?? 0) }}
 										</span>
 									</div>
 								</div>
@@ -76,18 +83,16 @@
 </template>
 
 <script lang="ts" setup>
-/** biome-ignore-all lint/correctness/noUnusedVariables: vue */
-
 import { computed, inject, onMounted, onUnmounted, type Ref, ref, watch } from "vue";
 import { useDebuggerNav } from "@/composables/useDebuggerNav";
 import type { EmulatorRegisters } from "@/types/emulatorstate.interface";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import DebuggerPanelTitle from "./DebuggerPanelTitle.vue";
+import { formatAddress, toHex } from "@/lib/hex.utils";
 
 const stackBase = 0x0100;
 
 const vm = inject<Ref<VirtualMachine>>("vm");
-const subscribeToUiUpdates = inject<(callback: () => void) => void>("subscribeToUiUpdates");
 
 interface Props {
 	registers: EmulatorRegisters;
@@ -96,6 +101,9 @@ const { registers } = defineProps<Props>();
 
 const ROW_HEIGHT_ESTIMATE = 25;
 const scrollContainer = ref<HTMLElement | null>(null);
+const isEditing = ref(false);
+const editingAddress = ref<number | null>(null);
+const editingValue = ref("");
 const containerHeight = ref(0);
 
 const { jumpToAddress, setActiveTab } = useDebuggerNav();
@@ -121,6 +129,7 @@ const viewCenterOffset = ref(registers.SP);
 
 const visibleStackSlice = computed(() => {
 	// Access tick to create a reactive dependency on the UI update loop
+	// oxlint-disable-next-line no-unused-expressions
 	tick.value;
 
 	const currentSP = viewCenterOffset.value ?? 0xff; // This is the SP offset (0-255)
@@ -161,9 +170,7 @@ const visibleStackSlice = computed(() => {
 
 	// Post-process to find adjacent return address bytes
 	for (let i = 0; i < slice.length - 1; i++) {
-		// biome-ignore lint/style/noNonNullAssertion: <slice is built before>
 		const current = slice[i]!;
-		// biome-ignore lint/style/noNonNullAssertion: <slice is built before>
 		const next = slice[i + 1]!;
 		const vmValue = vm?.value;
 		if (!vmValue) continue;
@@ -234,11 +241,14 @@ const handleScroll = (event: WheelEvent) => {
 
 // This will be our reactive trigger to update the view
 const tick = ref(0);
+let pollInterval: number | undefined;
+
 onMounted(() => {
-	// Subscribe to the UI update loop from App.vue
-	subscribeToUiUpdates?.(() => {
-		tick.value++;
-	});
+	pollInterval = window.setInterval(() => {
+		if (!isEditing.value) {
+			tick.value++;
+		}
+	}, 250);
 
 	if (scrollContainer.value) {
 		resizeObserver = new ResizeObserver((entries) => {
@@ -251,27 +261,78 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
-	if (resizeObserver) {
-		resizeObserver.disconnect();
-	}
+	clearInterval(pollInterval);
+	if (resizeObserver) resizeObserver.disconnect();
 });
 
 watch(
 	() => registers.SP,
 	(newSP) => {
 		// When the real SP changes, snap the view's center to it.
-		viewCenterOffset.value = newSP;
+		if (!isEditing.value) {
+			viewCenterOffset.value = newSP;
+		}
 	},
 );
 
-watch(spElement, (el) => {
-	// When the element pointed to by SP changes, scroll it into view.
-	el?.scrollIntoView({ block: "center", behavior: "smooth" });
+watch(isEditing, (editing) => {
+	if (!editing) {
+		viewCenterOffset.value = registers.SP;
+		tick.value++;
+	}
 });
 
-const handleByteChange = (addr: number, event: InputEvent) => {
+watch(spElement, (el) => {
+	// When the element pointed to by SP changes, scroll it into view.
+	if (!isEditing.value) el?.scrollIntoView({ block: "center", behavior: "smooth" });
+});
+
+const startEdit = (address: number, value: number, event: FocusEvent) => {
+	isEditing.value = true;
+	editingAddress.value = address;
+	editingValue.value = toHex(value, 2);
+	(event.target as HTMLInputElement).select();
+};
+
+const cancelEdit = () => {
+	isEditing.value = false;
+	editingAddress.value = null;
+	editingValue.value = "";
+};
+
+const commitEdit = (addr: number, val: string, target: HTMLElement | null) => {
+	const value = parseInt(val, 16);
+	if (!Number.isNaN(value)) {
+		vm?.value.writeDebug(addr, value);
+	}
+	target?.blur();
+};
+
+const handleKeyDown = (event: KeyboardEvent) => {
+	if (event.key === "Escape") {
+		event.preventDefault();
+		(event.target as HTMLElement).blur(); // This will trigger cancelEdit
+	}
+	if (event.key === "Enter") {
+		event.preventDefault();
+		if (editingAddress.value !== null) {
+			commitEdit(editingAddress.value, editingValue.value, event.target as HTMLElement);
+		}
+	}
+	// Filter non-hex keys
+	if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) {
+		if (!/^[0-9a-fA-F]$/.test(event.key)) {
+			event.preventDefault();
+		}
+	}
+};
+
+const handleInput = (addr: number, event: Event) => {
 	const target = event.target as HTMLInputElement;
-	const value = parseInt(target.value, 16);
-	if (!Number.isNaN(value) && value >= 0 && value <= 0xff) vm?.value.writeDebug(addr, value);
+	editingValue.value = target.value.toUpperCase();
+
+	if (editingValue.value.length === 2) {
+		commitEdit(addr, editingValue.value, target);
+	}
 };
 </script>
