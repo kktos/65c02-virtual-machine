@@ -10,8 +10,8 @@ export const defCode: Command = {
 	group: "Memory",
 	fn: async (_vm: VirtualMachine, _progress: Ref<number>, params: ParamList) => {
 		const address = params[0] as number;
-		const { removeFormat } = useFormatting();
-		removeFormat(address);
+		const { removeFormatting } = useFormatting();
+		removeFormatting(address);
 		return `Data region reset to code for ${formatAddress(address)}`;
 	},
 };

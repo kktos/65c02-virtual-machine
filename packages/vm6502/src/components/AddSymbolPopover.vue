@@ -90,7 +90,7 @@ const props = defineProps<{
 const emit = defineEmits<(e: "update:isOpen", value: boolean) => void>();
 
 const { getLabelForAddress, addSymbol, removeSymbol, getSymbolForAddress, updateSymbol } = useSymbols();
-const { getFormat, addFormatting, removeFormat } = useFormatting();
+const { getFormat, addFormatting, removeFormatting } = useFormatting();
 
 const localLabel = ref("");
 const hasExisting = ref(false);
@@ -157,7 +157,7 @@ const handleSave = async () => {
 	if (selectedType.value !== "code") {
 		addFormatting(props.address, selectedType.value, dataLength.value || 1);
 	} else if (hasExistingFormat.value) {
-		removeFormat(props.address);
+		removeFormatting(props.address);
 	}
 
 	emit("update:isOpen", false);
@@ -168,7 +168,7 @@ const handleDelete = async () => {
 	if (existing?.id) {
 		await removeSymbol(existing.id);
 	}
-	removeFormat(props.address);
+	removeFormatting(props.address);
 	emit("update:isOpen", false);
 };
 </script>

@@ -135,7 +135,7 @@ const emit = defineEmits<{
 	(e: "gotoAddress", address: number): void;
 }>();
 
-const { findFormattings, removeFormat } = useFormatting();
+const { findFormattings, removeFormatting } = useFormatting();
 const { editingRule, getPreview, beginAddRule: _beginAddRule, beginEdit } = useFormattingEditing();
 
 type SortKey = "address" | "group";
@@ -173,7 +173,7 @@ const {
 
 const handleDelete = (rule: DataBlock) => {
 	if (confirm(`Remove formatting at ${formatAddress(rule.address)}?`)) {
-		removeFormat(rule.address, rule.group);
+		removeFormatting(rule.address, rule.group);
 	}
 };
 

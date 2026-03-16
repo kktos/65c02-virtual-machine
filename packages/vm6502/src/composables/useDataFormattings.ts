@@ -200,7 +200,7 @@ export function useFormatting() {
 		return id;
 	};
 
-	const removeFormat = async (address: number, group = "user") => {
+	const removeFormatting = async (address: number, group = "user") => {
 		const targetDict = diskKey.value === "*" ? systemRules : diskRules;
 		const rule = targetDict.value[address]?.[group];
 		if (!rule || !rule.id) return;
@@ -326,7 +326,7 @@ export function useFormatting() {
 		activeFormattingGroups,
 
 		addFormatting,
-		removeFormat,
+		removeFormatting,
 		findFormattings,
 
 		getFormat,

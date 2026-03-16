@@ -12,7 +12,7 @@ const validationErrors = ref({
 	length: "",
 });
 
-const { addFormatting, removeFormat } = useFormatting();
+const { addFormatting, removeFormatting } = useFormatting();
 
 export function useFormattingEditing() {
 	const vm = inject<Ref<VirtualMachine>>("vm");
@@ -121,7 +121,7 @@ export function useFormattingEditing() {
 			rule.originalGroup !== undefined &&
 			(rule.originalAddress !== address || rule.originalGroup !== group)
 		) {
-			removeFormat(rule.originalAddress, rule.originalGroup);
+			removeFormatting(rule.originalAddress, rule.originalGroup);
 		}
 
 		addFormatting(address, rule.type, length, group);
