@@ -82,7 +82,7 @@
 				<thead>
 					<tr class="text-gray-400 sticky top-0 bg-gray-900 border-b border-gray-700 shadow-md">
 						<th class="py-1 text-left w-16">Addr</th>
-						<th v-for="i in BYTES_PER_LINE" :key="i" class="text-center w-[1.5rem]">
+						<th v-for="i in bytesPerLine" :key="i" class="text-center w-[1.5rem]">
 							{{ "+" + (i - 1).toString(16).toUpperCase() }}
 						</th>
 						<th class="py-1 text-left w-auto pl-4">
@@ -112,20 +112,20 @@
 						class="hover:bg-gray-700/50 transition duration-100 text-gray-300"
 					>
 						<td class="py-0.5 text-left text-indigo-300 font-bold font-mono">
-							{{ formatAddress(startAddress + (lineIndex - 1) * BYTES_PER_LINE) }}
+							{{ formatAddress(startAddress + (lineIndex - 1) * bytesPerLine) }}
 						</td>
 
-						<td v-for="byteIndex in BYTES_PER_LINE" :key="byteIndex" class="p-0">
+						<td v-for="byteIndex in bytesPerLine" :key="byteIndex" class="p-0">
 							<MemoryHexLine
 								:line-index="lineIndex"
 								:line-data="
 									currentMemorySlice.subarray(
-										(lineIndex - 1) * BYTES_PER_LINE,
-										lineIndex * BYTES_PER_LINE,
+										(lineIndex - 1) * bytesPerLine,
+										lineIndex * bytesPerLine,
 									)
 								"
-								:line-start-address="startAddress + (lineIndex - 1) * BYTES_PER_LINE"
-								:bytes-per-line="BYTES_PER_LINE"
+								:line-start-address="startAddress + (lineIndex - 1) * bytesPerLine"
+								:bytes-per-line="bytesPerLine"
 								:byte-offset-in-line="byteIndex - 1"
 								:editing-index="editingIndex"
 								:editing-mode="editingMode"
@@ -147,17 +147,17 @@
 						</td>
 
 						<td class="py-0.5 pl-4 whitespace-nowrap flex">
-							<template v-for="byteIndex in BYTES_PER_LINE" :key="byteIndex">
+							<template v-for="byteIndex in bytesPerLine" :key="byteIndex">
 								<MemoryAsciiLine
 									:line-index="lineIndex"
 									:line-data="
 										currentMemorySlice.subarray(
-											(lineIndex - 1) * BYTES_PER_LINE,
-											lineIndex * BYTES_PER_LINE,
+											(lineIndex - 1) * bytesPerLine,
+											lineIndex * bytesPerLine,
 										)
 									"
-									:line-start-address="startAddress + (lineIndex - 1) * BYTES_PER_LINE"
-									:bytes-per-line="BYTES_PER_LINE"
+									:line-start-address="startAddress + (lineIndex - 1) * bytesPerLine"
+									:bytes-per-line="bytesPerLine"
 									:byte-offset-in-line="byteIndex - 1"
 									:editing-index="editingIndex"
 									:editing-mode="editingMode"
@@ -297,7 +297,7 @@ const emit = defineEmits<{
 
 const banks = vm?.value.machineConfig.memory.banks || 1;
 const totalMemory = banks * 0x10000;
-const BYTES_PER_LINE = 16;
+const bytesPerLine = ref(16);
 const startAddress = ref<number>(props.initialAddress ?? 0x0000);
 
 const scrollContainer = ref<HTMLElement | null>(null);
@@ -320,7 +320,7 @@ let pollInterval: number | undefined;
 const currentMemorySlice = ref<Uint8Array>(new Uint8Array());
 const refreshMemory = () => {
 	const start = startAddress.value;
-	const length = visibleRowCount.value * BYTES_PER_LINE;
+	const length = visibleRowCount.value * bytesPerLine.value;
 
 	if (vm?.value) currentMemorySlice.value = vm.value.readDebugRange(start, length, debugOverrides.value);
 	else currentMemorySlice.value = new Uint8Array(length);
@@ -352,7 +352,7 @@ watch(isLive, (active) => {
 
 // Watch for changes in startAddress or the tick, and update the slice
 watch(
-	[startAddress, visibleRowCount, debugOverrides, isRunning],
+	[startAddress, visibleRowCount, debugOverrides, isRunning, bytesPerLine],
 	() => {
 		if (!isLive.value) refreshMemory();
 	},
@@ -486,9 +486,19 @@ onKeyStroke("Escape", (e) => {
 onMounted(() => {
 	if (scrollContainer.value) {
 		// Set initial height and observe for changes
-		containerHeight.value = scrollContainer.value.clientHeight;
 		resizeObserver = new ResizeObserver((entries) => {
-			if (entries[0]) containerHeight.value = entries[0].contentRect.height;
+			if (entries[0]) {
+				const { width, height } = entries[0].contentRect;
+				containerHeight.value = height;
+
+				// Calculate columns: Addr(64) + Padding(~36) + Scroll(~20) = ~120px overhead
+				// Cell Width = Hex(24) + Ascii(~12) = ~36px per byte
+				const availableWidth = width - 20;
+				bytesPerLine.value = Math.floor(availableWidth / 36);
+				// const snapped = Math.max(4, Math.floor(possibleBytes / 4) * 4); // Snap to 4
+				// const snapped = Math.max(1, Math.floor(possibleBytes / 1) * 1); // Snap to 1
+				// if (bytesPerLine.value !== snapped) bytesPerLine.value = snapped;
+			}
 		});
 		resizeObserver.observe(scrollContainer.value);
 	}
@@ -602,10 +612,10 @@ const handleKeyDown = (index: number, event: KeyboardEvent, mode: "hex" | "ascii
 
 	switch (event.key) {
 		case "ArrowUp":
-			direction = -BYTES_PER_LINE;
+			direction = -bytesPerLine.value;
 			break;
 		case "ArrowDown":
-			direction = BYTES_PER_LINE;
+			direction = bytesPerLine.value;
 			break;
 		case "ArrowLeft":
 			direction = -1;
@@ -637,7 +647,7 @@ const handleKeyDown = (index: number, event: KeyboardEvent, mode: "hex" | "ascii
 
 	if (targetAbs < 0 || targetAbs > 0xffffff) return;
 
-	const visibleBytes = visibleRowCount.value * BYTES_PER_LINE;
+	const visibleBytes = visibleRowCount.value * bytesPerLine.value;
 	const endAddress = startAddress.value + visibleBytes;
 
 	if (targetAbs >= startAddress.value && targetAbs < endAddress) {
@@ -645,9 +655,9 @@ const handleKeyDown = (index: number, event: KeyboardEvent, mode: "hex" | "ascii
 		startEditing(targetIndex, mode);
 	} else {
 		if (targetAbs < startAddress.value) {
-			startAddress.value = Math.max(0, startAddress.value - BYTES_PER_LINE);
+			startAddress.value = Math.max(0, startAddress.value - bytesPerLine.value);
 		} else {
-			startAddress.value = Math.min(0xffffff, startAddress.value + BYTES_PER_LINE);
+			startAddress.value = Math.min(0xffffff, startAddress.value + bytesPerLine.value);
 		}
 
 		nextTick(() => {
@@ -668,7 +678,7 @@ const handleHexChange = (index: number, event: Event) => {
 
 	if (target.value.length === 2) {
 		const nextIndex = index + 1;
-		const visibleBytes = visibleRowCount.value * BYTES_PER_LINE;
+		const visibleBytes = visibleRowCount.value * bytesPerLine.value;
 		if (nextIndex < visibleBytes) {
 			startEditing(nextIndex, "hex");
 		} else {
@@ -689,7 +699,7 @@ const handleAsciiChange = (index: number, event: Event) => {
 			if (!isLive.value) refreshMemory();
 		}
 		const nextIndex = index + 1;
-		const visibleBytes = visibleRowCount.value * BYTES_PER_LINE;
+		const visibleBytes = visibleRowCount.value * bytesPerLine.value;
 		if (nextIndex < visibleBytes) {
 			startEditing(nextIndex, "ascii");
 		} else {
@@ -700,12 +710,12 @@ const handleAsciiChange = (index: number, event: Event) => {
 
 const throttledWheelHandler = useThrottleFn((event: WheelEvent) => {
 	event.preventDefault();
-	const scrollAmount = BYTES_PER_LINE * (event.ctrlKey ? visibleRowCount.value : 1);
+	const scrollAmount = bytesPerLine.value * (event.ctrlKey ? visibleRowCount.value : 1);
 
 	if (event.deltaY > 0) {
 		// Scrolling down -> increase address
 		const newAddress = startAddress.value + scrollAmount;
-		startAddress.value = Math.min(newAddress, 0xffffff - visibleRowCount.value * BYTES_PER_LINE + 1);
+		startAddress.value = Math.min(newAddress, 0xffffff - visibleRowCount.value * bytesPerLine.value + 1);
 	} else if (event.deltaY < 0) {
 		// Scrolling up -> decrease address
 		const newAddress = startAddress.value - scrollAmount;
