@@ -1,5 +1,6 @@
 <template>
 	<div
+		:id="id"
 		:class="[
 			'p-4 rounded-lg shadow-xl h-full flex flex-col transition-all duration-200',
 			isActive ? 'bg-gray-800 ring-1 ring-cyan-500' : 'bg-gray-800/20',
@@ -9,26 +10,6 @@
 		<div class="mb-3 mt-1 flex flex-wrap items-center gap-4 shrink-0">
 			<div class="flex flex-1 items-center gap-2">
 				<AddressNavigator @goto="handleGoto" />
-				<div
-					v-if="selectedRange && selectedRange.size > 0"
-					class="flex items-center gap-2 pl-2 border-l border-gray-700"
-				>
-					<div class="text-gray-400 text-xs font-mono">{{ selectedRange.size }}</div>
-					<Button
-						size="sm"
-						variant="ghost"
-						class="h-6 px-2 text-xs border-gray-600 text-gray-300 hover:bg-gray-700 hover:text-gray-200"
-						@click="formatAs('byte')"
-						>Byte</Button
-					>
-					<Button
-						size="sm"
-						variant="ghost"
-						class="h-6 px-2 text-xs border-gray-600 text-gray-300 hover:bg-gray-700 hover:text-gray-200"
-						@click="formatAs('string')"
-						>String</Button
-					>
-				</div>
 				<div class="flex items-center space-x-2 pl-2 border-l border-gray-700">
 					<input
 						type="checkbox"
@@ -144,7 +125,8 @@
 									)
 								"
 								:line-start-address="startAddress + (lineIndex - 1) * BYTES_PER_LINE"
-								:bytes-per-line="1"
+								:bytes-per-line="BYTES_PER_LINE"
+								:byte-offset-in-line="byteIndex - 1"
 								:editing-index="editingIndex"
 								:editing-mode="editingMode"
 								:editing-value="editingValue"
@@ -159,43 +141,49 @@
 								@contextmenu="handleContextMenu"
 								@blur="handleBlur"
 								@keydown="handleKeyDown"
-								@set-ref="setHexInputRef"
+								@set-ref="setInputRef"
 								@change="(idx, target) => handleHexChange(idx, { target } as any)"
 							/>
 						</td>
 
 						<td class="py-0.5 pl-4 whitespace-nowrap flex">
-							<MemoryAsciiLine
-								:line-index="lineIndex"
-								:line-data="
-									currentMemorySlice.subarray(
-										(lineIndex - 1) * BYTES_PER_LINE,
-										lineIndex * BYTES_PER_LINE,
-									)
-								"
-								:line-start-address="startAddress + (lineIndex - 1) * BYTES_PER_LINE"
-								:bytes-per-line="BYTES_PER_LINE"
-								:editing-index="editingIndex"
-								:editing-mode="editingMode"
-								:editing-value="editingValue"
-								:selection-anchor="selectionAnchor"
-								:selection-head="selectionHead"
-								:highlighted-range="highlightedRange"
-								:high-bit-enabled="highBitEnabled"
-								:debug-overrides="debugOverrides"
-								@start-editing="startEditing"
-								@start-selection="startSelection"
-								@update-selection="updateSelection"
-								@blur="handleBlur"
-								@keydown="handleKeyDown"
-								@set-ref="setAsciiInputRef"
-								@change="(idx, target) => handleAsciiChange(idx, { target } as any)"
-							/>
+							<template v-for="byteIndex in BYTES_PER_LINE" :key="byteIndex">
+								<MemoryAsciiLine
+									:line-index="lineIndex"
+									:line-data="
+										currentMemorySlice.subarray(
+											(lineIndex - 1) * BYTES_PER_LINE,
+											lineIndex * BYTES_PER_LINE,
+										)
+									"
+									:line-start-address="startAddress + (lineIndex - 1) * BYTES_PER_LINE"
+									:bytes-per-line="BYTES_PER_LINE"
+									:byte-offset-in-line="byteIndex - 1"
+									:editing-index="editingIndex"
+									:editing-mode="editingMode"
+									:editing-value="editingValue"
+									:selection-anchor="selectionAnchor"
+									:selection-head="selectionHead"
+									:highlighted-range="highlightedRange"
+									:high-bit-enabled="highBitEnabled"
+									:debug-overrides="debugOverrides"
+									@start-editing="startEditing"
+									@start-selection="startSelection"
+									@update-selection="updateSelection"
+									@blur="handleBlur"
+									@keydown="handleKeyDown"
+									@set-ref="setInputRef"
+									@change="(idx, target) => handleAsciiChange(idx, { target } as any)"
+								/>
+							</template>
 						</td>
 					</tr>
 				</tbody>
 			</table>
 		</div>
+
+		<!-- Selection Status Bar -->
+		<MemorySelectionStatus :selected-range="selectedRange" @format="formatAs" class="shrink-0" />
 
 		<Popover
 			:open="contextMenu.isOpen"
@@ -282,12 +270,14 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import BinaryLoader from "./BinaryLoader.vue";
 import { useMachine } from "@/composables/useMachine";
 import MemorySearch from "./MemorySearch.vue";
+import MemorySelectionStatus from "./MemorySelectionStatus.vue";
 
 const vm = inject<Ref<VirtualMachine>>("vm");
 const { addFormatting } = useFormatting();
 const { isRunning } = useMachine();
 
 const props = defineProps<{
+	id?: string;
 	canClose?: boolean;
 	initialAddress?: number;
 	listenToNav?: boolean;
@@ -346,6 +336,7 @@ watch(memoryViewAddress, (newAddress) => {
 watch(startAddress, (newAddr) => {
 	emit("update:address", newAddr);
 });
+
 watch(isLive, (active) => {
 	clearInterval(pollInterval);
 	if (active) {
@@ -353,6 +344,7 @@ watch(isLive, (active) => {
 		pollInterval = window.setInterval(refreshMemory, 250); // 4 FPS
 	}
 });
+
 // Watch for changes in startAddress or the tick, and update the slice
 watch(
 	[startAddress, visibleRowCount, debugOverrides, isRunning],
@@ -496,6 +488,7 @@ onMounted(() => {
 
 onUnmounted(() => {
 	resizeObserver?.disconnect();
+	clearInterval(pollInterval);
 });
 
 // --- Selection Logic ---
@@ -546,26 +539,17 @@ const formatAs = (type: "byte" | "string") => {
 const editingIndex = ref<number | null>(null);
 const editingMode = ref<"hex" | "ascii" | null>(null);
 const editingValue = ref("");
-const hexInputRefs = ref<Map<number, HTMLInputElement>>(new Map());
-const asciiInputRefs = ref<Map<number, HTMLInputElement>>(new Map());
+const activeInputRef = ref<HTMLInputElement | null>(null);
 
-const setHexInputRef = (el: unknown, index: number) => {
-	if (el) {
-		hexInputRefs.value.set(index, el as HTMLInputElement);
-	} else {
-		hexInputRefs.value.delete(index);
+const setInputRef = (el: unknown, index: number) => {
+	if (el && index === editingIndex.value) {
+		activeInputRef.value = el as HTMLInputElement;
 	}
 };
 
-const setAsciiInputRef = (el: unknown, index: number) => {
-	if (el) {
-		asciiInputRefs.value.set(index, el as HTMLInputElement);
-	} else {
-		asciiInputRefs.value.delete(index);
-	}
-};
-
-const handleBlur = () => {
+const handleBlur = (index?: number) => {
+	// If the blur event comes from a cell that is no longer being edited (because we moved to another one), ignore it.
+	if (typeof index === "number" && editingIndex.value !== index) return;
 	editingIndex.value = null;
 	editingMode.value = null;
 };
@@ -580,6 +564,9 @@ const getAsciiChar = (byte: number | undefined) => {
 const startEditing = async (index: number, mode: "hex" | "ascii") => {
 	if (editingIndex.value === index && editingMode.value === mode) return;
 
+	selectionAnchor.value = null;
+	selectionHead.value = null;
+
 	editingIndex.value = index;
 	editingMode.value = mode;
 
@@ -592,11 +579,9 @@ const startEditing = async (index: number, mode: "hex" | "ascii") => {
 
 	await nextTick();
 
-	const refs = mode === "hex" ? hexInputRefs.value : asciiInputRefs.value;
-	const inputEl = refs.get(index);
-	if (inputEl) {
-		inputEl.focus();
-		inputEl.select();
+	if (activeInputRef.value) {
+		activeInputRef.value.focus();
+		activeInputRef.value.select();
 	}
 };
 
@@ -662,8 +647,10 @@ const handleHexChange = (index: number, event: Event) => {
 	const target = event.target as HTMLInputElement;
 	if (editingIndex.value === index && editingMode.value === "hex") editingValue.value = target.value;
 	const value = parseInt(target.value, 16);
-	if (!Number.isNaN(value) && value >= 0 && value <= 0xff && debugOverrides.value)
+	if (!Number.isNaN(value) && value >= 0 && value <= 0xff && debugOverrides.value) {
 		vm?.value.writeDebug(startAddress.value + index, value, debugOverrides.value);
+		if (!isLive.value) refreshMemory();
+	}
 
 	if (target.value.length === 2) {
 		const nextIndex = index + 1;
@@ -683,7 +670,10 @@ const handleAsciiChange = (index: number, event: Event) => {
 	if (val.length > 0) {
 		let code = val.charCodeAt(0);
 		if (highBitEnabled.value) code |= 0x80;
-		if (debugOverrides.value) vm?.value.writeDebug(startAddress.value + index, code, debugOverrides.value);
+		if (debugOverrides.value) {
+			vm?.value.writeDebug(startAddress.value + index, code, debugOverrides.value);
+			if (!isLive.value) refreshMemory();
+		}
 		const nextIndex = index + 1;
 		const visibleBytes = visibleRowCount.value * BYTES_PER_LINE;
 		if (nextIndex < visibleBytes) {

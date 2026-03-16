@@ -1,32 +1,34 @@
 <template>
-	<template v-for="byteIndex in bytesPerLine" :key="byteIndex">
-		<template v-if="isEditing(byteIndex - 1)">
-			<input
-				type="text"
-				:value="editingValue"
-				:ref="(el) => emit('set-ref', el, getGlobalIndex(byteIndex - 1))"
-				@keydown="onKeyDown(byteIndex - 1, $event)"
-				@input="onInput(byteIndex - 1, $event)"
-				@blur="onBlur"
-				maxlength="1"
-				class="w-[1.2ch] text-center bg-yellow-600 focus:bg-gray-600 focus:outline-none focus:ring-1 focus:ring-cyan-500 rounded-none tabular-nums text-xs p-0 border-none font-bold"
-			/>
-		</template>
-		<template v-else>
-			<div
-				@dblclick="onDblClick(byteIndex - 1)"
-				@mousedown="onMouseDown(byteIndex - 1, $event)"
-				@mouseenter="onMouseEnter(byteIndex - 1)"
-				:class="[
-					'w-[1.2ch] text-center tabular-nums text-xs p-0 font-bold cursor-text select-none',
-					getAsciiClass(lineData[byteIndex - 1], isHighlighted(byteIndex - 1), isCellSelected(byteIndex - 1)),
-					getBreakpointClass(byteIndex - 1),
-					isCellSelected(byteIndex - 1) ? '' : getDataBlockClass(byteIndex - 1),
-				]"
-			>
-				{{ getAsciiChar(lineData[byteIndex - 1]) }}
-			</div>
-		</template>
+	<template v-if="isEditing(byteOffsetInLine)">
+		<input
+			type="text"
+			:value="editingValue"
+			:ref="(el) => emit('set-ref', el, getGlobalIndex(byteOffsetInLine))"
+			@keydown="onKeyDown(byteOffsetInLine, $event)"
+			@input="onInput(byteOffsetInLine, $event)"
+			@blur="onBlur(byteOffsetInLine)"
+			maxlength="1"
+			class="w-[1.2ch] text-center bg-yellow-600 focus:bg-gray-600 focus:outline-none focus:ring-1 focus:ring-cyan-500 rounded-none tabular-nums text-xs p-0 border-none font-bold"
+		/>
+	</template>
+	<template v-else>
+		<div
+			@dblclick="onDblClick(byteOffsetInLine)"
+			@mousedown="onMouseDown(byteOffsetInLine, $event)"
+			@mouseenter="onMouseEnter(byteOffsetInLine)"
+			:class="[
+				'w-[1.2ch] text-center tabular-nums text-xs p-0 font-bold cursor-text select-none',
+				getAsciiClass(
+					lineData[byteOffsetInLine],
+					isHighlighted(byteOffsetInLine),
+					isCellSelected(byteOffsetInLine),
+				),
+				getBreakpointClass(byteOffsetInLine),
+				isCellSelected(byteOffsetInLine) ? '' : getDataBlockClass(byteOffsetInLine),
+			]"
+		>
+			{{ getAsciiChar(lineData[byteOffsetInLine]) }}
+		</div>
 	</template>
 </template>
 
@@ -42,6 +44,7 @@ const props = defineProps<{
 	lineData: Uint8Array;
 	lineStartAddress: number;
 	bytesPerLine: number;
+	byteOffsetInLine: number;
 	editingIndex: number | null;
 	editingMode: "hex" | "ascii" | null;
 	editingValue: string;
@@ -56,7 +59,7 @@ const emit = defineEmits<{
 	(e: "start-editing", index: number, mode: "ascii"): void;
 	(e: "start-selection", index: number, event: MouseEvent): void;
 	(e: "update-selection", index: number): void;
-	(e: "blur"): void;
+	(e: "blur", index: number): void;
 	(e: "keydown", index: number, event: KeyboardEvent, mode: "ascii"): void;
 	(e: "set-ref", el: unknown, index: number): void;
 	(e: "change", index: number, target: HTMLInputElement): void;
@@ -88,7 +91,7 @@ const onInput = (indexInLine: number, event: Event) => {
 	}
 };
 
-const onBlur = () => emit("blur");
+const onBlur = (indexInLine: number) => emit("blur", getGlobalIndex(indexInLine));
 
 const getAsciiChar = (byte: number | undefined) => {
 	if (byte === undefined) return "·";
