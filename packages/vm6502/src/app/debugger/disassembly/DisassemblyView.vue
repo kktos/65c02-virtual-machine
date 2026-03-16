@@ -60,7 +60,7 @@
 						@set-selection-end="(addr) => (selectionEnd = addr)"
 					/>
 				</div>
-				<SymbolManager ref="symbolManagerRef" @goto-address="gotoAddress" />
+				<SymbolManager @goto-address="gotoAddress" />
 				<FormattingManager @goto-address="gotoAddress" />
 				<ExplanationDrawer
 					v-model:open="isExplanationOpen"
