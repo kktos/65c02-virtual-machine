@@ -1,6 +1,6 @@
 <template>
 	<div class="grid grid-cols-[auto_1fr_auto] justify-between items-center mb-2 shrink-0 gap-4">
-		<AddressNavigator @goto="(addr) => $emit('gotoAddress', addr)" />
+		<AddressNavigator name="disassembly" @goto="(addr) => $emit('gotoAddress', addr)" />
 
 		<div class="flex space-x-2 mx-4">
 			<button

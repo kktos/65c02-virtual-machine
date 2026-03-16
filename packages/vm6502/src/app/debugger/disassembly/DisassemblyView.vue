@@ -99,6 +99,7 @@ import { BRANCH_OPCODES } from "@/lib/opcodes";
 import { getRandomColor } from "@/lib/colors.utils";
 import { toHex } from "@/lib/hex.utils";
 import { X } from "lucide-vue-next";
+import { useAddressHistory } from "@/composables/useAddressHistory";
 
 const vm = inject<Ref<VirtualMachine>>("vm");
 
@@ -123,7 +124,8 @@ watch(isMaximized, (isMax) => {
 
 const { pcBreakpoints, toggleBreakpoint } = useBreakpoints();
 const { jumpEvent } = useDisassembly();
-const { setMemoryViewAddress, setActiveTab, addJumpHistory, historyNavigationEvent, clearHistory } = useDebuggerNav();
+const { setMemoryViewAddress, setActiveTab } = useDebuggerNav();
+const { addJumpHistory, historyNavigationEvent, clearHistory } = useAddressHistory("disassembly");
 const { settings } = useSettings();
 const { formattingState } = useFormatting();
 const {

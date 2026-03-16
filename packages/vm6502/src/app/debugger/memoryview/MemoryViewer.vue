@@ -7,9 +7,9 @@
 		]"
 		ref="scrollContainer"
 	>
-		<div class="mb-3 mt-1 flex flex-wrap items-center gap-4 shrink-0">
+		<div class="mb-2 mt-1 flex flex-wrap items-center gap-4 shrink-0">
 			<div class="flex flex-1 items-center gap-2">
-				<AddressNavigator @goto="handleGoto" />
+				<AddressNavigator name="memory" @goto="handleGoto" />
 				<div class="flex items-center space-x-2 pl-2 border-l border-gray-700">
 					<input
 						type="checkbox"

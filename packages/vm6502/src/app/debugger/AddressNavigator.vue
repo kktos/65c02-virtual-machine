@@ -60,9 +60,7 @@
 								<span v-if="index === historyIndex" class="text-[10px]">●</span>
 							</div>
 							<span class="font-mono text-gray-400">$</span>
-							<span class="font-mono font-medium">{{
-								addr.toString(16).toUpperCase().padStart(4, "0")
-							}}</span>
+							<span class="font-mono font-medium">{{ formatAddress(addr) }}</span>
 							<span class="text-gray-500 truncate ml-auto max-w-[80px]">{{
 								getLabelForAddress(addr)
 							}}</span>
@@ -128,21 +126,24 @@ import { ArrowLeft, ArrowRight, History, SearchIcon, Trash2 } from "lucide-vue-n
 import { computed, ref } from "vue";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { useDebuggerNav } from "@/composables/useDebuggerNav";
 import { useSymbols, type SymbolEntry } from "@/composables/useSymbols";
-import { toHex } from "@/lib/hex.utils";
+import { formatAddress, toHex } from "@/lib/hex.utils";
+import { useAddressHistory } from "@/composables/useAddressHistory";
+
+const props = defineProps<{
+	name: string;
+}>();
 
 const emit = defineEmits<(e: "goto", address: number) => void>();
 
 const { getAddressForLabel, getLabelForAddress, findSymbols } = useSymbols();
+const { historyIndex, jumpHistory, addJumpHistory, navigateHistory, jumpToHistoryIndex, clearHistory } =
+	useAddressHistory(props.name);
 const inputValue = ref("");
 const isHistoryOpen = ref(false);
 const suggestions = ref<SymbolEntry[]>([]);
 const showSuggestions = ref(false);
 const selectedSuggestionIndex = ref(-1);
-
-const { historyIndex, jumpHistory, addJumpHistory, navigateHistory, jumpToHistoryIndex, clearHistory } =
-	useDebuggerNav();
 
 const canNavigateBack = computed(() => historyIndex.value > 0);
 const canNavigateForward = computed(() => historyIndex.value < jumpHistory.value.length - 1);
