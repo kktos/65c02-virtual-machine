@@ -10,6 +10,7 @@
 			contentScrollable: false,
 		}"
 		@resize="onResize"
+		@open="onOpen"
 	>
 		<template #icon>
 			<Binary class="h-4 w-4 text-gray-300" />
@@ -19,6 +20,7 @@
 			<!-- Search and Filter -->
 			<div class="flex justify-between items-center mb-4 gap-4">
 				<Input
+					ref="searchInput"
 					v-model="searchTerm"
 					placeholder="Search address..."
 					class="flex-1 bg-gray-700 border-gray-600 text-gray-200 placeholder:text-gray-400"
@@ -72,7 +74,7 @@
 
 <script setup lang="ts">
 import { PlusCircle, Download, Upload, Binary } from "lucide-vue-next";
-import { computed, ref } from "vue";
+import { computed, nextTick, ref } from "vue";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
 import FloatingWindow from "@/components/FloatingWindow.vue";
@@ -92,6 +94,7 @@ const { downloadFile } = useFileDownload();
 const searchTerm = ref("");
 const selectedGroup = ref("");
 const formattingTableRef = ref<InstanceType<typeof FormattingTable> | null>(null);
+const searchInput = ref<any>(null);
 
 const ROW_HEIGHT = 41;
 const itemsPerPage = ref(10);
@@ -136,5 +139,12 @@ const handleExport = async () => {
 
 	const content = await generateTextFromFormattings();
 	downloadFile(`${name}.fmt`, "text/plain;charset=utf-8", content);
+};
+
+const onOpen = () => {
+	nextTick(() => {
+		const el = searchInput.value?.$el ?? searchInput.value;
+		el?.focus?.();
+	});
 };
 </script>

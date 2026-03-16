@@ -1,6 +1,5 @@
 <template>
 	<FloatingWindow
-		ref="windowRef"
 		id="symbol_manager"
 		title="Symbol Manager"
 		:options="{
@@ -11,6 +10,7 @@
 			contentScrollable: false,
 		}"
 		@resize="onResize"
+		@open="onOpen"
 	>
 		<template #icon>
 			<Tags class="h-4 w-4 text-gray-300" />
@@ -23,6 +23,7 @@
 
 			<div class="flex justify-between items-center mb-4 gap-4">
 				<Input
+					ref="searchInput"
 					v-model="searchTerm"
 					placeholder="Search by label or address..."
 					class="flex-1 bg-gray-700 border-gray-600 text-gray-200 placeholder:text-gray-400"
@@ -91,7 +92,7 @@
 
 <script setup lang="ts">
 import { Download, PlusCircle, Tags, Trash2, Upload } from "lucide-vue-next";
-import { computed, ref, watch } from "vue";
+import { computed, nextTick, ref, watch } from "vue";
 import FloatingWindow from "@/components/FloatingWindow.vue";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
@@ -106,7 +107,6 @@ const emit = defineEmits<{
 	(e: "gotoAddress", address: number): void;
 }>();
 
-const windowRef = ref<InstanceType<typeof FloatingWindow> | null>(null);
 const isCtrlPressed = useKeyModifier("Control");
 const shouldDisplayDisk = ref(false);
 
@@ -117,6 +117,7 @@ const searchTerm = ref("");
 const selectedNamespace = ref("");
 const symbolTableRef = ref<InstanceType<typeof SymbolTable> | null>(null);
 const selectedCount = computed(() => symbolTableRef.value?.selectedSymbols.size ?? 0);
+const searchInput = ref<any>(null);
 
 const ROW_HEIGHT = 41; // Height of a table row in pixels.
 
@@ -178,10 +179,11 @@ const handleBulkDelete = async () => {
 	}
 };
 
-const open = () => {
-	windowRef.value?.open();
+const onOpen = () => {
 	shouldDisplayDisk.value = !!isCtrlPressed.value;
+	nextTick(() => {
+		const el = searchInput.value?.$el ?? searchInput.value;
+		el?.focus?.();
+	});
 };
-
-defineExpose({ open });
 </script>

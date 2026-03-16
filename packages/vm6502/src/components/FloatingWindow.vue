@@ -113,6 +113,7 @@ const defaultOptions: Required<FloatingWindowOptions> = {
 
 const config = computed(() => ({ ...defaultOptions, ...props.options }));
 const emit = defineEmits<{
+	(e: "open"): void;
 	(e: "close"): void;
 	(e: "resize", size: { width: number; height: number }): void;
 }>();
@@ -198,6 +199,7 @@ const open = (options?: { x?: number; y?: number; width?: number; height?: numbe
 
 	isOpen.value = true;
 	bringToFront();
+	emit("open");
 	// Save new state if opened programmatically with new coordinates
 	saveState();
 	nextTick(() => clampToViewport());
