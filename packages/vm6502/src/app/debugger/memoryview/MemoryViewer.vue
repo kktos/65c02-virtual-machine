@@ -44,66 +44,7 @@
 				</div>
 			</div>
 
-			<!-- Search Popover -->
-			<Popover v-model:open="isSearchOpen">
-				<PopoverTrigger as-child>
-					<Button
-						variant="ghost"
-						size="icon"
-						class="h-6 w-6 text-gray-400 hover:text-cyan-300"
-						title="Search Memory"
-					>
-						<Search class="h-4 w-4" />
-					</Button>
-				</PopoverTrigger>
-				<PopoverContent class="w-80 p-3 bg-gray-800 border-gray-700" align="end">
-					<div class="flex flex-col space-y-3">
-						<div class="flex items-center space-x-2">
-							<select
-								v-model="searchMode"
-								class="bg-gray-900 text-xs text-gray-200 border border-gray-600 rounded px-2 py-1 focus:outline-none focus:border-cyan-500"
-							>
-								<option value="hex">Hex</option>
-								<option value="text_lo">Text (bit7=0)</option>
-								<option value="text_hi">Text (bit7=1)</option>
-								<option value="text_any">Text (Any)</option>
-							</select>
-							<input
-								v-model="searchQuery"
-								@keydown.enter="performSearch(1)"
-								type="text"
-								class="flex-1 bg-gray-900 text-xs text-gray-200 border border-gray-600 rounded px-2 py-1 focus:outline-none focus:border-cyan-500"
-								:placeholder="searchMode === 'hex' ? 'e.g. A9 00' : 'Text...'"
-							/>
-						</div>
-						<div class="flex items-center space-x-2">
-							<input
-								type="checkbox"
-								id="searchAllBanks"
-								v-model="searchAllBanks"
-								class="rounded bg-gray-900 border-gray-600 text-cyan-500 focus:ring-cyan-500 h-3 w-3"
-							/>
-							<label for="searchAllBanks" class="text-xs text-gray-300 cursor-pointer select-none"
-								>Search All Banks</label
-							>
-						</div>
-						<div v-if="searchError" class="text-[10px] text-red-400">
-							{{ searchError }}
-						</div>
-						<div class="flex justify-end space-x-2">
-							<Button size="sm" variant="secondary" class="h-7 text-xs" @click="performSearch(-1)"
-								>Prev</Button
-							>
-							<Button
-								size="sm"
-								class="h-7 text-xs bg-cyan-600 hover:bg-cyan-500 text-white"
-								@click="performSearch(1)"
-								>Next</Button
-							>
-						</div>
-					</div>
-				</PopoverContent>
-			</Popover>
+			<MemorySearch :current-address="startAddress" />
 
 			<BinaryLoader :address="startAddress" :debug-overrides="debugOverrides" />
 
@@ -387,9 +328,7 @@
 </template>
 
 <script lang="ts" setup>
-/** biome-ignore-all lint/correctness/noUnusedVariables: vue */
-
-import { Search, Split, X } from "lucide-vue-next";
+import { Split, X } from "lucide-vue-next";
 import { computed, inject, nextTick, onMounted, onUnmounted, type Ref, ref, watch } from "vue";
 import AddressNavigator from "@/app/debugger/AddressNavigator.vue";
 import AddSymbolPopover from "@/components/AddSymbolPopover.vue";
@@ -406,9 +345,10 @@ import type { DebugGroup } from "@/types/machine.interface";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import BinaryLoader from "./BinaryLoader.vue";
 import { useMachine } from "@/composables/useMachine";
+import MemorySearch from "./MemorySearch.vue";
 
 const vm = inject<Ref<VirtualMachine>>("vm");
-const { addFormatting } = useFormatting();
+const { addFormatting, getFormat } = useFormatting();
 const { isRunning } = useMachine();
 
 const props = defineProps<{
@@ -492,111 +432,12 @@ const handleGoto = (addr: number) => {
 	if (addr < totalMemory) startAddress.value = addr;
 };
 
-// --- Search Functionality ---
-const isSearchOpen = ref(false);
-const searchQuery = ref("");
-const searchMode = ref<"hex" | "text_lo" | "text_hi" | "text_any">("hex");
-const searchAllBanks = ref(false);
-const searchError = ref("");
 const highlightedRange = ref<{ start: number; length: number } | null>(null);
 
 const isHighlighted = (index: number) => {
 	if (!highlightedRange.value) return false;
 	const addr = startAddress.value + index;
 	return addr >= highlightedRange.value.start && addr < highlightedRange.value.start + highlightedRange.value.length;
-};
-
-const performSearch = (direction: 1 | -1) => {
-	searchError.value = "";
-	highlightedRange.value = null;
-	if (!searchQuery.value || !vm?.value) return;
-
-	let searchBytes: number[] | Uint8Array = [];
-
-	if (searchMode.value === "hex") {
-		const clean = searchQuery.value.replace(/\s+/g, "");
-		if (!/^[0-9a-fA-F]+$/.test(clean) || clean.length % 2 !== 0) {
-			searchError.value = "Invalid Hex";
-			return;
-		}
-		const bytes: number[] = [];
-		for (let i = 0; i < clean.length; i += 2) {
-			bytes.push(parseInt(clean.substring(i, i + 2), 16));
-		}
-		searchBytes = new Uint8Array(bytes);
-	} else {
-		const bytes: number[] = [];
-		for (let i = 0; i < searchQuery.value.length; i++) {
-			const charCode = searchQuery.value.charCodeAt(i) & 0x7f;
-			if (searchMode.value === "text_hi") {
-				bytes.push(charCode | 0x80);
-			} else {
-				bytes.push(charCode);
-			}
-		}
-		searchBytes = new Uint8Array(bytes);
-	}
-
-	if (searchBytes.length === 0) return;
-
-	// Determine search range
-	const rangeStart = searchAllBanks.value ? 0 : startAddress.value & 0xff0000;
-	const rangeEnd = searchAllBanks.value ? totalMemory - 1 : (startAddress.value & 0xff0000) | 0xffff;
-	const is7Bit = searchMode.value === "text_any";
-
-	// Execute search via VM/Bus
-	// Note: Assuming vm.value.search delegates to bus.search with (pattern, start, end, is7Bit)
-	// and returns { address: number, location: string }[]
-	const results = vm.value.search(searchBytes as Uint8Array, rangeStart, rangeEnd, is7Bit);
-
-	if (!results || results.length === 0) {
-		searchError.value = searchAllBanks.value ? "Not found in memory" : "Not found in current bank";
-		return;
-	}
-
-	// Find the next/prev occurrence relative to startAddress.value
-	let foundAddr = -1;
-	let foundLoc = "";
-	const currentAddr = startAddress.value;
-
-	if (direction === 1) {
-		// Forward search: Find first result > currentAddr
-		const next = results.find((r) => r.address > currentAddr);
-		if (next) {
-			foundAddr = next.address;
-			foundLoc = next.location;
-		} else {
-			// Wrap around to beginning
-			foundAddr = results[0].address;
-			foundLoc = results[0].location;
-		}
-	} else {
-		// Backward search: Find last result < currentAddr
-		// Array is sorted by address ascending
-		const prev = [...results].reverse().find((r) => r.address < currentAddr);
-		if (prev) {
-			foundAddr = prev.address;
-			foundLoc = prev.location;
-		} else {
-			// Wrap around to end
-			foundAddr = results[results.length - 1].address;
-			foundLoc = results[results.length - 1].location;
-		}
-	}
-
-	if (foundLoc && debugOverrides.value) {
-		const overrides = debugOverrides.value as Record<string, unknown>;
-		if (["BANK1", "BANK2", "ROM"].includes(foundLoc)) overrides.lcView = foundLoc;
-		else if (["INT", "SLOT"].includes(foundLoc)) overrides.cxView = foundLoc;
-	}
-
-	highlightedRange.value = { start: foundAddr, length: searchBytes.length };
-	// Center the found address in the view and align to row boundary
-	const foundRowStart = foundAddr & 0xfffffff0;
-	const rowsBefore = Math.floor(visibleRowCount.value / 2);
-	let newStart = foundRowStart - rowsBefore * BYTES_PER_LINE;
-	if (newStart < 0) newStart = 0;
-	startAddress.value = newStart;
 };
 
 // --- Context Menu ---
@@ -684,16 +525,8 @@ const getBreakpointClass = (index: number) => {
 
 const getDataBlockClass = (index: number) => {
 	const addr = startAddress.value + index;
-	// for (const block of formattingRules.value.values()) {
-	// 	let len = block.length;
-	// 	if (block.type === "word") len *= 2;
-	// 	if (addr >= block.address && addr < block.address + len) return "bg-indigo-900/30 text-indigo-200";
-	// }
-	return "";
+	return getFormat(addr) ? "bg-indigo-900/30 text-indigo-200" : "";
 };
-
-// This will be our reactive trigger to update the view
-// const tick = ref(0);
 
 const activeDebugBadges = computed(() => {
 	if (!debugOptionsPopover.value || !vm?.value) return [];
