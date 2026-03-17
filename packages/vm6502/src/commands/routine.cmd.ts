@@ -1,11 +1,11 @@
 import { useRoutines } from "@/composables/useRoutines";
-import type { Command, ParamListItemIdentifier } from "@/types/command";
+import type { Command, CommandContext, ParamListItemIdentifier } from "@/types/command";
 
 export const routineCmd: Command = {
 	description: "Define a routine on multiple lines, ended by END.",
 	paramDef: ["name"],
 	group: "Scripting",
-	fn: (_vm, _progress, params) => {
+	fn: ({ params }: CommandContext) => {
 		const routineName = params[0] as ParamListItemIdentifier;
 		if (!routineName) throw new Error("Routine name missing.");
 

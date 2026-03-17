@@ -1,9 +1,7 @@
 import { useGemini } from "@/composables/useGemini";
 import { useMachine } from "@/composables/useMachine";
 import { disassembleRange, formatDisassemblyAsText } from "@/lib/disassembler";
-import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
-import type { Command, CommandResult, ParamList, ParamListItemIdentifier } from "@/types/command";
-import type { Ref } from "vue";
+import type { Command, CommandContext, CommandResult, ParamListItemIdentifier } from "@/types/command";
 
 export const explainCmd: Command = {
 	description:
@@ -11,7 +9,7 @@ export const explainCmd: Command = {
 	paramDef: ["range", "name?", "name?"],
 	group: "A.I.",
 	closeOnSuccess: false,
-	fn: async (vm: VirtualMachine, progress: Ref<number>, params: ParamList): Promise<CommandResult> => {
+	fn: async ({ vm, progress, params }: CommandContext): Promise<CommandResult> => {
 		const readByte = (address: number, debug = true) => (debug ? vm.readDebug(address) : vm.read(address)) ?? 0;
 		const { registers } = useMachine();
 		const { explainCode } = useGemini();

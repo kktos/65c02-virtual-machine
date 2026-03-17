@@ -1,7 +1,5 @@
 import { useFloatingWindows } from "@/composables/useFloatingWindows";
-import type { Command, CommandResult, ParamList, ParamListItemIdentifier } from "@/types/command";
-import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
-import type { Ref } from "vue";
+import type { Command, CommandContext, CommandResult, ParamListItemIdentifier } from "@/types/command";
 
 const { availableWindows, open } = useFloatingWindows();
 
@@ -9,7 +7,7 @@ export const showCmd: Command = {
 	description: "Show a window. Usage: SHOW to list all the windows or SHOW `windowID`.",
 	paramDef: ["name?"],
 	group: "Console",
-	fn: (_vm: VirtualMachine, _progress: Ref<number>, params: ParamList): CommandResult => {
+	fn: ({ params }: CommandContext): CommandResult => {
 		const windowID = params[0] as ParamListItemIdentifier;
 
 		if (windowID) {

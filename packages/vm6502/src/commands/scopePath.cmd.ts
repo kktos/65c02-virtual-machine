@@ -1,7 +1,5 @@
 import { useSymbols } from "@/composables/useSymbols";
-import type { Command, CommandResult, ParamList } from "@/types/command";
-import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
-import type { Ref } from "vue";
+import type { Command, CommandContext, CommandResult } from "@/types/command";
 
 const { setScopeSearchPath, scopeSearchPath } = useSymbols();
 
@@ -9,7 +7,7 @@ export const scopePathCmd: Command = {
 	description: "Get or set the scope search path. Usage: SCOPEPATH [scope1 scope2 ...]",
 	paramDef: ["rest?"],
 	group: "Symbols",
-	fn: async (_vm: VirtualMachine, _progress: Ref<number>, params: ParamList): Promise<CommandResult> => {
+	fn: async ({ params }: CommandContext): Promise<CommandResult> => {
 		if (params.length === 0)
 			return {
 				content: `Current scope search path: [${scopeSearchPath.value.join(", ")}]`,

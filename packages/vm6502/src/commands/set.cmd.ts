@@ -1,5 +1,5 @@
 import { toHex } from "@/lib/hex.utils";
-import type { Command, ParamList } from "@/types/command";
+import type { Command, CommandContext } from "@/types/command";
 import {
 	REG_A_OFFSET,
 	REG_PC_OFFSET,
@@ -8,8 +8,6 @@ import {
 	REG_X_OFFSET,
 	REG_Y_OFFSET,
 } from "@/virtualmachine/cpu/shared-memory";
-import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
-import type { Ref } from "vue";
 
 type Register8 = keyof typeof BYTE_REGISTERS;
 type Register16 = keyof typeof WORD_REGISTERS;
@@ -31,7 +29,7 @@ export const setCmd: Command = {
 	description: "",
 	paramDef: ["name", "byte|word"],
 	group: "Monitor",
-	fn: (vm: VirtualMachine, _progress: Ref<number>, params: ParamList) => {
+	fn: ({ vm, params }: CommandContext) => {
 		const reg = (params[0] as string).toUpperCase() as Register;
 		if (!reg) throw new Error(`Invalid register: ${reg}`);
 

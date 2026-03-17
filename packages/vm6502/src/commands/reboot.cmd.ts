@@ -1,13 +1,11 @@
 import { useMachine } from "@/composables/useMachine";
-import type { Command, ParamList } from "@/types/command";
-import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
-import type { Ref } from "vue";
+import type { Command } from "@/types/command";
 
 export const reboot: Command = {
 	description: "Reboot the vm",
 	paramDef: [],
 	group: "Execution",
-	fn: (_vm: VirtualMachine, _progress: Ref<number>, _params: ParamList) => {
+	fn: () => {
 		const { loadMachine } = useMachine();
 		loadMachine();
 		return `Rebooted the vm`;

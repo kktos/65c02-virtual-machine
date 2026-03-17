@@ -1,3 +1,6 @@
+import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
+import type { Ref } from "vue";
+
 export type CommandOutput = {
 	content: string;
 	format: "text" | "markdown";
@@ -31,11 +34,18 @@ export type MultiLineRequest = {
 	onLine?: (line: string) => ResultOnLineFn;
 };
 
+export interface CommandContext {
+	vm: VirtualMachine;
+	progress: Ref<number>;
+	params: ParamList;
+	pipeDest: number;
+}
+
 export type Command = {
 	description: string;
 	paramDef?: ParamDef[];
 	group: string;
-	fn: (vm: VirtualMachine, progress: Ref<number>, params: ParamList) => Promise<CommandResult> | CommandResult;
+	fn: (context: CommandContext) => Promise<CommandResult> | CommandResult;
 	closeOnSuccess?: boolean;
 	staticParams?: {
 		prepend?: (string | number)[];

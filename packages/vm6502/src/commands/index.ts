@@ -19,11 +19,10 @@ import { setDisasmView } from "./setDisasmView.cmd";
 import { setMemView, setMemViewFn } from "./setMemView.cmd";
 import { speed } from "./speed.cmd";
 import { undefLabel } from "./undefLabel.cmd";
-import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import { routineCmd } from "./routine.cmd";
 import { explainCmd } from "./explainCode.cmd";
-import type { Command, CommandResult, ParamDef, ParamList, ParamListItemIdentifier } from "@/types/command";
-import { useCommands } from "@/composables/useCommands";
+import type { Command, CommandContext, CommandResult, ParamDef } from "@/types/command";
+import { isParamListItemIdentifier, useCommands } from "@/composables/useCommands";
 import { stepCmd } from "./step.cmd";
 import { glCmd } from "./gl.cmd";
 import { setCmd } from "./set.cmd";
@@ -51,8 +50,8 @@ const cmdHelp: Command = {
 	description: "Lists all available commands. Can be filtered by group name (e.g., HELP cons).",
 	paramDef: ["name?"],
 	group: "Console",
-	fn: (_vm: VirtualMachine, _progress, params: ParamList): CommandResult => {
-		const groupFilter = params[0] as ParamListItemIdentifier | undefined;
+	fn: ({ params }: CommandContext): CommandResult => {
+		const groupFilter = isParamListItemIdentifier(params[0]) ? params[0].text : (params[0] as string);
 		const groups: Record<string, { key: string; cmd: Command; aliases: string[] }[]> = {};
 		const commandAliases: Record<string, string[]> = {};
 
@@ -85,7 +84,7 @@ const cmdHelp: Command = {
 		const sortedGroupNames = Object.keys(groups).sort();
 
 		for (const groupName of sortedGroupNames) {
-			if (groupFilter && !groupName.toUpperCase().startsWith(groupFilter.text.toUpperCase())) continue;
+			if (groupFilter && !groupName.toUpperCase().startsWith(groupFilter.toUpperCase())) continue;
 
 			output += `\n## ${groupName}\n\n| Command(s) | Parameters | Description |\n|---|---|---|\n`;
 			const commandsInGroup = groups[groupName]!;
@@ -318,7 +317,7 @@ export const COMMAND_LIST = {
 	},
 	CLS: {
 		description: "Clear console",
-		fn: (_vm, _progress, _params: ParamList) => {
+		fn: () => {
 			useCmdConsole().clearConsole();
 			return "";
 		},

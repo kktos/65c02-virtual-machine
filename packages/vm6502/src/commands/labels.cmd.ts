@@ -1,6 +1,6 @@
 import { useSymbols } from "@/composables/useSymbols";
 import { parseValue } from "@/lib/parse.utils";
-import type { Command, ParamListItemIdentifier } from "@/types/command";
+import type { Command, CommandContext, ParamListItemIdentifier } from "@/types/command";
 
 const { addManySymbols } = useSymbols();
 
@@ -8,7 +8,7 @@ export const labelsCmd: Command = {
 	description: "Define multiple labels. Usage: LABELS <namespace> [<scope>] ... END",
 	paramDef: ["name", "name?"],
 	group: "Symbols",
-	fn: (_vm, _progress, params) => {
+	fn: ({ params }: CommandContext) => {
 		const namespace = params[0] as ParamListItemIdentifier;
 		const scope = (params[1] as ParamListItemIdentifier)?.text || "main";
 

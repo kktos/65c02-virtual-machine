@@ -3,8 +3,7 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import { useRoutines } from "./useRoutines";
 import { ExpressionParser, TokenType, type Token } from "@/lib/expressionParser";
 import { COMMAND_LIST, type COMMANDS } from "@/commands";
-import { minimonitor, type ReturnValue as MiniMonitorReturnValue } from "@/lib/mini-monitor";
-import type { Command, CommandOutput, MultiLineRequest, ParamDef, ParamList, ParamListItem } from "@/types/command";
+import { minimonitor, type MiniMonitorCommandRequest } from "@/lib/mini-monitor";
 import { useBreakpoints } from "./useBreakpoints";
 import {
 	REG_A_OFFSET,
@@ -14,6 +13,15 @@ import {
 	REG_X_OFFSET,
 	REG_Y_OFFSET,
 } from "@/virtualmachine/cpu/shared-memory";
+import type {
+	MultiLineRequest,
+	CommandOutput,
+	ParamList,
+	Command,
+	ParamDef,
+	ParamListItem,
+	ParamListItemIdentifier,
+} from "@/types/command";
 
 const HISTORY_MAX_SIZE = 50;
 const LS_KEY_HISTORY = "vm6502-console-history";
@@ -41,6 +49,19 @@ type CommandRunResult = {
 	error?: string;
 	shouldClose: boolean;
 };
+
+export function isMultiLineRequest(r: unknown): r is MultiLineRequest {
+	return typeof r === "object" && r !== null && "__isMultiLineRequest" in r;
+}
+export function isCommandOutput(r: unknown): r is CommandOutput {
+	return typeof r === "object" && r !== null && "content" in r && "format" in r;
+}
+export function isMiniMonitorCommandRequest(r: unknown): r is MiniMonitorCommandRequest {
+	return typeof r === "object" && r !== null && "type" in r;
+}
+export function isParamListItemIdentifier(r: unknown): r is ParamListItemIdentifier {
+	return typeof r === "object" && r !== null && "text" in r && "value" in r;
+}
 
 function parseUserCommand(cmdParser: ExpressionParser) {
 	const userParams: ParamList = [];
@@ -220,14 +241,6 @@ function handleJsrOutput(output: any, vm: VirtualMachine, result: CommandRunResu
 	vm.play();
 }
 
-function handleNonCommandOutput(output: MiniMonitorReturnValue, result: CommandRunResult, vm: VirtualMachine) {
-	if (output && "type" in output && output.type === "JSR") {
-		handleJsrOutput(output, vm, result);
-	} else {
-		result.success.push(output);
-	}
-}
-
 function handleIfCommand(cmdParser: ExpressionParser, commandQueue: QueueItem[]) {
 	let isTrue = false;
 
@@ -267,10 +280,6 @@ function resolveAlias(cmd: COMMANDS) {
 	if (typeof cmdSpecOrAlias === "string" || !cmdSpecOrAlias)
 		throw new Error(`Invalid command alias configuration for '${cmd}'.`);
 	return cmdSpecOrAlias;
-}
-
-function isMultiLineRequest(r: unknown): r is MultiLineRequest {
-	return typeof r === "object" && r !== null && "__isMultiLineRequest" in r;
 }
 
 function splitIntoCommands(input: string, vm: VirtualMachine): QueueItem[] {
@@ -314,8 +323,6 @@ function splitIntoCommands(input: string, vm: VirtualMachine): QueueItem[] {
 
 	// flush anything remaining if no EOF token in stream
 	flushCommand(allTokens.length);
-
-	console.log(...result);
 
 	return result;
 }
@@ -363,9 +370,6 @@ export function useCommands() {
 
 		const commandQueue = splitIntoCommands(input, vm);
 
-		// oxlint-disable-next-line no-debugger
-		// debugger;
-
 		while (commandQueue.length > 0) {
 			const item = commandQueue.shift()!;
 			if (item.type === "marker") continue;
@@ -390,22 +394,19 @@ export function useCommands() {
 				cmdParser = new ExpressionParser(chain[i], vm);
 
 				const isLastInChain = i === chain.length - 1;
-				const currentSink: Sink = (output) => {
+				const currentSink: Sink = (output: CommandOutput | MiniMonitorCommandRequest) => {
 					if (isLastInChain) {
-						if (output && "type" in output && output.type === "JSR") {
-							handleJsrOutput(output, vm, result);
+						if (isMiniMonitorCommandRequest(output)) {
+							if (output.type === "JSR") handleJsrOutput(output, vm, result);
 						} else {
 							result.success.push(output);
 						}
 					} else {
-						pipeValue =
-							output && typeof output === "object" && "content" in output ? output.content : output;
+						pipeValue = isCommandOutput(output) ? output.content : output;
 					}
 				};
 
 				const { cmd, paramIndex: initialParamIndex, userParams, isValidCmd } = parseUserCommand(cmdParser);
-
-				let paramIndex = initialParamIndex;
 
 				if (!isValidCmd) {
 					// const output = minimonitor(singleCmdTrimmed, vm);
@@ -415,12 +416,11 @@ export function useCommands() {
 					continue;
 				}
 
+				let paramIndex = initialParamIndex;
 				const cmdSpec = resolveAlias(cmd);
 				const finalParams = parseCommandParams(cmdParser, cmd, paramIndex, userParams, cmdSpec, pipeValue);
 
-				console.log("----> ", cmd, finalParams);
-
-				const cmdResult = await cmdSpec.fn(vm, progress, finalParams);
+				const cmdResult = await cmdSpec.fn({ vm, progress, params: finalParams, pipeDest: chain.length - 1 });
 
 				if (isMultiLineRequest(cmdResult)) {
 					const request = cmdResult;

@@ -1,14 +1,12 @@
 import { useSymbols } from "@/composables/useSymbols";
 import { formatAddress } from "@/lib/hex.utils";
-import type { Command, ParamList } from "@/types/command";
-import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
-import type { Ref } from "vue";
+import type { Command, CommandContext } from "@/types/command";
 
 export const undefLabel: Command = {
 	description: "Remove a user-defined label at <address>. Params: <address> [scope?]",
 	paramDef: ["address", "string?"],
 	group: "Symbols",
-	fn: async (vm: VirtualMachine, _progress: Ref<number>, params: ParamList) => {
+	fn: async ({ vm, params }: CommandContext) => {
 		const address = params[0] as number;
 		const scope = (params[1] as string) || vm.getScope(address);
 		const namespace = "user";

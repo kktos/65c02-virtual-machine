@@ -1,8 +1,6 @@
 import { useSymbols } from "@/composables/useSymbols";
 import { formatAddress } from "@/lib/hex.utils";
-import type { Command, CommandResult, ParamList, ParamListItemIdentifier } from "@/types/command";
-import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
-import type { Ref } from "vue";
+import type { Command, CommandContext, CommandResult, ParamListItemIdentifier } from "@/types/command";
 
 const HEADER = `| Address | Namespace | Scope | Label | Disk |\n|---|---|---|---|---|`;
 
@@ -10,7 +8,7 @@ export const findLabelCmd: Command = {
 	description: "Find labels matching a query (address or label). Params: <query> [namespace?]",
 	paramDef: ["name", "name?"],
 	group: "Symbols",
-	fn: async (_vm: VirtualMachine, _progress: Ref<number>, params: ParamList): Promise<CommandResult> => {
+	fn: async ({ params }: CommandContext): Promise<CommandResult> => {
 		const query = params[0] as ParamListItemIdentifier;
 		const namespace = params[1] as ParamListItemIdentifier | undefined;
 

@@ -1,7 +1,6 @@
 import { assemble } from "@/lib/mini-assembler";
 import { useSymbols } from "@/composables/useSymbols";
-import type { Command, CommandResult } from "@/types/command";
-import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
+import type { Command, CommandContext, CommandResult } from "@/types/command";
 
 const { getAddressForLabel, addSymbol } = useSymbols();
 
@@ -9,7 +8,7 @@ export const asmCmd: Command = {
 	description: "Start mini-assembler at `address`. if `show` is specified, displays the assembled bytes.",
 	paramDef: ["address", "name?"],
 	group: "Assembler",
-	fn: (vm: VirtualMachine, _progress, params): CommandResult => {
+	fn: ({ vm, params }: CommandContext): CommandResult => {
 		let currentAddr = (params[0] as number) & 0xffff;
 		let showBytes = "SHOW".startsWith((params[1] as string).toUpperCase());
 

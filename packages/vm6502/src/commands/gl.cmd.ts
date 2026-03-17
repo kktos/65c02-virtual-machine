@@ -1,14 +1,12 @@
 import { generateLabels } from "@/lib/disassembler";
 import { formatAddress } from "@/lib/hex.utils";
-import type { Command, ParamList, ParamListItemIdentifier } from "@/types/command";
-import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
-import type { Ref } from "vue";
+import type { Command, CommandContext, ParamListItemIdentifier } from "@/types/command";
 
 export const glCmd: Command = {
 	description: "Generate labels for a memory `range` with optional memory `scope`",
 	paramDef: ["range", "name?"],
 	group: "Symbols",
-	fn: async (vm: VirtualMachine, progress: Ref<number>, params: ParamList) => {
+	fn: async ({ vm, progress, params }: CommandContext) => {
 		const { start: from, end: to } = params[0] as { start: number; end: number };
 		const scope = params[1] as ParamListItemIdentifier;
 

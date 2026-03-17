@@ -1,14 +1,13 @@
 import { useBreakpoints } from "@/composables/useBreakpoints";
 import { formatAddress } from "@/lib/hex.utils";
 import type { Breakpoint } from "@/types/breakpoint.interface";
-import type { Command, ParamList, ParamListItemIdentifier } from "@/types/command";
-import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
+import type { Command, CommandContext, ParamListItemIdentifier } from "@/types/command";
 
 export const hook: Command = {
 	description: "Set a command to execute when a breakpoint is hit. Usage: HOOK <type> <address> do <command>",
 	paramDef: ["name", "address", "rest"],
 	group: "Breakpoints",
-	fn: (vm: VirtualMachine, _progress, params: ParamList) => {
+	fn: ({ vm, params }: CommandContext) => {
 		const type = (params[0] as ParamListItemIdentifier).text as Breakpoint["type"];
 		const address = params[1] as number;
 		const commandToExecute = params[2] as string;

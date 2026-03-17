@@ -1,9 +1,7 @@
 import { useBreakpoints } from "@/composables/useBreakpoints";
 import { formatAddress } from "@/lib/hex.utils";
-import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
-import type { Ref } from "vue";
 import { useRoutines } from "@/composables/useRoutines";
-import type { Command, ParamList, ParamListItemIdentifier } from "@/types/command";
+import type { Command, CommandContext, ParamListItemIdentifier } from "@/types/command";
 import { useCommands } from "@/composables/useCommands";
 
 function listHooks() {
@@ -52,7 +50,7 @@ export const listCmd: Command = {
 	description: "List <hooks|routines|history>.",
 	paramDef: ["name"],
 	group: "Console",
-	fn: (_vm: VirtualMachine, _progress: Ref<number>, params: ParamList) => {
+	fn: ({ params }: CommandContext) => {
 		const cmd = params[0] as ParamListItemIdentifier;
 		let content: string;
 		const list = LISTS.find((l) => l.match(cmd.text.toUpperCase()));

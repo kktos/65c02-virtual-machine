@@ -3,6 +3,7 @@ import { disassemble, disassembleRange, formatDisassemblyAsText } from "./disass
 import { toHex, hexDump } from "./hex.utils";
 import { parseHexValue } from "./parse.utils";
 import type { Dict } from "@/types/dict.type";
+import type { CommandOutput } from "@/types/command";
 
 type StrippedVM = {
 	readDebug(address: number, overrides?: Dict | undefined): number | undefined;
@@ -12,16 +13,12 @@ type StrippedVM = {
 	getScope(address: number): string;
 };
 
-type ReturnValue =
-	| {
-			content: string;
-			format: "markdown" | "text";
-	  }
-	| {
-			type: string;
-			address?: number;
-			returnAddress?: number;
-	  };
+export type MiniMonitorCommandRequest = {
+	type: string;
+	address?: number;
+	returnAddress?: number;
+};
+type MiniMonitorReturnValue = CommandOutput | MiniMonitorCommandRequest;
 
 const formatAddr = (addr: number) => {
 	const bank = ((addr >> 16) & 0xff).toString(16).toUpperCase().padStart(2, "0");
@@ -29,9 +26,9 @@ const formatAddr = (addr: number) => {
 	return `$${bank}/${offset}`;
 };
 
-export function minimonitor(input: string, vm: StrippedVM): ReturnValue {
+export function minimonitor(input: string, vm: StrippedVM): MiniMonitorReturnValue {
 	let output = "";
-	let commandRequest: ReturnValue | undefined;
+	let commandRequest: MiniMonitorReturnValue | undefined;
 
 	const trimmed = input.trim();
 

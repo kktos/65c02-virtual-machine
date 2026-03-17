@@ -1,12 +1,10 @@
 import { useFormatting, type DataType } from "@/composables/useDataFormattings";
 import { formatAddress } from "@/lib/hex.utils";
-import type { Command, ParamList } from "@/types/command";
-import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
-import type { Ref } from "vue";
+import type { Command, CommandContext } from "@/types/command";
 
 const TYPES = new Set(["byte", "word", "string"]);
 
-export const defDataFn: Command["fn"] = async (_vm: VirtualMachine, _progress: Ref<number>, params: ParamList) => {
+export const defDataFn: Command["fn"] = async ({ params }: CommandContext) => {
 	const type = params[0] as string;
 	if (!TYPES.has(type)) throw new Error("Invalid data type.");
 

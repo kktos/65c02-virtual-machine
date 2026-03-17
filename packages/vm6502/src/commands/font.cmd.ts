@@ -1,8 +1,6 @@
 import { useConsoleSettings } from "@/composables/useConsoleSettings";
 import { toHex } from "@/lib/hex.utils";
-import type { Command, ParamList } from "@/types/command";
-import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
-import type { Ref } from "vue";
+import type { Command, CommandContext } from "@/types/command";
 
 const { fontFamily, fontSize, fontColor, MIN_SIZE, MAX_SIZE } = useConsoleSettings();
 
@@ -10,7 +8,7 @@ export const font: Command = {
 	description: 'Set console font properties. Usage: font [name] [size] [color]. Ex: font "arial", 14, $FF0000',
 	paramDef: ["rest?"],
 	group: "Console",
-	fn: (_vm: VirtualMachine, _progress: Ref<number>, params: ParamList) => {
+	fn: ({ params }: CommandContext) => {
 		if (params.length === 0)
 			return `Font: '${fontFamily.value}', Size: ${fontSize.value}px, Color: ${fontColor.value}`;
 

@@ -1,13 +1,11 @@
 import { formatAddress, hexDump } from "@/lib/hex.utils";
-import type { Command, CommandResult, ParamList } from "@/types/command";
-import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
-import type { Ref } from "vue";
+import type { Command, CommandContext, CommandResult } from "@/types/command";
 
 export const searchCmd: Command = {
 	description: 'Search memory. Usage: SEARCH [start:end] <"string" | hex bytes>',
 	paramDef: ["rest"],
 	group: "Memory",
-	fn: (vm: VirtualMachine, _progress: Ref<number>, params: ParamList): CommandResult => {
+	fn: ({ vm, params }: CommandContext): CommandResult => {
 		const maxBank = (vm.machineConfig.memory.banks ?? 1) - 1;
 
 		let parmIdx = 0;
