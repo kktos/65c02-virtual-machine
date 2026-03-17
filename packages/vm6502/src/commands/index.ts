@@ -32,6 +32,7 @@ import { defDataFn } from "./defData.cmd";
 import { printCmdFn } from "./print.cmd";
 import { asmCmd } from "./asm.cmd";
 import { searchCmd } from "./search.cmd";
+import { writeCommand } from "./write.cmd";
 
 export function typedKeys<T extends object>(obj: T): (keyof T)[] {
 	return Object.keys(obj) as (keyof T)[];
@@ -323,6 +324,7 @@ export const COMMAND_LIST = {
 		},
 		group: "Console",
 	},
+	WRITE: writeCommand,
 
 	SHOW: showCmd,
 	HIDE: hideCmd,

@@ -28,7 +28,7 @@ function findPreviousInstruction(
 		if (candidateStart < 0) continue;
 
 		// Disassemble a small chunk to see if it aligns with targetAddress
-		const lines = disassemble(readByte, scope, candidateStart, offset + 4, undefined, 0);
+		const lines = disassemble({ readByte, scope, fromAddress: candidateStart, lineCount: offset + 4 });
 
 		// If we hit an invalid opcode, this starting point is likely misaligned.
 		if (lines.some((line) => line.opc === "???")) continue;
@@ -113,39 +113,41 @@ function handleDataRegion(
 	return byteCount;
 }
 
-export function disassemble(
-	readByte: FunctionReadByte,
-	scope: string,
-	fromAddress: number,
-	lineCount: number,
-	registers?: EmulatorRegisters,
-	pivotLineIndex = 0,
-) {
+type DisassembleContext = {
+	readByte: FunctionReadByte;
+	scope: string;
+	fromAddress: number;
+	lineCount: number;
+	registers?: EmulatorRegisters;
+	pivotLineIndex?: number;
+};
+export function disassemble(ctx: DisassembleContext) {
 	const disassembly: DisassemblyLine[] = [];
 
-	let pc = fromAddress;
+	let pc = ctx.fromAddress;
 
-	if (pivotLineIndex > 0) for (let i = 0; i < pivotLineIndex; i++) pc = findPreviousInstruction(readByte, pc, scope);
+	if (ctx.pivotLineIndex && ctx.pivotLineIndex > 0)
+		for (let i = 0; i < ctx.pivotLineIndex; i++) pc = findPreviousInstruction(ctx.readByte, pc, ctx.scope);
 
-	while (disassembly.length < lineCount) {
+	while (disassembly.length < ctx.lineCount) {
 		// Safety check to prevent infinite loops if PC goes out of bounds
 		if (pc > 0xffffff) break;
 
-		const symbol = getSymbolForAddress(pc, scope);
+		const symbol = getSymbolForAddress(pc, ctx.scope);
 
 		// Check for Custom Formatting (Data Directives)
 		const format = getFormat(pc);
 		if (format) {
-			const byteCount = handleDataRegion(format, pc, disassembly, readByte, symbol);
+			const byteCount = handleDataRegion(format, pc, disassembly, ctx.readByte, symbol);
 			pc += byteCount;
 			continue;
 		}
 
-		const opcodeByte = readByte(pc);
+		const opcodeByte = ctx.readByte(pc);
 
 		// Check for Hypercalls
 		if (opcodeByte === 0x00) {
-			const result = runHypercall(readByte, pc);
+			const result = runHypercall(ctx.readByte, pc);
 			if (result.line) {
 				disassembly.push(result.line);
 				pc = result.pc;
@@ -192,7 +194,7 @@ export function disassemble(
 			cycles,
 		};
 
-		const operandBytes: [number, number] = [readByte(pc + 1), readByte(pc + 2)] as const;
+		const operandBytes: [number, number] = [ctx.readByte(pc + 1), ctx.readByte(pc + 2)] as const;
 
 		const actualOperands = operandBytes.slice(0, bytes - 1);
 		const allBytes = [opcodeByte, ...actualOperands];
@@ -213,7 +215,7 @@ export function disassemble(
 			case "ZP": {
 				effectiveAddress = operandBytes[0] ?? 0;
 				line.oprn = effectiveAddress;
-				const match = findSymbolWithOffset(effectiveAddress, scope, 16);
+				const match = findSymbolWithOffset(effectiveAddress, ctx.scope, 16);
 				if (match) {
 					if (match.offset === 0) {
 						line.opr = match.symbol.label;
@@ -230,7 +232,7 @@ export function disassemble(
 			case "ZPX": {
 				effectiveAddress = operandBytes[0] ?? 0;
 				line.oprn = effectiveAddress;
-				const match = findSymbolWithOffset(effectiveAddress, scope, 16);
+				const match = findSymbolWithOffset(effectiveAddress, ctx.scope, 16);
 				let baseOpr: string;
 				if (match) {
 					if (match.offset === 0) {
@@ -243,13 +245,13 @@ export function disassemble(
 					baseOpr = `$${toHex(effectiveAddress, 2)}`;
 				}
 				line.opr = `${baseOpr},X`;
-				if (registers) effectiveAddress = (effectiveAddress + registers.X) & 0xff;
+				if (ctx.registers) effectiveAddress = (effectiveAddress + ctx.registers.X) & 0xff;
 				break;
 			}
 			case "ZPY": {
 				effectiveAddress = operandBytes[0] ?? 0;
 				line.oprn = effectiveAddress;
-				const match = findSymbolWithOffset(effectiveAddress, scope, 16);
+				const match = findSymbolWithOffset(effectiveAddress, ctx.scope, 16);
 				let baseOpr: string;
 				if (match) {
 					if (match.offset === 0) {
@@ -262,13 +264,13 @@ export function disassemble(
 					baseOpr = `$${toHex(effectiveAddress, 2)}`;
 				}
 				line.opr = `${baseOpr},Y`;
-				if (registers) effectiveAddress = (effectiveAddress + registers.Y) & 0xff;
+				if (ctx.registers) effectiveAddress = (effectiveAddress + ctx.registers.Y) & 0xff;
 				break;
 			}
 			case "ABS": {
 				effectiveAddress = ((operandBytes[1] ?? 0) << 8) | (operandBytes[0] ?? 0);
 				line.oprn = effectiveAddress;
-				const match = findSymbolWithOffset(effectiveAddress, scope, 32);
+				const match = findSymbolWithOffset(effectiveAddress, ctx.scope, 32);
 				if (match) {
 					line.comment = match.symbol.scope ? `= [${match.symbol.scope}]` : "";
 					if (match.offset === 0) {
@@ -287,7 +289,7 @@ export function disassemble(
 			case "ABX": {
 				effectiveAddress = ((operandBytes[1] ?? 0) << 8) | (operandBytes[0] ?? 0);
 				line.oprn = effectiveAddress;
-				const match = findSymbolWithOffset(effectiveAddress, scope, 32);
+				const match = findSymbolWithOffset(effectiveAddress, ctx.scope, 32);
 				let baseOpr: string;
 				if (match) {
 					if (match.offset === 0) {
@@ -300,13 +302,13 @@ export function disassemble(
 					baseOpr = `$${toHex(effectiveAddress, 4)}`;
 				}
 				line.opr = `${baseOpr},X`;
-				if (registers) effectiveAddress = (effectiveAddress + registers.X) & 0xffff;
+				if (ctx.registers) effectiveAddress = (effectiveAddress + ctx.registers.X) & 0xffff;
 				break;
 			}
 			case "ABY": {
 				effectiveAddress = ((operandBytes[1] ?? 0) << 8) | (operandBytes[0] ?? 0);
 				line.oprn = effectiveAddress;
-				const match = findSymbolWithOffset(effectiveAddress, scope, 32);
+				const match = findSymbolWithOffset(effectiveAddress, ctx.scope, 32);
 				let baseOpr: string;
 				if (match) {
 					if (match.offset === 0) {
@@ -319,13 +321,13 @@ export function disassemble(
 					baseOpr = `$${toHex(effectiveAddress, 4)}`;
 				}
 				line.opr = `${baseOpr},Y`;
-				if (registers) effectiveAddress = (effectiveAddress + registers.Y) & 0xffff;
+				if (ctx.registers) effectiveAddress = (effectiveAddress + ctx.registers.Y) & 0xffff;
 				break;
 			}
 			case "REL": {
 				const offset = operandBytes[0] ?? 0;
 				effectiveAddress = pc + 2 + (offset < 0x80 ? offset : offset - 0x100);
-				const label = getLabelForAddress(effectiveAddress, scope);
+				const label = getLabelForAddress(effectiveAddress, ctx.scope);
 				line.opr = `${label ?? `$${toHex(effectiveAddress, 4)}`}`;
 				line.oprn = effectiveAddress;
 				if (!label) effectiveAddress = null;
@@ -334,7 +336,7 @@ export function disassemble(
 			case "IND": {
 				const ind = ((operandBytes[1] ?? 0) << 8) | (operandBytes[0] ?? 0);
 				line.oprn = ind;
-				const match = findSymbolWithOffset(ind, scope, 32);
+				const match = findSymbolWithOffset(ind, ctx.scope, 32);
 				let baseOpr: string;
 				if (match) {
 					if (match.offset === 0) {
@@ -347,8 +349,8 @@ export function disassemble(
 					baseOpr = `$${toHex(ind, 4)}`;
 				}
 				line.opr = `(${baseOpr})`;
-				const lo = readByte(ind, false);
-				const hi = readByte((ind + 1) & 0xffff, false);
+				const lo = ctx.readByte(ind, false);
+				const hi = ctx.readByte((ind + 1) & 0xffff, false);
 				effectiveAddress = (hi << 8) | lo;
 				break;
 			}
@@ -356,7 +358,7 @@ export function disassemble(
 				// (Absolute, X)
 				const iax = ((operandBytes[1] ?? 0) << 8) | (operandBytes[0] ?? 0);
 				line.oprn = iax;
-				const match = findSymbolWithOffset(iax, scope, 32);
+				const match = findSymbolWithOffset(iax, ctx.scope, 32);
 				let baseOpr: string;
 				if (match) {
 					if (match.offset === 0) {
@@ -369,10 +371,10 @@ export function disassemble(
 					baseOpr = `$${toHex(iax, 4)}`;
 				}
 				line.opr = `(${baseOpr},X)`;
-				if (registers) {
-					const ptr = (iax + registers.X) & 0xffff;
-					const lo = readByte(ptr, false);
-					const hi = readByte((ptr + 1) & 0xffff, false);
+				if (ctx.registers) {
+					const ptr = (iax + ctx.registers.X) & 0xffff;
+					const lo = ctx.readByte(ptr, false);
+					const hi = ctx.readByte((ptr + 1) & 0xffff, false);
 					effectiveAddress = (hi << 8) | lo;
 				}
 				break;
@@ -381,7 +383,7 @@ export function disassemble(
 				// (Zero Page, X)
 				const addr = operandBytes[0] ?? 0;
 				line.oprn = addr;
-				const match = findSymbolWithOffset(addr, scope, 16);
+				const match = findSymbolWithOffset(addr, ctx.scope, 16);
 				let baseOpr: string;
 				if (match) {
 					if (match.offset === 0) {
@@ -394,10 +396,10 @@ export function disassemble(
 					baseOpr = `$${toHex(addr, 2)}`;
 				}
 				line.opr = `(${baseOpr},X)`;
-				if (registers) {
-					const ptr = (operandBytes[0] + registers.X) & 0xff;
-					const lo = readByte(ptr, false);
-					const hi = readByte((ptr + 1) & 0xffff, false);
+				if (ctx.registers) {
+					const ptr = (operandBytes[0] + ctx.registers.X) & 0xff;
+					const lo = ctx.readByte(ptr, false);
+					const hi = ctx.readByte((ptr + 1) & 0xffff, false);
 					effectiveAddress = (hi << 8) | lo;
 				}
 				break;
@@ -406,7 +408,7 @@ export function disassemble(
 				// (Zero Page), Y
 				const addr = operandBytes[0] ?? 0;
 				line.oprn = addr;
-				const match = findSymbolWithOffset(addr, scope, 16);
+				const match = findSymbolWithOffset(addr, ctx.scope, 16);
 				let baseOpr: string;
 				if (match) {
 					if (match.offset === 0) {
@@ -419,12 +421,12 @@ export function disassemble(
 					baseOpr = `$${toHex(addr, 2)}`;
 				}
 				line.opr = `(${baseOpr}),Y`;
-				if (registers) {
+				if (ctx.registers) {
 					const ptr = operandBytes[0];
-					const lo = readByte(ptr, false);
-					const hi = readByte((ptr + 1) & 0xffff, false);
+					const lo = ctx.readByte(ptr, false);
+					const hi = ctx.readByte((ptr + 1) & 0xffff, false);
 					const base = (hi << 8) | lo;
-					effectiveAddress = (base + registers.Y) & 0xffff;
+					effectiveAddress = (base + ctx.registers.Y) & 0xffff;
 				}
 				break;
 			}
@@ -432,7 +434,7 @@ export function disassemble(
 				// (Zero Page)
 				const addr = operandBytes[0] ?? 0;
 				line.oprn = addr;
-				const match = findSymbolWithOffset(addr, scope, 16);
+				const match = findSymbolWithOffset(addr, ctx.scope, 16);
 				let baseOpr: string;
 				if (match) {
 					if (match.offset === 0) {
@@ -445,10 +447,10 @@ export function disassemble(
 					baseOpr = `$${toHex(addr, 2)}`;
 				}
 				line.opr = `(${baseOpr})`;
-				if (registers) {
+				if (ctx.registers) {
 					const ptr = operandBytes[0];
-					const lo = readByte(ptr, false);
-					const hi = readByte((ptr + 1) & 0xffff, false);
+					const lo = ctx.readByte(ptr, false);
+					const hi = ctx.readByte((ptr + 1) & 0xffff, false);
 					effectiveAddress = (hi << 8) | lo;
 				}
 				break;
@@ -473,6 +475,84 @@ export function disassemble(
 
 	return disassembly;
 }
+
+export function disassembleRange(
+	readByte: FunctionReadByte,
+	scope: string,
+	fromAddress: number,
+	toAddress: number,
+	registers?: EmulatorRegisters,
+) {
+	const lines: DisassemblyLine[] = [];
+	const start = Math.min(fromAddress, toAddress);
+	const end = Math.max(fromAddress, toAddress);
+	let currentAddr = start;
+	while (currentAddr <= end) {
+		const chunk = disassemble({ readByte, scope, fromAddress: currentAddr, lineCount: 20, registers });
+		if (!chunk || chunk.length === 0) break;
+
+		for (const line of chunk) {
+			if (line.addr > end) break;
+			lines.push(line);
+			// Calculate next address based on byte count
+			const byteCount = line.bytes.trim().split(" ").length;
+			currentAddr = line.addr + byteCount;
+		}
+		// If the chunk didn't advance us (shouldn't happen), break to avoid infinite loop
+		if (chunk[0]?.addr === currentAddr) break;
+	}
+	return lines;
+}
+
+type FormatDisassemblyOptions = {
+	withOrg?: boolean;
+	withAddr?: boolean;
+	withBytes?: boolean;
+	asMarkdown?: boolean;
+};
+function formatAddr(addr: number) {
+	const bank = ((addr >> 16) & 0xff).toString(16).toUpperCase().padStart(2, "0");
+	const offset = (addr & 0xffff).toString(16).toUpperCase().padStart(4, "0");
+	return `$${bank}/${offset}`;
+}
+function disasmTextOnly(line: DisassemblyLine, asMarkdown = false) {
+	const SPACE = asMarkdown ? String.fromCharCode(160) : " ";
+	const finalComment = line.comment ? `; ${line.comment}` : "";
+	const op = line.opc + (line.opr ? ` ${line.opr}` : "");
+	let finalLine = `\t${op.padEnd(20, SPACE)} ${finalComment}`;
+	if (line.label) finalLine = asMarkdown ? `**${line.label}**<br>${finalLine}` : `${line.label}:\n${finalLine}`;
+	return finalLine;
+}
+function disasmWithAddr(line: DisassemblyLine, asMarkdown = false) {
+	const SPACE = asMarkdown ? String.fromCharCode(160) : " ";
+	const finalComment = line.comment ? `; ${line.comment}` : "";
+	const op = line.opc + (line.opr ? ` ${line.opr}` : "");
+	let finalLine = `${formatAddr(line.addr)}:  ${op.padEnd(20, SPACE)} ${finalComment}`;
+	if (line.label) finalLine = asMarkdown ? `**${line.label}**<br>${finalLine}` : `${line.label}:\n${finalLine}`;
+	return finalLine;
+}
+function disasmWithBytes(line: DisassemblyLine, asMarkdown = false) {
+	const SPACE = asMarkdown ? String.fromCharCode(160) : " ";
+	const finalComment = line.comment ? `; ${line.comment}` : "";
+	const op = line.opc + (line.opr ? ` ${line.opr}` : "");
+	let finalLine = `${formatAddr(line.addr)}:  ${line.bytes.padEnd(10, SPACE)} ${op.padEnd(20, SPACE)} ${finalComment}`;
+	if (line.label) finalLine = asMarkdown ? `**${line.label}**<br>${finalLine}` : `${line.label}:\n${finalLine}`;
+	return finalLine;
+}
+
+export const formatDisassemblyAsText = (
+	lines: DisassemblyLine[],
+	{ withOrg, withAddr, withBytes, asMarkdown }: FormatDisassemblyOptions = {
+		withOrg: true,
+		withAddr: false,
+		withBytes: false,
+		asMarkdown: false,
+	},
+) => {
+	let mapper = withAddr ? (withBytes ? disasmWithBytes : disasmWithAddr) : disasmTextOnly;
+	let output = lines.map((line) => mapper(line, asMarkdown)).join(asMarkdown ? "<br>" : "\n");
+	return withOrg ? `\t.ORG $${toHex(lines[0]?.addr ?? 0, 4)}\n${output}` : output;
+};
 
 export async function generateLabels(
 	fromAddress: number,
@@ -590,81 +670,3 @@ export async function generateLabels(
 
 	onProgress?.(100);
 }
-
-export function disassembleRange(
-	readByte: FunctionReadByte,
-	scope: string,
-	fromAddress: number,
-	toAddress: number,
-	registers?: EmulatorRegisters,
-) {
-	const lines: DisassemblyLine[] = [];
-	const start = Math.min(fromAddress, toAddress);
-	const end = Math.max(fromAddress, toAddress);
-	let currentAddr = start;
-	while (currentAddr <= end) {
-		const chunk = disassemble(readByte, scope, currentAddr, 20, registers, 0);
-		if (!chunk || chunk.length === 0) break;
-
-		for (const line of chunk) {
-			if (line.addr > end) break;
-			lines.push(line);
-			// Calculate next address based on byte count
-			const byteCount = line.bytes.trim().split(" ").length;
-			currentAddr = line.addr + byteCount;
-		}
-		// If the chunk didn't advance us (shouldn't happen), break to avoid infinite loop
-		if (chunk[0]?.addr === currentAddr) break;
-	}
-	return lines;
-}
-
-type FormatDisassemblyOptions = {
-	withOrg?: boolean;
-	withAddr?: boolean;
-	withBytes?: boolean;
-	asMarkdown?: boolean;
-};
-function formatAddr(addr: number) {
-	const bank = ((addr >> 16) & 0xff).toString(16).toUpperCase().padStart(2, "0");
-	const offset = (addr & 0xffff).toString(16).toUpperCase().padStart(4, "0");
-	return `$${bank}/${offset}`;
-}
-function disasmTextOnly(line: DisassemblyLine, asMarkdown = false) {
-	const SPACE = asMarkdown ? String.fromCharCode(160) : " ";
-	const finalComment = line.comment ? `; ${line.comment}` : "";
-	const op = line.opc + (line.opr ? ` ${line.opr}` : "");
-	let finalLine = `\t${op.padEnd(20, SPACE)} ${finalComment}`;
-	if (line.label) finalLine = asMarkdown ? `**${line.label}**<br>${finalLine}` : `${line.label}:\n${finalLine}`;
-	return finalLine;
-}
-function disasmWithAddr(line: DisassemblyLine, asMarkdown = false) {
-	const SPACE = asMarkdown ? String.fromCharCode(160) : " ";
-	const finalComment = line.comment ? `; ${line.comment}` : "";
-	const op = line.opc + (line.opr ? ` ${line.opr}` : "");
-	let finalLine = `${formatAddr(line.addr)}:  ${op.padEnd(20, SPACE)} ${finalComment}`;
-	if (line.label) finalLine = asMarkdown ? `**${line.label}**<br>${finalLine}` : `${line.label}:\n${finalLine}`;
-	return finalLine;
-}
-function disasmWithBytes(line: DisassemblyLine, asMarkdown = false) {
-	const SPACE = asMarkdown ? String.fromCharCode(160) : " ";
-	const finalComment = line.comment ? `; ${line.comment}` : "";
-	const op = line.opc + (line.opr ? ` ${line.opr}` : "");
-	let finalLine = `${formatAddr(line.addr)}:  ${line.bytes.padEnd(10, SPACE)} ${op.padEnd(20, SPACE)} ${finalComment}`;
-	if (line.label) finalLine = asMarkdown ? `**${line.label}**<br>${finalLine}` : `${line.label}:\n${finalLine}`;
-	return finalLine;
-}
-
-export const formatDisassemblyAsText = (
-	lines: DisassemblyLine[],
-	{ withOrg, withAddr, withBytes, asMarkdown }: FormatDisassemblyOptions = {
-		withOrg: true,
-		withAddr: false,
-		withBytes: false,
-		asMarkdown: false,
-	},
-) => {
-	let mapper = withAddr ? (withBytes ? disasmWithBytes : disasmWithAddr) : disasmTextOnly;
-	let output = lines.map((line) => mapper(line, asMarkdown)).join(asMarkdown ? "<br>" : "\n");
-	return withOrg ? `\t.ORG $${toHex(lines[0]?.addr ?? 0, 4)}\n${output}` : output;
-};

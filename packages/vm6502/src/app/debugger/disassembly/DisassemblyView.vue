@@ -333,14 +333,14 @@ watch(
 				pivot = pivotIndex.value;
 			}
 
-			disassembly.value = await disassemble(
+			disassembly.value = await disassemble({
 				readByte,
-				vm!.value.getScope(startAddr),
-				startAddr,
-				visibleRowCount.value,
+				scope: vm!.value.getScope(startAddr),
+				fromAddress: startAddr,
+				lineCount: visibleRowCount.value,
 				registers,
-				pivot,
-			);
+				pivotLineIndex: pivot,
+			});
 
 			if (isFollowingPc.value && disassembly.value.length > 0) {
 				const newStart = disassembly.value[0]!.addr;

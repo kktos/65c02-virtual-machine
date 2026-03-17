@@ -108,7 +108,7 @@ function runDisassembly(start: number, end: number | undefined, vm: StrippedVM) 
 	if (end !== undefined) {
 		lines = disassembleRange(readByte, vm.getScope(start), start, end, registers);
 	} else {
-		lines = disassemble(readByte, vm.getScope(start), start, 32, registers);
+		lines = disassemble({ readByte, scope: vm.getScope(start), fromAddress: start, lineCount: 32, registers });
 	}
 
 	const output = formatDisassemblyAsText(lines, {
