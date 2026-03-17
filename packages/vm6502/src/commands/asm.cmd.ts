@@ -10,7 +10,7 @@ export const asmCmd: Command = {
 	group: "Assembler",
 	fn: ({ vm, params }: CommandContext): CommandResult => {
 		let currentAddr = (params[0] as number) & 0xffff;
-		let showBytes = "SHOW".startsWith((params[1] as string).toUpperCase());
+		let showBytes = params.length > 1 && "SHOW".startsWith((params[1] as string).toUpperCase());
 
 		const parseExpression = (expr: string): number => {
 			const e = expr.trim();

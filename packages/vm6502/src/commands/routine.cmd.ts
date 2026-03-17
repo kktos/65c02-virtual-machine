@@ -1,5 +1,5 @@
 import { useRoutines } from "@/composables/useRoutines";
-import type { Command, CommandContext, ParamListItemIdentifier } from "@/types/command";
+import type { Command, CommandContext, CommandSegment, ParamListItemIdentifier } from "@/types/command";
 
 export const routineCmd: Command = {
 	description: "Define a routine on multiple lines, ended by END.",
@@ -13,9 +13,16 @@ export const routineCmd: Command = {
 			__isMultiLineRequest: true,
 			prompt: `${routineName.text}|`,
 			terminator: "END",
-			onComplete: (lines: string[]) => {
+			onComplete: (lines: (CommandSegment | string)[]) => {
 				const { setRoutine } = useRoutines();
-				setRoutine(routineName.text, lines);
+
+				let text = "";
+				if (typeof lines[0] === "string") {
+					text = lines.join("\n");
+				} else {
+					text = (lines as CommandSegment[]).map((line) => line.map((t) => t.text).join(" ")).join("\n");
+				}
+				setRoutine(routineName.text, text);
 				return `Routine '${routineName.text}' defined.`;
 			},
 		};

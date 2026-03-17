@@ -631,23 +631,26 @@ function formatAddr(addr: number) {
 	return `$${bank}/${offset}`;
 }
 function disasmTextOnly(line: DisassemblyLine, asMarkdown = false) {
+	const SPACE = asMarkdown ? String.fromCharCode(160) : " ";
 	const finalComment = line.comment ? `; ${line.comment}` : "";
 	const op = line.opc + (line.opr ? ` ${line.opr}` : "");
-	let finalLine = `\t${op.padEnd(20, " ")} ${finalComment}`;
+	let finalLine = `\t${op.padEnd(20, SPACE)} ${finalComment}`;
 	if (line.label) finalLine = asMarkdown ? `**${line.label}**<br>${finalLine}` : `${line.label}:\n${finalLine}`;
 	return finalLine;
 }
 function disasmWithAddr(line: DisassemblyLine, asMarkdown = false) {
+	const SPACE = asMarkdown ? String.fromCharCode(160) : " ";
 	const finalComment = line.comment ? `; ${line.comment}` : "";
 	const op = line.opc + (line.opr ? ` ${line.opr}` : "");
-	let finalLine = `${formatAddr(line.addr)}:  ${op.padEnd(20, " ")} ${finalComment}`;
+	let finalLine = `${formatAddr(line.addr)}:  ${op.padEnd(20, SPACE)} ${finalComment}`;
 	if (line.label) finalLine = asMarkdown ? `**${line.label}**<br>${finalLine}` : `${line.label}:\n${finalLine}`;
 	return finalLine;
 }
 function disasmWithBytes(line: DisassemblyLine, asMarkdown = false) {
+	const SPACE = asMarkdown ? String.fromCharCode(160) : " ";
 	const finalComment = line.comment ? `; ${line.comment}` : "";
 	const op = line.opc + (line.opr ? ` ${line.opr}` : "");
-	let finalLine = `${formatAddr(line.addr)}:  ${line.bytes.padEnd(10, " ")} ${op.padEnd(20, " ")} ${finalComment}`;
+	let finalLine = `${formatAddr(line.addr)}:  ${line.bytes.padEnd(10, SPACE)} ${op.padEnd(20, SPACE)} ${finalComment}`;
 	if (line.label) finalLine = asMarkdown ? `**${line.label}**<br>${finalLine}` : `${line.label}:\n${finalLine}`;
 	return finalLine;
 }
@@ -662,6 +665,6 @@ export const formatDisassemblyAsText = (
 	},
 ) => {
 	let mapper = withAddr ? (withBytes ? disasmWithBytes : disasmWithAddr) : disasmTextOnly;
-	let output = lines.map((line) => mapper(line, asMarkdown)).join("\n");
+	let output = lines.map((line) => mapper(line, asMarkdown)).join(asMarkdown ? "<br>" : "\n");
 	return withOrg ? `\t.ORG $${toHex(lines[0]?.addr ?? 0, 4)}\n${output}` : output;
 };

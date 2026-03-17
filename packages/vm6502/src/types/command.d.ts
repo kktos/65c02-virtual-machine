@@ -1,5 +1,6 @@
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import type { Ref } from "vue";
+import type { Token } from "../lib/expressionParser";
 
 export type CommandOutput = {
 	content: string;
@@ -25,12 +26,13 @@ export type ParamList = ParamListItem[];
 export type ResultOnLinePayload = { content?: string; prompt?: string; error?: string } | void;
 export type ResultOnLineFn = ResultOnLinePayload | Promise<ResultOnLinePayload>;
 
+export type CommandSegment = Token[];
 export type MultiLineRequest = {
 	__isMultiLineRequest: true;
 	prompt: string;
-	lines?: string[];
+	lines?: (CommandSegment | string)[];
 	terminator: string;
-	onComplete: (lines: string[]) => string | Promise<string>;
+	onComplete: (lines: (CommandSegment | string)[]) => string | Promise<string>;
 	onLine?: (line: string) => ResultOnLineFn;
 };
 

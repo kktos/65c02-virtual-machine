@@ -100,7 +100,6 @@ export class ExpressionParser {
 
 	private tokenize(input: string) {
 		let i = 0;
-		let startAnchor = 0;
 		while (i < input.length) {
 			const char = input[i] as string;
 
@@ -159,15 +158,10 @@ export class ExpressionParser {
 			}
 
 			const start = i;
-			const isAnchor = start === startAnchor;
 
-			// Hex number without $ - only at the begining of a command
 			// Hex number ($...)
-			if (
-				char === "$" ||
-				(isAnchor && ((code >= 48 && code <= 57) || (code >= 65 && code <= 70) || (code >= 97 && code <= 102)))
-			) {
-				if (!isAnchor) i++;
+			if (char === "$") {
+				i++;
 				let hex = "";
 				while (i < input.length && /[0-9A-Fa-f]/.test(input[i] as string)) {
 					hex += input[i];
@@ -175,34 +169,6 @@ export class ExpressionParser {
 				}
 				if (hex.length === 0) throw new Error(`Invalid hex at ${start}`);
 				this.tokens.push({ type: TokenType.INTEGER, value: parseInt(hex, 16), text: `$${hex}`, start, end: i });
-
-				if (isAnchor) {
-					if (i < input.length && input[i] === ".") {
-						this.tokens.push({ type: TokenType.DOT, value: 0, text: ".", start: i, end: i });
-						i++;
-
-						hex = "";
-						while (i < input.length) {
-							const c = input.charCodeAt(i);
-							if (
-								(c >= 65 && c <= 90) || // A-Z
-								(c >= 97 && c <= 102) || // a-z
-								(c >= 48 && c <= 57) // 0-9
-							) {
-								hex += input[i];
-								i++;
-							} else break;
-						}
-						if (hex.length === 0) throw new Error(`Invalid hex at ${start}`);
-						this.tokens.push({
-							type: TokenType.INTEGER,
-							value: parseInt(hex, 16),
-							text: `$${hex}`,
-							start,
-							end: i,
-						});
-					}
-				}
 
 				continue;
 			}
@@ -286,8 +252,6 @@ export class ExpressionParser {
 				const text = input.substring(i, i + opLen);
 				i += opLen;
 				this.tokens.push({ type: opType, value: 0, text, start, end: i });
-				// this to allow special hex values at the beginning only - for minimonitor
-				if (opType === TokenType.PIPE || opType === TokenType.SEMICOLON) startAnchor = i;
 				continue;
 			}
 
@@ -324,6 +288,13 @@ export class ExpressionParser {
 
 	public match(type: TokenType): boolean {
 		if (this.peek().type === type) {
+			this.consume();
+			return true;
+		}
+		return false;
+	}
+	public matchIdentifier(text?: string): boolean {
+		if (this.isIdentifier(text)) {
 			this.consume();
 			return true;
 		}

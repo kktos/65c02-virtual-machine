@@ -1,7 +1,7 @@
 import { computed, ref, watch } from "vue";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import { useRoutines } from "./useRoutines";
-import { ExpressionParser, TokenType, type Token } from "@/lib/expressionParser";
+import { ExpressionParser, TokenType } from "@/lib/expressionParser";
 import { COMMAND_LIST, type COMMANDS } from "@/commands";
 import { minimonitor, type MiniMonitorCommandRequest } from "@/lib/mini-monitor";
 import { useBreakpoints } from "./useBreakpoints";
@@ -21,13 +21,13 @@ import type {
 	ParamDef,
 	ParamListItem,
 	ParamListItemIdentifier,
+	CommandSegment,
 } from "@/types/command";
 
 const HISTORY_MAX_SIZE = 50;
 const LS_KEY_HISTORY = "vm6502-console-history";
 const END_ROUTINE_MARKER = "--END-ROUTINE--";
 
-type CommandSegment = Token[]; // one pipe-segment worth of tokens
 type QueueItem =
 	| { type: "line"; tokens: CommandSegment; chain: CommandSegment[] | null }
 	| { type: "marker"; value: string };
@@ -257,7 +257,7 @@ function handleIfCommand(cmdParser: ExpressionParser, commandQueue: QueueItem[])
 	commandQueue.unshift({ type: "line", tokens: cmdParser.getTokens(cmdParser.pos), chain: [] });
 }
 
-function handleDoCommand(cmdParser: ExpressionParser, commandQueue: QueueItem[]) {
+function handleDoCommand(cmdParser: ExpressionParser, commandQueue: QueueItem[], vm: VirtualMachine) {
 	const token = cmdParser.peek();
 	if (token.type !== TokenType.IDENTIFIER) throw new Error("DO needs a routine name.");
 	cmdParser.consume();
@@ -267,11 +267,15 @@ function handleDoCommand(cmdParser: ExpressionParser, commandQueue: QueueItem[])
 	const routineCmds = getRoutine(routineName);
 	if (!routineCmds) throw new Error(`Routine '${routineName}' not found.`);
 
-	const items: QueueItem[] = routineCmds
-		.filter((line) => !line.trim().startsWith(";") && line.trim() !== "")
-		.map((line) => ({ type: "line", value: line }));
+	const items: QueueItem[] = [];
 
-	commandQueue.unshift(...items, { type: "marker", value: END_ROUTINE_MARKER });
+	routineCmds
+		.filter((line) => !line.trim().startsWith(";") && line.trim() !== "")
+		.forEach((line) => {
+			commandQueue.push(...splitIntoCommands(line, vm));
+		});
+
+	commandQueue.push(...items, { type: "marker", value: END_ROUTINE_MARKER });
 }
 
 function resolveAlias(cmd: COMMANDS) {
@@ -327,6 +331,34 @@ function splitIntoCommands(input: string, vm: VirtualMachine): QueueItem[] {
 	return result;
 }
 
+async function processMultilineSession(input: string) {
+	const result: CommandRunResult = { success: [], shouldClose: false };
+	const session = multiLineSession.value!;
+
+	const trimmedInput = input.trim().toUpperCase();
+	if (trimmedInput === session.terminator) {
+		const { onComplete, lines } = session;
+		multiLineSession.value = null;
+		try {
+			const res = await onComplete(lines ?? []);
+			if (res) result.success.push({ content: res, format: "text" });
+		} catch (e: any) {
+			result.error = e.message || "Execution failed";
+		}
+	} else {
+		session.lines?.push(input);
+		if (session.onLine) {
+			const res = await session.onLine(input);
+			if (res) {
+				if (res.error) result.error = res.error;
+				if (res.content) result.success.push({ content: res.content, format: "text" });
+				if (res.prompt) session.prompt = res.prompt;
+			}
+		}
+	}
+	return result;
+}
+
 export function useCommands() {
 	const error = ref("");
 	const success = ref<CommandOutput[]>([]);
@@ -339,33 +371,9 @@ export function useCommands() {
 	const processLine = async (cmdInput: string, vm: VirtualMachine): Promise<CommandRunResult> => {
 		const result: CommandRunResult = { success: [], shouldClose: false };
 
+		if (multiLineSession.value) return await processMultilineSession(cmdInput);
+
 		const input = cmdInput.trim();
-
-		if (multiLineSession.value) {
-			const trimmedInput = input.toUpperCase();
-			if (trimmedInput === multiLineSession.value.terminator) {
-				const { onComplete, lines } = multiLineSession.value;
-				multiLineSession.value = null;
-				try {
-					const res = await onComplete(lines ?? []);
-					if (res) result.success.push({ content: res, format: "text" });
-				} catch (e: any) {
-					result.error = e.message || "Execution failed";
-				}
-			} else {
-				multiLineSession.value.lines?.push(cmdInput);
-				if (multiLineSession.value.onLine) {
-					const res = await multiLineSession.value.onLine(cmdInput);
-					if (res) {
-						if (res.error) result.error = res.error;
-						if (res.content) result.success.push({ content: res.content, format: "text" });
-						if (res.prompt) multiLineSession.value.prompt = res.prompt;
-					}
-				}
-			}
-			return result;
-		}
-
 		if (!input) return result;
 
 		const commandQueue = splitIntoCommands(input, vm);
@@ -375,12 +383,12 @@ export function useCommands() {
 			if (item.type === "marker") continue;
 
 			let cmdParser = new ExpressionParser(item.tokens, vm);
-			if (cmdParser.isIdentifier("IF")) {
+			if (cmdParser.matchIdentifier("IF")) {
 				handleIfCommand(cmdParser, commandQueue);
 				continue;
 			}
-			if (cmdParser.isIdentifier("DO")) {
-				handleDoCommand(cmdParser, commandQueue);
+			if (cmdParser.matchIdentifier("DO")) {
+				handleDoCommand(cmdParser, commandQueue, vm);
 				continue;
 			}
 
@@ -425,18 +433,19 @@ export function useCommands() {
 					const request = cmdResult;
 					const isInsideRoutine = commandQueue.length > 0 && commandQueue.some((i) => i.type === "marker");
 					if (isInsideRoutine) {
-						const linesForMultiLine: string[] = [];
+						const linesForMultiLine: CommandSegment[] = [];
 						let foundTerminator = false;
 						while (commandQueue.length > 0) {
 							const nextItem = commandQueue.shift();
 							if (!nextItem) break;
 							if (nextItem.type !== "line") continue;
 
-							if (nextItem.value.trim().toUpperCase() === request.terminator) {
+							if (nextItem.tokens[0].text.toUpperCase() === request.terminator) {
 								foundTerminator = true;
 								break;
 							}
-							linesForMultiLine.push(nextItem.value);
+							// linesForMultiLine.push(nextItem.tokens.map((t) => t.text).join(" "));
+							linesForMultiLine.push(nextItem.tokens);
 						}
 						if (!foundTerminator)
 							throw new Error(

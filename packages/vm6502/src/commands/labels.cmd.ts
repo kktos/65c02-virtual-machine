@@ -1,6 +1,5 @@
 import { useSymbols } from "@/composables/useSymbols";
-import { parseValue } from "@/lib/parse.utils";
-import type { Command, CommandContext, ParamListItemIdentifier } from "@/types/command";
+import type { Command, CommandContext, CommandSegment, ParamListItemIdentifier } from "@/types/command";
 
 const { addManySymbols } = useSymbols();
 
@@ -16,20 +15,25 @@ export const labelsCmd: Command = {
 			__isMultiLineRequest: true,
 			prompt: `LABELS ${namespace}|`,
 			terminator: "END",
-			onComplete: async (lines: string[]) => {
+			onComplete: async (lines: (CommandSegment | string)[]) => {
 				const symbols: { ns: string; label: string; addr: number; scope: string }[] = [];
 
 				for (const line of lines) {
-					const trimmed = line.trim();
-					if (!trimmed) continue;
+					if (line.length < 2)
+						throw new Error(
+							`Invalid line format: "${typeof line === "string" ? line : line.join(" ")}". Expected: <address> <label>`,
+						);
 
-					const parts = trimmed.split(/\s+/) as [string, string];
-					if (parts.length < 2)
-						throw new Error(`Invalid line format: "${line}". Expected: <address> <label>`);
-
-					const addrStr = parts[0];
-					const label = parts[1];
-					const addr = parseValue(addrStr, 0xffffff);
+					let addr: number;
+					let label: string;
+					if (typeof line === "string") {
+						let addrStr: string;
+						[addrStr, label] = line.split(" ") as [string, string];
+						addr = parseInt(addrStr.replace(/^(0x|$)/, ""), 16);
+					} else {
+						addr = line[0].value;
+						label = line[1].text;
+					}
 
 					symbols.push({ ns: namespace.text, label, addr, scope });
 				}
