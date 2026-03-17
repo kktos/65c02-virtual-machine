@@ -26,7 +26,13 @@ export const setDisasmView: Command = {
 
 			const readByte = (address: number, debug = true) => (debug ? vm.readDebug(address) : vm.read(address)) ?? 0;
 			const { registers } = useMachine();
-			const lines = disassembleRange(readByte, vm.getScope(start), start, end, registers);
+			const lines = disassembleRange({
+				readByte,
+				scope: vm.getScope(start),
+				fromAddress: start,
+				toAddress: end,
+				registers,
+			});
 			const source = formatDisassemblyAsText(lines);
 
 			// print("text", source);

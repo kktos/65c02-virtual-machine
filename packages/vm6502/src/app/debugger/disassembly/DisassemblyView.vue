@@ -320,6 +320,7 @@ watch(
 		isFollowingPc.value,
 		fullPcAddress.value,
 		pivotIndex.value,
+		settings.disassembly.lowercase,
 	],
 	async () => {
 		if (memory) {
@@ -340,6 +341,7 @@ watch(
 				lineCount: visibleRowCount.value,
 				registers,
 				pivotLineIndex: pivot,
+				lowercase: settings.disassembly.lowercase,
 			});
 
 			if (isFollowingPc.value && disassembly.value.length > 0) {
@@ -427,7 +429,14 @@ const handleExplain = async () => {
 	if (hasSelection.value) {
 		const start = selectionStart.value!;
 		const end = selectionEnd.value!;
-		const lines = disassembleRange(readByte, vm!.value.getScope(start), start, end, registers);
+		const lines = disassembleRange({
+			readByte,
+			scope: vm!.value.getScope(start),
+			fromAddress: start,
+			toAddress: end,
+			registers,
+			lowercase: settings.disassembly.lowercase,
+		});
 		codeBlock = formatDisassemblyAsText(lines);
 	} else {
 		codeBlock = formatDisassemblyAsText(disassembly.value);

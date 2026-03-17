@@ -6,6 +6,7 @@ const SETTINGS_KEY = "vm6502_debugger_settings";
 interface DebuggerSettings {
 	disassembly: {
 		showCycles: boolean;
+		lowercase: boolean;
 		scopeColors: Record<string, string>;
 		gemini: {
 			apiKey: string;
@@ -18,6 +19,7 @@ interface DebuggerSettings {
 const defaultSettings: DebuggerSettings = {
 	disassembly: {
 		showCycles: true,
+		lowercase: false,
 		scopeColors: {
 			main: "#000000",
 		},

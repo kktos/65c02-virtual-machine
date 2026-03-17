@@ -75,6 +75,15 @@
 									Show Cycles
 								</label>
 							</div>
+							<div class="flex items-center space-x-2">
+								<Checkbox id="lowercase" v-model="settings.disassembly.lowercase" />
+								<label
+									for="lowercase"
+									class="text-xs font-medium leading-none cursor-pointer select-none"
+								>
+									Lowercase Opcodes
+								</label>
+							</div>
 							<div class="flex flex-col gap-1.5 mt-1">
 								<label for="apiKey" class="text-xs font-medium text-gray-300">Gemini API Key</label>
 								<input

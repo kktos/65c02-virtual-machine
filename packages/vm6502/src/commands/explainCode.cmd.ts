@@ -15,7 +15,13 @@ export const explainCmd: Command = {
 		const { explainCode } = useGemini();
 
 		const range = params[0] as { start: number; end: number };
-		const lines = disassembleRange(readByte, vm.getScope(range.start), range.start, range.end, registers);
+		const lines = disassembleRange({
+			readByte,
+			scope: vm.getScope(range.start),
+			fromAddress: range.start,
+			toAddress: range.end,
+			registers,
+		});
 		const source = formatDisassemblyAsText(lines);
 
 		let mode: "DETAILED" | "CONCISE" = "CONCISE";

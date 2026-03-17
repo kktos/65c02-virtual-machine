@@ -52,6 +52,7 @@ function handleDataRegion(
 	disassembly: DisassemblyLine[],
 	readByte: FunctionReadByte,
 	symbol?: SymbolEntry,
+	lowercase = false,
 ) {
 	let byteCount = format.length;
 	if (format.type === "word") byteCount *= 2;
@@ -76,7 +77,7 @@ function handleDataRegion(
 					return c >= 32 && c <= 126 ? String.fromCharCode(c) : ".";
 				})
 				.join("");
-			opcode = `.STR "${text}"`;
+			opcode = lowercase ? `.str "${text}"` : `.STR "${text}"`;
 			break;
 		}
 		case "word": {
@@ -89,11 +90,13 @@ function handleDataRegion(
 					words.push(`$${toHex(val, 4)}`);
 				}
 			}
-			opcode = `.WORD ${words.join(", ")}`;
+			opcode = lowercase ? `.word ${words.join(", ")}` : `.WORD ${words.join(", ")}`;
 			break;
 		}
 		default:
-			opcode = `.BYTE ${bytes.map((b) => `$${toHex(b, 2)}`).join(", ")}`;
+			opcode = lowercase
+				? `.byte ${bytes.map((b) => `$${toHex(b, 2)}`).join(", ")}`
+				: `.BYTE ${bytes.map((b) => `$${toHex(b, 2)}`).join(", ")}`;
 	}
 
 	disassembly.push({
@@ -120,6 +123,7 @@ type DisassembleContext = {
 	lineCount: number;
 	registers?: EmulatorRegisters;
 	pivotLineIndex?: number;
+	lowercase?: boolean;
 };
 export function disassemble(ctx: DisassembleContext) {
 	const disassembly: DisassemblyLine[] = [];
@@ -138,7 +142,7 @@ export function disassemble(ctx: DisassembleContext) {
 		// Check for Custom Formatting (Data Directives)
 		const format = getFormat(pc);
 		if (format) {
-			const byteCount = handleDataRegion(format, pc, disassembly, ctx.readByte, symbol);
+			const byteCount = handleDataRegion(format, pc, disassembly, ctx.readByte, symbol, ctx.lowercase);
 			pc += byteCount;
 			continue;
 		}
@@ -149,6 +153,7 @@ export function disassemble(ctx: DisassembleContext) {
 		if (opcodeByte === 0x00) {
 			const result = runHypercall(ctx.readByte, pc);
 			if (result.line) {
+				if (ctx.lowercase) result.line.opc = result.line.opc.toLowerCase();
 				disassembly.push(result.line);
 				pc = result.pc;
 				continue;
@@ -185,7 +190,7 @@ export function disassemble(ctx: DisassembleContext) {
 			faddr: formatAddress(pc),
 
 			mode,
-			opc: name,
+			opc: ctx.lowercase ? name.toLowerCase() : name,
 			opr: "",
 			oprn: 0,
 
@@ -476,19 +481,23 @@ export function disassemble(ctx: DisassembleContext) {
 	return disassembly;
 }
 
-export function disassembleRange(
-	readByte: FunctionReadByte,
-	scope: string,
-	fromAddress: number,
-	toAddress: number,
-	registers?: EmulatorRegisters,
-) {
+export type DisassembleRangeContext = {
+	readByte: FunctionReadByte;
+	scope: string;
+	fromAddress: number;
+	toAddress: number;
+	registers?: EmulatorRegisters;
+	lowercase?: boolean;
+};
+
+export function disassembleRange(ctx: DisassembleRangeContext) {
+	const { readByte, scope, fromAddress, toAddress, registers, lowercase } = ctx;
 	const lines: DisassemblyLine[] = [];
 	const start = Math.min(fromAddress, toAddress);
 	const end = Math.max(fromAddress, toAddress);
 	let currentAddr = start;
 	while (currentAddr <= end) {
-		const chunk = disassemble({ readByte, scope, fromAddress: currentAddr, lineCount: 20, registers });
+		const chunk = disassemble({ readByte, scope, fromAddress: currentAddr, lineCount: 20, registers, lowercase });
 		if (!chunk || chunk.length === 0) break;
 
 		for (const line of chunk) {
