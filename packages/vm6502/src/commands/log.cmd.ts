@@ -15,7 +15,7 @@ export const logCmd: Command = {
 
 		if (!rest) {
 			open(name.text);
-			return `Log window '${name}' is active.`;
+			return `Log window '${name.text}' is active.`;
 		}
 
 		if (typeof rest === "object" && "text" in rest) {
