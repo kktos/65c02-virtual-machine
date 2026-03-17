@@ -129,7 +129,7 @@ import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useSymbols, type SearchSuggestion, type SearchProvider, type SymbolEntry } from "@/composables/useSymbols";
 
-import { formatAddress, toHex } from "@/lib/hex.utils";
+import { formatAddress, parseHexValue, toHex } from "@/lib/hex.utils";
 import { useAddressHistory } from "@/composables/useAddressHistory";
 
 type SuggestionItem = SymbolEntry | SearchSuggestion;
@@ -242,10 +242,7 @@ const handleGoto = () => {
 	if (!val) return;
 
 	let addr = getAddressForLabel(val);
-	if (addr === undefined) {
-		const hexVal = val.replace(/^\$/, "").replace(/^0x/i, "");
-		addr = parseInt(hexVal, 16);
-	}
+	if (addr === undefined) addr = parseHexValue(val);
 
 	if (!Number.isNaN(addr)) {
 		addJumpHistory(addr);

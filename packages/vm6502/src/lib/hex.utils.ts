@@ -8,6 +8,12 @@ export function toHex(v: number | undefined, pad = 2) {
 	return (v ?? 0).toString(16).toUpperCase().padStart(pad, "0");
 }
 
+const HEX_PREFIX = new RegExp("^(0x|\\$)");
+export function parseHexValue(value: string) {
+	const hexVal = value.replace(HEX_PREFIX, "");
+	return parseInt(hexVal, 16);
+}
+
 export function hexDump(
 	addr: number,
 	bytes: Uint8Array,
