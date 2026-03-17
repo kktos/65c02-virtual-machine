@@ -37,6 +37,8 @@ export enum TokenType {
 	RPAREN,
 	// Special
 	COLON,
+	PIPE,
+	SEMICOLON,
 	MEM_START, // mem[
 	RBRACKET, // ]
 }
@@ -48,6 +50,7 @@ const TWO_CHAR_OPS: Record<string, TokenType> = {
 	">=": TokenType.GTE,
 	"&&": TokenType.BOOL_AND,
 	"||": TokenType.BOOL_OR,
+	"|>": TokenType.PIPE,
 };
 const ONE_CHAR_OPS: Record<string, TokenType> = {
 	"+": TokenType.PLUS,
@@ -65,6 +68,7 @@ const ONE_CHAR_OPS: Record<string, TokenType> = {
 	"]": TokenType.RBRACKET,
 	",": TokenType.COMMA,
 	":": TokenType.COLON,
+	";": TokenType.SEMICOLON,
 };
 
 export interface Token {
@@ -86,9 +90,10 @@ export class ExpressionParser {
 	public pos = 0;
 	private vm: VirtualMachine;
 
-	constructor(input: string, vm: VirtualMachine) {
+	constructor(input: string | Token[], vm: VirtualMachine) {
 		this.vm = vm;
-		this.tokenize(input);
+		if (Array.isArray(input)) this.tokens = input;
+		else this.tokenize(input);
 	}
 
 	private tokenize(input: string) {
@@ -252,12 +257,26 @@ export class ExpressionParser {
 		this.tokens.push({ type: TokenType.EOF, value: 0, text: "", start: i, end: i });
 	}
 
+	public getTokens(from: number = 0): Token[] {
+		return this.tokens.slice(from);
+	}
+
 	public peek() {
-		return this.tokens[this.pos];
+		return this.pos < this.tokens.length
+			? this.tokens[this.pos]
+			: { type: TokenType.EOF, value: 0, text: "", start: 0, end: 0 };
+	}
+
+	public is(type: TokenType): boolean {
+		return this.peek().type === type;
+	}
+	public isIdentifier(text?: string): boolean {
+		const peek = this.peek();
+		return peek.type === TokenType.IDENTIFIER && (text ? peek.text === text : true);
 	}
 
 	public eof() {
-		return this.tokens[this.pos].type === TokenType.EOF;
+		return this.peek().type === TokenType.EOF;
 	}
 
 	public consume() {
