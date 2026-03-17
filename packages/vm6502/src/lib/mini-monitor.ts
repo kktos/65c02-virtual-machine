@@ -1,7 +1,7 @@
 import { useMachine } from "@/composables/useMachine";
 import { disassemble, disassembleRange, formatDisassemblyAsText } from "./disassembler";
 import { toHex, hexDump } from "./hex.utils";
-import { parseHexValue } from "./parse.utils";
+import { ExpressionParser, TokenType, type ParsedResult } from "./expressionParser";
 import type { Dict } from "@/types/dict.type";
 import type { CommandOutput } from "@/types/command";
 
@@ -26,110 +26,109 @@ const formatAddr = (addr: number) => {
 	return `$${bank}/${offset}`;
 };
 
-export function minimonitor(input: string, vm: StrippedVM): MiniMonitorReturnValue {
-	let output = "";
-	let commandRequest: MiniMonitorReturnValue | undefined;
+const resolveAddress = (res: ParsedResult): number | undefined => {
+	if (typeof res.value === "number") return res.value;
+};
 
-	const trimmed = input.trim();
+let lastAddress = 0;
 
-	// Write command: <addr>: <values>
-	const colonIdx = trimmed.indexOf(":");
-	if (colonIdx !== -1) {
-		const addrPart = trimmed.substring(0, colonIdx).trim();
-		const dataPart = trimmed.substring(colonIdx + 1).trim();
+export function minimonitor(parser: ExpressionParser, vm: StrippedVM): MiniMonitorReturnValue {
+	parser.pos = 0;
 
-		const cleanAddr = addrPart.startsWith("$") ? addrPart.slice(1) : addrPart;
-		const address = parseHexValue(cleanAddr, 0xffffff);
+	const lhs = parser.parse();
 
-		const tokens = dataPart.match(/"[^"]*"|'[^']*'|\S+/g) || [];
-		let currentAddr = address;
+	let startAddr = resolveAddress(lhs);
+	let endAddr: number | undefined;
 
-		for (const token of tokens) {
-			if (token.startsWith('"') && token.endsWith('"')) {
-				const str = token.slice(1, -1);
-				for (let i = 0; i < str.length; i++) vm.writeDebug(currentAddr++, str.charCodeAt(i) | 0x80);
-			} else if (token.startsWith("'") && token.endsWith("'")) {
-				const str = token.slice(1, -1);
-				for (let i = 0; i < str.length; i++) vm.writeDebug(currentAddr++, str.charCodeAt(i));
+	if (startAddr !== undefined && parser.match(TokenType.DOT)) {
+		// Range Mode: <start>.<end>
+		const rhs = parser.parse();
+		endAddr = resolveAddress(rhs);
+		if (endAddr !== undefined && startAddr > endAddr)
+			throw new Error("Start address must be less than or equal to end address.");
+	}
+
+	startAddr = startAddr ?? lastAddress;
+	lastAddress = (endAddr ?? startAddr) + 1;
+
+	// Handle explicit commands
+	if (parser.match(TokenType.COLON)) {
+		// Write Mode: <addr>: <val> <val> ...
+		let currentAddr = startAddr;
+		while (!parser.eof()) {
+			const token = parser.parse();
+			if (token.type === TokenType.STRING) {
+				const str = String(token.value);
+				const isHighAscii = token.raw.startsWith('"');
+				for (let i = 0; i < str.length; i++)
+					vm.writeDebug(currentAddr++, str.charCodeAt(i) | (isHighAscii ? 0x80 : 0));
 			} else {
-				let val = parseInt(token, 16);
-				if (Number.isNaN(val)) throw new Error(`Invalid value: ${token}`);
-				let byteWidth = 1;
-				byteWidth = Math.ceil(token.length / 2);
-				if (byteWidth === 0) byteWidth = 1;
-				for (let i = 0; i < byteWidth; i++) vm.writeDebug(currentAddr++, (val >> (i * 8)) & 0xff);
+				// Number or Hex Identifier
+				let val: number;
+				if (typeof token.value === "number") val = token.value;
+				else if (token.type === TokenType.IDENTIFIER && /^[0-9A-F]+$/i.test(token.raw))
+					val = parseInt(token.raw, 16);
+				else throw new Error(`Invalid value: ${token.raw}`);
+
+				// Determine width: > 255 -> 2 bytes, else 1 byte (Little Endian)
+				if (val > 0xff) {
+					vm.writeDebug(currentAddr++, val & 0xff);
+					vm.writeDebug(currentAddr++, (val >> 8) & 0xff);
+				} else {
+					vm.writeDebug(currentAddr++, val & 0xff);
+				}
 			}
 		}
-		const bytes = vm.readDebugRange(address, currentAddr - address);
-		output = hexDump(address, bytes, { formatAddr });
+		const bytes = vm.readDebugRange(startAddr, currentAddr - startAddr);
+		const output = hexDump(startAddr, bytes, { formatAddr });
 		return { content: output, format: "markdown" };
 	}
 
-	// G command: JSR to address
-	if (trimmed.toUpperCase().endsWith("G")) {
-		let jsrAddressStr = trimmed.substring(0, trimmed.length - 1).trim();
-		let jsrAddress: number | undefined;
-
-		if (jsrAddressStr !== "") {
-			const cleanAddr = jsrAddressStr.startsWith("$") ? jsrAddressStr.slice(1) : jsrAddressStr;
-			jsrAddress = parseHexValue(cleanAddr, 0xffffff);
+	let tok = parser.eof() ? { type: lhs.type, text: lhs.raw } : parser.peek();
+	let cmd: string | undefined;
+	if (tok.type === TokenType.IDENTIFIER) cmd = tok.text.toUpperCase();
+	switch (cmd) {
+		case "G":
+			return { type: "JSR", address: startAddr };
+		case "L": {
+			const res = runDisassembly(startAddr, endAddr, vm);
+			lastAddress = res.endAddr ?? lastAddress;
+			return { content: res.content, format: "markdown" };
 		}
-
-		commandRequest = {
-			type: "JSR",
-			address: jsrAddress,
-		};
-
-		return commandRequest;
+		default:
+			return runHexDump(startAddr, endAddr, vm);
 	}
+}
 
-	const upperInput = trimmed.toUpperCase();
-	const isDisassembly = upperInput.endsWith("L");
-	const cleanInput = isDisassembly ? trimmed.slice(0, -1).trim() : trimmed;
+function runDisassembly(start: number, end: number | undefined, vm: StrippedVM) {
+	const { registers } = useMachine();
+	const readByte = (address: number, debug = true) => (debug ? vm.readDebug(address) : vm.read(address)) ?? 0;
 
-	const parts = cleanInput.split(".") as [string, string];
-	if (parts.length > 2 || parts.some((p) => !p.trim() || !/^[0-9a-fA-F]+$/.test(p.trim())))
-		throw new Error("Invalid monitor command format");
-
-	const addr1 = parseHexValue(parts[0].trim(), 0xffffff);
-	const addr2 = parts.length > 1 ? parseHexValue(parts[1].trim(), 0xffffff) : undefined;
-
-	if (isDisassembly) {
-		const startAddr = addr1;
-		const { registers } = useMachine();
-		const readByte = (address: number, debug = true) => (debug ? vm.readDebug(address) : vm.read(address)) ?? 0;
-
-		if (addr2 !== undefined) {
-			if (startAddr > addr2) throw new Error("Start address must be less than end address.");
-			const lines = disassembleRange(readByte, vm.getScope(startAddr), startAddr, addr2, registers);
-			output = formatDisassemblyAsText(lines, {
-				withOrg: false,
-				withAddr: true,
-				withBytes: true,
-				asMarkdown: true,
-			});
-		} else {
-			const lines = disassemble(readByte, vm.getScope(startAddr), startAddr, 32, registers);
-			output = formatDisassemblyAsText(lines, {
-				withOrg: false,
-				withAddr: true,
-				withBytes: true,
-				asMarkdown: true,
-			});
-		}
-		return { content: output, format: "markdown" };
-	}
-
-	const startAddr = addr1;
-	const endAddr = addr2 ?? startAddr;
-	if (startAddr > endAddr) throw new Error("Start address must be less than or equal to end address.");
-	if (addr2 === undefined) {
-		const byte = vm.read(startAddr);
-		output = `${formatAddr(startAddr)}: ${toHex(byte, 2)}`;
+	let lines = [];
+	if (end !== undefined) {
+		lines = disassembleRange(readByte, vm.getScope(start), start, end, registers);
 	} else {
-		const bytes = vm.readDebugRange(startAddr, endAddr - startAddr);
-		output = hexDump(startAddr, bytes, { formatAddr });
+		lines = disassemble(readByte, vm.getScope(start), start, 32, registers);
 	}
 
+	const output = formatDisassemblyAsText(lines, {
+		withOrg: false,
+		withAddr: true,
+		withBytes: true,
+		asMarkdown: true,
+	});
+	const lastLine = lines.at(-1)!;
+	return { content: output, endAddr: lastLine.addr + lastLine.bytes.split(" ").length };
+}
+
+function runHexDump(start: number, end: number | undefined, vm: StrippedVM): CommandOutput {
+	let output = "";
+	if (end === undefined) {
+		const byte = vm.read(start);
+		output = `${formatAddr(start)}: ${toHex(byte, 2)}`;
+	} else {
+		const bytes = vm.readDebugRange(start, end - start);
+		output = hexDump(start, bytes, { formatAddr });
+	}
 	return { content: output, format: "markdown" };
 }
