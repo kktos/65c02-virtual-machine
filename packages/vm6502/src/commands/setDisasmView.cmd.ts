@@ -1,16 +1,16 @@
 import { useAddressHistory } from "@/composables/useAddressHistory";
+import { isParamListItemRange } from "@/composables/useCommands";
 import { useDebuggerNav } from "@/composables/useDebuggerNav";
-import { useMachine } from "@/composables/useMachine";
 import { disassembleRange, formatDisassemblyAsText } from "@/lib/disassembler";
 import { formatAddress } from "@/lib/hex.utils";
-import type { Command, CommandContext } from "@/types/command";
+import type { Command, CommandContext, ParamListItemIdentifier } from "@/types/command";
 
 const { setActiveTab } = useDebuggerNav();
 const { jumpToAddress } = useAddressHistory("disassembly");
 
 export const setDisasmView: Command = {
 	description: "Set disasm <address>, or disasm a <range> to console",
-	paramDef: ["range|address"],
+	paramDef: ["range|address", "name?"],
 	group: "Viewers",
 	fn: async ({ vm, params }: CommandContext) => {
 		const val = params[0];
@@ -21,22 +21,21 @@ export const setDisasmView: Command = {
 			return `DisasmViewer address set to $${formatAddress(val)}`;
 		}
 
-		if (typeof val === "object" && val !== null && "start" in val) {
-			const { start, end } = val as { start: number; end: number };
-
+		if (isParamListItemRange(val)) {
+			const { start, end } = val;
 			const readByte = (address: number, debug = true) => (debug ? vm.readDebug(address) : vm.read(address)) ?? 0;
-			const { registers } = useMachine();
+
+			const wantLowercase = params[1] as ParamListItemIdentifier;
+
 			const lines = disassembleRange({
 				readByte,
 				scope: vm.getScope(start),
 				fromAddress: start,
 				toAddress: end,
-				registers,
+				//registers,
+				lowercase: "lowercase".startsWith(wantLowercase?.text.toLowerCase()),
 			});
 			const source = formatDisassemblyAsText(lines);
-
-			// print("text", source);
-			// return `Disassembly for range [${formatAddress(start)} - ${formatAddress(end)}]`;
 			return source;
 		}
 

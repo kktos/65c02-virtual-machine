@@ -22,6 +22,7 @@ import type {
 	ParamListItem,
 	ParamListItemIdentifier,
 	CommandSegment,
+	ParamListItemRange,
 } from "@/types/command";
 
 const HISTORY_MAX_SIZE = 50;
@@ -61,6 +62,9 @@ export function isMiniMonitorCommandRequest(r: unknown): r is MiniMonitorCommand
 }
 export function isParamListItemIdentifier(r: unknown): r is ParamListItemIdentifier {
 	return typeof r === "object" && r !== null && "text" in r && "value" in r;
+}
+export function isParamListItemRange(r: unknown): r is ParamListItemRange {
+	return typeof r === "object" && r !== null && "start" in r && "end" in r;
 }
 
 function parseUserCommand(cmdParser: ExpressionParser) {

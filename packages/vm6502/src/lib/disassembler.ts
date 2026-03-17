@@ -214,7 +214,7 @@ export function disassemble(ctx: DisassembleContext) {
 				break;
 			case "IMM":
 				line.opr = `#${toHex(operandBytes[0], 2)}`;
-				if (line.opc === "CMP")
+				if (line.opc.toUpperCase() === "CMP")
 					line.comment = `'${String.fromCharCode(operandBytes[0] & 0x7f)}' ${operandBytes[0]}`;
 				break;
 			case "ZP": {
@@ -249,7 +249,7 @@ export function disassemble(ctx: DisassembleContext) {
 				} else {
 					baseOpr = `$${toHex(effectiveAddress, 2)}`;
 				}
-				line.opr = `${baseOpr},X`;
+				line.opr = `${baseOpr},${ctx.lowercase ? "x" : "X"}`;
 				if (ctx.registers) effectiveAddress = (effectiveAddress + ctx.registers.X) & 0xff;
 				break;
 			}
@@ -306,7 +306,7 @@ export function disassemble(ctx: DisassembleContext) {
 				} else {
 					baseOpr = `$${toHex(effectiveAddress, 4)}`;
 				}
-				line.opr = `${baseOpr},X`;
+				line.opr = `${baseOpr},${ctx.lowercase ? "x" : "X"}`;
 				if (ctx.registers) effectiveAddress = (effectiveAddress + ctx.registers.X) & 0xffff;
 				break;
 			}
@@ -325,7 +325,7 @@ export function disassemble(ctx: DisassembleContext) {
 				} else {
 					baseOpr = `$${toHex(effectiveAddress, 4)}`;
 				}
-				line.opr = `${baseOpr},Y`;
+				line.opr = `${baseOpr},${ctx.lowercase ? "y" : "Y"}`;
 				if (ctx.registers) effectiveAddress = (effectiveAddress + ctx.registers.Y) & 0xffff;
 				break;
 			}
@@ -375,7 +375,7 @@ export function disassemble(ctx: DisassembleContext) {
 				} else {
 					baseOpr = `$${toHex(iax, 4)}`;
 				}
-				line.opr = `(${baseOpr},X)`;
+				line.opr = `(${baseOpr},${ctx.lowercase ? "x" : "X"})`;
 				if (ctx.registers) {
 					const ptr = (iax + ctx.registers.X) & 0xffff;
 					const lo = ctx.readByte(ptr, false);
@@ -400,7 +400,7 @@ export function disassemble(ctx: DisassembleContext) {
 				} else {
 					baseOpr = `$${toHex(addr, 2)}`;
 				}
-				line.opr = `(${baseOpr},X)`;
+				line.opr = `(${baseOpr},${ctx.lowercase ? "x" : "X"})`;
 				if (ctx.registers) {
 					const ptr = (operandBytes[0] + ctx.registers.X) & 0xff;
 					const lo = ctx.readByte(ptr, false);
@@ -425,7 +425,7 @@ export function disassemble(ctx: DisassembleContext) {
 				} else {
 					baseOpr = `$${toHex(addr, 2)}`;
 				}
-				line.opr = `(${baseOpr}),Y`;
+				line.opr = `(${baseOpr}),${ctx.lowercase ? "y" : "Y"}`;
 				if (ctx.registers) {
 					const ptr = operandBytes[0];
 					const lo = ctx.readByte(ptr, false);
@@ -467,11 +467,8 @@ export function disassemble(ctx: DisassembleContext) {
 
 		if (effectiveAddress !== null) {
 			const hexAddr = toHex(effectiveAddress, 4);
-			if (line.comment) {
-				line.comment += ` $${hexAddr}`;
-			} else {
-				line.comment = `= $${hexAddr}`;
-			}
+			if (line.comment) line.comment += ` $${hexAddr}`;
+			else line.comment = `= $${hexAddr}`;
 		}
 
 		disassembly.push(line);

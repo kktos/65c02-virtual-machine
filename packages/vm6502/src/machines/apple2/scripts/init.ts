@@ -1,4 +1,5 @@
 export const initRoutine = `
+	cls
 	LABELS SYSTEM
 		$0100 STACK
 		$0200 INPUTBUF
