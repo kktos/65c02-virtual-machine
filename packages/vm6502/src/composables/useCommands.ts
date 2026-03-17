@@ -78,40 +78,6 @@ function parseCommandParams(
 	const paramCount = paramDef?.length ?? 0;
 	const minParamCount = paramDef?.filter((p) => !p.endsWith("?")).length ?? 0;
 
-	// Handle injected value (from pipe)
-	if (injectedValue !== undefined) {
-		if (!hasRestParam && paramIndex >= paramCount)
-			throw new Error(`Too many parameters for command "${cmd}" (input piped).`);
-
-		let paramDefStr = paramDef?.[paramIndex] ?? "rest";
-		if (paramDefStr.endsWith("?")) paramDefStr = paramDefStr.slice(0, -1) as ParamDef;
-		const allowedTypes = paramDefStr.split("|");
-
-		const valType = typeof injectedValue;
-		let typeOk = false;
-		if (allowedTypes.includes("rest")) typeOk = true;
-		else if (valType === "string" && allowedTypes.includes("string")) typeOk = true;
-		else if (
-			valType === "number" &&
-			(allowedTypes.includes("byte") ||
-				allowedTypes.includes("word") ||
-				allowedTypes.includes("address") ||
-				allowedTypes.includes("number"))
-		)
-			typeOk = true;
-		else if (valType === "object" && allowedTypes.includes("range") && "start" in injectedValue) typeOk = true;
-
-		if (!typeOk) {
-			if (valType === "number" && allowedTypes.includes("string")) {
-				injectedValue = injectedValue.toString();
-				typeOk = true;
-			}
-		}
-
-		userParams.push(injectedValue);
-		paramIndex++;
-	}
-
 	while (!cmdParser.eof()) {
 		if (!hasRestParam && paramIndex >= paramCount) throw new Error(`Too many parameters for command "${cmd}".`);
 
@@ -182,6 +148,40 @@ function parseCommandParams(
 		userParams.push(parsedValue);
 	}
 
+	// Handle injected value (from pipe)
+	if (injectedValue !== undefined) {
+		if (!hasRestParam && paramIndex >= paramCount)
+			throw new Error(`Too many parameters for command "${cmd}" (input piped).`);
+
+		let paramDefStr = paramDef?.[paramIndex] ?? "rest";
+		if (paramDefStr.endsWith("?")) paramDefStr = paramDefStr.slice(0, -1) as ParamDef;
+		const allowedTypes = paramDefStr.split("|");
+
+		const valType = typeof injectedValue;
+		let typeOk = false;
+		if (allowedTypes.includes("rest")) typeOk = true;
+		else if (valType === "string" && allowedTypes.includes("string")) typeOk = true;
+		else if (
+			valType === "number" &&
+			(allowedTypes.includes("byte") ||
+				allowedTypes.includes("word") ||
+				allowedTypes.includes("address") ||
+				allowedTypes.includes("number"))
+		)
+			typeOk = true;
+		else if (valType === "object" && allowedTypes.includes("range") && "start" in injectedValue) typeOk = true;
+
+		if (!typeOk) {
+			if (valType === "number" && allowedTypes.includes("string")) {
+				injectedValue = injectedValue.toString();
+				typeOk = true;
+			}
+		}
+
+		userParams.push(injectedValue);
+		paramIndex++;
+	}
+
 	if (paramIndex < minParamCount) throw new Error(`Missing required parameter(s) for "${cmd}".`);
 
 	let finalParams: ParamList = userParams;
@@ -229,19 +229,17 @@ function handleNonCommandOutput(output: MiniMonitorReturnValue, result: CommandR
 }
 
 function handleIfCommand(cmdParser: ExpressionParser, commandQueue: QueueItem[]) {
+	let isTrue = false;
+
 	const expr = cmdParser.parse();
 	const condition = expr.value;
-	let isTrue = false;
+
 	if (typeof condition === "string") isTrue = condition.length > 0;
 	else isTrue = condition !== 0;
 
 	if (!isTrue) return;
 
-	let token = cmdParser.peek();
-	if (token.type === TokenType.IDENTIFIER && token.text.toUpperCase() === "THEN") {
-		cmdParser.consume();
-		token = cmdParser.peek();
-	}
+	if (cmdParser.isIdentifier("THEN")) cmdParser.consume();
 
 	commandQueue.unshift({ type: "line", tokens: cmdParser.getTokens(cmdParser.pos), chain: [] });
 }
@@ -419,6 +417,9 @@ export function useCommands() {
 
 				const cmdSpec = resolveAlias(cmd);
 				const finalParams = parseCommandParams(cmdParser, cmd, paramIndex, userParams, cmdSpec, pipeValue);
+
+				console.log("----> ", cmd, finalParams);
+
 				const cmdResult = await cmdSpec.fn(vm, progress, finalParams);
 
 				if (isMultiLineRequest(cmdResult)) {
