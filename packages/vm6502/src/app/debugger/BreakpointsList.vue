@@ -63,7 +63,7 @@
 								<input
 									ref="editInput"
 									v-model="editValue"
-									class="bg-gray-900/90 px-1 py-0 rounded-sm text-indigo-200 font-mono text-sm w-32 focus:ring-1 focus:ring-indigo-400 focus:outline-none border border-indigo-700"
+									class="bg-gray-900/90 px-1 py-0 rounded-sm text-indigo-200 font-mono text-sm w-36 focus:ring-1 focus:ring-indigo-400 focus:outline-none border border-indigo-700"
 									@blur="saveEdit(bp)"
 									@keydown.enter.prevent="saveEdit(bp)"
 									@keydown.esc.prevent="cancelEdit"
@@ -71,12 +71,11 @@
 							</div>
 							<span
 								v-else
-								class="text-indigo-300 cursor-pointer hover:text-white border-b border-transparent hover:border-indigo-500/50 transition-colors"
+								class="text-indigo-300 cursor-pointer hover:text-white border-b border-transparent hover:border-indigo-500/50 transition-colors w-36 inline-block px-1 font-mono text-sm truncate"
 								@click="startEditing(bp, 'address')"
 							>
 								{{ formatAddress(bp.address) }}
 								<span v-if="bp.endAddress && bp.endAddress !== bp.address">
-									-
 									{{ formatAddress(bp.endAddress) }}
 								</span>
 							</span>
