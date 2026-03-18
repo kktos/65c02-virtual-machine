@@ -182,11 +182,11 @@ watch(editingBpKey, (newKey) => {
 });
 
 const createBreakpoint = () => {
-	const newBp: Breakpoint = {
+	const newBp = {
 		address: 0,
 		type: "pc",
 		enabled: true,
-	};
+	} satisfies Breakpoint;
 	addBreakpoint(newBp, vm?.value);
 	nextTick(() => startEditing(newBp, "address"));
 };
