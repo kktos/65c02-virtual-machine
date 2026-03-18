@@ -149,3 +149,7 @@ Or refactor the whole thing to have 2 different Buses
 
 -24-
 There are onXX in the VirtualMachine; replace them with a proper event messaging
+
+-25-
+Shared Memory - Shared State
+We need something generic of X bytes; with a manager; instead of hardcoded values
