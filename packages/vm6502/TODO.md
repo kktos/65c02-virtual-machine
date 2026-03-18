@@ -122,7 +122,7 @@ Take inspiration from shell ?
 -16-
 fix minimmonitor; it needs to reparse the input string
 
--17-
+-17- **DONE**
 fix the bug : the MemView displays all zero at init.
 
 -18-
