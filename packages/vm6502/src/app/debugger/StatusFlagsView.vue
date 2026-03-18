@@ -3,16 +3,17 @@
 		<DebuggerPanelTitle title="Status Flags" />
 		<div class="flex gap-1">
 			<button
-				v-for="{ name, key } in flags"
+				v-for="{ name, key, pad } in flags"
 				:key="key"
 				@click="handleFlagToggle(key)"
-				:disabled="key === 'U'"
+				:disabled="name === '-'"
 				class="py-1 text-xs font-medium transition duration-150 w-[30px]"
 				:class="[
 					key !== 'U' && registers[key]
 						? 'bg-green-600 text-white hover:bg-green-500'
 						: 'bg-gray-600 text-gray-300 hover:bg-gray-500',
-					key === 'U' ? 'opacity-50 cursor-not-allowed' : '',
+					name === '-' ? 'opacity-50 cursor-not-allowed ' : '',
+					pad ? 'mr-1' : '',
 				]"
 				:title="name"
 			>
@@ -28,8 +29,6 @@ import type { EmulatorRegisters } from "@/types/emulatorstate.interface";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import DebuggerPanelTitle from "./DebuggerPanelTitle.vue";
 
-/** biome-ignore-all lint/correctness/noUnusedVariables: vue */
-
 const vm = inject<Ref<VirtualMachine>>("vm");
 
 interface Props {
@@ -37,17 +36,17 @@ interface Props {
 }
 const { registers } = defineProps<Props>();
 
-type Flag = { name: string; key: "U" | keyof EmulatorRegisters };
+type Flag = { name: string; key: "U" | keyof EmulatorRegisters; pad?: boolean };
 
 const flags: Flag[] = [
-	{ name: "N (Negative)", key: "N" },
-	{ name: "V (Overflow)", key: "V" },
-	{ name: "-", key: "U" },
-	{ name: "B (Break)", key: "B" },
-	{ name: "D (Decimal)", key: "D" },
-	{ name: "I (Interrupt)", key: "I" },
-	{ name: "Z (Zero)", key: "Z" },
-	{ name: "C (Carry)", key: "C" },
+	{ key: "N", name: "N (Negative)" },
+	{ key: "V", name: "V (Overflow)" },
+	{ key: "U", name: "-" },
+	{ key: "B", name: "B (Break)", pad: true },
+	{ key: "D", name: "D (Decimal)" },
+	{ key: "I", name: "I (Interrupt)" },
+	{ key: "Z", name: "Z (Zero)" },
+	{ key: "C", name: "C (Carry)" },
 ];
 
 const handleFlagToggle = (reg: "U" | keyof EmulatorRegisters) => {
