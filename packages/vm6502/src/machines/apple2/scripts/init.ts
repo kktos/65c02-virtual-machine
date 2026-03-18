@@ -159,6 +159,9 @@ export const initRoutine = `
 		$fce2 INIT_SYSTEM
 	END
 
+	; Apple //e
+	da $FF0A 9
+
 	SCOPEPATH "main" "io" "rom"
 
 	vr BR BANKSEL byte rw

@@ -290,8 +290,9 @@ function resolveAlias(cmd: COMMANDS) {
 	return cmdSpecOrAlias;
 }
 
-function splitIntoCommands(input: string, vm: VirtualMachine): QueueItem[] {
-	const allTokens = new ExpressionParser(input, vm).getTokens();
+function splitIntoCommands(input: string | ExpressionParser, vm: VirtualMachine): QueueItem[] {
+	const parser = input instanceof ExpressionParser ? input : new ExpressionParser(input, vm);
+	const allTokens = parser.getTokens();
 	const result: QueueItem[] = [];
 
 	let segStart = 0;
@@ -380,13 +381,14 @@ export function useCommands() {
 		const input = cmdInput.trim();
 		if (!input) return result;
 
-		const commandQueue = splitIntoCommands(input, vm);
+		const cmdParser = new ExpressionParser(input, vm);
+		const commandQueue = splitIntoCommands(cmdParser, vm);
 
 		while (commandQueue.length > 0) {
 			const item = commandQueue.shift()!;
 			if (item.type === "marker") continue;
 
-			let cmdParser = new ExpressionParser(item.tokens, vm);
+			cmdParser.reset(item.tokens);
 			if (cmdParser.matchIdentifier("IF")) {
 				handleIfCommand(cmdParser, commandQueue);
 				continue;
@@ -403,7 +405,7 @@ export function useCommands() {
 			let pipeValue: any = undefined;
 
 			for (let i = 0; i < chain.length; i++) {
-				cmdParser = new ExpressionParser(chain[i], vm);
+				cmdParser.reset(chain[i]);
 
 				const isLastInChain = i === chain.length - 1;
 				const currentSink: Sink = (output: CommandOutput | MiniMonitorCommandRequest) => {
@@ -421,7 +423,7 @@ export function useCommands() {
 				const { cmd, paramIndex: initialParamIndex, userParams, isValidCmd } = parseUserCommand(cmdParser);
 
 				if (!isValidCmd) {
-					const output = minimonitor(cmdParser, vm);
+					const output = minimonitor(input, vm);
 					currentSink(output);
 					if (result.error) break;
 					continue;
@@ -448,7 +450,6 @@ export function useCommands() {
 								foundTerminator = true;
 								break;
 							}
-							// linesForMultiLine.push(nextItem.tokens.map((t) => t.text).join(" "));
 							linesForMultiLine.push(nextItem.tokens);
 						}
 						if (!foundTerminator)

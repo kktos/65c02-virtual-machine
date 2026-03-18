@@ -1,17 +1,9 @@
 import { useMachine } from "@/composables/useMachine";
 import { disassemble, disassembleRange, formatDisassemblyAsText } from "./disassembler";
 import { toHex, hexDump } from "./hex.utils";
-import { ExpressionParser, TokenType, type ParsedResult } from "./expressionParser";
-import type { Dict } from "@/types/dict.type";
+import { ExpressionParser, monitorTokenizer, TokenType, type ParsedResult } from "./expressionParser";
 import type { CommandOutput } from "@/types/command";
-
-type StrippedVM = {
-	readDebug(address: number, overrides?: Dict | undefined): number | undefined;
-	readDebugRange(address: number, length: number, overrides?: Dict): Uint8Array;
-	read(address: number): number;
-	writeDebug(address: number, value: number): void;
-	getScope(address: number): string;
-};
+import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 
 export type MiniMonitorCommandRequest = {
 	type: string;
@@ -32,9 +24,8 @@ const resolveAddress = (res: ParsedResult): number | undefined => {
 
 let lastAddress = 0;
 
-export function minimonitor(parser: ExpressionParser, vm: StrippedVM): MiniMonitorReturnValue {
-	parser.pos = 0;
-
+export function minimonitor(input: string, vm: VirtualMachine): MiniMonitorReturnValue {
+	const parser = new ExpressionParser(input, vm, monitorTokenizer);
 	const lhs = parser.parse();
 
 	let startAddr = resolveAddress(lhs);
@@ -100,7 +91,7 @@ export function minimonitor(parser: ExpressionParser, vm: StrippedVM): MiniMonit
 	}
 }
 
-function runDisassembly(start: number, end: number | undefined, vm: StrippedVM) {
+function runDisassembly(start: number, end: number | undefined, vm: VirtualMachine) {
 	const { registers } = useMachine();
 	const readByte = (address: number, debug = true) => (debug ? vm.readDebug(address) : vm.read(address)) ?? 0;
 
@@ -127,7 +118,7 @@ function runDisassembly(start: number, end: number | undefined, vm: StrippedVM) 
 	return { content: output, endAddr: lastLine.addr + lastLine.bytes.split(" ").length };
 }
 
-function runHexDump(start: number, end: number | undefined, vm: StrippedVM): CommandOutput {
+function runHexDump(start: number, end: number | undefined, vm: VirtualMachine): CommandOutput {
 	let output = "";
 	if (end === undefined) {
 		const byte = vm.read(start);

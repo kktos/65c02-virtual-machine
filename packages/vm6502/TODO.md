@@ -1,7 +1,7 @@
 -1- **NOT_YET**
 Can we add a feature to highlight bytes that have changed since the last update in the Memory Viewer?
 
--2-
+-2- **DONE** -> scopepath
 in disasm, the scope is from the location of the running code and it's not the same as the operand address.
 for instance:
 FCD2: STA $C006
@@ -47,22 +47,18 @@ we need to group the commands by theme for the HELP
 Scripts -> Routines - DONE
 Add a script manager and a script editor like the note one
 Script doesn’t have address but a name
-
 ; NO
 
 > exec <url> | <name>
-
-; YES
-
+> ; YES
 > do <name>
-
-Add a cmd to exec a script - DONE
+> Add a cmd to exec a script - DONE
 
 -10- **DONE**
 Add a cmd to add a list of labels; problem is CR is the end of the command
 SOLVED: multilines commands
 
--11-
+-11- **DONE**
 Add script to execute to the machine config - DONE
 
 -12-
@@ -98,12 +94,11 @@ Commands to print to it
 - Add it to the script so choosing a machine clean up the bps
 
 File could be an URL -> for script or ROM data
-
 Expr comma separated sub cmds
-
 Registers
 Address/label as byte/word/string
 
+-16- **DONE** - minimonitor
 Add a command to set memory values
 
 <address> : <values>
@@ -111,7 +106,6 @@ Values comma separated
 Byte word or string
 ^^
 Syntax problem with range
-
 To fill mem with values
 <range> : value(s)
 
@@ -119,7 +113,7 @@ What about conditional ?
 IF expr THEN script/command
 Take inspiration from shell ?
 
--16-
+-16- **DONE**
 fix minimmonitor; it needs to reparse the input string
 
 -17- **DONE**
@@ -153,3 +147,7 @@ There are onXX in the VirtualMachine; replace them with a proper event messaging
 -25-
 Shared Memory - Shared State
 We need something generic of X bytes; with a manager; instead of hardcoded values
+
+-26-
+check if multiline command work with pipe
+print "print 65 \n end" |> routine test
