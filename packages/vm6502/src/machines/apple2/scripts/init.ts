@@ -58,6 +58,7 @@ export const initRoutine = `
 		$c062 BUTN1
 		$c064 PADDL0
 		$c070 PTRIG
+		$c073 BANKSEL
 
 		$c080 LCBANK2_RW
 		$c081 ROMIN
@@ -160,7 +161,7 @@ export const initRoutine = `
 
 	SCOPEPATH "main" "io" "rom"
 
-	vr BR $C073 byte rw
+	vr BR BANKSEL byte rw
 
 	font "PRINTCHAR21"
 
