@@ -63,7 +63,7 @@
 								<input
 									ref="editInput"
 									v-model="editValue"
-									class="bg-gray-900/90 px-1 py-0 rounded-sm text-indigo-200 font-mono text-sm w-24 focus:ring-1 focus:ring-indigo-400 focus:outline-none border border-indigo-700"
+									class="bg-gray-900/90 px-1 py-0 rounded-sm text-indigo-200 font-mono text-sm w-32 focus:ring-1 focus:ring-indigo-400 focus:outline-none border border-indigo-700"
 									@blur="saveEdit(bp)"
 									@keydown.enter.prevent="saveEdit(bp)"
 									@keydown.esc.prevent="cancelEdit"
@@ -139,7 +139,7 @@ import type { Breakpoint } from "@/types/breakpoint.interface";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import { ScrollArea } from "../../components/ui/scroll-area";
 import BreakpointAddControl from "./BreakpointAddControl.vue";
-import { formatAddress } from "@/lib/hex.utils";
+import { formatAddress, toHex } from "@/lib/hex.utils";
 import { FishingHook } from "lucide-vue-next";
 
 const vm = inject<Ref<VirtualMachine>>("vm");
@@ -183,7 +183,10 @@ const startEditing = (bp: BreakpointState, field: "type" | "address" | "command"
 			editValue.value = bp.command || "";
 			break;
 		case "address":
-			editValue.value = formatAddress(bp.address).replace("$", "");
+			editValue.value = toHex(bp.address);
+			if (bp.endAddress && bp.endAddress !== bp.address) {
+				editValue.value += "-" + toHex(bp.endAddress);
+			}
 			break;
 		case "type":
 			editValue.value = bp.type;
@@ -198,18 +201,28 @@ const cancelEdit = () => {
 };
 
 const saveEdit = (bp: BreakpointState) => {
-	// oxlint-disable-next-line no-debugger
-	debugger;
 	if (editingBpKey.value === getBreakpointKey(bp)) {
 		switch (editingField.value) {
 			case "command":
 				updateBreakpointCommand(bp, editValue.value);
 				break;
 			case "address": {
-				const newAddr = parseInt(editValue.value.replace(/$|:/, ""), 16);
-				if (!Number.isNaN(newAddr) && newAddr !== bp.address) {
+				const cleanVal = editValue.value.replace(/[$:]/g, "").trim();
+				const parts = cleanVal.split("-");
+				let newAddr = parseInt(parts[0], 16);
+				let newEnd = newAddr;
+				if (parts.length > 1 && parts[1].trim()) {
+					const endVal = parseInt(parts[1], 16);
+					if (!Number.isNaN(endVal)) {
+						newEnd = Math.max(newAddr, endVal);
+						newAddr = Math.min(newAddr, endVal);
+					}
+				}
+
+				if (!Number.isNaN(newAddr) && (newAddr !== bp.address || newEnd !== (bp.endAddress ?? bp.address))) {
 					removeBreakpoint(bp, vm?.value);
 					bp.address = newAddr;
+					bp.endAddress = newEnd !== newAddr ? newEnd : undefined;
 					addBreakpoint(bp, vm?.value);
 				}
 				break;
