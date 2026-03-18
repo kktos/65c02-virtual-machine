@@ -226,7 +226,7 @@ const getBranchPrediction = (opcode: string) => {
 	let isTaken = false;
 	let isBranchOpcode = false;
 
-	switch (opcode) {
+	switch (opcode.toUpperCase()) {
 		case "BNE":
 			isTaken = !Z;
 			isBranchOpcode = true;
@@ -269,14 +269,14 @@ const getBranchPrediction = (opcode: string) => {
 };
 
 const isOpcodeClickable = (line: DisassemblyLine) => {
-	const mnemonic = line.opc;
+	const mnemonic = line.opc.toUpperCase();
 	if (BRANCH_OPCODES.has(mnemonic)) return true;
 	const operand = line.opr;
 	return operand.includes("$"); // Simple check for an address operand
 };
 
 const getOpcodeTitle = (opc: string) => {
-	if (BRANCH_OPCODES.has(opc)) return "CTRL+Click to follow jump/branch";
+	if (BRANCH_OPCODES.has(opc.toUpperCase())) return "CTRL+Click to follow jump/branch";
 	return "CTRL+Click to view effective address in Memory Viewer";
 };
 

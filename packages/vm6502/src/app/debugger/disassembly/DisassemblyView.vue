@@ -363,7 +363,7 @@ watch(jumpEvent, (event) => {
 });
 
 const handleOpcodeClick = (line: DisassemblyLine) => {
-	if (BRANCH_OPCODES.has(line.opc)) {
+	if (BRANCH_OPCODES.has(line.opc.toUpperCase())) {
 		const currentBank = line.addr & 0xff0000;
 		const newAddress = currentBank | line.oprn;
 
