@@ -49,7 +49,7 @@ import { Speaker } from "./speaker";
 const DEFAULT_TEXT_COLORS = 0xf2;
 
 const MEM_SCOPES = ["main", "aux", "io", "int_rom", "slot_rom", "rom", "lc_bank1", "lc_bank2"];
-type MemScopeOverride = { lcView: "BANK2" | "BANK1" | "ROM"; cxView: "INT" | "SLOT" };
+type MemScopeOverride = { lcView: "BANK2" | "BANK1" | "ROM" | "AUTO"; cxView: "INT" | "SLOT" };
 type MemScopeOverrideValues = MemScopeOverride[keyof MemScopeOverride];
 type MemRegionSearch = {
 	name: MemScopeOverrideValues | "MAIN";
@@ -498,6 +498,126 @@ export class AppleBus implements IBus {
 		// return this.memory[RAM_OFFSET + address] ?? 0;
 	}
 
+	readDebug(address: number, overrides?: MemScopeOverride): number {
+		const bank = address >> 16;
+		const addr16 = address & 0xffff;
+		if (addr16 >= 0xd000) {
+			switch (overrides?.lcView) {
+				case "ROM":
+					return this.rom[addr16 - 0xd000] ?? 0;
+				case "BANK2":
+					if (addr16 < 0xe000)
+						return (bank ? this.auxbank2[addr16 - 0xd000] : this.bank2[addr16 - 0xd000]) ?? 0;
+					else return this.memory[RAM_OFFSET + address] ?? 0;
+				case "BANK1":
+					return this.memory[RAM_OFFSET + address] ?? 0;
+			}
+			if (!this.lcReadRam) return this.rom[addr16 - 0xd000] ?? 0;
+			if (this.lcBank2 && addr16 < 0xe000)
+				return (bank ? this.auxbank2[addr16 - 0xd000] : this.bank2[addr16 - 0xd000]) ?? 0;
+			return this.memory[RAM_OFFSET + address] ?? 0;
+		}
+
+		// if (address > 0xffff) return this.memory[RAM_OFFSET + address] ?? 0;
+
+		if (addr16 < 0xc000) return this.memory[RAM_OFFSET + address] ?? 0;
+
+		if (addr16 >= 0xc100 && addr16 <= 0xcfff) {
+			const offset = addr16 - 0xc100;
+
+			if (overrides) {
+				const view = overrides?.cxView;
+				if (view === "INT") return this.romC[offset] ?? 0;
+				if (view === "SLOT") return this.slotRoms[offset] ?? 0;
+			}
+
+			// intC8Rom forces Internal
+			if (addr16 >= 0xc7ff && this.intC8Rom) return this.romC[offset] ?? 0;
+
+			if (this.intCxRom) return this.romC[offset] ?? 0;
+
+			if (addr16 >= 0xc300 && addr16 <= 0xc3ff && this.slotC3Rom) return this.romC[offset] ?? 0;
+
+			return this.slotRoms[offset] ?? 0;
+		}
+
+		// Softswitches - return 0 to avoid side effects
+		return 0;
+	}
+
+	public readDebugRange(address: number, length: number, overrides?: MemScopeOverride): Uint8Array {
+		const result = new Uint8Array(length);
+		let resultOffset = 0;
+		let currentAddress = address;
+
+		const lcView = overrides?.lcView;
+		const isLcBank2 = lcView && lcView !== "AUTO" ? lcView === "BANK2" : this.lcBank2;
+		const readLcRom = lcView && lcView !== "AUTO" ? lcView === "ROM" : !this.lcReadRam;
+
+		while (resultOffset < length) {
+			const addr16 = currentAddress & 0xffff;
+			const remainingInRequest = length - resultOffset;
+
+			// 1. Determine the end of the current contiguous block based on memory map boundaries
+			let blockEnd = currentAddress + remainingInRequest;
+			if (addr16 < 0xc000) {
+				blockEnd = Math.min(blockEnd, (currentAddress & 0xffff0000) | 0xc000);
+			} else if (addr16 < 0xd000) {
+				blockEnd = Math.min(blockEnd, (currentAddress & 0xffff0000) | 0xd000);
+			} else {
+				// >= 0xd000
+				if (isLcBank2 && addr16 < 0xe000) blockEnd = Math.min(blockEnd, (currentAddress & 0xffff0000) | 0xe000);
+			}
+
+			const chunkLength = blockEnd - currentAddress;
+
+			// 2. Read the chunk
+			let isSimple = false;
+			let sourceArray: Uint8Array | null = null;
+			let sourceOffset = 0;
+
+			if (addr16 < 0xc000) {
+				isSimple = true;
+				sourceArray = this.memory;
+				sourceOffset = RAM_OFFSET + (currentAddress & 0xff0000); // Bank is part of the 24-bit address
+			} else if (addr16 >= 0xd000) {
+				if (readLcRom) {
+					isSimple = true;
+					sourceArray = this.rom;
+					sourceOffset = -0xd000;
+				} else {
+					if (isLcBank2 && addr16 < 0xe000) {
+						isSimple = true;
+						sourceArray = currentAddress >> 16 ? this.auxbank2 : this.bank2;
+						sourceOffset = -0xd000;
+					} else {
+						// Bank 1 RAM
+						isSimple = true;
+						sourceArray = this.memory;
+						sourceOffset = RAM_OFFSET + (currentAddress & 0xff0000);
+					}
+				}
+			}
+			// For C000-CFFF, isSimple remains false, forcing byte-by-byte read.
+
+			if (isSimple && sourceArray) {
+				const start = (currentAddress & 0xffff) + sourceOffset;
+				const chunk = sourceArray.subarray(start, start + chunkLength);
+				result.set(chunk, resultOffset);
+			} else {
+				// Fallback for complex regions (I/O, slots)
+				for (let i = 0; i < chunkLength; i++)
+					result[resultOffset + i] = this.readDebug(currentAddress + i, overrides);
+			}
+
+			// 3. Advance to the next block
+			resultOffset += chunkLength;
+			currentAddress += chunkLength;
+		}
+
+		return result;
+	}
+
 	ioWrite(address: number, value: number, worker: Worker): void {
 		if (address >= 0xc000 && address <= 0xc0ff) {
 			this.writeHandlers[address & 0xff]!(value);
@@ -582,6 +702,55 @@ export class AppleBus implements IBus {
 		throw new Error(`Unknown write address ${address.toString(16).padStart(4, "0")}`);
 	}
 
+	writeDebug(address: number, value: number, overrides?: Record<string, unknown>): void {
+		const bank = address >> 16;
+		const addr16 = address & 0xffff;
+
+		if (addr16 >= 0xd000) {
+			switch (overrides?.lcView) {
+				case "ROM":
+					this.rom[addr16 - 0xd000] = value & 0xff;
+					return;
+				case "BANK2":
+					if (addr16 < 0xe000) {
+						const bank2 = bank ? this.auxbank2 : this.bank2;
+						bank2[addr16 - 0xd000] = value & 0xff;
+						return;
+					}
+					this.memory[RAM_OFFSET + addr16] = value & 0xff;
+					return;
+				case "BANK1":
+					this.memory[RAM_OFFSET + address] = value & 0xff;
+					return;
+			}
+
+			if (!this.lcReadRam) {
+				this.rom[addr16 - 0xd000] = value & 0xff;
+				return;
+			}
+
+			if (this.lcBank2 && addr16 < 0xe000) {
+				const bank2 = bank ? this.auxbank2 : this.bank2;
+				bank2[addr16 - 0xd000] = value & 0xff;
+				return;
+			}
+
+			this.memory[RAM_OFFSET + address] = value & 0xff;
+			return;
+		}
+
+		if (addr16 >= 0xc100 && addr16 <= 0xcfff) {
+			const view = overrides?.cxView;
+			if (view === "INT") this.romC[addr16 - 0xc100] = value & 0xff;
+			if (view === "SLOT") this.slotRoms[addr16 - 0xc100] = value & 0xff;
+			return;
+		}
+
+		if (addr16 >= 0xc000 && addr16 <= 0xc0ff) return;
+
+		this.memory[RAM_OFFSET + address] = value & 0xff;
+	}
+
 	load(address: number, data: Uint8Array, bank: number = 0, tag?: string): void {
 		loadMemoryChunks(this, address, data, bank, tag);
 	}
@@ -637,179 +806,6 @@ export class AppleBus implements IBus {
 		} else if (code === "AltRight") {
 			this.kbd_pb1 = false;
 		}
-	}
-
-	readDebug(address: number, overrides?: MemScopeOverride): number {
-		const bank = address >> 16;
-		const addr16 = address & 0xffff;
-		if (addr16 >= 0xd000) {
-			switch (overrides?.lcView) {
-				case "ROM":
-					return this.rom[addr16 - 0xd000] ?? 0;
-				case "BANK2":
-					if (addr16 < 0xe000)
-						return (bank ? this.auxbank2[addr16 - 0xd000] : this.bank2[addr16 - 0xd000]) ?? 0;
-					else return this.memory[RAM_OFFSET + address] ?? 0;
-				case "BANK1":
-					return this.memory[RAM_OFFSET + address] ?? 0;
-			}
-			if (!this.lcReadRam) return this.rom[addr16 - 0xd000] ?? 0;
-			if (this.lcBank2 && addr16 < 0xe000)
-				return (bank ? this.auxbank2[addr16 - 0xd000] : this.bank2[addr16 - 0xd000]) ?? 0;
-			return this.memory[RAM_OFFSET + address] ?? 0;
-		}
-
-		// if (address > 0xffff) return this.memory[RAM_OFFSET + address] ?? 0;
-
-		if (addr16 < 0xc000) return this.memory[RAM_OFFSET + address] ?? 0;
-
-		if (addr16 >= 0xc100 && addr16 <= 0xcfff) {
-			const offset = addr16 - 0xc100;
-
-			if (overrides) {
-				const view = overrides?.cxView;
-				if (view === "INT") return this.romC[offset] ?? 0;
-				if (view === "SLOT") return this.slotRoms[offset] ?? 0;
-			}
-
-			// intC8Rom forces Internal
-			if (addr16 >= 0xc7ff && this.intC8Rom) return this.romC[offset] ?? 0;
-
-			if (this.intCxRom) return this.romC[offset] ?? 0;
-
-			if (addr16 >= 0xc300 && addr16 <= 0xc3ff && this.slotC3Rom) return this.romC[offset] ?? 0;
-
-			return this.slotRoms[offset] ?? 0;
-		}
-
-		// Softswitches - return 0 to avoid side effects
-		return 0;
-	}
-
-	public readDebugRange(address: number, length: number, overrides?: MemScopeOverride): Uint8Array {
-		const result = new Uint8Array(length);
-		let resultOffset = 0;
-		let currentAddress = address;
-
-		while (resultOffset < length) {
-			const addr16 = currentAddress & 0xffff;
-			const remainingInRequest = length - resultOffset;
-
-			// 1. Determine the end of the current contiguous block based on memory map boundaries
-			let blockEnd = currentAddress + remainingInRequest;
-			if (addr16 < 0xc000) {
-				blockEnd = Math.min(blockEnd, (currentAddress & 0xffff0000) | 0xc000);
-			} else if (addr16 < 0xd000) {
-				blockEnd = Math.min(blockEnd, (currentAddress & 0xffff0000) | 0xd000);
-			} else {
-				// >= 0xd000
-				const lcView = overrides?.lcView;
-				const isLcBank2 = lcView ? lcView === "BANK2" : this.lcBank2;
-				if (isLcBank2 && addr16 < 0xe000) {
-					blockEnd = Math.min(blockEnd, (currentAddress & 0xffff0000) | 0xe000);
-				}
-			}
-
-			const chunkLength = blockEnd - currentAddress;
-
-			// 2. Read the chunk
-			let isSimple = false;
-			let sourceArray: Uint8Array | null = null;
-			let sourceOffset = 0;
-
-			if (addr16 < 0xc000) {
-				isSimple = true;
-				sourceArray = this.memory;
-				sourceOffset = RAM_OFFSET + (currentAddress & 0xff0000); // Bank is part of the 24-bit address
-			} else if (addr16 >= 0xd000) {
-				const lcView = overrides?.lcView;
-				const readLcRom = lcView ? lcView === "ROM" : !this.lcReadRam;
-				if (readLcRom) {
-					isSimple = true;
-					sourceArray = this.rom;
-					sourceOffset = -0xd000;
-				} else {
-					const isLcBank2 = lcView ? lcView === "BANK2" : this.lcBank2;
-					if (isLcBank2 && addr16 < 0xe000) {
-						isSimple = true;
-						sourceArray = currentAddress >> 16 ? this.auxbank2 : this.bank2;
-						sourceOffset = -0xd000;
-					} else {
-						// Bank 1 RAM
-						isSimple = true;
-						sourceArray = this.memory;
-						sourceOffset = RAM_OFFSET + (currentAddress & 0xff0000);
-					}
-				}
-			}
-			// For C000-CFFF, isSimple remains false, forcing byte-by-byte read.
-
-			if (isSimple && sourceArray) {
-				const start = (currentAddress & 0xffff) + sourceOffset;
-				const chunk = sourceArray.subarray(start, start + chunkLength);
-				result.set(chunk, resultOffset);
-			} else {
-				// Fallback for complex regions (I/O, slots)
-				for (let i = 0; i < chunkLength; i++) {
-					result[resultOffset + i] = this.readDebug(currentAddress + i, overrides);
-				}
-			}
-
-			// 3. Advance to the next block
-			resultOffset += chunkLength;
-			currentAddress += chunkLength;
-		}
-
-		return result;
-	}
-
-	writeDebug(address: number, value: number, overrides?: Record<string, unknown>): void {
-		const bank = address >> 16;
-		const addr16 = address & 0xffff;
-
-		if (addr16 >= 0xd000) {
-			switch (overrides?.lcView) {
-				case "ROM":
-					this.rom[addr16 - 0xd000] = value & 0xff;
-					return;
-				case "BANK2":
-					if (addr16 < 0xe000) {
-						const bank2 = bank ? this.auxbank2 : this.bank2;
-						bank2[addr16 - 0xd000] = value & 0xff;
-						return;
-					}
-					this.memory[RAM_OFFSET + addr16] = value & 0xff;
-					return;
-				case "BANK1":
-					this.memory[RAM_OFFSET + address] = value & 0xff;
-					return;
-			}
-
-			if (!this.lcReadRam) {
-				this.rom[addr16 - 0xd000] = value & 0xff;
-				return;
-			}
-
-			if (this.lcBank2 && addr16 < 0xe000) {
-				const bank2 = bank ? this.auxbank2 : this.bank2;
-				bank2[addr16 - 0xd000] = value & 0xff;
-				return;
-			}
-
-			this.memory[RAM_OFFSET + address] = value & 0xff;
-			return;
-		}
-
-		if (addr16 >= 0xc100 && addr16 <= 0xcfff) {
-			const view = overrides?.cxView;
-			if (view === "INT") this.romC[addr16 - 0xc100] = value & 0xff;
-			if (view === "SLOT") this.slotRoms[addr16 - 0xc100] = value & 0xff;
-			return;
-		}
-
-		if (addr16 >= 0xc000 && addr16 <= 0xc0ff) return;
-
-		this.memory[RAM_OFFSET + address] = value & 0xff;
 	}
 
 	public search(

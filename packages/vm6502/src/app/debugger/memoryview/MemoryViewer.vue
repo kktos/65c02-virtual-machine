@@ -322,6 +322,7 @@ const debugOverrides = computed(() => debugOptionsPopover.value?.debugOverrides 
 
 const isLive = ref(false);
 let pollInterval: number | undefined;
+
 const currentMemorySlice = ref<Uint8Array>(new Uint8Array());
 const refreshMemory = () => {
 	const start = startAddress.value;

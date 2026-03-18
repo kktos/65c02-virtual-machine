@@ -346,9 +346,7 @@ watch(
 
 			if (isFollowingPc.value && disassembly.value.length > 0) {
 				const newStart = disassembly.value[0]!.addr;
-				if (disassemblyStartAddress.value !== newStart) {
-					disassemblyStartAddress.value = newStart;
-				}
+				if (disassemblyStartAddress.value !== newStart) disassemblyStartAddress.value = newStart;
 			}
 
 			pcRowIndex.value = disassembly.value.findIndex((line) => line.addr === fullPcAddress.value);
