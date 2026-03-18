@@ -21,6 +21,7 @@ type UseBreakpointsResult = {
 	toggleBreakpoint: (bp: Breakpoint, vm?: VirtualMachine) => void;
 	toggleBreakpointEnable: (bp: Breakpoint, vm?: VirtualMachine) => void;
 	getBreakpoint: (bp: Breakpoint) => BreakpointState | undefined;
+	getBreakpointKey: (bp: Breakpoint) => string;
 	pcBreakpoints: ComputedRef<Map<number, boolean>>;
 };
 
@@ -121,6 +122,7 @@ export function useBreakpoints(): UseBreakpointsResult {
 
 	const result: UseBreakpointsResult = {
 		breakpoints: computed(() => Array.from(breakpoints.value.values()).sort((a, b) => a.address - b.address)),
+		getBreakpointKey,
 		loadBreakpoints,
 		addBreakpoint,
 		removeBreakpoint,
