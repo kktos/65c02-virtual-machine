@@ -160,6 +160,8 @@ export const initRoutine = `
 
 	SCOPEPATH "main" "io" "rom"
 
+	vr BR $C073 byte rw
+
 	font "PRINTCHAR21"
 
 	printmd "|  **Apple //e**  |<br>|:-----------:|"

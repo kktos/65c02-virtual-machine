@@ -33,6 +33,7 @@ import { printCmdFn } from "./print.cmd";
 import { asmCmd } from "./asm.cmd";
 import { searchCmd } from "./search.cmd";
 import { writeCommand } from "./write.cmd";
+import { virtualRegisterCmd } from "./virtualRegister.cmd";
 
 export function typedKeys<T extends object>(obj: T): (keyof T)[] {
 	return Object.keys(obj) as (keyof T)[];
@@ -167,6 +168,7 @@ export const COMMAND_LIST = {
 	"SP=": d("Monitor", "Set value to Stack Pointer"),
 
 	GL: glCmd,
+	VR: virtualRegisterCmd,
 
 	RUN: run,
 	PAUSE: pause,

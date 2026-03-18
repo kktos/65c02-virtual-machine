@@ -454,10 +454,6 @@ export class VirtualMachine {
 	public refreshVideo = () => this.worker.postMessage({ command: "refreshVideo" });
 	public mute = (enabled: boolean) => this.worker.postMessage({ command: "mute", enabled });
 
-	public read(address: number): number {
-		return this.bus ? this.bus.read(address) : (this.sharedMemory[address] ?? 0);
-	}
-
 	public getBank(address: number) {
 		return this.bus?.getBank?.(address) ?? 0;
 	}
@@ -470,11 +466,16 @@ export class VirtualMachine {
 		return this.bus?.getScopes?.() ?? ["main"];
 	}
 
-	public readDebug(address: number, overrides?: Dict): number {
-		return this.bus?.readDebug ? this.bus.readDebug(address, overrides) : this.read(address);
-	}
 	public search(pattern: Uint8Array, startAddress: number, endAddress: number, is7Bit: boolean) {
 		return this.bus?.search(pattern, startAddress, endAddress, is7Bit);
+	}
+
+	public read(address: number): number {
+		return this.bus ? this.bus.read(address) : (this.sharedMemory[address] ?? 0);
+	}
+
+	public readDebug(address: number, overrides?: Dict): number {
+		return this.bus?.readDebug ? this.bus.readDebug(address, overrides) : this.read(address);
 	}
 
 	public readDebugRange(address: number, length: number, overrides?: Dict): Uint8Array {
@@ -493,28 +494,9 @@ export class VirtualMachine {
 		else this.updateMemory(address, value);
 	}
 
-	public setDebugOverrides(category: string, overrides: Dict) {
-		this.worker.postMessage({
-			command: "setDebugOverrides",
-			category,
-			overrides: { ...overrides },
-		});
-	}
-
-	public setAnalogInput(index: number, value: number) {
-		if (index >= 0 && index < MAX_ANALOG_INPUTS)
-			this.sharedRegisters.setFloat32(INPUT_ANALOG_0_OFFSET + index * 4, value, true);
-	}
-
-	public setDigitalInput(value: number) {
-		this.sharedRegisters.setUint16(INPUT_DIGITAL_OFFSET, value, true);
-	}
-
-	public setInputButton(index: number, pressed: boolean) {
-		const current = this.sharedRegisters.getUint16(INPUT_DIGITAL_OFFSET, true);
-		const mask = 1 << index;
-		const newValue = pressed ? current | mask : current & ~mask;
-		this.sharedRegisters.setUint16(INPUT_DIGITAL_OFFSET, newValue, true);
+	// write from the thread for I/O (only mem is shared)
+	public writeIO(address: number, value: number) {
+		this.bus?.ioWrite(address, value, this.worker);
 	}
 
 	public updateMemory(addr: number, value: number) {
@@ -572,6 +554,30 @@ export class VirtualMachine {
 				break;
 			}
 		}
+	}
+
+	public setDebugOverrides(category: string, overrides: Dict) {
+		this.worker.postMessage({
+			command: "setDebugOverrides",
+			category,
+			overrides: { ...overrides },
+		});
+	}
+
+	public setAnalogInput(index: number, value: number) {
+		if (index >= 0 && index < MAX_ANALOG_INPUTS)
+			this.sharedRegisters.setFloat32(INPUT_ANALOG_0_OFFSET + index * 4, value, true);
+	}
+
+	public setDigitalInput(value: number) {
+		this.sharedRegisters.setUint16(INPUT_DIGITAL_OFFSET, value, true);
+	}
+
+	public setInputButton(index: number, pressed: boolean) {
+		const current = this.sharedRegisters.getUint16(INPUT_DIGITAL_OFFSET, true);
+		const mask = 1 << index;
+		const newValue = pressed ? current | mask : current & ~mask;
+		this.sharedRegisters.setUint16(INPUT_DIGITAL_OFFSET, newValue, true);
 	}
 
 	public getDebugOptions() {

@@ -11,6 +11,7 @@ import { useBreakpoints } from "../composables/useBreakpoints";
 import type { EmulatorRegisters } from "@/types/emulatorstate.interface";
 import { useCommands } from "./useCommands";
 import { useRoutines } from "./useRoutines";
+import type { RegisterDescriptor } from "@/types/registers";
 
 // Initialize global state with the default machine (same default as App.vue used)
 const selectedMachine = ref<MachineConfig>(availableMachines[1] as MachineConfig);
@@ -32,6 +33,7 @@ const registers: EmulatorRegisters = reactive({
 	V: false,
 	N: false,
 });
+const virtualRegisters = ref<RegisterDescriptor[]>([]);
 
 const { executeCommand } = useCommands();
 
@@ -106,6 +108,7 @@ const loadMachine = async (newMachine?: MachineConfig) => {
 	const newVm = new VirtualMachine(selectedMachine.value);
 	vm.value = markRaw<VirtualMachine>(newVm);
 	setupVmListeners(newVm);
+
 	if (videoCanvas.value) newVm.initVideo(videoCanvas.value);
 
 	const { loadBreakpoints } = useBreakpoints();
@@ -151,5 +154,6 @@ export function useMachine() {
 		loadMachine,
 		vm,
 		registers,
+		virtualRegisters,
 	};
 }

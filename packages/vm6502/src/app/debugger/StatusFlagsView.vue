@@ -1,14 +1,14 @@
 <template>
 	<div class="p-4 bg-gray-800 rounded-lg shadow-xl">
 		<DebuggerPanelTitle title="Status Flags" />
-		<div class="grid grid-cols-4 gap-2">
+		<div class="flex gap-1">
 			<button
 				v-for="{ name, key } in flags"
 				:key="key"
 				@click="handleFlagToggle(key)"
 				:disabled="key === 'U'"
+				class="py-1 text-xs font-medium transition duration-150 w-[30px]"
 				:class="[
-					'p-2 text-xs rounded-full shadow-md font-medium transition duration-150',
 					key !== 'U' && registers[key]
 						? 'bg-green-600 text-white hover:bg-green-500'
 						: 'bg-gray-600 text-gray-300 hover:bg-gray-500',

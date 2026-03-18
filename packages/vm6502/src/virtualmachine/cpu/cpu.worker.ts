@@ -176,5 +176,8 @@ self.onmessage = async (event: MessageEvent) => {
 		case "initAudio":
 			bus?.initAudio?.(event.data.sampleRate);
 			break;
+		case "ioWrite":
+			bus?.write(event.data.address, event.data.value);
+			break;
 	}
 };

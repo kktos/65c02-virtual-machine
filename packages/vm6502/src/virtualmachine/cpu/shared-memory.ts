@@ -24,7 +24,8 @@ export const FLAG_C_MASK = 0b0000_0001; // Carry
 
 export const REG_PC_OFFSET = 6; // 16-bit Program Counter (using 2 bytes)
 
-export const REG_SPEED_OFFSET = 24; // Offset in shared memory to store the computed speed. Uses 8 bytes (Float64).
+// --- Machine Speed - Uses 8 bytes (Float64). ---
+export const REG_SPEED_OFFSET = 24; // Offset in shared memory to store the computed speed.
 
 // --- Machine State ---
 // This section is for machine-specific state flags that need to be synced with the UI.
@@ -33,6 +34,7 @@ export const MACHINE_STATE_OFFSET2 = 33;
 export const MACHINE_STATE_OFFSET3 = 34;
 export const REG_TBCOLOR_OFFSET = 35; // Text/Background color (IIgs)
 export const REG_BORDERCOLOR_OFFSET = 36; // Border color (IIgs)
+export const REG_BANKSEL_OFFSET = 37; // Bank Sel
 
 // --- Input State ---
 // A generic block for analog and digital inputs (e.g., joysticks, paddles, gamepads)

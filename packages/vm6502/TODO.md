@@ -36,14 +36,14 @@ Enhance the run command (or create a new runUntil) to accept a target address. T
 Memory Inspection Command
 Idea: Add a command (e.g., mem or dump) to print a hex dump of a specific memory range to the output, useful for quick debugging without switching UI tabs.
 
--7-
+-7- **DONE**
 UNDEF addr
 we need also UNDEF label
 
--8-
+-8- **DONE**
 we need to group the commands by theme for the HELP
 
--9-
+-9- **DONE**
 Scripts -> Routines - DONE
 Add a script manager and a script editor like the note one
 Script doesn’t have address but a name
@@ -58,7 +58,7 @@ Script doesn’t have address but a name
 
 Add a cmd to exec a script - DONE
 
--10- DONE
+-10- **DONE**
 Add a cmd to add a list of labels; problem is CR is the end of the command
 SOLVED: multilines commands
 
@@ -66,7 +66,7 @@ SOLVED: multilines commands
 Add script to execute to the machine config - DONE
 
 -12-
-Hooks - DONE
+Hooks - **DONE**
 Like the one we had on v1
 Set a hook at address and exec a command
 
@@ -75,7 +75,7 @@ Set a hook at address and exec a command
 Allow more than one command on a line; they should be separated by ; - DONE
 
 -13-
-_logs_ - DONE
+_logs_ - **DONE**
 A way to have small dedicated panels/windows for log.
 One for hypercalls
 One for a hook, for instance
@@ -118,3 +118,34 @@ To fill mem with values
 What about conditional ?
 IF expr THEN script/command
 Take inspiration from shell ?
+
+-16-
+fix minimmonitor; it needs to reparse the input string
+
+-17-
+fix the bug : the MemView displays all zero at init.
+
+-18-
+define the .DB for the system; if useful, let's have a DATADEFS like LABELS to add many in one shot
+
+-19-
+add some other options for disasm (like with or without comments) that we can set with the command
+
+-20-
+let's edit the BP address inline - so we can remove the "form"
+we need to be able to edit the BP type inline
+
+-21-
+let's add some function, like .hex(pc,4)... or something different like $pc
+$a .... nope....
+what about pc$ ... or pc.hex pc.lo pc.hi ?
+
+-22- **DONE**
+let's add some "virtual" registers to the machine; for the Apple 2e, $c019, BANKSEL
+
+-23-
+Add the worker to the Bus constructor to know whether it's in the main thread or not.
+Or refactor the whole thing to have 2 different Buses
+
+-24-
+There are onXX in the VirtualMachine; replace them with a proper event messaging

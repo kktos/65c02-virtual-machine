@@ -46,8 +46,8 @@
 
 					<div class="grid grid-cols-[300px_300px_1fr] gap-4 min-h-0">
 						<!-- Registers and Flags stacked vertically in the first column -->
-						<div class="grid grid-col gap-2">
-							<RegistersView :registers="registers" />
+						<div class="grid grid-rows-[1fr_auto] gap-2">
+							<RegistersView :registers="registers" :virtual-registers="virtualRegisters" />
 							<StatusFlagsView :registers="registers" />
 						</div>
 
@@ -161,7 +161,7 @@ const dbgTopPanelResize = (_size: unknown) => {
 	// console.log('dbgTopPanelResize resized', size);
 };
 
-const { vm, registers, selectedMachine, isRunning, videoCanvas, loadMachine } = useMachine();
+const { vm, registers, selectedMachine, isRunning, videoCanvas, loadMachine, virtualRegisters } = useMachine();
 const { showConsole } = useCmdConsole();
 const { logWindows } = useLogWindows();
 
@@ -176,7 +176,6 @@ const handleGlobalKeydown = (e: KeyboardEvent) => {
 	if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "d") {
 		e.preventDefault();
 		showConsole();
-		// isCommandInterfaceOpen.value = !isCommandInterfaceOpen.value;
 	}
 };
 

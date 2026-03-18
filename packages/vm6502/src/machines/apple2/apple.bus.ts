@@ -7,6 +7,7 @@ import {
 	MACHINE_STATE_OFFSET1,
 	MACHINE_STATE_OFFSET2,
 	MACHINE_STATE_OFFSET3,
+	REG_BANKSEL_OFFSET,
 	REG_BORDERCOLOR_OFFSET,
 	REG_TBCOLOR_OFFSET,
 } from "@/virtualmachine/cpu/shared-memory";
@@ -257,6 +258,8 @@ export class AppleBus implements IBus {
 		}
 	}
 
+	// Share internal state by storing it in shared mem
+	// worker thread bus -> shared mem
 	public syncState() {
 		if (!this.registers) return;
 
@@ -291,6 +294,7 @@ export class AppleBus implements IBus {
 
 		this.registers.setUint8(REG_TBCOLOR_OFFSET, this.tbColor);
 		this.registers.setUint8(REG_BORDERCOLOR_OFFSET, this.brdrColor);
+		this.registers.setUint8(REG_BANKSEL_OFFSET, this.auxMemBank);
 	}
 
 	public reset() {
@@ -303,6 +307,7 @@ export class AppleBus implements IBus {
 		this.ramRdAux = false;
 		this.ramWrAux = false;
 		this.altZp = false;
+		this.auxMemBank = 1;
 
 		this.intCxRom = false;
 		this.intC8Rom = false;
@@ -337,6 +342,8 @@ export class AppleBus implements IBus {
 		return generateApple2Assets();
 	}
 
+	// Retrieve internal state stored in shared mem
+	// shared mem -> main thread bus
 	public syncStateFromBuffer(view: DataView): Dict {
 		const byte1 = view.getUint8(MACHINE_STATE_OFFSET1);
 		const byte2 = view.getUint8(MACHINE_STATE_OFFSET2);
@@ -387,11 +394,13 @@ export class AppleBus implements IBus {
 
 		this.tbColor = view.getUint8(REG_TBCOLOR_OFFSET);
 		this.brdrColor = view.getUint8(REG_BORDERCOLOR_OFFSET);
+		this.auxMemBank = view.getUint8(REG_BANKSEL_OFFSET);
 
 		return {
 			...state,
 			tbColor: this.tbColor,
 			brdrColor: this.brdrColor,
+			auxMemBank: this.auxMemBank,
 		};
 	}
 
@@ -489,9 +498,19 @@ export class AppleBus implements IBus {
 		// return this.memory[RAM_OFFSET + address] ?? 0;
 	}
 
+	ioWrite(address: number, value: number, worker: Worker): void {
+		if (address >= 0xc000 && address <= 0xc0ff) {
+			this.writeHandlers[address & 0xff]!(value);
+			worker.postMessage({
+				command: "ioWrite",
+				address,
+				value,
+			});
+		} else this.write(address, value);
+	}
+
 	write(address: number, value: number): void {
 		if (address >= 0xc000 && address <= 0xc0ff) {
-			// biome-ignore lint/style/noNonNullAssertion: all handlers are defined
 			this.writeHandlers[address & 0xff]!(value);
 			return;
 		}
