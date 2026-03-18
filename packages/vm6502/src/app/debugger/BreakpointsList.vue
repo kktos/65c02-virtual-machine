@@ -1,6 +1,14 @@
 <template>
 	<div class="flex flex-col h-full gap-2">
-		<BreakpointAddControl />
+		<div class="flex justify-end border-b border-gray-800 pb-2">
+			<button
+				@click="createBreakpoint"
+				class="flex items-center gap-1 px-2 py-1 text-xs font-medium text-cyan-100 bg-cyan-900/50 hover:bg-cyan-800 rounded border border-cyan-800/50 transition-all"
+			>
+				<Plus class="w-3 h-3" />
+				<span>Add</span>
+			</button>
+		</div>
 		<ScrollArea class="flex-1 min-h-0 w-full" type="always">
 			<ul class="space-y-2 text-sm text-gray-300 p-2 bg-gray-900 rounded-md min-h-full">
 				<li v-if="breakpoints.length === 0" class="text-gray-500 italic p-2 text-center">
@@ -137,9 +145,8 @@ import { useBreakpoints, type BreakpointState } from "@/composables/useBreakpoin
 import type { Breakpoint } from "@/types/breakpoint.interface";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import { ScrollArea } from "../../components/ui/scroll-area";
-import BreakpointAddControl from "./BreakpointAddControl.vue";
 import { formatAddress, toHex } from "@/lib/hex.utils";
-import { FishingHook } from "lucide-vue-next";
+import { FishingHook, Plus } from "lucide-vue-next";
 
 const vm = inject<Ref<VirtualMachine>>("vm");
 
@@ -173,6 +180,16 @@ watch(editingBpKey, (newKey) => {
 		});
 	}
 });
+
+const createBreakpoint = () => {
+	const newBp: Breakpoint = {
+		address: 0,
+		type: "pc",
+		enabled: true,
+	};
+	addBreakpoint(newBp, vm?.value);
+	nextTick(() => startEditing(newBp, "address"));
+};
 
 const startEditing = (bp: BreakpointState, field: "type" | "address" | "command") => {
 	editingBpKey.value = getBreakpointKey(bp);

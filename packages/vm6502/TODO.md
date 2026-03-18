@@ -131,7 +131,7 @@ define the .DB for the system; if useful, let's have a DATADEFS like LABELS to a
 -19-
 add some other options for disasm (like with or without comments) that we can set with the command
 
--20-
+-20- **DONE**
 let's edit the BP address inline - so we can remove the "form"
 we need to be able to edit the BP type inline
 
