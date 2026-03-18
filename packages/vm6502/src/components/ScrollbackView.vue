@@ -1,5 +1,5 @@
 <template>
-	<ScrollArea ref="scrollAreaComponentRef" class="p-2">
+	<ScrollArea ref="scrollAreaComponentRef" class="p-2" type="always">
 		<div class="flex flex-col h-full">
 			<div class="mt-auto">
 				<div v-for="log in logs" :key="log.id" :class="getLogClass(log)">
