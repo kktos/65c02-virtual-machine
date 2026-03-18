@@ -26,8 +26,7 @@
 						@keyup.enter="onRegisterUpdate($event, reg)"
 						@blur="onRegisterUpdate($event, reg)"
 						:disabled="!reg.write"
-						class="bg-transparent text-center px-2 py-0.5 text-indigo-300 outline-none focus:bg-black/20 disabled:opacity-60"
-						:class="reg.size > 1 ? 'w-13' : 'w-9'"
+						class="w-full bg-transparent text-center py-0.5 text-indigo-300 outline-none focus:bg-black/20 disabled:opacity-60"
 						:aria-label="`Register ${reg.label}`"
 					/>
 				</div>
