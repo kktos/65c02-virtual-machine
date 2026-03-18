@@ -129,7 +129,7 @@ add some other options for disasm (like with or without comments) that we can se
 let's edit the BP address inline - so we can remove the "form"
 we need to be able to edit the BP type inline
 
--21-
+-21- **DONE**
 let's add some function, like .hex(pc,4)... or something different like $pc
 $a .... nope....
 what about pc$ ... or pc.hex pc.lo pc.hi ?

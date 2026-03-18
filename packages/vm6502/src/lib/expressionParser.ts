@@ -203,6 +203,28 @@ export class ExpressionParser {
 		return left;
 	}
 
+	private parseBuiltinFunction(name: string): ParsedResult {
+		if (!this.match(TokenType.LPAREN)) throw new Error(`Expected '(' after ${name}`);
+		const arg1 = this.parse();
+		if (typeof arg1.value !== "number") throw new Error(`${name} expects a number as first argument`);
+
+		let width = 0;
+		if (this.match(TokenType.COMMA)) {
+			const arg2 = this.parse();
+			if (typeof arg2.value !== "number") throw new Error(`${name} expects a number as second argument`);
+			width = arg2.value;
+		}
+
+		if (!this.match(TokenType.RPAREN)) throw new Error("Expected ')'");
+
+		let val = "";
+		if (name === "HEX") {
+			val = arg1.value.toString(16).toUpperCase();
+			if (width > 0) val = val.padStart(width, "0");
+		}
+		return { type: TokenType.STRING, value: val, raw: val };
+	}
+
 	private nud(token: Token): ParsedResult {
 		switch (token.type) {
 			case TokenType.STRING:
@@ -211,8 +233,13 @@ export class ExpressionParser {
 				return { type: TokenType.INTEGER, value: token.value, raw: token.text };
 			case TokenType.FLOAT:
 				return { type: TokenType.FLOAT, value: token.value, raw: token.text };
-			case TokenType.IDENTIFIER:
+			case TokenType.IDENTIFIER: {
+				const name = token.text.toUpperCase();
+				if (name === "HEX") {
+					return this.parseBuiltinFunction(name);
+				}
 				return { type: TokenType.IDENTIFIER, value: this.resolveIdentifier(token.text), raw: token.text };
+			}
 			case TokenType.MEM_START: {
 				const addrRes = this.parse();
 				let addr = addrRes.value;

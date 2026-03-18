@@ -28,6 +28,11 @@ export function minimonitor(input: string, vm: VirtualMachine): MiniMonitorRetur
 	const parser = new ExpressionParser(input, vm, monitorTokenizer);
 	const lhs = parser.parse();
 
+	// If the expression evaluates to a string (e.g. hex(pc)), return it directly.
+	if (lhs.type === TokenType.STRING && typeof lhs.value === "string") {
+		return { content: lhs.value, format: "markdown" };
+	}
+
 	let startAddr = resolveAddress(lhs);
 	let endAddr: number | undefined;
 
