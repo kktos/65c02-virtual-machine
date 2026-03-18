@@ -90,7 +90,7 @@ export interface ParsedResult {
 type BuiltinFunctionDef = {
 	minArgs: number;
 	maxArgs: number;
-	impl: (args: (string | number)[]) => ParsedResult;
+	impl: (args: (string | number)[], vm: VirtualMachine) => ParsedResult;
 };
 
 const BUILTINS: Record<string, BuiltinFunctionDef> = {
@@ -123,6 +123,16 @@ const BUILTINS: Record<string, BuiltinFunctionDef> = {
 			const val = args[0];
 			if (typeof val !== "number") throw new Error("LO expects a number");
 			const res = val & 0xff;
+			return { type: TokenType.INTEGER, value: res, raw: res.toString() };
+		},
+	},
+	PEEK: {
+		minArgs: 1,
+		maxArgs: 1,
+		impl: (args, vm) => {
+			const val = args[0];
+			if (typeof val !== "number") throw new Error("PEEK expects a number");
+			const res = vm.read(val);
 			return { type: TokenType.INTEGER, value: res, raw: res.toString() };
 		},
 	},
@@ -262,11 +272,10 @@ export class ExpressionParser {
 
 		if (!this.match(TokenType.RPAREN)) throw new Error("Expected ')'");
 
-		if (args.length < def.minArgs || args.length > def.maxArgs) {
+		if (args.length < def.minArgs || args.length > def.maxArgs)
 			throw new Error(`${name} expects between ${def.minArgs} and ${def.maxArgs} arguments, got ${args.length}`);
-		}
 
-		return def.impl(args);
+		return def.impl(args, this.vm);
 	}
 
 	private nud(token: Token): ParsedResult {
@@ -279,7 +288,7 @@ export class ExpressionParser {
 				return { type: TokenType.FLOAT, value: token.value, raw: token.text };
 			case TokenType.IDENTIFIER: {
 				const name = token.text.toUpperCase();
-				if (BUILTINS[name]) {
+				if (BUILTINS[name] && this.is(TokenType.LPAREN)) {
 					return this.parseBuiltinFunction(name);
 				}
 				return { type: TokenType.IDENTIFIER, value: this.resolveIdentifier(token.text), raw: token.text };
