@@ -437,6 +437,12 @@ export function useCommands() {
 
 				if (isMultiLineRequest(cmdResult)) {
 					const request = cmdResult;
+					if (pipeValue) {
+						const res = await request.onComplete(pipeValue);
+						if (res) currentSink({ content: res, format: "text" });
+						continue;
+					}
+
 					const isInsideRoutine = commandQueue.length > 0 && commandQueue.some((i) => i.type === "marker");
 					if (isInsideRoutine) {
 						const linesForMultiLine: CommandSegment[] = [];

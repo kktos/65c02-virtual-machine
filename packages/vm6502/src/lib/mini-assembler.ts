@@ -19,14 +19,15 @@ type AssemblerOptions = {
 	defineSymbol: (name: string, value: number) => void;
 };
 
-export function assemble(
+function assembleLine(
 	pc: number,
 	text: string,
+	bytes: number[],
 	{ parseExpression, defineSymbol }: AssemblerOptions,
-): AssemblerResult {
+): string | undefined {
 	// Normalize spaces
 	let cleanText = text.trim().replace(/\s+/g, " ");
-	if (!cleanText) return { bytes: [] };
+	if (!cleanText) return;
 
 	// Handle labels (e.g., "LABEL: LDA #$00" or "LABEL:")
 	const colonIdx = cleanText.indexOf(":");
@@ -36,7 +37,7 @@ export function assemble(
 		if (potentialLabel && !potentialLabel.includes(" ")) {
 			defineSymbol(potentialLabel, pc);
 			cleanText = cleanText.substring(colonIdx + 1).trim();
-			if (!cleanText) return { bytes: [] };
+			if (!cleanText) return;
 		}
 	}
 
@@ -55,7 +56,7 @@ export function assemble(
 	}
 
 	const modes = mnemonicMap.get(mnemonic);
-	if (!modes) return { bytes: [], error: `Unknown mnemonic: ${mnemonic}` };
+	if (!modes) return `Unknown mnemonic: ${mnemonic}`;
 
 	let mode: AddressingMode = "IMP";
 	let value = 0;
@@ -63,7 +64,7 @@ export function assemble(
 	if (!operandStr) {
 		if (modes.has("IMP")) mode = "IMP";
 		else if (modes.has("ACC")) mode = "ACC";
-		else return { bytes: [], error: "Missing operand" };
+		else return "Missing operand";
 	} else {
 		// Operand parsing
 		const upperOp = operandStr.toUpperCase();
@@ -121,18 +122,18 @@ export function assemble(
 		}
 	}
 
-	if (Number.isNaN(value)) return { bytes: [], error: "Invalid operand value or symbol" };
+	if (Number.isNaN(value)) return "Invalid operand value or symbol";
 
 	const opcode = modes.get(mode);
-	if (!opcode) return { bytes: [], error: `Mode ${mode} not supported for ${mnemonic}` };
+	if (!opcode) return `Mode ${mode} not supported for ${mnemonic}`;
 
-	const bytes = [opcode];
+	bytes.push(opcode);
 
 	if (mode === "IMM") {
-		if (value > 0xff && value < -128) return { bytes: [], error: "Immediate value out of range" };
+		if (value > 0xff && value < -128) return "Immediate value out of range";
 		bytes.push(value & 0xff);
 	} else if (BYTE_MODES.has(mode)) {
-		if (value > 0xff) return { bytes: [], error: "Zero page address out of range" };
+		if (value > 0xff) return "Zero page address out of range";
 		bytes.push(value & 0xff);
 	} else if (WORD_MODES.has(mode)) {
 		bytes.push(value & 0xff);
@@ -140,10 +141,21 @@ export function assemble(
 	} else if (mode === "REL") {
 		const offset = value - pc - 2;
 		if (offset < -128 || offset > 127) {
-			return { bytes: [], error: `Branch target out of range (offset ${offset})` };
+			return `Branch target out of range (offset ${offset})`;
 		}
 		bytes.push(offset & 0xff);
 	}
 
+	return;
+}
+
+export function assemble(pc: number, text: string, options: AssemblerOptions): AssemblerResult {
+	const bytes: number[] = [];
+	const lines = text.split(/\r?\n/);
+	for (const line of lines) {
+		const currentPc = (pc + bytes.length) & 0xffff;
+		const error = assembleLine(currentPc, line, bytes, options);
+		if (error) return { bytes: [], error };
+	}
 	return { bytes };
 }

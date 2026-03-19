@@ -1,6 +1,6 @@
 import { assemble } from "@/lib/mini-assembler";
 import { useSymbols } from "@/composables/useSymbols";
-import type { Command, CommandContext, CommandResult } from "@/types/command";
+import type { Command, CommandContext, CommandResult, CommandSegment, ResultOnLinePayload } from "@/types/command";
 
 const { getAddressForLabel, addSymbol } = useSymbols();
 
@@ -22,37 +22,45 @@ export const asmCmd: Command = {
 
 		const getPrompt = (addr: number) => `!${addr.toString(16).toUpperCase().padStart(4, "0")} `;
 
+		const doAsm = (line: string): ResultOnLinePayload => {
+			const trimmed = line.trim();
+			if (!trimmed) return;
+			if (trimmed.startsWith(";")) return; // Ignore comments
+
+			const result = assemble(currentAddr, trimmed, {
+				parseExpression,
+				defineSymbol: (name, addr) => addSymbol(addr, name),
+			});
+			if (result.error) return { error: `Error: ${result.error}` };
+
+			if (result.bytes.length > 0) {
+				// Write bytes to VM
+				for (let i = 0; i < result.bytes.length; i++)
+					vm.writeDebug((currentAddr + i) & 0xffff, result.bytes[i] as number);
+
+				let res: ResultOnLinePayload = {};
+				if (showBytes) {
+					const bytesHex = result.bytes.map((b) => b.toString(16).toUpperCase().padStart(2, "0")).join(" ");
+					res.content = `${currentAddr.toString(16).toUpperCase().padStart(4, "0")}: ${bytesHex.padEnd(8)} ${trimmed}`;
+				}
+				currentAddr = (currentAddr + result.bytes.length) & 0xffff;
+				res.prompt = getPrompt(currentAddr);
+				return res;
+			}
+		};
+
 		return {
 			__isMultiLineRequest: true,
 			prompt: getPrompt(currentAddr),
 			terminator: ".",
-			onLine: (line: string) => {
-				const trimmed = line.trim();
-				if (!trimmed) return;
-				if (trimmed.startsWith(";")) return; // Ignore comments
-
-				const result = assemble(currentAddr, trimmed, {
-					parseExpression,
-					defineSymbol: (name, addr) => addSymbol(addr, name),
-				});
-				if (result.error) return { error: `Error: ${result.error}` };
-
-				if (result.bytes.length > 0) {
-					// Write bytes to VM
-					for (let i = 0; i < result.bytes.length; i++)
-						vm.writeDebug((currentAddr + i) & 0xffff, result.bytes[i] as number);
-
-					if (showBytes) {
-						const bytesHex = result.bytes
-							.map((b) => b.toString(16).toUpperCase().padStart(2, "0"))
-							.join(" ");
-						const output = `${currentAddr.toString(16).toUpperCase().padStart(4, "0")}: ${bytesHex.padEnd(8)} ${trimmed}`;
-						currentAddr = (currentAddr + result.bytes.length) & 0xffff;
-						return { content: output, prompt: getPrompt(currentAddr) };
-					} else return { prompt: getPrompt(currentAddr) };
+			onLine: doAsm,
+			onComplete: (lines: (string | CommandSegment)[]) => {
+				if (typeof lines === "string") {
+					const res = doAsm(lines);
+					return res?.error ? res.error : (res?.content ?? "Assembly finished.");
 				}
+				return "Assembly finished.";
 			},
-			onComplete: () => "Assembly finished.",
 		};
 	},
 };
