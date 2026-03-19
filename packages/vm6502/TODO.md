@@ -32,7 +32,7 @@ do we store the mods into a patch list... associated with the disk... patch mana
 "Run Until" Feature
 Enhance the run command (or create a new runUntil) to accept a target address. The VM would run and automatically pause when PC hits that address (effectively a temporary breakpoint).
 
--6-
+-6- **DONE** - mini monitor
 Memory Inspection Command
 Idea: Add a command (e.g., mem or dump) to print a hex dump of a specific memory range to the output, useful for quick debugging without switching UI tabs.
 
