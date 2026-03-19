@@ -5,12 +5,24 @@ import type { Command, CommandContext } from "@/types/command";
 const buffers = new Map<string, string[]>();
 
 export const bufCmd: Command = {
-	description: "Manage named text buffers. Usage: BUF <PUSH|FLUSH|CLEAR> <\u200bname> [text]",
-	paramDef: ["name", "name", "rest?"],
+	description:
+		"Manage named text buffers.\n" +
+		"Usage: BUF ; list all buffers\n" +
+		"BUF PUSH <\u200bname> [text] ; add line\n" +
+		"BUF FLUSH <\u200bname> [delimiter?] ; ouput buffer lines\n" +
+		"BUF CLEAR <\u200bname> ; clear buffer",
+	paramDef: ["name?", "name?", "rest?"],
 	group: "System",
 	fn: ({ params }: CommandContext) => {
+		if (params.length === 0) {
+			if (buffers.size === 0) return "No buffers defined.";
+			const lines = ["| Name | Lines |", "|---|---|"];
+			for (const [key, val] of buffers.entries()) lines.push(`| ${key} | ${val.length} |`);
+			return { content: lines.join("\n"), format: "markdown" };
+		}
+
+		if (!params[1]) throw new Error("Buffer name is required.");
 		const name = isParamListItemIdentifier(params[1]) ? params[1].text : String(params[1]);
-		if (!name) throw new Error("Buffer name is required.");
 
 		const subcmd = (isParamListItemIdentifier(params[0]) ? params[0].text : String(params[0])).toUpperCase();
 		const content = params[2];
@@ -18,7 +30,7 @@ export const bufCmd: Command = {
 		switch (subcmd) {
 			case "PUSH": {
 				if (content === undefined || content === null)
-					return `No content provided to push to buffer '${name}'.`;
+					throw new Error(`No content provided to push to buffer '${name}'.`);
 
 				if (!buffers.has(name)) buffers.set(name, []);
 
@@ -31,12 +43,14 @@ export const bufCmd: Command = {
 			}
 			case "FLUSH": {
 				const buffer = buffers.get(name);
-				if (!buffer || buffer.length === 0) return "";
-				return buffer.join("\n");
+				if (!buffer) throw new Error(`Buffer '${name}' did not exist.`);
+				if (buffer.length === 0) return "";
+				const delimiter = content !== undefined ? String(content) : "\n";
+				return buffer.join(delimiter);
 			}
 			case "CLEAR": {
 				if (buffers.delete(name)) return `Buffer '${name}' cleared.`;
-				return `Buffer '${name}' did not exist.`;
+				throw new Error(`Buffer '${name}' did not exist.`);
 			}
 			default:
 				throw new Error(`Unknown subcommand '${subcmd}'. Expected: PUSH, FLUSH, CLEAR.`);
