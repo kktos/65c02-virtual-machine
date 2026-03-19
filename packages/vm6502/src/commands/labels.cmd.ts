@@ -15,10 +15,11 @@ export const labelsCmd: Command = {
 			__isMultiLineRequest: true,
 			prompt: `LABELS ${namespace}|`,
 			terminator: "END",
-			onComplete: async (lines: (CommandSegment | string)[]) => {
+			onComplete: async (lines: string | (CommandSegment | string)[]) => {
 				const symbols: { ns: string; label: string; addr: number; scope: string }[] = [];
 
-				for (const line of lines) {
+				const entries = typeof lines === "string" ? lines.split("\n") : lines;
+				for (const line of entries) {
 					if (line.length < 2)
 						throw new Error(
 							`Invalid line format: "${typeof line === "string" ? line : line.join(" ")}". Expected: <address> <label>`,

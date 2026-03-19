@@ -32,7 +32,7 @@ export type MultiLineRequest = {
 	prompt: string;
 	lines?: (CommandSegment | string)[];
 	terminator: string;
-	onComplete: (lines: (CommandSegment | string)[]) => string | Promise<string>;
+	onComplete: (lines: string | (CommandSegment | string)[]) => string | Promise<string>;
 	onLine?: (line: string) => ResultOnLineFn;
 };
 
