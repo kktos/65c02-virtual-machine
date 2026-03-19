@@ -423,7 +423,8 @@ export function useCommands() {
 				const { cmd, paramIndex: initialParamIndex, userParams, isValidCmd } = parseUserCommand(cmdParser);
 
 				if (!isValidCmd) {
-					const output = minimonitor(input, vm);
+					const tok = cmdParser.peek();
+					const output = minimonitor(input.slice(tok.start), vm);
 					currentSink(output);
 					if (result.error) break;
 					continue;
