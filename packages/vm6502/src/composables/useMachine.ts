@@ -35,9 +35,9 @@ const registers: EmulatorRegisters = reactive({
 });
 const virtualRegisters = ref<RegisterDescriptor[]>([]);
 
-const { executeCommand } = useCommands();
-
 const setupVmListeners = (targetVm: VirtualMachine) => {
+	const { executeCommand } = useCommands();
+
 	targetVm.onmessage = async (event) => {
 		const { type, error, message, address, breakpointType } = event.data;
 
