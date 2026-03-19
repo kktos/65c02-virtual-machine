@@ -1,11 +1,17 @@
 import { ref } from "vue";
 
+export interface Routine {
+	lines: string[];
+	args: string[];
+}
+
 // Global state for routines
-const routines = ref<Record<string, string[]>>({});
+const routines = ref<Record<string, Routine>>({});
 
 export function useRoutines() {
-	const setRoutine = (name: string, content: string | string[]) => {
-		routines.value[name] = typeof content === "string" ? content.split("\n") : content;
+	const setRoutine = (name: string, content: string | string[], args: string[] = []) => {
+		const lines = typeof content === "string" ? content.split("\n") : content;
+		routines.value[name] = { lines, args };
 	};
 
 	const getRoutine = (name: string) => {

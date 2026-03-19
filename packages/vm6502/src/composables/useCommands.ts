@@ -122,6 +122,9 @@ function parseCommandParams(
 					throw new Error(`Expected a [${allowedTypes.join(" or ")}].`);
 				parsedValue = paramValue.value;
 				break;
+			case TokenType.AT:
+				parsedValue = paramValue.raw;
+				break;
 			case TokenType.IDENTIFIER:
 				if (allowedTypes.includes("name")) {
 					parsedValue = { text: paramValue.raw, value: paramValue.value };
@@ -265,18 +268,37 @@ function handleDoCommand(cmdParser: ExpressionParser, commandQueue: QueueItem[],
 	const token = cmdParser.peek();
 	if (token.type !== TokenType.IDENTIFIER) throw new Error("DO needs a routine name.");
 	cmdParser.consume();
-	if (!cmdParser.eof()) throw new Error("Too many parameters for DO; it needs only a routine name.");
 
 	const routineName = token.text;
-	const routineCmds = getRoutine(routineName);
-	if (!routineCmds) throw new Error(`Routine '${routineName}' not found.`);
+	const routine = getRoutine(routineName);
+	if (!routine) throw new Error(`Routine '${routineName}' not found.`);
+
+	// Parse arguments for the routine
+	const args: string[] = [];
+	while (!cmdParser.eof()) {
+		const argToken = cmdParser.peek();
+		// We use the raw text of the token for substitution to preserve formats like $FF
+		args.push(argToken.text || String(argToken.value));
+		cmdParser.consume();
+	}
+
+	if (args.length !== routine.args.length) {
+		throw new Error(`Routine '${routineName}' expects ${routine.args.length} argument(s), but got ${args.length}.`);
+	}
 
 	const items: QueueItem[] = [];
 
-	routineCmds
+	routine.lines
 		.filter((line) => !line.trim().startsWith(";") && line.trim() !== "")
 		.forEach((line) => {
-			commandQueue.push(...splitIntoCommands(line, vm));
+			// Perform simple substitution
+			let processedLine = line;
+			routine.args.forEach((argName, index) => {
+				// Replace all occurrences of the argument name
+				processedLine = processedLine.replaceAll(`@${argName}`, args[index]);
+			});
+
+			commandQueue.push(...splitIntoCommands(processedLine, vm));
 		});
 
 	commandQueue.push(...items, { type: "marker", value: END_ROUTINE_MARKER });
@@ -423,8 +445,12 @@ export function useCommands() {
 				const { cmd, paramIndex: initialParamIndex, userParams, isValidCmd } = parseUserCommand(cmdParser);
 
 				if (!isValidCmd) {
-					const tok = cmdParser.peek();
-					const output = minimonitor(input.slice(tok.start), vm);
+					const text = cmdParser
+						.getTokens()
+						.map((t) => t.text)
+						.join(" ");
+
+					const output = minimonitor(text, vm);
 					currentSink(output);
 					if (result.error) break;
 					continue;

@@ -37,6 +37,7 @@ export enum TokenType {
 	RPAREN,
 	// Special
 	COLON,
+	AT,
 	PIPE,
 	SEMICOLON,
 	MEM_START, // mem[
@@ -69,6 +70,7 @@ const ONE_CHAR_OPS: Record<string, TokenType> = {
 	"]": TokenType.RBRACKET,
 	",": TokenType.COMMA,
 	":": TokenType.COLON,
+	"@": TokenType.AT,
 	";": TokenType.SEMICOLON,
 	".": TokenType.DOT,
 };
@@ -292,6 +294,12 @@ export class ExpressionParser {
 					return this.parseBuiltinFunction(name);
 				}
 				return { type: TokenType.IDENTIFIER, value: this.resolveIdentifier(token.text), raw: token.text };
+			}
+			case TokenType.AT: {
+				const tok = this.peek();
+				if (tok.type !== TokenType.IDENTIFIER) throw new Error("Identifier expected after '@'");
+				this.consume();
+				return { type: TokenType.AT, value: undefined, raw: tok.text };
 			}
 			case TokenType.MEM_START: {
 				const addrRes = this.parse();

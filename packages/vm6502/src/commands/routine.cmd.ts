@@ -9,6 +9,10 @@ export const routineCmd: Command = {
 		const routineName = params[0] as ParamListItemIdentifier;
 		if (!routineName) throw new Error("Routine name missing.");
 
+		// Collect arguments (e.g. routine test @arg1 @arg2)
+		const args: string[] = [];
+		for (let i = 1; i < params.length; i++) args.push(String(params[i]));
+
 		return {
 			__isMultiLineRequest: true,
 			prompt: `${routineName.text}|`,
@@ -23,7 +27,7 @@ export const routineCmd: Command = {
 				} else {
 					text = (lines as CommandSegment[]).map((line) => line.map((t) => t.text).join(" ")).join("\n");
 				}
-				setRoutine(routineName.text, text);
+				setRoutine(routineName.text, text, args);
 				return `Routine '${routineName.text}' defined.`;
 			},
 		};

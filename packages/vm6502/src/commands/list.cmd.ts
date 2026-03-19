@@ -23,11 +23,17 @@ function listHooks() {
 }
 
 function listRoutines() {
-	const { getRoutineNames } = useRoutines();
+	const { getRoutineNames, getRoutine } = useRoutines();
 	const routineNames = getRoutineNames();
 	if (routineNames.length === 0) return "No routines defined.";
 
-	return routineNames.map((name) => `* \`${name}\``).join("\n");
+	return routineNames
+		.map((name) => {
+			const r = getRoutine(name);
+			const args = r?.args.length ? ` ${r.args.map((arg) => `@${arg}`).join(" ")}` : "";
+			return `* \`${name}${args}\``;
+		})
+		.join("\n");
 }
 
 function listHistory() {

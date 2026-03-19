@@ -78,12 +78,21 @@
 
 			<!-- Right panel: Text editor -->
 			<div class="w-2/3 flex flex-col">
-				<textarea
-					v-if="selectedRoutineName"
-					v-model="editableContent"
-					class="w-full flex-grow text-gray-200 text-xs font-mono p-2 border-none focus:outline-none resize-none bg-transparent"
-					:placeholder="`Editing routine '${selectedRoutineName}'...`"
-				></textarea>
+				<div v-if="selectedRoutineName" class="flex flex-col h-full">
+					<div class="flex items-center gap-2 p-2 border-b border-gray-700 bg-gray-900/30">
+						<span class="text-xs text-gray-500 font-mono select-none">ARGS:</span>
+						<input
+							v-model="editableArgs"
+							class="flex-grow bg-transparent text-yellow-200 text-xs font-mono outline-none placeholder-gray-700"
+							placeholder="e.g. @addr @val"
+						/>
+					</div>
+					<textarea
+						v-model="editableContent"
+						class="w-full flex-grow text-gray-200 text-xs font-mono p-2 border-none focus:outline-none resize-none bg-transparent"
+						:placeholder="`Editing routine '${selectedRoutineName}'...`"
+					></textarea>
+				</div>
 				<div v-else class="flex items-center justify-center h-full text-gray-500 text-sm">
 					Select a routine to edit.
 				</div>
@@ -103,6 +112,7 @@ const { getRoutineNames, getRoutine, setRoutine, deleteRoutine, routineExists } 
 const routineNames = computed(() => getRoutineNames().sort());
 const selectedRoutineName = ref<string | null>(null);
 const editableContent = ref("");
+const editableArgs = ref("");
 
 // Renaming state
 const renamingRoutineName = ref<string | null>(null);
@@ -115,6 +125,7 @@ const createRoutine = () => {
 	cancelRenaming();
 	selectedRoutineName.value = null;
 	editableContent.value = "";
+	editableArgs.value = "";
 	isCreating.value = true;
 	renamingInput.value = "";
 	nextTick(() => createInputRef.value?.focus());
@@ -148,6 +159,7 @@ const deleteSelectedRoutine = () => {
 			deleteRoutine(selectedRoutineName.value);
 			selectedRoutineName.value = null;
 			editableContent.value = "";
+			editableArgs.value = "";
 		}
 	}
 };
@@ -169,7 +181,7 @@ const finishRenaming = () => {
 			alert(`Routine '${newName}' already exists.`);
 		} else {
 			const content = getRoutine(oldName) || [];
-			setRoutine(newName, content);
+			setRoutine(newName, content.lines, content.args);
 			deleteRoutine(oldName);
 			selectRoutine(newName);
 		}
@@ -184,16 +196,21 @@ const cancelRenaming = () => {
 const selectRoutine = (name: string) => {
 	selectedRoutineName.value = name;
 	const content = getRoutine(name);
-	editableContent.value = content ? content.join("\n") : "";
+	editableContent.value = content ? content.lines.join("\n") : "";
+	editableArgs.value = content ? content.args.join(" ") : "";
 };
 
 let debounceTimer: number | null = null;
-watch(editableContent, (newContent) => {
+watch([editableContent, editableArgs], () => {
 	if (debounceTimer) clearTimeout(debounceTimer);
 	debounceTimer = window.setTimeout(() => {
 		if (selectedRoutineName.value) {
-			const lines = newContent.split("\n");
-			setRoutine(selectedRoutineName.value, lines);
+			const lines = editableContent.value.split("\n");
+			const args = editableArgs.value
+				.trim()
+				.split(/\s+/)
+				.filter((s) => s.length > 0);
+			setRoutine(selectedRoutineName.value, lines, args);
 		}
 	}, 500);
 });
@@ -202,6 +219,7 @@ watch(routineNames, (newNames) => {
 	if (selectedRoutineName.value && !newNames.includes(selectedRoutineName.value)) {
 		selectedRoutineName.value = null;
 		editableContent.value = "";
+		editableArgs.value = "";
 	}
 });
 </script>
