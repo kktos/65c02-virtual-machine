@@ -31,6 +31,7 @@ export function useBreakpoints(): UseBreakpointsResult {
 	};
 
 	const loadBreakpoints = async (vm?: VirtualMachine) => {
+		const newMap = new Map<string, BreakpointState>();
 		const stored = localStorage.getItem(STORAGE_KEY);
 		if (stored) {
 			try {
@@ -39,21 +40,21 @@ export function useBreakpoints(): UseBreakpointsResult {
 					enabled: bp.enabled ?? true,
 				}));
 
-				const newMap = new Map<string, BreakpointState>();
 				loaded.forEach((bp) => {
 					newMap.set(getBreakpointKey(bp), bp);
 				});
-				breakpoints.value = newMap;
-
-				if (vm) {
-					await vm.ready;
-					breakpoints.value.forEach((bp) => {
-						if (bp.enabled) vm.addBP(bp.type, bp.address, bp.endAddress);
-					});
-				}
 			} catch (e) {
 				console.error("Failed to load breakpoints", e);
 			}
+		}
+
+		breakpoints.value = newMap;
+
+		if (breakpoints.value.size && vm) {
+			await vm.ready;
+			breakpoints.value.forEach((bp) => {
+				if (bp.enabled) vm.addBP(bp.type, bp.address, bp.endAddress);
+			});
 		}
 	};
 
