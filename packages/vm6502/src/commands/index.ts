@@ -90,54 +90,6 @@ const cmdHelp: Command = {
 
 			output += `\n## ${groupName}\n\n| Command(s) | Parameters | Description |\n|---|---|---|\n`;
 			const commandsInGroup = groups[groupName]!;
-			if (groupName === "Monitor") {
-				commandsInGroup.push({
-					key: "`addr`",
-					aliases: [],
-					cmd: {
-						group: "Monitor",
-						description: "Displays byte at `addr`",
-						fn: () => "",
-					},
-				});
-				commandsInGroup.push({
-					key: "`addr`L",
-					aliases: [],
-					cmd: {
-						group: "Monitor",
-						description: "Disassembles 32 lines from `addr`",
-						fn: () => "",
-					},
-				});
-				commandsInGroup.push({
-					key: "`start`.`end`",
-					aliases: [],
-					cmd: {
-						group: "Monitor",
-						description: "Displays bytes from `start` to `end`",
-						fn: () => "",
-					},
-				});
-				commandsInGroup.push({
-					key: "`start`.`end`L",
-					aliases: [],
-					cmd: {
-						group: "Monitor",
-						description: "Disassembles from `start` to `end`",
-						fn: () => "",
-					},
-				});
-				commandsInGroup.push({
-					key: "`addr`:",
-					aliases: [],
-					cmd: {
-						paramDef: ["byte|word|string"],
-						group: "Monitor",
-						description: "Write bytes / words / strings(\":bit7=1 | ':bit7=0) at `addr`",
-						fn: () => "",
-					},
-				});
-			}
 			commandsInGroup.sort((a, b) => a.key.localeCompare(b.key));
 			const commandHelp = commandsInGroup
 				.map(({ key, cmd, aliases }) => {
@@ -159,6 +111,12 @@ export type COMMANDS = keyof typeof COMMAND_LIST;
 export const COMMAND_LIST = {
 	IF: d("Scripting", "Conditional: IF `expression` [THEN] `command`", ["expr"] as unknown as ParamDef[]),
 	DO: d("Scripting", "Execute a defined routine.", ["name"]),
+
+	"`addr`": d("Monitor", "Displays byte at `addr`"),
+	"`start`.`end`": d("Monitor", "Displays bytes from `start` to `end`"),
+	"`addr`L": d("Monitor", "Disassembles 32 lines from `addr`"),
+	"`start`.`end`L": d("Monitor", "Disassembles from `start` to `end`"),
+	"`addr`:": d("Monitor", "Write at `addr` bytes / words / strings(\":bit7=1 | ':bit7=0)", ["byte|word|string"]),
 
 	SET: setCmd,
 	"A=": d("Monitor", "Set value to Accumulator"),
@@ -204,6 +162,7 @@ export const COMMAND_LIST = {
 		staticParams: { prepend: ["string"] },
 		group: "Memory",
 	},
+	STR: "DA",
 
 	DEF: defLabel,
 	UNDEF: undefLabel,
