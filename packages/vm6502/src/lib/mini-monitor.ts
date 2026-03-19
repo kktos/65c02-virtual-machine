@@ -129,7 +129,7 @@ function runHexDump(start: number, end: number | undefined, vm: VirtualMachine):
 		const byte = vm.read(start);
 		output = `${formatAddr(start)}: ${toHex(byte, 2)}`;
 	} else {
-		const bytes = vm.readDebugRange(start, end - start);
+		const bytes = vm.readDebugRange(start, end - start + 1);
 		output = hexDump(start, bytes, { formatAddr });
 	}
 	return { content: output, format: "markdown" };

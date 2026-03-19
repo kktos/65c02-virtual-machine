@@ -50,10 +50,12 @@ export function hexDump(
 		}
 
 		const hexString = hexParts.join(" ").replace(/\*\* \*\*/g, " ");
-		const asciiString = asciiParts.join("").replace(/\*\*\*\*/g, "");
-
-		// Note: alignment will be imperfect with markdown.
-		output.push(`${formatAddrFn(addr + i)}:&nbsp;${hexString}&nbsp;&nbsp;${asciiString}`);
+		const asciiString = asciiParts
+			.join("")
+			.replace(/\*\*\*\*/g, "")
+			.replaceAll("`", "\\`");
+		const padding = "".padStart((bytesPerLine - hexParts.length) * 3, "\u00a0\u00a0\u00a0");
+		output.push(`${formatAddrFn(addr + i)}:&nbsp;${hexString}&nbsp;&nbsp;${padding}${asciiString}`);
 	}
 	return output.join("<br/>");
 }
