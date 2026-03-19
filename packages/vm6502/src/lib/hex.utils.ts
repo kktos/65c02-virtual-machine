@@ -49,11 +49,8 @@ export function hexDump(
 			asciiParts.push(isHighlighted ? `**${char}**` : char);
 		}
 
-		const hexString = hexParts.join(" ").replace(/\*\* \*\*/g, " ");
-		const asciiString = asciiParts
-			.join("")
-			.replace(/\*\*\*\*/g, "")
-			.replaceAll("`", "\\`");
+		const hexString = hexParts.join(" ").replaceAll("** **", " ");
+		const asciiString = asciiParts.join("").replaceAll("****", "").replaceAll("`", "\\`");
 		const padding = "".padStart((bytesPerLine - hexParts.length) * 3, "\u00a0\u00a0\u00a0");
 		output.push(`${formatAddrFn(addr + i)}:&nbsp;${hexString}&nbsp;&nbsp;${padding}${asciiString}`);
 	}
