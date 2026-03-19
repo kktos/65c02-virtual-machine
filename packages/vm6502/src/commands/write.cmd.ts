@@ -4,7 +4,7 @@ export const writeCommand: Command = {
 	description: "Save content to a file. Usage: `content_producer` |> WRITE `filename`",
 	// First string is filename, second is content (usually piped)
 	paramDef: ["string", "string"],
-	group: "File",
+	group: "Streams",
 	fn: async ({ params }) => {
 		const filename = params[0] as string;
 		const content = params[1] as string;

@@ -1,5 +1,5 @@
 <template>
-	<table class="w-full table-fixed">
+	<table class="table-fixed">
 		<thead>
 			<tr class="text-gray-400 sticky top-0 bg-gray-900 border-b border-gray-700 shadow-md z-10">
 				<!-- Header -->

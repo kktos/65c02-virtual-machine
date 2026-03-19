@@ -12,7 +12,7 @@ export const bufCmd: Command = {
 		"BUF FLUSH <\u200bname> [delimiter?] ; ouput buffer lines\n" +
 		"BUF CLEAR <\u200bname> ; clear buffer",
 	paramDef: ["name?", "name?", "rest?"],
-	group: "System",
+	group: "Streams",
 	fn: ({ params }: CommandContext) => {
 		if (params.length === 0) {
 			if (buffers.size === 0) return "No buffers defined.";

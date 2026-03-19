@@ -118,7 +118,7 @@ fix minimmonitor; it needs to reparse the input string
 -17- **DONE**
 fix the bug : the MemView displays all zero at init.
 
--18-
+-18- **WIP**
 define the .DB for the system; if useful, let's have a DATADEFS like LABELS to add many in one shot
 
 -19-
@@ -147,6 +147,22 @@ There are onXX in the VirtualMachine; replace them with a proper event messaging
 Shared Memory - Shared State
 We need something generic of X bytes; with a manager; instead of hardcoded values
 
--26- **WIP** ASM OK.
+-26- **DONE**
 check if multiline command work with pipe
 print "print 65 \n end" |> routine test
+
+-27-
+Fix the errors in the console
+
+> Worker: Not initialized. Send 'init' command with buffer first. {"command":"setDebugOverrides","category":"bus","overrides":{"slot":5,"smartPortLogging":false}}
+> useDataFormattings.ts:49 Uncaught (in promise) Error: No disk key provided
+
+    at getDb (useDataFormattings.ts:49:29)
+    at addFormatting (useDataFormattings.ts:184:20)
+    at Object.defDataFn [as fn] (defData.cmd.ts:16:2)
+    at processLine (useCommands.ts:437:37)
+    at async executeCommand (useCommands.ts:521:20)
+    at async loadMachine (useMachine.ts:130:4)
+
+-28-
+store routines for the machine/disk

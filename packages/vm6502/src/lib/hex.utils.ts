@@ -46,11 +46,11 @@ export function hexDump(
 
 			byte = byte & 0x7f;
 			const char = byte >= 32 && byte <= 126 ? String.fromCharCode(byte) : ".";
-			asciiParts.push(isHighlighted ? `**${char}**` : char);
+			asciiParts.push(isHighlighted ? `**${char}**` : char.replace(/(\*|~|#|>|-|`|_)/g, "\\$1"));
 		}
 
 		const hexString = hexParts.join(" ").replaceAll("** **", " ");
-		const asciiString = asciiParts.join("").replaceAll("****", "").replaceAll("`", "\\`");
+		const asciiString = asciiParts.join("").replaceAll("****", "");
 		const padding = "".padStart((bytesPerLine - hexParts.length) * 3, "\u00a0\u00a0\u00a0");
 		output.push(`${formatAddrFn(addr + i)}:&nbsp;${hexString}&nbsp;&nbsp;${padding}${asciiString}`);
 	}

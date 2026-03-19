@@ -36,6 +36,8 @@ import { searchCmd } from "./search.cmd";
 import { writeCommand } from "./write.cmd";
 import { virtualRegisterCmd } from "./virtualRegister.cmd";
 import { cmdHelp } from "./help.cmd";
+import { transformCmd } from "./tr.cmd";
+import { sedCmd } from "./sed.cmd";
 
 function d(g: string, d: string, p?: ParamDef[]) {
 	return {
@@ -51,7 +53,6 @@ export type COMMANDS = keyof typeof COMMAND_LIST;
 export const COMMAND_LIST = {
 	IF: d("Scripting", "Conditional: IF `expression` [THEN] `command`", ["expr"] as unknown as ParamDef[]),
 	DO: d("Scripting", "Execute a defined routine.", ["name"]),
-	BUF: bufCmd,
 
 	"`addr`": d("Monitor", "Displays byte at `addr`"),
 	"`start`.`end`": d("Monitor", "Displays bytes from `start` to `end`"),
@@ -226,7 +227,11 @@ export const COMMAND_LIST = {
 		},
 		group: "Console",
 	},
+
 	WRITE: writeCommand,
+	BUF: bufCmd,
+	TR: transformCmd,
+	SED: sedCmd,
 
 	SHOW: showCmd,
 	HIDE: hideCmd,
