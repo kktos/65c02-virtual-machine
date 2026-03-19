@@ -26,7 +26,7 @@ const WORD_REGISTERS = {
 } as const;
 
 export const setCmd: Command = {
-	description: "",
+	description: "Set register `name` value to `byte` or `word`",
 	paramDef: ["name", "byte|word"],
 	group: "Monitor",
 	fn: ({ vm, params }: CommandContext) => {
