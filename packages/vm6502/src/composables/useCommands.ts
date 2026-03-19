@@ -278,7 +278,15 @@ function handleDoCommand(cmdParser: ExpressionParser, commandQueue: QueueItem[],
 	while (!cmdParser.eof()) {
 		const argToken = cmdParser.peek();
 		// We use the raw text of the token for substitution to preserve formats like $FF
-		args.push(argToken.text || String(argToken.value));
+		console.log(argToken);
+		switch (argToken.type) {
+			case TokenType.STRING:
+				args.push(`"${argToken.text}"`);
+				break;
+			default:
+				args.push(argToken.text);
+				break;
+		}
 		cmdParser.consume();
 	}
 
@@ -297,7 +305,6 @@ function handleDoCommand(cmdParser: ExpressionParser, commandQueue: QueueItem[],
 				// Replace all occurrences of the argument name
 				processedLine = processedLine.replaceAll(`@${argName}`, args[index]);
 			});
-
 			commandQueue.push(...splitIntoCommands(processedLine, vm));
 		});
 
