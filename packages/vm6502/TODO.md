@@ -147,6 +147,6 @@ There are onXX in the VirtualMachine; replace them with a proper event messaging
 Shared Memory - Shared State
 We need something generic of X bytes; with a manager; instead of hardcoded values
 
--26-
+-26- **WIP** ASM OK.
 check if multiline command work with pipe
 print "print 65 \n end" |> routine test

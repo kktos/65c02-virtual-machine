@@ -1,5 +1,6 @@
 import { useCmdConsole } from "@/composables/useCmdConsole";
 import { execAddBP } from "./addBP.cmd";
+import { bufCmd } from "./buf.cmd";
 import { defCode } from "./defCode.cmd";
 import { defLabel } from "./defLabel.cmd";
 import { font } from "./font.cmd";
@@ -50,6 +51,7 @@ export type COMMANDS = keyof typeof COMMAND_LIST;
 export const COMMAND_LIST = {
 	IF: d("Scripting", "Conditional: IF `expression` [THEN] `command`", ["expr"] as unknown as ParamDef[]),
 	DO: d("Scripting", "Execute a defined routine.", ["name"]),
+	BUF: bufCmd,
 
 	"`addr`": d("Monitor", "Displays byte at `addr`"),
 	"`start`.`end`": d("Monitor", "Displays bytes from `start` to `end`"),

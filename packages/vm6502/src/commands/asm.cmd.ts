@@ -1,6 +1,7 @@
 import { assemble } from "@/lib/mini-assembler";
 import { useSymbols } from "@/composables/useSymbols";
 import type { Command, CommandContext, CommandResult, CommandSegment, ResultOnLinePayload } from "@/types/command";
+import { toHex } from "@/lib/hex.utils";
 
 const { getAddressForLabel, addSymbol } = useSymbols();
 
@@ -20,7 +21,7 @@ export const asmCmd: Command = {
 			return resolved !== undefined ? resolved : NaN;
 		};
 
-		const getPrompt = (addr: number) => `!${addr.toString(16).toUpperCase().padStart(4, "0")} `;
+		const getPrompt = (addr: number) => `!${toHex(addr, 4)} `;
 
 		const doAsm = (line: string): ResultOnLinePayload => {
 			const trimmed = line.trim();
@@ -40,8 +41,8 @@ export const asmCmd: Command = {
 
 				let res: ResultOnLinePayload = {};
 				if (showBytes) {
-					const bytesHex = result.bytes.map((b) => b.toString(16).toUpperCase().padStart(2, "0")).join(" ");
-					res.content = `${currentAddr.toString(16).toUpperCase().padStart(4, "0")}: ${bytesHex.padEnd(8)} ${trimmed}`;
+					const bytesHex = result.bytes.map((b) => toHex(b, 2)).join(" ");
+					res.content = `${toHex(currentAddr, 4)}: ${bytesHex.padEnd(8)} ${trimmed}`;
 				}
 				currentAddr = (currentAddr + result.bytes.length) & 0xffff;
 				res.prompt = getPrompt(currentAddr);
