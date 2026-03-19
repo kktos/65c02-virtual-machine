@@ -67,11 +67,10 @@ Like the one we had on v1
 Set a hook at address and exec a command
 
 > hook $3000 a=$10;x=$00
+> Allow more than one command on a line; they should be separated by ; - DONE
 
-Allow more than one command on a line; they should be separated by ; - DONE
-
--13-
-_logs_ - **DONE**
+-13- **DONE**
+_logs_ -
 A way to have small dedicated panels/windows for log.
 One for hypercalls
 One for a hook, for instance
@@ -88,10 +87,10 @@ Commands to print to it
 ⁠Add a command to set ROM/Memory data
 ⁠Add a command to load a file into mem (already there in MemView: composable)
 
--15-
+-15- **NO** - IN DB INSTEAD, bps per disk (local, not global)
 
-- Add cmd to clear BPs: bp clear
-- Add it to the script so choosing a machine clean up the bps
+- Add cmd to clear BPs: bp clear - NO
+- Add it to the script so choosing a machine clean up the bps- NO
 
 File could be an URL -> for script or ROM data
 Expr comma separated sub cmds
