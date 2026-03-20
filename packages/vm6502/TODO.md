@@ -166,3 +166,10 @@ Fix the errors in the console
 
 -28-
 store routines for the machine/disk
+
+-29-
+init routine -> define a routine with pipe |> is not working
+
+-30-
+do routine |> write "txt" is not working....
+we need to add to the end of the queue the pipe....
