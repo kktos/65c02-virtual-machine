@@ -141,7 +141,8 @@ useEventBus<string>(BUS_KEY).on((cmd: string, args: unknown[]) => {
 			clearConsole();
 			break;
 		case "print":
-			print(args[1] as string, "output", args[0] as "text" | "markdown");
+			if (args[0] === "error") printError(args[1] as string);
+			else print(args[1] as string, "output", args[0] as "text" | "markdown");
 			break;
 	}
 });
