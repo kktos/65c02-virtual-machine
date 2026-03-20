@@ -172,5 +172,8 @@ export const initRoutine = `
 
 	;printmd "![alt text](https://github.com/adam-p/markdown-here/raw/master/src/common/images/icon48.png 'Logo Title Text 1')"
 
+	routine hd @from @to
+	hd @from @to |> tr text |> sed ".+?:\\s*((?:[0-9A-F]{2} )+)\\s+.+" "$1"
+	end
 
 `;
