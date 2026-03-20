@@ -1,6 +1,6 @@
-import { computed, ref, watch } from "vue";
+import { computed, ref, watch, type Ref } from "vue";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
-import { useRoutines } from "./useRoutines";
+import { useRoutines, type Routine } from "./useRoutines";
 import { ExpressionParser, TokenType } from "@/lib/expressionParser";
 import { COMMAND_LIST, type COMMANDS } from "@/commands";
 import { minimonitor, type MiniMonitorCommandRequest } from "@/lib/mini-monitor";
@@ -29,9 +29,10 @@ const HISTORY_MAX_SIZE = 50;
 const LS_KEY_HISTORY = "vm6502-console-history";
 const END_ROUTINE_MARKER = "--END-ROUTINE--";
 
-type QueueItem =
-	| { type: "line"; tokens: CommandSegment; chain: CommandSegment[] | null }
-	| { type: "marker"; value: string };
+type QueueItemLine = { type: "line"; tokens: CommandSegment; chain: CommandSegment[] | null; injectedPipe?: any };
+type QueueItemMarker = { type: "marker"; value: string };
+
+type QueueItem = QueueItemLine | QueueItemMarker;
 
 type Sink = (output: any) => void;
 
@@ -264,16 +265,24 @@ function handleIfCommand(cmdParser: ExpressionParser, commandQueue: QueueItem[])
 	commandQueue.unshift({ type: "line", tokens: cmdParser.getTokens(cmdParser.pos), chain: [] });
 }
 
-function handleDoCommand(cmdParser: ExpressionParser, commandQueue: QueueItem[], vm: VirtualMachine) {
-	const token = cmdParser.peek();
-	if (token.type !== TokenType.IDENTIFIER) throw new Error("DO needs a routine name.");
-	cmdParser.consume();
+function expandRoutineLines(routine: Routine, args: string[], vm: VirtualMachine) {
+	const items: QueueItem[] = [];
 
-	const routineName = token.text;
-	const routine = getRoutine(routineName);
-	if (!routine) throw new Error(`Routine '${routineName}' not found.`);
+	routine.lines
+		.filter((line) => !line.trim().startsWith(";") && line.trim() !== "")
+		.forEach((line) => {
+			// Perform simple substitution
+			let processedLine = line;
+			routine.args.forEach((argName, index) => {
+				// Replace all occurrences of the argument name
+				processedLine = processedLine.replaceAll(`@${argName}`, args[index]);
+			});
+			items.push(...splitIntoCommands(processedLine, vm));
+		});
 
-	// Parse arguments for the routine
+	return items;
+}
+function parseRoutineArgs(cmdParser: ExpressionParser) {
 	const args: string[] = [];
 	while (!cmdParser.eof()) {
 		const argToken = cmdParser.peek();
@@ -289,26 +298,47 @@ function handleDoCommand(cmdParser: ExpressionParser, commandQueue: QueueItem[],
 		}
 		cmdParser.consume();
 	}
+	return args;
+}
 
-	if (args.length !== routine.args.length) {
+async function handleDoCommand(
+	cmdParser: ExpressionParser,
+	item: QueueItemLine,
+	progress: Ref<number>,
+	commandQueue: QueueItem[],
+	vm: VirtualMachine,
+) {
+	const token = cmdParser.peek();
+	if (token.type !== TokenType.IDENTIFIER) throw new Error("DO needs a routine name.");
+	cmdParser.consume();
+
+	const routineName = token.text;
+	const routine = getRoutine(routineName);
+	if (!routine) throw new Error(`Routine '${routineName}' not found.`);
+
+	const args = parseRoutineArgs(cmdParser);
+	if (args.length !== routine.args.length)
 		throw new Error(`Routine '${routineName}' expects ${routine.args.length} argument(s), but got ${args.length}.`);
+
+	const subQueue = expandRoutineLines(routine, args, vm);
+
+	if (!item.chain) {
+		commandQueue.push(...subQueue, { type: "marker", value: END_ROUTINE_MARKER });
+		return;
 	}
 
-	const items: QueueItem[] = [];
+	const result = await executeSubQueue(subQueue, cmdParser, progress, true, vm);
+	if (result.error) throw new Error(result.error);
 
-	routine.lines
-		.filter((line) => !line.trim().startsWith(";") && line.trim() !== "")
-		.forEach((line) => {
-			// Perform simple substitution
-			let processedLine = line;
-			routine.args.forEach((argName, index) => {
-				// Replace all occurrences of the argument name
-				processedLine = processedLine.replaceAll(`@${argName}`, args[index]);
-			});
-			commandQueue.push(...splitIntoCommands(processedLine, vm));
+	// inject each output as a separate entry into the downstream chain
+	for (const output of result.success) {
+		commandQueue.push({
+			type: "line",
+			tokens: item.chain[0],
+			chain: item.chain.slice(1),
+			injectedPipe: output.content ?? output,
 		});
-
-	commandQueue.push(...items, { type: "marker", value: END_ROUTINE_MARKER });
+	}
 }
 
 function resolveAlias(cmd: COMMANDS) {
@@ -393,6 +423,141 @@ async function processMultilineSession(input: string) {
 	return result;
 }
 
+async function executeSubQueue(
+	subQueue: QueueItem[],
+	cmdParser: ExpressionParser,
+	progress: Ref<number>,
+	isPiped: boolean,
+	vm: VirtualMachine,
+): Promise<CommandRunResult> {
+	const result: CommandRunResult = { success: [], shouldClose: false };
+
+	while (subQueue.length > 0) {
+		const item = subQueue.shift()!;
+		if (item.type === "marker") continue;
+
+		cmdParser.reset(item.tokens);
+		if (cmdParser.matchIdentifier("IF")) {
+			handleIfCommand(cmdParser, subQueue);
+			continue;
+		}
+		if (cmdParser.matchIdentifier("DO")) {
+			await handleDoCommand(cmdParser, item, progress, subQueue, vm);
+			continue;
+		}
+
+		// Chain Logic
+		const chain = [item.tokens];
+		if (item.chain) chain.push(...item.chain);
+
+		let pipeValue: any = item.injectedPipe ?? undefined;
+
+		for (let i = 0; i < chain.length; i++) {
+			cmdParser.reset(chain[i]);
+
+			const isLastInChain = i === chain.length - 1;
+			const currentSink: Sink = (output: CommandOutput | MiniMonitorCommandRequest) => {
+				if (isLastInChain) {
+					if (isMiniMonitorCommandRequest(output)) {
+						if (output.type === "JSR") handleJsrOutput(output, vm, result);
+					} else {
+						result.success.push(output);
+					}
+				} else {
+					pipeValue = isCommandOutput(output) ? output.content : output;
+				}
+			};
+
+			const { cmd, paramIndex: initialParamIndex, userParams, isValidCmd } = parseUserCommand(cmdParser);
+
+			if (!isValidCmd) {
+				const text = cmdParser
+					.getTokens()
+					.map((t) => t.text)
+					.join(" ");
+
+				const output = minimonitor(text, vm);
+				currentSink(output);
+				if (result.error) break;
+				continue;
+			}
+
+			let paramIndex = initialParamIndex;
+			const cmdSpec = resolveAlias(cmd);
+			const finalParams = parseCommandParams(cmdParser, cmd, paramIndex, userParams, cmdSpec, pipeValue);
+
+			const cmdResult = await cmdSpec.fn({
+				vm,
+				progress,
+				params: finalParams,
+				isPiped: isPiped || !!(chain.length - 1),
+			});
+
+			if (isMultiLineRequest(cmdResult)) {
+				const request = cmdResult;
+				if (pipeValue) {
+					const res = await request.onComplete(pipeValue);
+					if (res) currentSink({ content: res, format: "text" });
+					continue;
+				}
+
+				const isInsideRoutine = subQueue.length > 0 && subQueue.some((i) => i.type === "marker");
+				if (isInsideRoutine) {
+					const linesForMultiLine: CommandSegment[] = [];
+					let foundTerminator = false;
+					while (subQueue.length > 0) {
+						const nextItem = subQueue.shift();
+						if (!nextItem) break;
+						if (nextItem.type !== "line") continue;
+
+						if (nextItem.tokens[0].text.toUpperCase() === request.terminator) {
+							foundTerminator = true;
+							break;
+						}
+						linesForMultiLine.push(nextItem.tokens);
+					}
+					if (!foundTerminator)
+						throw new Error(
+							`Multi-line command started in routine but terminator '${request.terminator}' was not found.`,
+						);
+					const res = await request.onComplete(linesForMultiLine);
+					if (res) currentSink({ content: res, format: "text" });
+					continue;
+				}
+
+				if (!isLastInChain) throw new Error("Cannot pipe from a multi-line command request.");
+
+				if (subQueue.length > 0)
+					throw new Error(
+						"Commands that start multi-line mode cannot be combined with other commands using ';'.",
+					);
+				multiLineSession.value = {
+					__isMultiLineRequest: true,
+					prompt: request.prompt,
+					terminator: request.terminator,
+					onComplete: request.onComplete,
+					onLine: request.onLine,
+					lines: [],
+				};
+				result.success.push({
+					content: `Type '${request.terminator}' on a new line to finish.`,
+					format: "text",
+				});
+				return result;
+			}
+
+			if (cmdResult) {
+				if (typeof cmdResult === "string") currentSink({ content: cmdResult, format: "text" });
+				else currentSink(cmdResult);
+			}
+
+			if (cmdSpec.closeOnSuccess) result.shouldClose = true;
+		}
+	}
+
+	return result;
+}
+
 export function useCommands() {
 	const error = ref("");
 	const success = ref<CommandOutput[]>([]);
@@ -403,7 +568,7 @@ export function useCommands() {
 	const multiLinePrompt = computed(() => multiLineSession.value?.prompt ?? "");
 
 	const processLine = async (cmdInput: string, vm: VirtualMachine): Promise<CommandRunResult> => {
-		const result: CommandRunResult = { success: [], shouldClose: false };
+		let result: CommandRunResult = { success: [], shouldClose: false };
 
 		if (multiLineSession.value) return await processMultilineSession(cmdInput);
 
@@ -412,124 +577,7 @@ export function useCommands() {
 
 		const cmdParser = new ExpressionParser(input, vm);
 		const commandQueue = splitIntoCommands(cmdParser, vm);
-
-		while (commandQueue.length > 0) {
-			const item = commandQueue.shift()!;
-			if (item.type === "marker") continue;
-
-			cmdParser.reset(item.tokens);
-			if (cmdParser.matchIdentifier("IF")) {
-				handleIfCommand(cmdParser, commandQueue);
-				continue;
-			}
-			if (cmdParser.matchIdentifier("DO")) {
-				handleDoCommand(cmdParser, commandQueue, vm);
-				continue;
-			}
-
-			// Chain Logic
-			const chain = [item.tokens];
-			if (item.chain) chain.push(...item.chain);
-
-			let pipeValue: any = undefined;
-
-			for (let i = 0; i < chain.length; i++) {
-				cmdParser.reset(chain[i]);
-
-				const isLastInChain = i === chain.length - 1;
-				const currentSink: Sink = (output: CommandOutput | MiniMonitorCommandRequest) => {
-					if (isLastInChain) {
-						if (isMiniMonitorCommandRequest(output)) {
-							if (output.type === "JSR") handleJsrOutput(output, vm, result);
-						} else {
-							result.success.push(output);
-						}
-					} else {
-						pipeValue = isCommandOutput(output) ? output.content : output;
-					}
-				};
-
-				const { cmd, paramIndex: initialParamIndex, userParams, isValidCmd } = parseUserCommand(cmdParser);
-
-				if (!isValidCmd) {
-					const text = cmdParser
-						.getTokens()
-						.map((t) => t.text)
-						.join(" ");
-
-					const output = minimonitor(text, vm);
-					currentSink(output);
-					if (result.error) break;
-					continue;
-				}
-
-				let paramIndex = initialParamIndex;
-				const cmdSpec = resolveAlias(cmd);
-				const finalParams = parseCommandParams(cmdParser, cmd, paramIndex, userParams, cmdSpec, pipeValue);
-
-				const cmdResult = await cmdSpec.fn({ vm, progress, params: finalParams, pipeDest: chain.length - 1 });
-
-				if (isMultiLineRequest(cmdResult)) {
-					const request = cmdResult;
-					if (pipeValue) {
-						const res = await request.onComplete(pipeValue);
-						if (res) currentSink({ content: res, format: "text" });
-						continue;
-					}
-
-					const isInsideRoutine = commandQueue.length > 0 && commandQueue.some((i) => i.type === "marker");
-					if (isInsideRoutine) {
-						const linesForMultiLine: CommandSegment[] = [];
-						let foundTerminator = false;
-						while (commandQueue.length > 0) {
-							const nextItem = commandQueue.shift();
-							if (!nextItem) break;
-							if (nextItem.type !== "line") continue;
-
-							if (nextItem.tokens[0].text.toUpperCase() === request.terminator) {
-								foundTerminator = true;
-								break;
-							}
-							linesForMultiLine.push(nextItem.tokens);
-						}
-						if (!foundTerminator)
-							throw new Error(
-								`Multi-line command started in routine but terminator '${request.terminator}' was not found.`,
-							);
-						const res = await request.onComplete(linesForMultiLine);
-						if (res) currentSink({ content: res, format: "text" });
-						continue;
-					}
-
-					if (!isLastInChain) throw new Error("Cannot pipe from a multi-line command request.");
-
-					if (commandQueue.length > 0)
-						throw new Error(
-							"Commands that start multi-line mode cannot be combined with other commands using ';'.",
-						);
-					multiLineSession.value = {
-						__isMultiLineRequest: true,
-						prompt: request.prompt,
-						terminator: request.terminator,
-						onComplete: request.onComplete,
-						onLine: request.onLine,
-						lines: [],
-					};
-					result.success.push({
-						content: `Type '${request.terminator}' on a new line to finish.`,
-						format: "text",
-					});
-					return result;
-				}
-
-				if (cmdResult) {
-					if (typeof cmdResult === "string") currentSink({ content: cmdResult, format: "text" });
-					else currentSink(cmdResult);
-				}
-
-				if (cmdSpec.closeOnSuccess) result.shouldClose = true;
-			}
-		}
+		result = await executeSubQueue(commandQueue, cmdParser, progress, false, vm);
 		return result;
 	};
 

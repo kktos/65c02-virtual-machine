@@ -40,7 +40,7 @@ export interface CommandContext {
 	vm: VirtualMachine;
 	progress: Ref<number>;
 	params: ParamList;
-	pipeDest: number;
+	isPiped: boolean;
 }
 
 export type Command = {
