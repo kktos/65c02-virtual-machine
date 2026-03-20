@@ -38,6 +38,7 @@ import { virtualRegisterCmd } from "./virtualRegister.cmd";
 import { cmdHelp } from "./help.cmd";
 import { transformCmd } from "./tr.cmd";
 import { sedCmd } from "./sed.cmd";
+import { hexDumpCmd } from "./hexdump.cmd";
 
 function d(g: string, d: string, p?: ParamDef[]) {
 	return {
@@ -232,6 +233,7 @@ export const COMMAND_LIST = {
 	BUF: bufCmd,
 	TR: transformCmd,
 	SED: sedCmd,
+	HD: hexDumpCmd,
 
 	SHOW: showCmd,
 	HIDE: hideCmd,
