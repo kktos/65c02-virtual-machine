@@ -564,15 +564,14 @@ async function executeSubQueue(
 async function processLine(cmdInput: string, vm: VirtualMachine): Promise<CommandRunResult> {
 	let result: CommandRunResult = { success: [], shouldClose: false };
 
-	if (multiLineSession.value) return await processMultilineSession(cmdInput);
+	if (multiLineSession.value) return processMultilineSession(cmdInput);
 
 	const input = cmdInput.trim();
 	if (!input) return result;
 
 	const cmdParser = new ExpressionParser(input, vm);
 	const commandQueue = splitIntoCommands(cmdParser, vm);
-	result = await executeSubQueue(commandQueue, cmdParser, false, vm);
-	return result;
+	return executeSubQueue(commandQueue, cmdParser, false, vm);
 }
 
 async function executeCommand(cmdInput: string, vm: VirtualMachine | null) {
