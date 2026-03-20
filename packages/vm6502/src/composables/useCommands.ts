@@ -1,4 +1,4 @@
-import { computed, ref, watch, type Ref } from "vue";
+import { computed, ref, watch } from "vue";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import { useRoutines, type Routine } from "./useRoutines";
 import { ExpressionParser, TokenType } from "@/lib/expressionParser";
@@ -31,26 +31,30 @@ const END_ROUTINE_MARKER = "--END-ROUTINE--";
 
 type QueueItemLine = { type: "line"; tokens: CommandSegment; chain: CommandSegment[] | null; injectedPipe?: any };
 type QueueItemMarker = { type: "marker"; value: string };
-
 type QueueItem = QueueItemLine | QueueItemMarker;
-
 type Sink = (output: any) => void;
-
-const commandHistory = ref<string[]>(JSON.parse(localStorage.getItem(LS_KEY_HISTORY) || "[]") as string[]);
-const { addBreakpoint } = useBreakpoints();
-const { getRoutine } = useRoutines();
-
-const multiLineSession = ref<MultiLineRequest | null>(null);
-
-watch(commandHistory, (history) => localStorage.setItem(LS_KEY_HISTORY, JSON.stringify(history)), { deep: true });
-
-const errorHistory = ref<string[]>([]);
-
 type CommandRunResult = {
 	success: CommandOutput[];
 	error?: string;
 	shouldClose: boolean;
 };
+
+const error = ref("");
+const success = ref<CommandOutput[]>([]);
+const isLoading = ref(false);
+const progress = ref(0);
+const shouldClose = ref(false);
+const multiLineSession = ref<MultiLineRequest | null>(null);
+const isMultiLine = computed(() => multiLineSession.value !== null);
+const multiLinePrompt = computed(() => multiLineSession.value?.prompt ?? "");
+const commandHistory = ref<string[]>(JSON.parse(localStorage.getItem(LS_KEY_HISTORY) || "[]") as string[]);
+const errorHistory = ref<string[]>([]);
+
+const { addBreakpoint } = useBreakpoints();
+const { getRoutine } = useRoutines();
+
+watch(commandHistory, (history) => localStorage.setItem(LS_KEY_HISTORY, JSON.stringify(history)), { deep: true });
+watch(error, (err) => err && errorHistory.value.push(err));
 
 export function isMultiLineRequest(r: unknown): r is MultiLineRequest {
 	return typeof r === "object" && r !== null && "__isMultiLineRequest" in r;
@@ -282,6 +286,7 @@ function expandRoutineLines(routine: Routine, args: string[], vm: VirtualMachine
 
 	return items;
 }
+
 function parseRoutineArgs(cmdParser: ExpressionParser) {
 	const args: string[] = [];
 	while (!cmdParser.eof()) {
@@ -304,7 +309,6 @@ function parseRoutineArgs(cmdParser: ExpressionParser) {
 async function handleDoCommand(
 	cmdParser: ExpressionParser,
 	item: QueueItemLine,
-	progress: Ref<number>,
 	commandQueue: QueueItem[],
 	vm: VirtualMachine,
 ) {
@@ -327,7 +331,7 @@ async function handleDoCommand(
 		return;
 	}
 
-	const result = await executeSubQueue(subQueue, cmdParser, progress, true, vm);
+	const result = await executeSubQueue(subQueue, cmdParser, true, vm);
 	if (result.error) throw new Error(result.error);
 
 	// inject each output as a separate entry into the downstream chain
@@ -426,7 +430,6 @@ async function processMultilineSession(input: string) {
 async function executeSubQueue(
 	subQueue: QueueItem[],
 	cmdParser: ExpressionParser,
-	progress: Ref<number>,
 	isPiped: boolean,
 	vm: VirtualMachine,
 ): Promise<CommandRunResult> {
@@ -442,7 +445,7 @@ async function executeSubQueue(
 			continue;
 		}
 		if (cmdParser.matchIdentifier("DO")) {
-			await handleDoCommand(cmdParser, item, progress, subQueue, vm);
+			await handleDoCommand(cmdParser, item, subQueue, vm);
 			continue;
 		}
 
@@ -558,75 +561,63 @@ async function executeSubQueue(
 	return result;
 }
 
+async function processLine(cmdInput: string, vm: VirtualMachine): Promise<CommandRunResult> {
+	let result: CommandRunResult = { success: [], shouldClose: false };
+
+	if (multiLineSession.value) return await processMultilineSession(cmdInput);
+
+	const input = cmdInput.trim();
+	if (!input) return result;
+
+	const cmdParser = new ExpressionParser(input, vm);
+	const commandQueue = splitIntoCommands(cmdParser, vm);
+	result = await executeSubQueue(commandQueue, cmdParser, false, vm);
+	return result;
+}
+
+async function executeCommand(cmdInput: string, vm: VirtualMachine | null) {
+	if (!vm) {
+		error.value = "Virtual Machine not initialized.";
+		return false;
+	}
+	if (isLoading.value) return false;
+
+	isLoading.value = true;
+	progress.value = 0;
+	error.value = "";
+	success.value = [];
+	shouldClose.value = false;
+
+	let input = cmdInput;
+	const lines = input.split(/\r?\n/);
+
+	try {
+		for (const line of lines) {
+			const result = await processLine(line, vm);
+			if (result.error) {
+				error.value = result.error;
+				break;
+			}
+			if (result.success.length > 0) success.value.push(...result.success);
+			if (result.shouldClose) shouldClose.value = true;
+		}
+
+		const cleanInput = cmdInput.trim();
+		if (cleanInput && commandHistory.value[commandHistory.value.length - 1] !== cleanInput) {
+			commandHistory.value.push(cleanInput);
+			if (commandHistory.value.length > HISTORY_MAX_SIZE)
+				commandHistory.value.splice(0, commandHistory.value.length - HISTORY_MAX_SIZE);
+		}
+		return !error.value;
+	} catch (e: any) {
+		error.value = e.message || "Execution failed";
+		return false;
+	} finally {
+		isLoading.value = false;
+	}
+}
+
 export function useCommands() {
-	const error = ref("");
-	const success = ref<CommandOutput[]>([]);
-	const isLoading = ref(false);
-	const progress = ref(0);
-	const shouldClose = ref(false);
-	const isMultiLine = computed(() => multiLineSession.value !== null);
-	const multiLinePrompt = computed(() => multiLineSession.value?.prompt ?? "");
-
-	const processLine = async (cmdInput: string, vm: VirtualMachine): Promise<CommandRunResult> => {
-		let result: CommandRunResult = { success: [], shouldClose: false };
-
-		if (multiLineSession.value) return await processMultilineSession(cmdInput);
-
-		const input = cmdInput.trim();
-		if (!input) return result;
-
-		const cmdParser = new ExpressionParser(input, vm);
-		const commandQueue = splitIntoCommands(cmdParser, vm);
-		result = await executeSubQueue(commandQueue, cmdParser, progress, false, vm);
-		return result;
-	};
-
-	const executeCommand = async (cmdInput: string, vm: VirtualMachine | null) => {
-		if (!vm) {
-			error.value = "Virtual Machine not initialized.";
-			return false;
-		}
-		if (isLoading.value) return false;
-
-		isLoading.value = true;
-		progress.value = 0;
-		error.value = "";
-		success.value = [];
-		shouldClose.value = false;
-
-		let input = cmdInput;
-		const lines = input.split(/\r?\n/);
-
-		try {
-			for (const line of lines) {
-				const result = await processLine(line, vm);
-				if (result.error) {
-					error.value = result.error;
-					break;
-				}
-				if (result.success.length > 0) success.value.push(...result.success);
-				if (result.shouldClose) shouldClose.value = true;
-			}
-
-			const cleanInput = cmdInput.trim();
-			if (cleanInput && commandHistory.value[commandHistory.value.length - 1] !== cleanInput) {
-				commandHistory.value.push(cleanInput);
-				if (commandHistory.value.length > HISTORY_MAX_SIZE)
-					commandHistory.value.splice(0, commandHistory.value.length - HISTORY_MAX_SIZE);
-			}
-			return !error.value;
-		} catch (e: any) {
-			error.value = e.message || "Execution failed";
-			return false;
-		} finally {
-			isLoading.value = false;
-		}
-	};
-
-	watch(error, (err) => {
-		if (err) errorHistory.value.push(err);
-	});
-
 	return {
 		error,
 		errorHistory,
