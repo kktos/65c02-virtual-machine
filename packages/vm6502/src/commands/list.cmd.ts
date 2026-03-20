@@ -22,11 +22,16 @@ function listHooks() {
 	return `${header}\n${rows.join("\n")}`;
 }
 
-function listRoutines() {
+function listRoutines(name?: ParamListItemIdentifier) {
 	const { getRoutineNames, getRoutine } = useRoutines();
 	const routineNames = getRoutineNames();
 	if (routineNames.length === 0) return "No routines defined.";
-
+	if (name) {
+		if (!routineNames.includes(name.text)) throw new Error(`Routine '${name.text}' not found.`);
+		const r = getRoutine(name.text);
+		const args = r?.args.length ? ` ${r.args.map((arg) => `@${arg}`).join(" ")}` : "";
+		return `routine ${name.text}${args}\n\n${r?.lines.map((line) => `\u00A0\u00A0${line}\n`).join("\n")}\n\nend\n`;
+	}
 	return routineNames
 		.map((name) => {
 			const r = getRoutine(name);
@@ -54,7 +59,7 @@ const LISTS = ["HOOKS", "ROUTINES", "HISTORY"];
 
 export const listCmd: Command = {
 	description: "List <hooks|routines|history>.",
-	paramDef: ["name"],
+	paramDef: ["name", "name?"],
 	group: "Console",
 	fn: ({ params }: CommandContext) => {
 		const cmd = params[0] as ParamListItemIdentifier;
@@ -64,9 +69,11 @@ export const listCmd: Command = {
 			case "HOOKS":
 				content = listHooks();
 				break;
-			case "ROUTINES":
-				content = listRoutines();
+			case "ROUTINES": {
+				const name = params.length > 1 ? (params[1] as ParamListItemIdentifier) : undefined;
+				content = listRoutines(name);
 				break;
+			}
 			case "HISTORY":
 				content = listHistory();
 				break;
