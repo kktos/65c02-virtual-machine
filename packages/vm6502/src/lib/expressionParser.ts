@@ -15,6 +15,7 @@ export enum TokenType {
 	FLOAT,
 	IDENTIFIER, // Register or Label
 	STRING,
+	REGEX,
 	// Operators
 	COMMA,
 	PLUS,
@@ -85,14 +86,14 @@ export interface Token {
 
 export interface ParsedResult {
 	type: TokenType;
-	value: number | string | undefined;
+	value: number | string | RegExp | undefined;
 	raw: string;
 }
 
 type BuiltinFunctionDef = {
 	minArgs: number;
 	maxArgs: number;
-	impl: (args: (string | number)[], vm: VirtualMachine) => ParsedResult;
+	impl: (args: (string | number | RegExp)[], vm: VirtualMachine) => ParsedResult;
 };
 
 const BUILTINS: Record<string, BuiltinFunctionDef> = {
@@ -263,7 +264,7 @@ export class ExpressionParser {
 
 		if (!this.match(TokenType.LPAREN)) throw new Error(`Expected '(' after ${name}`);
 
-		const args: (number | string)[] = [];
+		const args: (number | string | RegExp)[] = [];
 		if (!this.is(TokenType.RPAREN)) {
 			do {
 				const arg = this.parse();
@@ -284,6 +285,8 @@ export class ExpressionParser {
 		switch (token.type) {
 			case TokenType.STRING:
 				return { type: TokenType.STRING, value: token.text, raw: token.text };
+			case TokenType.REGEX:
+				return { type: TokenType.REGEX, value: new RegExp(token.text), raw: token.text };
 			case TokenType.INTEGER:
 				return { type: TokenType.INTEGER, value: token.value, raw: token.text };
 			case TokenType.FLOAT:
@@ -306,6 +309,7 @@ export class ExpressionParser {
 				let addr = addrRes.value;
 				if (!this.match(TokenType.RBRACKET)) throw new Error("Expected ']'");
 				if (typeof addr === "string") addr = this.resolveIdentifier(addr);
+				if (typeof addr !== "number") throw new Error("Expected a number for 'mem[]'");
 				const value = addr !== undefined ? this.vm.read(addr) : undefined;
 				return { type: TokenType.INTEGER, value, raw: token.text };
 			}
@@ -570,6 +574,29 @@ function defaultTokenize(input: string): Token[] {
 
 			if (!isMem) tokens.push({ type: TokenType.IDENTIFIER, value: 0, text: ident, start, end: i });
 
+			continue;
+		}
+
+		// Regex Literal
+		if (char === "/" && i + 1 < input.length && input[i + 1] === "/") {
+			const start = i;
+			i += 2; // consume opening //
+			let pattern = "";
+			while (i < input.length) {
+				let c = input[i];
+				if (c === "/" && i + 1 < input.length && input[i + 1] === "/") break;
+				if (c === "\\") {
+					pattern += c;
+					i++;
+					if (i < input.length) c = input[i];
+				}
+				pattern += c;
+				i++;
+			}
+
+			if (i >= input.length) throw new Error(`Unterminated regex at ${start}`);
+			i += 2; // consume closing //
+			tokens.push({ type: TokenType.REGEX, value: 0, text: pattern, start, end: i });
 			continue;
 		}
 

@@ -167,9 +167,12 @@ Fix the errors in the console
 -28-
 store routines for the machine/disk
 
--29-
+-29- **FIXED**
 init routine -> define a routine with pipe |> is not working
 
--30-
+-30- FAIT PLANTER !!!!
 do routine |> write "txt" is not working....
 we need to add to the end of the queue the pipe....
+
+-31-
+Now that we have regex support, can we add a `=~` operator to match a string against a regex?

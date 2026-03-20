@@ -13,7 +13,7 @@ export type ErrorOutput = {
 
 export type CommandResult = string | CommandOutput | ErrorOutput | MultiLineRequest;
 
-type ParamType = "byte" | "word" | "number" | "address" | "range" | "string" | "bool" | "name" | "rest";
+type ParamType = "byte" | "word" | "number" | "address" | "range" | "string" | "bool" | "regex" | "name" | "rest";
 type ParamDef =
 	| ParamType
 	| `${ParamType}?`
@@ -24,7 +24,7 @@ type ParamDef =
 export type ParamListItemIdentifier = { text: string; value: number | string | undefined };
 export type ParamListItemRange = { start: number; end: number };
 
-export type ParamListItem = string | number | undefined | ParamListItemRange | ParamListItemIdentifier;
+export type ParamListItem = string | number | RegExp | undefined | ParamListItemRange | ParamListItemIdentifier;
 export type ParamList = ParamListItem[];
 
 export type ResultOnLinePayload = { content?: string; prompt?: string; error?: string } | void;

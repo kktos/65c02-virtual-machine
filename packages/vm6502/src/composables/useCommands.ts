@@ -137,9 +137,12 @@ function parseCommandParams(
 			case TokenType.AT:
 				parsedValue = paramValue.raw;
 				break;
+			case TokenType.REGEX:
+				parsedValue = paramValue.value;
+				break;
 			case TokenType.IDENTIFIER:
 				if (allowedTypes.includes("name")) {
-					parsedValue = { text: paramValue.raw, value: paramValue.value };
+					parsedValue = { text: paramValue.raw, value: paramValue.value as number };
 					break;
 				}
 				if (
