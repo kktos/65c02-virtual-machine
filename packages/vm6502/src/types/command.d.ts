@@ -7,7 +7,11 @@ export type CommandOutput = {
 	format: "text" | "markdown";
 };
 
-export type CommandResult = string | CommandOutput | MultiLineRequest;
+export type ErrorOutput = {
+	error: string;
+};
+
+export type CommandResult = string | CommandOutput | ErrorOutput | MultiLineRequest;
 
 type ParamType = "byte" | "word" | "number" | "address" | "range" | "string" | "bool" | "name" | "rest";
 type ParamDef =
@@ -32,8 +36,8 @@ export type MultiLineRequest = {
 	prompt: string;
 	lines?: (CommandSegment | string)[];
 	terminator: string;
-	onComplete: (lines: string | (CommandSegment | string)[]) => string | Promise<string>;
-	onLine?: (line: string) => ResultOnLineFn;
+	onComplete: () => string | ErrorOutput | Promise<string | ErrorOutput>;
+	onLine: (line: string, index: number) => ResultOnLineFn;
 };
 
 export interface CommandContext {
