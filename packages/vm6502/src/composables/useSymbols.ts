@@ -230,6 +230,10 @@ export function useSymbols() {
 	};
 
 	const addSymbol = async (address: number, label: string, namespace = "user", scope = "main") => {
+		if (!label.match(/^[A-Za-z_][A-Za-z_0-9]*/)) throw new Error(`Invalid label name "${label}"`);
+		if (!namespace.match(/^[A-Za-z_][A-Za-z_0-9]*/)) throw new Error(`Invalid namespace name "${namespace}"`);
+		if (!scope.match(/^[A-Za-z_][A-Za-z_0-9]*/)) throw new Error(`Invalid scope name "${scope}"`);
+
 		const db = await getDb();
 		const symbol = {
 			disk: diskKey,
@@ -266,6 +270,13 @@ export function useSymbols() {
 		const existing = await Promise.all(symbols.map((e) => index.get([diskKey, e.ns, e.label])));
 		await Promise.all(
 			symbols.map((entry, i) => {
+				if (!entry.label.match(/^[A-Za-z_][A-Za-z_0-9]*/))
+					throw new Error(`Invalid label name ${i} "${entry.label}"`);
+				if (!entry.scope.match(/^[A-Za-z_][A-Za-z_0-9]*/))
+					throw new Error(`Invalid scope name ${i} "${entry.scope}"`);
+				if (!entry.ns.match(/^[A-Za-z_][A-Za-z_0-9]*/))
+					throw new Error(`Invalid namespace name ${i} "${entry.ns}"`);
+
 				const symbol: SymbolEntry = {
 					disk: diskKey,
 					ns: entry.ns,
@@ -298,6 +309,10 @@ export function useSymbols() {
 	};
 
 	const updateSymbol = async (id: number, address: number, label: string, namespace: string, scope: string) => {
+		if (!label.match(/^[A-Za-z_][A-Za-z_0-9]*/)) throw new Error(`Invalid label name "${label}"`);
+		if (!namespace.match(/^[A-Za-z_][A-Za-z_0-9]*/)) throw new Error(`Invalid namespace name "${namespace}"`);
+		if (!scope.match(/^[A-Za-z_][A-Za-z_0-9]*/)) throw new Error(`Invalid scope name "${scope}"`);
+
 		const db = await getDb();
 		const tx = db.transaction(storeName as unknown as "symbols", "readwrite");
 		const store = tx.store;
