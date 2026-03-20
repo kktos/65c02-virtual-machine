@@ -1,5 +1,5 @@
 import { useSymbols } from "@/composables/useSymbols";
-import type { Command, CommandContext, CommandSegment, ParamListItemIdentifier } from "@/types/command";
+import type { Command, CommandContext, ParamListItemIdentifier } from "@/types/command";
 
 const { addManySymbols } = useSymbols();
 
@@ -8,41 +8,34 @@ export const labelsCmd: Command = {
 	paramDef: ["name", "name?"],
 	group: "Symbols",
 	fn: ({ params }: CommandContext) => {
-		const namespace = params[0] as ParamListItemIdentifier;
+		const namespace = (params[0] as ParamListItemIdentifier).text;
 		const scope = (params[1] as ParamListItemIdentifier)?.text || "main";
+
+		const symbols: { ns: string; label: string; addr: number; scope: string }[] = [];
 
 		return {
 			__isMultiLineRequest: true,
 			prompt: `LABELS ${namespace}|`,
 			terminator: "END",
-			onComplete: async (lines: string | (CommandSegment | string)[]) => {
-				const symbols: { ns: string; label: string; addr: number; scope: string }[] = [];
+			onLine: async (line: string, lineIndex: number) => {
+				let [addrStr, label] = line.split(" ") as [string, string];
+				addrStr = addrStr.trim().replace(/^(0x|\$)/, "");
+				const addr = parseInt(addrStr, 16);
+				if (Number.isNaN(addr))
+					return { error: `LABELS: Invalid address: "${addrStr}" on line ${lineIndex} "${line}"` };
 
-				const entries = typeof lines === "string" ? lines.split("\n") : lines;
-				for (const line of entries) {
-					if (line.length < 2)
-						throw new Error(
-							`Invalid line format: "${typeof line === "string" ? line : line.join(" ")}". Expected: <address> <label>`,
-						);
-
-					let addr: number;
-					let label: string;
-					if (typeof line === "string") {
-						let addrStr: string;
-						[addrStr, label] = line.split(" ") as [string, string];
-						addr = parseInt(addrStr.replace(/^(0x|$)/, ""), 16);
-					} else {
-						addr = line[0].value;
-						label = line[1].text;
-					}
-
-					symbols.push({ ns: namespace.text, label, addr, scope });
+				symbols.push({ ns: namespace, label, addr, scope });
+				return { prompt: `LABELS ${namespace}|` };
+			},
+			onComplete: async () => {
+				if (symbols.length === 0) return "No labels defined.";
+				try {
+					await addManySymbols(symbols);
+				} catch (e) {
+					return { error: `LABELS ${namespace}: ${e}` };
 				}
 
-				if (symbols.length === 0) return "No labels defined.";
-
-				await addManySymbols(symbols);
-				return `Defined ${symbols.length} labels in namespace '${namespace.text}' (scope: ${scope}).`;
+				return `Defined ${symbols.length} labels in namespace '${namespace}' (scope: ${scope}).`;
 			},
 		};
 	},
