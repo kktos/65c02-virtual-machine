@@ -24,7 +24,11 @@ export const defLabel: Command = {
 			);
 		}
 
-		await addSymbol(address, label, namespace, scope);
+		try {
+			await addSymbol(address, label, namespace, scope);
+		} catch (e) {
+			return { error: `LABEL: ${e}` };
+		}
 
 		return `Label '${label}' defined at ${formatAddress(address)} in scope '${scope}'.`;
 	},
