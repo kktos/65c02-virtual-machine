@@ -123,7 +123,7 @@ function runDisassembly(start: number, end: number | undefined, vm: VirtualMachi
 	return { content: output, endAddr: lastLine.addr + lastLine.bytes.split(" ").length };
 }
 
-function runHexDump(start: number, end: number | undefined, vm: VirtualMachine): CommandOutput {
+export function runHexDump(start: number, end: number | undefined, vm: VirtualMachine): CommandOutput {
 	let output = "";
 	if (end === undefined) {
 		const byte = vm.read(start);
