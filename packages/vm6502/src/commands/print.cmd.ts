@@ -10,6 +10,6 @@ export const printCmdFn: Command["fn"] = ({ params, isPiped }: CommandContext) =
 	let text = rest.join(" ");
 	if (type === "markdown") text = text.replace(/<br>/g, "\n");
 	if (isPiped) return text;
-	else print(type, text);
+	else print(type as "text" | "markdown" | "error", text);
 	return "";
 };

@@ -22,7 +22,7 @@ const clearConsole = () => {
 	consoleBus.emit("cls");
 };
 
-const print = (type: string, text: string) => {
+const print = (type: "text" | "markdown" | "error", text: string) => {
 	consoleBus.emit("print", [type, text]);
 };
 
