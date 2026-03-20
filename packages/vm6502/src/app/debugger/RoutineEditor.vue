@@ -39,7 +39,7 @@
 							@click="selectRoutine(name)"
 							@dblclick="startRenaming(name)"
 							class="px-3 py-2 text-xs cursor-pointer hover:bg-gray-700 flex items-center h-8"
-							:class="{ 'bg-cyan-800/50 text-cyan-300': name === selectedRoutineName }"
+							:class="{ 'bg-indigo-800/50': name === selectedRoutineName }"
 						>
 							<input
 								v-if="renamingRoutineName === name"
