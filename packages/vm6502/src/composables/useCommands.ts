@@ -310,7 +310,7 @@ function expandRoutineLines(routine: Routine, args: string[]) {
 	return expandedLines;
 }
 
-function parseRoutineArgs(cmdParser: ExpressionParser) {
+function parseRoutineArgs(cmdParser: ExpressionParser, pipeValue: unknown) {
 	const args: string[] = [];
 	while (!cmdParser.eof()) {
 		const argToken = cmdParser.peek();
@@ -326,9 +326,14 @@ function parseRoutineArgs(cmdParser: ExpressionParser) {
 		}
 		cmdParser.consume();
 	}
+	if (pipeValue !== undefined) {
+		if (typeof pipeValue === "string") args.push(`"${pipeValue}"`);
+		else args.push(String(pipeValue));
+	}
+
 	return args;
 }
-
+/*
 async function handleDoCommand(
 	cmdParser: ExpressionParser,
 	item: QueueItemLine,
@@ -369,7 +374,7 @@ async function handleDoCommand(
 		});
 	}
 }
-
+*/
 function resolveAlias(cmd: COMMANDS) {
 	let cmdSpecOrAlias: Command | string = COMMAND_LIST[cmd];
 	if (typeof cmdSpecOrAlias === "string") cmdSpecOrAlias = COMMAND_LIST[cmdSpecOrAlias as COMMANDS];
@@ -487,10 +492,6 @@ async function executeSubQueue(
 				handleIfCommand(cmdParser, item, subQueue);
 				continue;
 			}
-			if (cmdParser.matchIdentifier("DO")) {
-				await handleDoCommand(cmdParser, item, subQueue, vm);
-				continue;
-			}
 
 			// Chain Logic
 			const chain = [item.tokens];
@@ -519,6 +520,34 @@ async function executeSubQueue(
 				if (!isValidCmd) {
 					const output = minimonitor(item.source, vm);
 					currentSink(output);
+					continue;
+				}
+
+				if (cmd === "DO") {
+					const token = cmdParser.peek();
+					if (!cmdParser.matchIdentifier()) throw new Error("DO needs a routine name.");
+
+					const routineName = token.text;
+					const routine = getRoutine(routineName);
+					if (!routine) throw new Error(`Routine '${routineName}' not found.`);
+
+					const args = parseRoutineArgs(cmdParser, pipeValue);
+					if (args.length !== routine.args.length)
+						throw new Error(
+							`Routine '${routineName}' expects ${routine.args.length} argument(s), but got ${args.length}.`,
+						);
+
+					const expandedLines = expandRoutineLines(routine, args);
+
+					if (isLastInChain) {
+						subQueue.unshift(...expandedLines, { type: "marker", value: END_ROUTINE_MARKER });
+					} else {
+						const res = await executeSubQueue([...expandedLines], new ExpressionParser("", vm), true, vm);
+						if (res.error) throw new Error(res.error);
+						res.success.forEach((out) => currentSink(out));
+					}
+
+					item.injectedPipe = undefined;
 					continue;
 				}
 
