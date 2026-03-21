@@ -152,20 +152,21 @@ const floatingWindowStyle = computed(() => ({
 	zIndex: zIndex.value,
 }));
 
-const clampToViewport = () => {
+const clampToViewport = (options?: { ignoreRight?: boolean; ignoreBottom?: boolean }) => {
 	if (!floatingWindow.value) return;
 
 	const winWidth = winSize.value.width;
 	const winHeight = winSize.value.height;
 
 	// Ensure window is at least partially visible
-	const newX = Math.min(Math.max(0, position.value.x), winWidth - 50);
-	const newY = Math.min(Math.max(0, position.value.y), winHeight - 50);
+	const newX = options?.ignoreRight
+		? Math.max(0, position.value.x)
+		: Math.min(Math.max(0, position.value.x), winWidth - 50);
+	const newY = options?.ignoreBottom
+		? Math.max(0, position.value.y)
+		: Math.min(Math.max(0, position.value.y), winHeight - 50);
 
-	if (newX !== position.value.x || newY !== position.value.y) {
-		position.value = { x: newX, y: newY };
-		saveState();
-	}
+	if (newX !== position.value.x || newY !== position.value.y) position.value = { x: newX, y: newY };
 };
 
 const saveState = () => {
@@ -202,7 +203,10 @@ const open = (options?: { x?: number; y?: number; width?: number; height?: numbe
 	emit("open");
 	// Save new state if opened programmatically with new coordinates
 	saveState();
-	nextTick(() => clampToViewport());
+	nextTick(() => {
+		clampToViewport();
+		saveState();
+	});
 };
 
 const close = () => {
@@ -330,8 +334,19 @@ watch(
 );
 
 const updateWinSize = () => {
+	const wasSnappedRight = isSnappedRight.value;
+	const wasSnappedBottom = isSnappedBottom.value;
+
 	winSize.value = { width: window.innerWidth, height: window.innerHeight };
-	clampToViewport();
+
+	if (wasSnappedRight) position.value.x = winSize.value.width - size.value.width;
+	if (wasSnappedBottom) position.value.y = winSize.value.height - size.value.height;
+
+	clampToViewport({
+		ignoreRight: wasSnappedRight,
+		ignoreBottom: wasSnappedBottom,
+	});
+	saveState();
 };
 
 onMounted(() => {
