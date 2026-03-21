@@ -314,8 +314,6 @@ function parseRoutineArgs(cmdParser: ExpressionParser, pipeValue: unknown) {
 	const args: string[] = [];
 	while (!cmdParser.eof()) {
 		const argToken = cmdParser.peek();
-		// We use the raw text of the token for substitution to preserve formats like $FF
-		console.log(argToken);
 		switch (argToken.type) {
 			case TokenType.STRING:
 				args.push(`"${argToken.text}"`);
@@ -333,11 +331,14 @@ function parseRoutineArgs(cmdParser: ExpressionParser, pipeValue: unknown) {
 
 	return args;
 }
-/*
+
 async function handleDoCommand(
 	cmdParser: ExpressionParser,
 	item: QueueItemLine,
-	commandQueue: QueueItem[],
+	subQueue: QueueItem[],
+	isLastInChain: boolean,
+	currentSink: Sink,
+	pipeValue: unknown,
 	vm: VirtualMachine,
 ) {
 	const token = cmdParser.peek();
@@ -347,34 +348,23 @@ async function handleDoCommand(
 	const routine = getRoutine(routineName);
 	if (!routine) throw new Error(`Routine '${routineName}' not found.`);
 
-	const args = parseRoutineArgs(cmdParser);
+	const args = parseRoutineArgs(cmdParser, pipeValue);
 	if (args.length !== routine.args.length)
 		throw new Error(`Routine '${routineName}' expects ${routine.args.length} argument(s), but got ${args.length}.`);
 
-	// Expand routine into *raw source lines*
 	const expandedLines = expandRoutineLines(routine, args);
 
-	// Non-piped DO: inline expansion
-	if (!item.chain) {
-		commandQueue.unshift(...expandedLines, { type: "marker", value: END_ROUTINE_MARKER });
-		return;
+	if (isLastInChain) {
+		subQueue.unshift(...expandedLines, { type: "marker", value: END_ROUTINE_MARKER });
+	} else {
+		const res = await executeSubQueue([...expandedLines], new ExpressionParser("", vm), true, vm);
+		if (res.error) throw new Error(res.error);
+		res.success.forEach((out) => currentSink(out));
 	}
 
-	// Piped DO: execute sub-queue immediately
-	const result = await executeSubQueue([...expandedLines], new ExpressionParser("", vm), true, vm);
-
-	if (result.error) throw new Error(result.error);
-
-	// Inject outputs downstream
-	for (const output of result.success) {
-		commandQueue.unshift({
-			type: "line",
-			source: item.source, // downstream will re-parse
-			injectedPipe: output.content ?? output,
-		});
-	}
+	item.injectedPipe = undefined;
 }
-*/
+
 function resolveAlias(cmd: COMMANDS) {
 	let cmdSpecOrAlias: Command | string = COMMAND_LIST[cmd];
 	if (typeof cmdSpecOrAlias === "string") cmdSpecOrAlias = COMMAND_LIST[cmdSpecOrAlias as COMMANDS];
@@ -524,30 +514,7 @@ async function executeSubQueue(
 				}
 
 				if (cmd === "DO") {
-					const token = cmdParser.peek();
-					if (!cmdParser.matchIdentifier()) throw new Error("DO needs a routine name.");
-
-					const routineName = token.text;
-					const routine = getRoutine(routineName);
-					if (!routine) throw new Error(`Routine '${routineName}' not found.`);
-
-					const args = parseRoutineArgs(cmdParser, pipeValue);
-					if (args.length !== routine.args.length)
-						throw new Error(
-							`Routine '${routineName}' expects ${routine.args.length} argument(s), but got ${args.length}.`,
-						);
-
-					const expandedLines = expandRoutineLines(routine, args);
-
-					if (isLastInChain) {
-						subQueue.unshift(...expandedLines, { type: "marker", value: END_ROUTINE_MARKER });
-					} else {
-						const res = await executeSubQueue([...expandedLines], new ExpressionParser("", vm), true, vm);
-						if (res.error) throw new Error(res.error);
-						res.success.forEach((out) => currentSink(out));
-					}
-
-					item.injectedPipe = undefined;
+					handleDoCommand(cmdParser, item, subQueue, isLastInChain, currentSink, pipeValue, vm);
 					continue;
 				}
 
