@@ -177,6 +177,6 @@ we need to add to the end of the queue the pipe....
 -31-
 Now that we have regex support, can we add a `=~` operator to match a string against a regex?
 
--32-
+-32- **FIXED**
 when the console window is snapped to the bottom and the app is started with a smaller browser window
 the position of the window is not adjusted to the new bottom, i.e: it could be offscreen
