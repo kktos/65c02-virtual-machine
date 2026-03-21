@@ -339,8 +339,14 @@ const updateWinSize = () => {
 
 	winSize.value = { width: window.innerWidth, height: window.innerHeight };
 
-	if (wasSnappedRight) position.value.x = winSize.value.width - size.value.width;
-	if (wasSnappedBottom) position.value.y = winSize.value.height - size.value.height;
+	if (wasSnappedRight) {
+		if (size.value.width > winSize.value.width) size.value.width = winSize.value.width;
+		position.value.x = winSize.value.width - size.value.width;
+	}
+	if (wasSnappedBottom) {
+		if (size.value.height > winSize.value.height) size.value.height = winSize.value.height;
+		position.value.y = winSize.value.height - size.value.height;
+	}
 
 	clampToViewport({
 		ignoreRight: wasSnappedRight,
