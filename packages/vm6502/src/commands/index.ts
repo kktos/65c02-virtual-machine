@@ -53,7 +53,11 @@ export type COMMANDS = keyof typeof COMMAND_LIST;
 
 export const COMMAND_LIST = {
 	IF: d("Scripting", "Conditional: IF `expression` [THEN] `command`", ["expr"] as unknown as ParamDef[]),
-	DO: d("Scripting", "Execute a defined routine.", ["name", "rest?"]),
+	DO: d("Scripting", "Execute a defined routine.\ndo <\u200broutinename> [args...]\n&<\u200broutinename> [args...]", [
+		"name",
+		"rest?",
+	]),
+	"&": "DO",
 
 	"`addr`": d("Monitor", "Displays byte at `addr`"),
 	"`start`.`end`": d("Monitor", "Displays bytes from `start` to `end`"),

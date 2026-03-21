@@ -293,9 +293,7 @@ export class ExpressionParser {
 				return { type: TokenType.FLOAT, value: token.value, raw: token.text };
 			case TokenType.IDENTIFIER: {
 				const name = token.text.toUpperCase();
-				if (BUILTINS[name] && this.is(TokenType.LPAREN)) {
-					return this.parseBuiltinFunction(name);
-				}
+				if (BUILTINS[name] && this.is(TokenType.LPAREN)) return this.parseBuiltinFunction(name);
 				return { type: TokenType.IDENTIFIER, value: this.resolveIdentifier(token.text), raw: token.text };
 			}
 			case TokenType.AT: {
@@ -303,6 +301,12 @@ export class ExpressionParser {
 				if (tok.type !== TokenType.IDENTIFIER) throw new Error("Identifier expected after '@'");
 				this.consume();
 				return { type: TokenType.AT, value: undefined, raw: tok.text };
+			}
+			case TokenType.AND: {
+				const tok = this.peek();
+				if (tok.type !== TokenType.IDENTIFIER) throw new Error("Identifier expected after '&'");
+				// this.consume();
+				return { type: TokenType.AND, value: undefined, raw: tok.text };
 			}
 			case TokenType.MEM_START: {
 				const addrRes = this.parse();

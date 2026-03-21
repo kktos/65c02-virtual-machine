@@ -86,7 +86,13 @@ function parseUserCommand(cmdParser: ExpressionParser) {
 	let isValidCmd = false;
 	const tok = cmdParser.peek();
 
-	if (cmdParser.match(TokenType.IDENTIFIER)) {
+	if (cmdParser.match(TokenType.AND)) {
+		const nextTok = cmdParser.peek();
+		cmd = "DO";
+		paramIndex = 1;
+		userParams.push(nextTok.text);
+		isValidCmd = true;
+	} else if (cmdParser.match(TokenType.IDENTIFIER)) {
 		const nextTok = cmdParser.peek();
 		if (nextTok?.type === TokenType.ASSIGN) {
 			cmd = "SET";
@@ -342,7 +348,7 @@ async function handleDoCommand(
 	vm: VirtualMachine,
 ) {
 	const token = cmdParser.peek();
-	if (!cmdParser.matchIdentifier()) throw new Error("DO needs a routine name.");
+	if (!cmdParser.matchIdentifier()) throw new Error("DO needs a routine name !!!.");
 
 	const routineName = token.text;
 	const routine = getRoutine(routineName);
@@ -514,7 +520,11 @@ async function executeSubQueue(
 				}
 
 				if (cmd === "DO") {
-					handleDoCommand(cmdParser, item, subQueue, isLastInChain, currentSink, pipeValue, vm);
+					try {
+						await handleDoCommand(cmdParser, item, subQueue, isLastInChain, currentSink, pipeValue, vm);
+					} catch (e) {
+						currentSink({ content: (e as Error).message, format: "text" });
+					}
 					continue;
 				}
 
@@ -614,7 +624,6 @@ async function processLine(cmdInput: string, vm: VirtualMachine): Promise<Comman
 	if (!input) return result;
 
 	const cmdParser = new ExpressionParser(input, vm);
-	// const commandQueue = splitIntoCommands(cmdParser, vm);
 	const commandQueue = splitIntoCommands(input, vm);
 	return executeSubQueue(commandQueue, cmdParser, false, vm);
 }
