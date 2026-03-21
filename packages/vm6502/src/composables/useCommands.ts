@@ -116,7 +116,8 @@ function parseCommandParams(
 	const minParamCount = paramDef?.filter((p) => !p.endsWith("?")).length ?? 0;
 
 	while (!cmdParser.eof()) {
-		if (!hasRestParam && paramIndex >= paramCount) throw new Error(`Too many parameters for command "${cmd}".`);
+		if (!hasRestParam && paramIndex >= paramCount)
+			throw new Error(`Too many parameters for command "${cmd}". Max is ${paramCount}. Got ${paramIndex - 1}.`);
 
 		let paramDefStr = paramDef?.[paramIndex] ?? "rest";
 		const isOptional = paramDefStr.endsWith("?");
@@ -194,7 +195,9 @@ function parseCommandParams(
 	// Handle injected value (from pipe)
 	if (injectedValue !== undefined) {
 		if (!hasRestParam && paramIndex >= paramCount)
-			throw new Error(`Too many parameters for command "${cmd}" (input piped).`);
+			throw new Error(
+				`Too many parameters for command "${cmd}" (input piped). Max is ${paramCount}. Got ${paramIndex - 1}.`,
+			);
 
 		let paramDefStr = paramDef?.[paramIndex] ?? "rest";
 		if (paramDefStr.endsWith("?")) paramDefStr = paramDefStr.slice(0, -1) as ParamDef;
@@ -333,21 +336,15 @@ async function handleDoCommand(
 	vm: VirtualMachine,
 ) {
 	const token = cmdParser.peek();
-	if (token.type !== TokenType.IDENTIFIER) {
-		throw new Error("DO needs a routine name.");
-	}
-	cmdParser.consume();
+	if (!cmdParser.matchIdentifier()) throw new Error("DO needs a routine name.");
 
 	const routineName = token.text;
 	const routine = getRoutine(routineName);
-	if (!routine) {
-		throw new Error(`Routine '${routineName}' not found.`);
-	}
+	if (!routine) throw new Error(`Routine '${routineName}' not found.`);
 
 	const args = parseRoutineArgs(cmdParser);
-	if (args.length !== routine.args.length) {
+	if (args.length !== routine.args.length)
 		throw new Error(`Routine '${routineName}' expects ${routine.args.length} argument(s), but got ${args.length}.`);
-	}
 
 	// Expand routine into *raw source lines*
 	const expandedLines = expandRoutineLines(routine, args);
@@ -520,14 +517,8 @@ async function executeSubQueue(
 				const { cmd, paramIndex: initialParamIndex, userParams, isValidCmd } = parseUserCommand(cmdParser);
 
 				if (!isValidCmd) {
-					// const text = cmdParser
-					// 	.getTokens()
-					// 	.map((t) => t.text)
-					// 	.join(" ");
-
 					const output = minimonitor(item.source, vm);
 					currentSink(output);
-					// if (result.error) break;
 					continue;
 				}
 
@@ -559,7 +550,6 @@ async function executeSubQueue(
 							const nextItem = subQueue.shift();
 							if (!nextItem || nextItem.type !== "line") continue;
 
-							// if (nextItem.tokens[0].text.toUpperCase() === request.terminator) {
 							if (nextItem.source.trim().toUpperCase() === request.terminator) {
 								foundTerminator = true;
 								break;
