@@ -170,7 +170,7 @@ store routines for the machine/disk
 -29- **FIXED**
 init routine -> define a routine with pipe |> is not working
 
--30- FAIT PLANTER !!!!
+-30- **FIXED**
 do routine |> write "txt" is not working....
 we need to add to the end of the queue the pipe....
 
