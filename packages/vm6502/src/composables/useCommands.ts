@@ -559,7 +559,7 @@ async function executeSubQueue(
 					vm,
 					progress,
 					params: finalParams,
-					isPiped: isPiped || !!(chain.length - 1),
+					isPiped: isPiped && !isLastInChain,
 				});
 
 				if (isMultiLineRequest(cmdResult)) {
