@@ -1,5 +1,5 @@
 import { isParamListItemIdentifier } from "@/composables/useCommands";
-import type { Command, CommandContext, CommandResult } from "@/types/command";
+import type { Command, CommandContext, CommandResult, ParamDef } from "@/types/command";
 import { COMMAND_LIST } from ".";
 
 function typedKeys<T extends object>(obj: T): (keyof T)[] {
@@ -7,8 +7,11 @@ function typedKeys<T extends object>(obj: T): (keyof T)[] {
 }
 
 export const cmdHelp: Command = {
-	description: "Lists all available commands. Can be filtered by group name (e.g., HELP cons).",
-	paramDef: ["name?", "name?"],
+	description:
+		"Lists all available commands.\n" +
+		"Can search for a command (HELP search).\n" +
+		"Can be filtered by group name (HELP g cons).",
+	paramDef: ["name|string?", "name|string?"] as unknown as ParamDef[],
 	group: "Console",
 	fn: ({ params }: CommandContext): CommandResult => {
 		const groups: Record<string, { key: string; cmd: Command; aliases: string[] }[]> = {};
@@ -17,9 +20,9 @@ export const cmdHelp: Command = {
 		let groupFilter: string | undefined;
 		let cmdFilter: string | undefined;
 
-		if (params.length > 1)
-			groupFilter = isParamListItemIdentifier(params[1]) ? params[1].text : (params[1] as string).toUpperCase();
-		else cmdFilter = isParamListItemIdentifier(params[0]) ? params[0].text : (params[0] as string);
+		if (params.length > 1) {
+			groupFilter = (isParamListItemIdentifier(params[1]) ? params[1].text : (params[1] as string)).toUpperCase();
+		} else cmdFilter = isParamListItemIdentifier(params[0]) ? params[0].text : (params[0] as string);
 		if (cmdFilter) cmdFilter = cmdFilter.toUpperCase();
 
 		// First pass: find all aliases and the commands they refer to.
