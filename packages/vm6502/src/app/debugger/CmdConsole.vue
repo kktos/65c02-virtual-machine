@@ -60,6 +60,7 @@
 				class="flex-1 overflow-x-hidden"
 				:logs="logs"
 				@click="focusInput"
+				@on-link="handleLinkCommand"
 				:style="{ fontSize: fontSize + 'px', fontFamily: fontFamily, color: fontColor }"
 			/>
 			<div class="p-1">
@@ -185,18 +186,7 @@ const handleEnter = async () => {
 
 	print(prompt.value + currentInput, "input");
 
-	if (await executeCommand(currentInput, vm.value)) {
-		// if (success.value.length > 0) {
-		// 	let isFirstNonEmpty = true;
-		// 	for (const output of success.value) {
-		// 		if (output.content) {
-		// 			const contentToPrint = isFirstNonEmpty ? `\n${output.content}` : output.content;
-		// 			print(contentToPrint, "output", output.format);
-		// 			isFirstNonEmpty = false;
-		// 		}
-		// 	}
-		// }
-	} else {
+	if (!(await executeCommand(currentInput, vm.value))) {
 		printError(error.value);
 		error.value = "";
 	}
@@ -208,6 +198,16 @@ const handleEnter = async () => {
 		tempInput = "";
 	}
 	inputText.value = "";
+	nextTick(() => inputRef.value?.focus());
+};
+
+const handleLinkCommand = async (command: string) => {
+	if (!(await executeCommand(command, vm.value))) {
+		print(`${prompt.value} ${command}`, "input");
+		printError(error.value);
+		error.value = "";
+	}
+	// Don't clear user's current input, just focus for the next command
 	nextTick(() => inputRef.value?.focus());
 };
 

@@ -1,7 +1,7 @@
 <template>
 	<ScrollArea ref="scrollAreaComponentRef" class="p-2" type="always">
 		<div class="flex flex-col h-full">
-			<div class="mt-auto">
+			<div class="mt-auto" @click="handleCommandClick">
 				<div v-for="log in logs" :key="log.id" :class="getLogClass(log)">
 					<div
 						v-if="log.format === 'markdown'"
@@ -26,6 +26,10 @@ const props = defineProps<{
 	logs: readonly LogEntry[];
 }>();
 
+const emit = defineEmits<{
+	(e: "onLink", command: string): void;
+}>();
+
 const scrollContainer = ref<HTMLElement | null>(null);
 const isScrolledToBottom = ref(true);
 const scrollAreaComponentRef = ref<{
@@ -41,7 +45,24 @@ const getLogClass = (log: LogEntry) => {
 };
 
 const renderMarkdown = (markdown: string) => {
-	return DOMPurify.sanitize(marked.parse(markdown) as string);
+	return DOMPurify.sanitize(marked.parse(markdown) as string, {
+		ALLOWED_URI_REGEXP: /^(?:command|https?):/i,
+	});
+};
+
+const handleCommandClick = (event: MouseEvent) => {
+	const target = event.target as HTMLElement;
+	const link = target.closest("a");
+
+	// Check if the clicked element is a link with a 'command:' href
+	if (link) {
+		const href = link.getAttribute("href");
+		if (href && href.startsWith("command:")) {
+			event.preventDefault();
+			const command = href.substring(8);
+			if (command) emit("onLink", command);
+		}
+	}
 };
 
 const handleScroll = () => {
@@ -136,5 +157,14 @@ Without this, the h-full on our flex container has no effect, and mt-auto doesn'
 	margin-bottom: 0.6em;
 	border-left: 3px solid;
 	padding-left: 0.6em;
+}
+.markdown-preview :deep(a) {
+	text-decoration: underline;
+}
+.markdown-preview :deep(a:hover) {
+	text-decoration: none;
+	background-color: white;
+	color: black;
+	outline: 2px solid white;
 }
 </style>

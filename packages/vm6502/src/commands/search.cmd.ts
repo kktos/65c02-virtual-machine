@@ -1,4 +1,4 @@
-import { formatAddress, hexDump } from "@/lib/hex.utils";
+import { formatAddress, hexDump, toHex } from "@/lib/hex.utils";
 import type { Command, CommandContext, CommandResult } from "@/types/command";
 
 export const searchCmd: Command = {
@@ -59,7 +59,7 @@ export const searchCmd: Command = {
 				const addr = (r.address - 0x10) & ~0xf;
 				const dumpBytes = vm.readDebugRange(addr, 0x30);
 				const dump = hexDump(addr, dumpBytes, { highlight: { start: r.address, length: bytes.length } });
-				return `[${formatAddress(r.address)}](command:/disasm/goto?${formatAddress(r.address)} "Click to view in Disasm Viewer") (${r.location})\n\n\n${dump}\n`;
+				return `[${formatAddress(r.address)}](command:d$${toHex(r.address)} "Click to view in Disasm Viewer") (${r.location})\n\n\n${dump}\n`;
 			})
 			.join("\n\n");
 
