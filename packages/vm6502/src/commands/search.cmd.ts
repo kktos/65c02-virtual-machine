@@ -24,13 +24,52 @@ export const searchCmd: Command = {
 		}
 
 		let is7Bit = false;
-		let bytes: number[] = [];
+		let bytes: (number | null)[] = [];
+		const constraints: number[][] = [];
 
 		arg = params[parmIdx];
 
 		if (typeof arg === "string") {
-			const str = arg as string;
-			for (let i = 0; i < str.length; i++) bytes.push(str.charCodeAt(i) & 0x7f);
+			const str = arg;
+			let i = 0;
+			while (i < str.length) {
+				const char = str[i];
+				if (char === "\\") {
+					i++;
+					if (i < str.length) bytes.push(str.charCodeAt(i) & 0x7f);
+					i++;
+					continue;
+				}
+
+				if (char === "?") {
+					bytes.push(null);
+					i++;
+					continue;
+				}
+
+				if (char === "[") {
+					i++;
+					const group: number[] = [];
+					while (i < str.length && str[i] !== "]") {
+						const c = str[i];
+						if (c === "\\") {
+							i++;
+							if (i < str.length) group.push(str.charCodeAt(i) & 0x7f);
+						} else {
+							group.push(c.charCodeAt(0) & 0x7f);
+						}
+						i++;
+					}
+					if (group.length === 0) throw new Error("Empty characters group [].");
+					if (i < str.length) i++; // consume ']'
+					bytes.push(null);
+					constraints.push(group);
+					continue;
+				}
+
+				bytes.push(char.charCodeAt(0) & 0x7f);
+				i++;
+			}
 			is7Bit = true;
 		} else {
 			for (; parmIdx < params.length; parmIdx++) {
@@ -42,8 +81,8 @@ export const searchCmd: Command = {
 
 		if (bytes.length === 0) throw new Error("Empty search pattern.");
 
-		// Assumes vm.search wraps bus.search(pattern, start, end, is7Bit)
-		const results = vm.search(bytes, start, end, is7Bit);
+		// Assumes vm.search wraps bus.search(pattern, start, end, is7Bit, constraints)
+		const results = vm.search(bytes, start, end, is7Bit, constraints.length > 0 ? constraints : undefined);
 
 		if (!results || results.length === 0)
 			return `No matches found in range. ${formatAddress(start)} - ${formatAddress(end)}`;
@@ -57,7 +96,7 @@ export const searchCmd: Command = {
 			.slice(0, maxResults)
 			.map((r) => {
 				const addr = (r.address - 0x10) & ~0xf;
-				const dumpBytes = vm.readDebugRange(addr, 0x30);
+				const dumpBytes = vm.readDebugRange(addr, 0x30, r.location);
 				const dump = hexDump(addr, dumpBytes, { highlight: { start: r.address, length: bytes.length } });
 				return `[${formatAddress(r.address)}](command:&disasm_at$${toHex(r.address)} "Click to view in Disasm Viewer") (${r.location})\n\n\n${dump}\n`;
 			})
