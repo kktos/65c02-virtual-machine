@@ -333,16 +333,15 @@ const parseOperand = (opr: string) => {
 	let lastIndex = 0;
 
 	while ((match = regex.exec(opr)) !== null) {
-		if (match.index > lastIndex) {
-			tokens.push({ text: opr.substring(lastIndex, match.index), color: "" });
-		}
+		if (match.index > lastIndex) tokens.push({ text: opr.substring(lastIndex, match.index), color: "" });
+
 		const text = match[0];
 		let color = "";
 
 		if (match[1] || match[2]) {
 			color = settings.disassembly.syntax.number;
 		} else if (match[3]) {
-			color = ["A", "X", "Y", "S"].includes(text.toUpperCase())
+			color = ["A", "X", "Y"].includes(text.toUpperCase())
 				? settings.disassembly.syntax.register
 				: settings.disassembly.syntax.label;
 		} else if (match[4]) {

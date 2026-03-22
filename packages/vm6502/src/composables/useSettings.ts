@@ -38,7 +38,7 @@ const defaultSettings: DebuggerSettings = {
 			number: "#5EEAD4",
 			label: "#c3cc7f",
 			register: "#60A5FA",
-			punctuation: "#9CA3AF",
+			punctuation: "#60A5FA",
 			comment: "#0ba229",
 		},
 		gemini: {
