@@ -107,10 +107,12 @@
 								</select>
 							</div>
 						</div>
+
 						<div class="border-t border-gray-700 -mx-4 my-1"></div>
+
 						<div class="grid grid-cols-2 gap-4">
 							<div class="border-r border-gray-700">
-								<div class="text-sm font-bold text-gray-200 capitalize mb-4">Memory Scopes</div>
+								<div class="text-sm font-bold text-gray-200 capitalize mb-2">Scopes Colors</div>
 								<div class="grid gap-2 max-h-48 overflow-y-auto pr-2">
 									<div v-for="scope in availableScopes" :key="scope" class="flex gap-2 items-center">
 										<input
@@ -119,35 +121,63 @@
 											v-model="settings.disassembly.scopeColors[scope]"
 											class="w-5 h-5 p-0 border-none rounded bg-transparent cursor-pointer"
 										/>
-										<label :for="`scope-color-${scope}`" class="text-xs font-medium">{{
-											scope
-										}}</label>
+										<label
+											:for="`scope-color-${scope}`"
+											class="text-xs font-medium truncate"
+											:title="scope"
+											>{{ scope }}</label
+										>
 									</div>
 								</div>
 							</div>
 							<div class="grid gap-3">
-								<div class="border-b border-gray-700">
-									<div class="text-sm font-bold text-gray-200 capitalize mb-4">Symbol Namespaces</div>
-									<div class="grid gap-2 max-h-48 overflow-y-auto pr-2">
-										<div
-											v-for="[ns, isActive] in getNamespaceList()"
-											:key="ns"
-											class="flex items-center space-x-2"
-										>
-											<Checkbox
-												:id="`ns-${ns}`"
-												:model-value="isActive"
-												@update:model-value="toggleNamespace(ns)"
-											/>
-											<label
-												:for="`ns-${ns}`"
-												class="text-xs font-medium leading-none cursor-pointer select-none truncate"
-												:title="ns"
-												>{{ ns }}</label
-											>
-										</div>
+								<div class="text-sm font-bold text-gray-200 capitalize mb-2">Syntax Colors</div>
+								<div class="grid grid-cols-1 gap-2 pr-2">
+									<div
+										v-for="(_color, key) in settings.disassembly.syntax"
+										:key="key"
+										class="flex gap-2 items-center"
+									>
+										<input
+											type="color"
+											:id="`syntax-color-${key}`"
+											v-model="settings.disassembly.syntax[key]"
+											class="w-5 h-5 p-0 border-none rounded bg-transparent cursor-pointer"
+										/>
+										<label :for="`syntax-color-${key}`" class="text-xs font-medium capitalize">{{
+											key
+										}}</label>
 									</div>
 								</div>
+							</div>
+						</div>
+
+						<div class="border-t border-gray-700 -mx-4 my-1"></div>
+
+						<div class="grid grid-cols-2 gap-4">
+							<div class="border-r border-gray-700">
+								<div class="text-sm font-bold text-gray-200 capitalize mb-4">Symbol Namespaces</div>
+								<div class="grid gap-2 max-h-48 overflow-y-auto pr-2">
+									<div
+										v-for="[ns, isActive] in getNamespaceList()"
+										:key="ns"
+										class="flex items-center space-x-2"
+									>
+										<Checkbox
+											:id="`ns-${ns}`"
+											:model-value="isActive"
+											@update:model-value="toggleNamespace(ns)"
+										/>
+										<label
+											:for="`ns-${ns}`"
+											class="text-xs font-medium leading-none cursor-pointer select-none truncate"
+											:title="ns"
+											>{{ ns }}</label
+										>
+									</div>
+								</div>
+							</div>
+							<div class="grid gap-3">
 								<div>
 									<div class="text-sm font-bold text-gray-200 capitalize mb-4">Formatting Groups</div>
 									<div class="grid gap-2 max-h-48 overflow-y-auto pr-2">

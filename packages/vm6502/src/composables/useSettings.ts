@@ -8,6 +8,15 @@ interface DebuggerSettings {
 		showCycles: boolean;
 		lowercase: boolean;
 		scopeColors: Record<string, string>;
+		syntax: {
+			opcode: string;
+			pseudo: string;
+			number: string;
+			label: string;
+			register: string;
+			punctuation: string;
+			comment: string;
+		};
 		gemini: {
 			apiKey: string;
 			url: string;
@@ -22,6 +31,15 @@ const defaultSettings: DebuggerSettings = {
 		lowercase: false,
 		scopeColors: {
 			main: "#000000",
+		},
+		syntax: {
+			opcode: "#60A5FA",
+			pseudo: "#C084FC",
+			number: "#5EEAD4",
+			label: "#c3cc7f",
+			register: "#60A5FA",
+			punctuation: "#9CA3AF",
+			comment: "#0ba229",
 		},
 		gemini: {
 			apiKey: "",
@@ -45,6 +63,10 @@ const loadSettings = (): DebuggerSettings => {
 					scopeColors: {
 						...defaultSettings.disassembly.scopeColors,
 						...(parsed.disassembly?.scopeColors || {}),
+					},
+					syntax: {
+						...defaultSettings.disassembly.syntax,
+						...(parsed.disassembly?.syntax || {}),
 					},
 					gemini: {
 						...defaultSettings.disassembly.gemini,

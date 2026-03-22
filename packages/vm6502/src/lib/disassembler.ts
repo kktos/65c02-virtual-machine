@@ -213,7 +213,7 @@ export function disassemble(ctx: DisassembleContext) {
 				// No operand to format
 				break;
 			case "IMM":
-				line.opr = `#${toHex(operandBytes[0], 2)}`;
+				line.opr = `#$${toHex(operandBytes[0], 2)}`;
 				if (line.opc.toUpperCase() === "CMP")
 					line.comment = `'${String.fromCharCode(operandBytes[0] & 0x7f)}' ${operandBytes[0]}`;
 				break;
@@ -221,16 +221,16 @@ export function disassemble(ctx: DisassembleContext) {
 				effectiveAddress = operandBytes[0] ?? 0;
 				line.oprn = effectiveAddress;
 				const match = findSymbolWithOffset(effectiveAddress, ctx.scope, 16);
-				if (match) {
-					if (match.offset === 0) {
-						line.opr = match.symbol.label;
-					} else {
-						const offsetStr = match.offset > 9 ? `+$${toHex(match.offset, 2)}` : `+${match.offset}`;
-						line.opr = `${match.symbol.label}${offsetStr}`;
-					}
-				} else {
+				if (!match) {
 					line.opr = `$${toHex(effectiveAddress, 2)}`;
 					effectiveAddress = null;
+					break;
+				}
+				if (match.offset === 0) {
+					line.opr = match.symbol.label;
+				} else {
+					const offsetStr = match.offset > 9 ? `+$${toHex(match.offset, 2)}` : `+${match.offset}`;
+					line.opr = `${match.symbol.label}${offsetStr}`;
 				}
 				break;
 			}

@@ -109,8 +109,16 @@
 									'hover:underline': isCtrlPressed && isOpcodeClickable(line),
 								}"
 							>
-								<span :class="{ 'text-blue-400': line.opc.startsWith('.') }">{{ line.opc }}</span>
-								{{ line.opr ? " " + line.opr : "" }}
+								<span :style="{ color: getOpcodeColor(line.opc) }">{{ line.opc }}</span>
+								<span v-if="line.opr">
+									<span
+										v-for="(token, idx) in parseOperand(' ' + line.opr)"
+										:key="idx"
+										:style="{ color: token.color }"
+									>
+										{{ token.text }}
+									</span>
+								</span>
 							</span>
 							<span
 								v-if="line.addr === address && getBranchPrediction(line.opc)"
@@ -121,7 +129,7 @@
 							</span>
 						</template>
 					</td>
-					<td class="py-0.5 text-left text-gray-500 align-baseline">
+					<td class="py-0.5 text-left align-baseline" :style="{ color: settings.disassembly.syntax.comment }">
 						{{ line.comment }}
 					</td>
 					<td v-if="settings.disassembly.showCycles" class="py-0.5 text-center text-gray-400">
@@ -306,6 +314,45 @@ const getScopeColor = (addr: number) => {
 	// If color is black or transparent, use default class
 	if (!color || color === "#000000" || color === "#00000000") return "";
 	return color;
+};
+
+const getOpcodeColor = (opc: string) => {
+	if (opc.startsWith(".")) return settings.disassembly.syntax.pseudo;
+	return settings.disassembly.syntax.opcode;
+};
+
+const parseOperand = (opr: string) => {
+	if (!opr) return [];
+	const tokens = [];
+	// 1. Hex ($1234)
+	// 2. Decimal (1234)
+	// 3. Symbols (Label or Register)
+	// 4. Punctuation
+	const regex = /(\$[0-9A-Fa-f]+)|(\d+)|([a-zA-Z_][a-zA-Z0-9_.]*)|([(),#])/g;
+	let match;
+	let lastIndex = 0;
+
+	while ((match = regex.exec(opr)) !== null) {
+		if (match.index > lastIndex) {
+			tokens.push({ text: opr.substring(lastIndex, match.index), color: "" });
+		}
+		const text = match[0];
+		let color = "";
+
+		if (match[1] || match[2]) {
+			color = settings.disassembly.syntax.number;
+		} else if (match[3]) {
+			color = ["A", "X", "Y", "S"].includes(text.toUpperCase())
+				? settings.disassembly.syntax.register
+				: settings.disassembly.syntax.label;
+		} else if (match[4]) {
+			color = settings.disassembly.syntax.punctuation;
+		}
+		tokens.push({ text, color });
+		lastIndex = regex.lastIndex;
+	}
+	if (lastIndex < opr.length) tokens.push({ text: opr.substring(lastIndex), color: "" });
+	return tokens;
 };
 
 const getNote = (addr: number) => {
