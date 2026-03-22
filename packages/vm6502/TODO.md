@@ -180,3 +180,29 @@ Now that we have regex support, can we add a `=~` operator to match a string aga
 -32- **FIXED**
 when the console window is snapped to the bottom and the app is started with a smaller browser window
 the position of the window is not adjusted to the new bottom, i.e: it could be offscreen
+
+-33-
+add a rate limiter on LOG like "every 100" or "every100ms"
+Meaning:
+
+```javascript
+if (countBased) {
+	if (++counter % N !== 0) return;
+}
+if (timeBased) {
+	if (now - lastTime < ms) return;
+	lastTime = now;
+}
+```
+
+log Acc every 100th time PC == main_loop
+`hook pc main_loop log trace every 100 "A=", A`
+
+log Acc every 100ms time $C019 is accessed
+`hook access $C019 log trace every 100ms "A=", A`
+
+-34-
+first logs once, then disables itself
+`log trace first "Entered IRQ"`
+last logs on hook removal / VM stop
+`log trace last "Leaving IRQ"`
