@@ -39,6 +39,7 @@ import { cmdHelp } from "./help.cmd";
 import { transformCmd } from "./tr.cmd";
 import { sedCmd } from "./sed.cmd";
 import { hexDumpCmd } from "./hexdump.cmd";
+import { xrefCmd } from "./xref.cmd";
 
 function d(g: string, d: string, p?: ParamDef[]) {
 	return {
@@ -85,6 +86,7 @@ export const COMMAND_LIST = {
 
 	ASM: asmCmd,
 	SEARCH: searchCmd,
+	XREF: xrefCmd,
 	D: setDisasmView,
 
 	CODE: defCode,
@@ -237,6 +239,12 @@ export const COMMAND_LIST = {
 	BUF: bufCmd,
 	TR: transformCmd,
 	SED: sedCmd,
+	NOP: {
+		description: "No Operation (outputs nothing). Usage: `command` |> NOP",
+		paramDef: ["rest?"],
+		group: "Streams",
+		fn: () => "",
+	},
 	HD: hexDumpCmd,
 
 	SHOW: showCmd,

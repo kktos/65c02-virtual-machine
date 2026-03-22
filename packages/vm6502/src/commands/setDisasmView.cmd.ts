@@ -18,7 +18,7 @@ export const setDisasmView: Command = {
 		if (typeof val === "number") {
 			setActiveTab("disassembly");
 			jumpToAddress(val);
-			return `DisasmViewer address set to $${formatAddress(val)}`;
+			return `DisasmViewer address set to ${formatAddress(val)}`;
 		}
 
 		if (isParamListItemRange(val)) {
