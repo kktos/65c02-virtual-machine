@@ -87,11 +87,18 @@
 							placeholder="e.g. @addr @val"
 						/>
 					</div>
-					<textarea
-						v-model="editableContent"
-						class="w-full flex-grow text-gray-200 text-xs font-mono p-2 border-none focus:outline-none resize-none bg-transparent"
-						:placeholder="`Editing routine '${selectedRoutineName}'...`"
-					></textarea>
+					<div class="flex-grow min-h-0 overflow-hidden">
+						<Codemirror
+							v-model="editableContent"
+							:placeholder="`Editing routine '${selectedRoutineName}'...`"
+							:extensions="extensions"
+							:autofocus="true"
+							:indent-with-tab="true"
+							:tab-size="2"
+							class="h-full text-xs"
+							style="font-family: monospace"
+						/>
+					</div>
 				</div>
 				<div v-else class="flex items-center justify-center h-full text-gray-500 text-sm">
 					Select a routine to edit.
@@ -103,9 +110,12 @@
 
 <script lang="ts" setup>
 import { ref, watch, computed, nextTick } from "vue";
+import { Codemirror } from "vue-codemirror";
+import { vsCodeDark } from "@fsegurai/codemirror-theme-vscode-dark";
 import { useRoutines } from "@/composables/useRoutines";
 import { FileCode2, Plus, Trash2 } from "lucide-vue-next";
 import FloatingWindow from "@/components/FloatingWindow.vue";
+import { shellRoutine } from "@/lib/codemirror/routine";
 
 const { getRoutineNames, getRoutine, setRoutine, deleteRoutine, routineExists } = useRoutines();
 
@@ -113,6 +123,8 @@ const routineNames = computed(() => getRoutineNames().sort());
 const selectedRoutineName = ref<string | null>(null);
 const editableContent = ref("");
 const editableArgs = ref("");
+
+const extensions = [shellRoutine(), vsCodeDark];
 
 // Renaming state
 const renamingRoutineName = ref<string | null>(null);
@@ -223,3 +235,9 @@ watch(routineNames, (newNames) => {
 	}
 });
 </script>
+
+<style scoped>
+:deep(.cm-editor) {
+	height: 100%;
+}
+</style>
