@@ -206,3 +206,6 @@ first logs once, then disables itself
 `log trace first "Entered IRQ"`
 last logs on hook removal / VM stop
 `log trace last "Leaving IRQ"`
+
+-35-
+let's refactor cmd search to uses the new wildcards
