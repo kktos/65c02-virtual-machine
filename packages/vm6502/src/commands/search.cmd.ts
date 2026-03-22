@@ -43,7 +43,7 @@ export const searchCmd: Command = {
 		if (bytes.length === 0) throw new Error("Empty search pattern.");
 
 		// Assumes vm.search wraps bus.search(pattern, start, end, is7Bit)
-		const results = vm.search(new Uint8Array(bytes), start, end, is7Bit);
+		const results = vm.search(bytes, start, end, is7Bit);
 
 		if (!results || results.length === 0)
 			return `No matches found in range. ${formatAddress(start)} - ${formatAddress(end)}`;
@@ -59,7 +59,7 @@ export const searchCmd: Command = {
 				const addr = (r.address - 0x10) & ~0xf;
 				const dumpBytes = vm.readDebugRange(addr, 0x30);
 				const dump = hexDump(addr, dumpBytes, { highlight: { start: r.address, length: bytes.length } });
-				return `[${formatAddress(r.address)}](command:d$${toHex(r.address)} "Click to view in Disasm Viewer") (${r.location})\n\n\n${dump}\n`;
+				return `[${formatAddress(r.address)}](command:&disasm_at$${toHex(r.address)} "Click to view in Disasm Viewer") (${r.location})\n\n\n${dump}\n`;
 			})
 			.join("\n\n");
 
