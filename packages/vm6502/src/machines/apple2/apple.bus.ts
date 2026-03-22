@@ -573,11 +573,12 @@ export class AppleBus implements IBus {
 		// return this.memory[RAM_OFFSET + address] ?? 0;
 	}
 
-	readDebug(address: number, overrides?: MemScopeOverride): number {
+	readDebug(address: number, overrides?: MemScopeOverride | string): number {
 		const bank = address >> 16;
 		const addr16 = address & 0xffff;
+		const lcView = typeof overrides === "object" ? overrides?.lcView : overrides;
 		if (addr16 >= 0xd000) {
-			switch (overrides?.lcView) {
+			switch (lcView) {
 				case "ROM":
 					return this.rom[addr16 - 0xd000] ?? 0;
 				case "BANK2":
@@ -600,10 +601,10 @@ export class AppleBus implements IBus {
 		if (addr16 >= 0xc100 && addr16 <= 0xcfff) {
 			const offset = addr16 - 0xc100;
 
-			if (overrides) {
-				const view = overrides?.cxView;
-				if (view === "INT") return this.romC[offset] ?? 0;
-				if (view === "SLOT") return this.slotRoms[offset] ?? 0;
+			const cxView = typeof overrides === "object" ? overrides?.cxView : overrides;
+			if (cxView) {
+				if (cxView === "INT") return this.romC[offset] ?? 0;
+				if (cxView === "SLOT") return this.slotRoms[offset] ?? 0;
 			}
 
 			// intC8Rom forces Internal
@@ -620,12 +621,12 @@ export class AppleBus implements IBus {
 		return 0;
 	}
 
-	public readDebugRange(address: number, length: number, overrides?: MemScopeOverride): Uint8Array {
+	public readDebugRange(address: number, length: number, overrides?: MemScopeOverride | string): Uint8Array {
 		const result = new Uint8Array(length);
 		let resultOffset = 0;
 		let currentAddress = address;
 
-		const lcView = overrides?.lcView;
+		const lcView = typeof overrides === "object" ? overrides?.lcView : overrides;
 		const isLcBank2 = lcView && lcView !== "AUTO" ? lcView === "BANK2" : this.lcBank2;
 		const readLcRom = lcView && lcView !== "AUTO" ? lcView === "ROM" : !this.lcReadRam;
 
@@ -945,14 +946,6 @@ export class AppleBus implements IBus {
 							break;
 						}
 					}
-
-					// if (
-					// 	(is7Bit ? task.data(this, addr + i) & 0x7f : task.data(this, addr + i)) !==
-					// 	(is7Bit ? pattern[i] & 0x7f : pattern[i])
-					// ) {
-					// 	match = false;
-					// 	break;
-					// }
 				}
 
 				if (match) results.push({ address: (task.bank << 16) | addr, location: task.location });

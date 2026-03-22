@@ -480,11 +480,11 @@ export class VirtualMachine {
 		return this.bus ? this.bus.read(address) : (this.sharedMemory[address] ?? 0);
 	}
 
-	public readDebug(address: number, overrides?: Dict): number {
+	public readDebug(address: number, overrides?: Dict | string): number {
 		return this.bus?.readDebug ? this.bus.readDebug(address, overrides) : this.read(address);
 	}
 
-	public readDebugRange(address: number, length: number, overrides?: Dict): Uint8Array {
+	public readDebugRange(address: number, length: number, overrides?: Dict | string): Uint8Array {
 		if (this.bus?.readDebugRange) return this.bus.readDebugRange(address, length, overrides);
 
 		// Fallback if bus doesn't implement it

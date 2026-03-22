@@ -45,10 +45,10 @@ export interface IBus {
 	releaseKey?(key: string, code?: string): void;
 
 	/** Reads memory with optional overrides for debugging/inspection. */
-	readDebug?(address: number, overrides?: Dict): number;
+	readDebug?(address: number, overrides?: Dict | string): number;
 
 	/** Reads a range of memory with optional overrides for debugging/inspection. */
-	readDebugRange?(address: number, length: number, overrides?: Dict): Uint8Array;
+	readDebugRange?(address: number, length: number, overrides?: Dict | string): Uint8Array;
 
 	/** Writes memory with optional overrides, bypassing side effects if possible. */
 	writeDebug?(address: number, value: number, overrides?: Dict): void;
