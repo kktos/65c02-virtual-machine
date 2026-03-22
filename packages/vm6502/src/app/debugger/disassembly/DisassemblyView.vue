@@ -400,8 +400,6 @@ const handleGenerateLabels = async () => {
 const isExplanationOpen = ref(false);
 
 watch(explanationText, (val) => {
-	console.log("explanationText changed", val);
-
 	if (val) isExplanationOpen.value = true;
 });
 

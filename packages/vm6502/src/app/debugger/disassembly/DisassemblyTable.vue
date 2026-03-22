@@ -214,6 +214,8 @@ import NoteEditor from "./NoteEditor.vue";
 import DisassemblyTableLabel from "./DisassemblyTableLabel.vue";
 import LabelReferencesPopover from "./LabelReferencesPopover.vue";
 import { useAddressHistory } from "@/composables/useAddressHistory";
+import { useCrossReferences } from "@/commands/useCrossReferences";
+import { formatAddress } from "@/lib/hex.utils";
 
 const vm = inject<Ref<VirtualMachine>>("vm");
 
@@ -405,25 +407,26 @@ const referencesPopover = ref({
 	references: [] as { addr: number; line: string }[],
 });
 
+const { findReferences } = useCrossReferences();
+
 const handleLabelClick = (event: MouseEvent, line: DisassemblyLine) => {
 	// Close other popovers
 	contextMenu.value.isOpen = false;
 	symbolPopover.value.isOpen = false;
 	noteEditor.isOpen = false;
 
-	const refs: { addr: number; line: string }[] = [];
+	if (!vm?.value) return;
+
+	const targetAddr = line.addr;
+	const results = findReferences(vm.value, targetAddr);
+
+	const refs = results.map((r) => ({
+		addr: r.address,
+		line: r.instruction,
+	}));
+
 	const targetLabel = line.label || "";
-	const hexAddr = "$" + line.addr.toString(16).toUpperCase().padStart(4, "0");
-
-	// Simple regex to match whole word for label
-	const labelPattern = targetLabel ? new RegExp(`\\b${targetLabel.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`) : null;
-
-	for (const l of disassembly) {
-		if (!l.opr) continue;
-		if ((labelPattern && labelPattern.test(l.opr)) || l.opr.includes(hexAddr)) {
-			refs.push({ addr: l.addr, line: `${l.opc} ${l.opr}` });
-		}
-	}
+	const hexAddr = formatAddress(line.addr);
 
 	referencesPopover.value = {
 		isOpen: true,
@@ -437,7 +440,6 @@ const handleLabelClick = (event: MouseEvent, line: DisassemblyLine) => {
 const handleReferenceClick = (addr: number) => {
 	referencesPopover.value.isOpen = false;
 	jumpToAddress(addr);
-	// emit("addressClick", addr);
 };
 
 const emitMarker = (type: "start" | "end") => {
