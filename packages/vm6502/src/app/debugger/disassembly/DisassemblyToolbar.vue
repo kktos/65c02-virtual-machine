@@ -130,9 +130,9 @@
 									</div>
 								</div>
 							</div>
-							<div class="grid gap-3">
+							<div>
 								<div class="text-sm font-bold text-gray-200 capitalize mb-2">Syntax Colors</div>
-								<div class="grid grid-cols-1 gap-2 pr-2">
+								<div class="grid gap-2 pr-2">
 									<div
 										v-for="(_color, key) in settings.disassembly.syntax"
 										:key="key"
@@ -177,7 +177,7 @@
 									</div>
 								</div>
 							</div>
-							<div class="grid gap-3">
+							<div>
 								<div>
 									<div class="text-sm font-bold text-gray-200 capitalize mb-4">Formatting Groups</div>
 									<div class="grid gap-2 max-h-48 overflow-y-auto pr-2">
