@@ -20,6 +20,7 @@
 						class="py-0.5 px-2 text-yellow-500 font-bold font-mono text-xs border-l-4 border-transparent"
 						:line="line"
 						@on-context-menu="handleContextMenu($event, line)"
+						@on-label-click="handleLabelClick($event, line)"
 					/>
 				</tr>
 				<tr
@@ -166,6 +167,16 @@
 		:key="`sym-${symbolPopover.x}-${symbolPopover.y}`"
 	/>
 
+	<LabelReferencesPopover
+		:is-open="referencesPopover.isOpen"
+		@update:is-open="(val) => (referencesPopover.isOpen = val)"
+		:x="referencesPopover.x"
+		:y="referencesPopover.y"
+		:label="referencesPopover.label"
+		:references="referencesPopover.references"
+		@reference-click="handleReferenceClick"
+	/>
+
 	<NoteEditor
 		:is-open="noteEditor.isOpen"
 		:x="noteEditor.x"
@@ -193,10 +204,12 @@ import { BRANCH_OPCODES } from "@/lib/opcodes";
 import { useNotes } from "@/composables/useNotes";
 import NoteEditor from "./NoteEditor.vue";
 import DisassemblyTableLabel from "./DisassemblyTableLabel.vue";
+import LabelReferencesPopover from "./LabelReferencesPopover.vue";
+import { useAddressHistory } from "@/composables/useAddressHistory";
 
 const vm = inject<Ref<VirtualMachine>>("vm");
 
-const { registers, selectionStart, selectionEnd } = defineProps<{
+const { disassembly, registers, selectionStart, selectionEnd } = defineProps<{
 	registers: EmulatorRegisters;
 	disassembly: DisassemblyLine[];
 	address: number;
@@ -215,8 +228,9 @@ const emit = defineEmits<{
 
 const { settings } = useSettings();
 const isCtrlPressed = useKeyModifier("Control");
-const { getAddressForLabel } = useSymbols();
+const { getAddressForLabel, addSymbol } = useSymbols();
 const { getNoteEntry } = useNotes();
+const { jumpToAddress } = useAddressHistory("disassembly");
 
 const getBranchPrediction = (opcode: string) => {
 	// Defensive check for props.registers (already added in last iteration, keeping it)
@@ -336,6 +350,50 @@ const handleContextMenu = (event: MouseEvent, line: DisassemblyLine) => {
 	}
 };
 
+// --- Label References ---
+const referencesPopover = ref({
+	isOpen: false,
+	x: 0,
+	y: 0,
+	label: "",
+	references: [] as { addr: number; line: string }[],
+});
+
+const handleLabelClick = (event: MouseEvent, line: DisassemblyLine) => {
+	// Close other popovers
+	contextMenu.value.isOpen = false;
+	symbolPopover.value.isOpen = false;
+	noteEditor.isOpen = false;
+
+	const refs: { addr: number; line: string }[] = [];
+	const targetLabel = line.label || "";
+	const hexAddr = "$" + line.addr.toString(16).toUpperCase().padStart(4, "0");
+
+	// Simple regex to match whole word for label
+	const labelPattern = targetLabel ? new RegExp(`\\b${targetLabel.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`) : null;
+
+	for (const l of disassembly) {
+		if (!l.opr) continue;
+		if ((labelPattern && labelPattern.test(l.opr)) || l.opr.includes(hexAddr)) {
+			refs.push({ addr: l.addr, line: `${l.opc} ${l.opr}` });
+		}
+	}
+
+	referencesPopover.value = {
+		isOpen: true,
+		x: event.clientX,
+		y: event.clientY,
+		label: targetLabel || hexAddr,
+		references: refs,
+	};
+};
+
+const handleReferenceClick = (addr: number) => {
+	referencesPopover.value.isOpen = false;
+	jumpToAddress(addr);
+	// emit("addressClick", addr);
+};
+
 const emitMarker = (type: "start" | "end") => {
 	if (type === "start") emit("setSelectionStart", contextMenu.value.address);
 	if (type === "end") emit("setSelectionEnd", contextMenu.value.address);
@@ -374,7 +432,10 @@ const parseExpression = (expr: string): number => {
 const commitEdit = () => {
 	if (editingAddress.value === null) return;
 
-	const result = assemble(editingAddress.value, editText.value, parseExpression);
+	const result = assemble(editingAddress.value, editText.value, {
+		parseExpression,
+		defineSymbol: (name, addr) => addSymbol(addr, name),
+	});
 	if (result.error) {
 		asmError.value = result.error;
 		return;

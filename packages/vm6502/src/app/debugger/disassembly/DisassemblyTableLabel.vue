@@ -3,7 +3,9 @@
 		:style="{ color: getScopeColor(line.addr) }"
 		@contextmenu.prevent="$emit('onContextMenu', $event, line)"
 		:title="line.src"
+		@click.stop="$emit('onLabelClick', $event, line)"
 		@dblclick="startLabelEdit(line)"
+		class="cursor-pointer hover:bg-gray-800/50"
 	>
 		<template v-if="editingLabelAddress === line.addr">
 			<div class="relative w-full inline-block">
@@ -45,6 +47,7 @@ defineProps<{
 
 defineEmits<{
 	(e: "onContextMenu", event: MouseEvent, line: DisassemblyLine): void;
+	(e: "onLabelClick", event: MouseEvent, line: DisassemblyLine): void;
 }>();
 
 const vm = inject<Ref<VirtualMachine>>("vm");
