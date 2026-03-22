@@ -51,14 +51,89 @@ const DEFAULT_TEXT_COLORS = 0xf2;
 const MEM_SCOPES = ["main", "aux", "io", "int_rom", "slot_rom", "rom", "lc_bank1", "lc_bank2"];
 type MemScopeOverride = { lcView: "BANK2" | "BANK1" | "ROM" | "AUTO"; cxView: "INT" | "SLOT" };
 type MemScopeOverrideValues = MemScopeOverride[keyof MemScopeOverride];
+
+type SearchTask = {
+	data: (self: AppleBus, off: number) => number;
+	location: string;
+	bank: number;
+	start: number;
+	end: number;
+};
 type MemRegionSearch = {
 	name: MemScopeOverrideValues | "MAIN";
-	data: (off: number) => number;
+	data: (self: AppleBus, off: number) => number;
 	start: number;
 	end: number;
 	bankTest: (b: number) => boolean;
 };
+const allRegions: MemRegionSearch[] = [
+	{
+		name: "MAIN",
+		data: (self: AppleBus, off: number) => self.memory[RAM_OFFSET + off],
+		start: 0x0000,
+		end: 0xbfff,
+		bankTest: (b: number) => b === 0,
+	},
+	{
+		name: "MAIN",
+		data: (self: AppleBus, off: number) => self.memory[RAM_OFFSET + 0x10000 + off],
+		start: 0x0000,
+		end: 0xbfff,
+		bankTest: (b: number) => b > 0,
+	},
 
+	{
+		name: "INT",
+		data: (self: AppleBus, off: number) => self.romC[off - 0xc100],
+		start: 0xc100,
+		end: 0xcfff,
+		bankTest: (_b: number) => true,
+	},
+	{
+		name: "SLOT",
+		data: (self: AppleBus, off: number) => self.slotRoms[off - 0xc100],
+		start: 0xc100,
+		end: 0xcfff,
+		bankTest: (_b: number) => true,
+	},
+	{
+		name: "ROM",
+		data: (self: AppleBus, off: number) => self.rom[off - 0xd000],
+		start: 0xd000,
+		end: 0xffff,
+		bankTest: (_b: number) => true,
+	},
+
+	{
+		name: "BANK1",
+		data: (self: AppleBus, off: number) => self.memory[RAM_OFFSET + off],
+		start: 0xd000,
+		end: 0xffff,
+		bankTest: (b: number) => b === 0,
+	},
+	{
+		name: "BANK1",
+		data: (self: AppleBus, off: number) => self.memory[RAM_OFFSET + 0x10000 + off],
+		start: 0xd000,
+		end: 0xffff,
+		bankTest: (b: number) => b > 0,
+	},
+
+	{
+		name: "BANK2",
+		data: (self: AppleBus, off: number) => self.bank2[off - 0xd000],
+		start: 0xd000,
+		end: 0xdfff,
+		bankTest: (b: number) => b === 0,
+	},
+	{
+		name: "BANK2",
+		data: (self: AppleBus, off: number) => self.auxbank2[off - 0xd000],
+		start: 0xd000,
+		end: 0xdfff,
+		bankTest: (b: number) => b > 0,
+	},
+];
 export class AppleBus implements IBus {
 	public memory: Uint8Array;
 	private registers?: DataView;
@@ -808,94 +883,19 @@ export class AppleBus implements IBus {
 		}
 	}
 
-	public search(
-		pattern: Uint8Array,
+	search(
+		pattern: (number | null)[],
 		startAddress: number,
 		endAddress = 0xffffff,
 		is7Bit = false,
+		candidates?: number[][],
 	): { address: number; location: string }[] {
 		const results: { address: number; location: string }[] = [];
 		const len = pattern.length;
 		if (len === 0) return results;
 
-		type SearchTask = {
-			data: (off: number) => number;
-			location: string;
-			bank: number;
-			start: number;
-			end: number;
-		};
-
 		// 1. "Pre-compile" a list of search tasks based on the address range.
 		const searchTasks: SearchTask[] = [];
-		const allRegions: MemRegionSearch[] = [
-			{
-				name: "MAIN",
-				data: (off: number) => this.memory[RAM_OFFSET + off],
-				start: 0x0000,
-				end: 0xbfff,
-				bankTest: (b: number) => b === 0,
-			},
-			{
-				name: "MAIN",
-				data: (off: number) => this.memory[RAM_OFFSET + 0x10000 + off],
-				start: 0x0000,
-				end: 0xbfff,
-				bankTest: (b: number) => b > 0,
-			},
-
-			{
-				name: "INT",
-				data: (off: number) => this.romC[off - 0xc100],
-				start: 0xc100,
-				end: 0xcfff,
-				bankTest: (_b: number) => true,
-			},
-			{
-				name: "SLOT",
-				data: (off: number) => this.slotRoms[off - 0xc100],
-				start: 0xc100,
-				end: 0xcfff,
-				bankTest: (_b: number) => true,
-			},
-			{
-				name: "ROM",
-				data: (off: number) => this.rom[off - 0xd000],
-				start: 0xd000,
-				end: 0xffff,
-				bankTest: (_b: number) => true,
-			},
-
-			{
-				name: "BANK1",
-				data: (off: number) => this.memory[RAM_OFFSET + off],
-				start: 0xd000,
-				end: 0xffff,
-				bankTest: (b: number) => b === 0,
-			},
-			{
-				name: "BANK1",
-				data: (off: number) => this.memory[RAM_OFFSET + 0x10000 + off],
-				start: 0xd000,
-				end: 0xffff,
-				bankTest: (b: number) => b > 0,
-			},
-
-			{
-				name: "BANK2",
-				data: (off: number) => this.bank2[off - 0xd000],
-				start: 0xd000,
-				end: 0xdfff,
-				bankTest: (b: number) => b === 0,
-			},
-			{
-				name: "BANK2",
-				data: (off: number) => this.auxbank2[off - 0xd000],
-				start: 0xd000,
-				end: 0xdfff,
-				bankTest: (b: number) => b > 0,
-			},
-		];
 
 		const startBank = startAddress >> 16;
 		const endBank = endAddress >> 16;
@@ -926,15 +926,35 @@ export class AppleBus implements IBus {
 		for (const task of searchTasks) {
 			for (let addr = task.start; addr <= task.end - len + 1; addr++) {
 				let match = true;
+
+				let wildcardIndex = 0;
 				for (let i = 0; i < len; i++) {
-					if (
-						(is7Bit ? task.data(addr + i) & 0x7f : task.data(addr + i)) !==
-						(is7Bit ? pattern[i] & 0x7f : pattern[i])
-					) {
-						match = false;
-						break;
+					const byte = is7Bit ? task.data(this, addr + i) & 0x7f : task.data(this, addr + i);
+					const p = pattern[i];
+					if (p === null) {
+						const allowed = candidates?.[wildcardIndex];
+						wildcardIndex++;
+						if (allowed !== undefined && !allowed.includes(byte)) {
+							match = false;
+							break;
+						}
+					} else {
+						const expected = is7Bit ? p & 0x7f : p;
+						if (byte !== expected) {
+							match = false;
+							break;
+						}
 					}
+
+					// if (
+					// 	(is7Bit ? task.data(this, addr + i) & 0x7f : task.data(this, addr + i)) !==
+					// 	(is7Bit ? pattern[i] & 0x7f : pattern[i])
+					// ) {
+					// 	match = false;
+					// 	break;
+					// }
 				}
+
 				if (match) results.push({ address: (task.bank << 16) | addr, location: task.location });
 			}
 		}

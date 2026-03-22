@@ -31,10 +31,11 @@ export interface IBus {
 	unregisterTickHandler(handler: (cycles: number) => void): void;
 
 	search(
-		pattern: Uint8Array,
+		pattern: (number | null)[],
 		startAddress: number,
 		endAddress: number,
 		is7Bit: boolean,
+		candidates?: number[][],
 	): { address: number; location: string }[];
 
 	/** Optional method to handle keyboard input. */

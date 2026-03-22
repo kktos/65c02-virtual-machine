@@ -466,8 +466,14 @@ export class VirtualMachine {
 		return this.bus?.getScopes?.() ?? ["main"];
 	}
 
-	public search(pattern: Uint8Array, startAddress: number, endAddress: number, is7Bit: boolean) {
-		return this.bus?.search(pattern, startAddress, endAddress, is7Bit);
+	public search(
+		pattern: (number | null)[],
+		startAddress: number,
+		endAddress: number,
+		is7Bit: boolean,
+		candidates?: number[][],
+	) {
+		return this.bus?.search(pattern, startAddress, endAddress, is7Bit, candidates);
 	}
 
 	public read(address: number): number {
