@@ -1,5 +1,13 @@
 # TODO
 
+### 2026-03-23
+
+- command `buf` has a problem with the "rest"
+- command `explain` doesn't work with pipe; like `buf flush dsprite |> explain --detailed`
+- command `d` has a problem with range and data (pc is not updated ?); like `d $6300:$63ff` with `6300: .db <256>`
+
+---
+
 - **NOT_YET**
   Can we add a feature to highlight bytes that have changed since the last update in the Memory Viewer?
 - do we store the mods into a patch list... associated with the disk... patch manager ?
