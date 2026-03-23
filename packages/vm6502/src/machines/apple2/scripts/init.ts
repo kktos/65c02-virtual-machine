@@ -176,8 +176,9 @@ export const initRoutine = `
 	  hd @from @to |> tr text |> sed //.+?:\\s*((?:[0-9A-F]{2} )+)\\s+.+// "$1"
 	end
 
-	routine disasm_at @addr
-	  d @addr |> nop
+	routine disasm_at @addr @wantMem
+		IF @wantMem==0 d @addr |> nop
+		IF @wantMem m1 @addr |> nop
 	end
 
 `;

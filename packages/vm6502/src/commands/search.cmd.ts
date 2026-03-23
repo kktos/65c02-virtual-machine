@@ -104,7 +104,7 @@ export const searchCmd: CommandDef = {
 				const addr = (r.address - 0x10) & ~0xf;
 				const dumpBytes = vm.readDebugRange(addr, 0x30, r.location);
 				const dump = hexDump(addr, dumpBytes, { highlight: { start: r.address, length: bytes.length } });
-				return `[${formatAddress(r.address)}](command:&disasm_at$${toHex(r.address)} "Click to view in Disasm Viewer") (${r.location})\n\n\n${dump}\n`;
+				return `[${formatAddress(r.address)}](command:&disasm_at%20$${toHex(r.address)}%20@CTRL "Click to view in Disasm Viewer") (${r.location})\n\n\n${dump}\n`;
 			})
 			.join("\n\n");
 
