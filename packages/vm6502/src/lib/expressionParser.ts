@@ -42,8 +42,11 @@ export enum TokenType {
 	PIPE,
 	SEMICOLON,
 	MEM_START, // mem[
+	LBRACKET,
 	RBRACKET, // ]
 	DOT,
+	DOUBLE_QUESTION, // ??
+	DOUBLE_DASH, // --
 }
 
 const TWO_CHAR_OPS: Record<string, TokenType> = {
@@ -54,6 +57,8 @@ const TWO_CHAR_OPS: Record<string, TokenType> = {
 	"&&": TokenType.BOOL_AND,
 	"||": TokenType.BOOL_OR,
 	"|>": TokenType.PIPE,
+	"??": TokenType.DOUBLE_QUESTION,
+	"--": TokenType.DOUBLE_DASH,
 };
 const ONE_CHAR_OPS: Record<string, TokenType> = {
 	"+": TokenType.PLUS,
@@ -68,6 +73,7 @@ const ONE_CHAR_OPS: Record<string, TokenType> = {
 	">": TokenType.GT,
 	"(": TokenType.LPAREN,
 	")": TokenType.RPAREN,
+	"[": TokenType.LBRACKET,
 	"]": TokenType.RBRACKET,
 	",": TokenType.COMMA,
 	":": TokenType.COLON,
@@ -296,6 +302,13 @@ export class ExpressionParser {
 				if (BUILTINS[name] && this.is(TokenType.LPAREN)) return this.parseBuiltinFunction(name);
 				return { type: TokenType.IDENTIFIER, value: this.resolveIdentifier(token.text), raw: token.text };
 			}
+			case TokenType.DOUBLE_QUESTION:
+				return { type: TokenType.DOUBLE_QUESTION, value: undefined, raw: token.text };
+			case TokenType.DOUBLE_DASH:
+				const tok = this.peek();
+				if (tok.type !== TokenType.IDENTIFIER) throw new Error("Identifier expected after '--'");
+				this.consume();
+				return { type: TokenType.DOUBLE_DASH, value: undefined, raw: tok.text };
 			case TokenType.AT: {
 				const tok = this.peek();
 				if (tok.type !== TokenType.IDENTIFIER) throw new Error("Identifier expected after '@'");

@@ -214,7 +214,7 @@ import NoteEditor from "./NoteEditor.vue";
 import DisassemblyTableLabel from "./DisassemblyTableLabel.vue";
 import LabelReferencesPopover from "./LabelReferencesPopover.vue";
 import { useAddressHistory } from "@/composables/useAddressHistory";
-import { useCrossReferences } from "@/commands/useCrossReferences";
+import { useCrossReferences } from "@/composables/useCrossReferences";
 import { formatAddress } from "@/lib/hex.utils";
 
 const vm = inject<Ref<VirtualMachine>>("vm");
