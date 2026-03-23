@@ -1,6 +1,6 @@
 import { isParamListItemIdentifier } from "@/composables/useCommands";
-import type { Command, CommandContext, CommandDef, CommandResult } from "@/types/command";
-import { COMMAND_LIST } from ".";
+import type { CommandContext, CommandDef, CommandResult } from "@/types/command";
+import { COMMANDDEF_LIST } from ".";
 
 function typedKeys<T extends object>(obj: T): (keyof T)[] {
 	return Object.keys(obj) as (keyof T)[];
@@ -11,10 +11,10 @@ export const cmdHelp: CommandDef = {
 		"Lists all available commands.\n" +
 		"Can search for a command (HELP search).\n" +
 		"Can be filtered by group name (HELP g cons).",
-	paramDef: ["name|string?", "name|string?"],
+	paramDef: ["name?|string?", "name?|string?"],
 	group: "Console",
 	fn: ({ params }: CommandContext): CommandResult => {
-		const groups: Record<string, { key: string; cmd: Command; aliases: string[] }[]> = {};
+		const groups: Record<string, { key: string; cmd: CommandDef; aliases: string[] }[]> = {};
 		const commandAliases: Record<string, string[]> = {};
 
 		let groupFilter: string | undefined;
@@ -26,18 +26,18 @@ export const cmdHelp: CommandDef = {
 		if (cmdFilter) cmdFilter = cmdFilter.toUpperCase();
 
 		// First pass: find all aliases and the commands they refer to.
-		typedKeys(COMMAND_LIST).forEach((key) => {
-			const cmdOrAlias = COMMAND_LIST[key];
+		typedKeys(COMMANDDEF_LIST).forEach((key) => {
+			const cmdOrAlias = COMMANDDEF_LIST[key];
 			if (typeof cmdOrAlias === "string") {
 				if (!commandAliases[cmdOrAlias]) commandAliases[cmdOrAlias] = [];
 				commandAliases[cmdOrAlias]!.push(key);
 			}
 		});
 
-		typedKeys(COMMAND_LIST)
+		typedKeys(COMMANDDEF_LIST)
 			.sort()
 			.forEach((key) => {
-				const cmd = COMMAND_LIST[key];
+				const cmd = COMMANDDEF_LIST[key];
 				// Skip aliases, they will be handled with their main command.
 				if (typeof cmd === "string") return;
 
