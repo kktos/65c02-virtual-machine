@@ -22,6 +22,7 @@ import type {
 	CommandSegment,
 	ParamListItemRange,
 } from "@/types/command";
+import type { ParamDef } from "@/types/params";
 import { useCmdConsole } from "./useCmdConsole";
 
 const HISTORY_MAX_SIZE = 50;
@@ -178,6 +179,19 @@ function tryParseToken(parser: ExpressionParser, allowedTypes: string[]): { matc
 	return { matched: false };
 }
 
+function getParamDefinition(def: ParamDef) {
+	if ("oneOf" in def) {
+		return {
+			allowedTypes: def.oneOf.map((p) => p.type),
+			qty: def.oneOf[0].qty,
+		};
+	}
+	return {
+		allowedTypes: [def.type],
+		qty: def.qty,
+	};
+}
+
 function parseCommandParams(
 	cmdParser: ExpressionParser,
 	cmd: COMMANDS,
@@ -191,20 +205,22 @@ function parseCommandParams(
 
 	let defIndex = startParamIndex;
 	let injectedConsumed = false;
+	let hasAMatch = false;
 
 	while (defIndex < paramDefs.length) {
 		const def = paramDefs[defIndex];
-		const isOptional = def.endsWith("?") || def.endsWith("*");
-		const isVariadic = def.endsWith("*") || def.endsWith("+");
-		const cleanDef = def.replace(/[?*+]$/, "");
-		const allowedTypes = cleanDef.split("|");
+		const { allowedTypes, qty } = getParamDefinition(def);
+		const isOptional = qty === "?" || qty === "*";
+		const isVariadic = qty === "*" || qty === "+";
 
 		let matchesForThisDef = 0;
 
 		while (true) {
 			// Try to parse from token stream
 			const { matched, value } = tryParseToken(cmdParser, allowedTypes);
+
 			if (matched) {
+				hasAMatch = true;
 				userParams.push(value);
 				cmdParser.match(TokenType.COMMA); // optional comma consumption
 				matchesForThisDef++;
@@ -224,14 +240,16 @@ function parseCommandParams(
 			break; // No match found
 		}
 
-		if (matchesForThisDef === 0 && !isOptional) {
-			throw new Error(`Missing required parameter: ${cleanDef}`);
-		}
+		if (matchesForThisDef === 0 && !isOptional)
+			throw new Error(`Missing required parameter: ${allowedTypes.join("|")}`);
 
 		defIndex++;
 	}
 
-	if (!cmdParser.eof()) throw new Error(`Too many parameters for command "${cmd}".`);
+	if (!cmdParser.eof()) {
+		if (hasAMatch) throw new Error(`Too many parameters for command "${cmd}".`);
+		else throw new Error(`Wrong type of parameters for command "${cmd}"`);
+	}
 	if (!injectedConsumed && injectedValue !== undefined) throw new Error("Too many parameters (piped value unused).");
 
 	let finalParams: ParamList = userParams;
