@@ -1,6 +1,7 @@
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import type { Ref } from "vue";
 import type { Token } from "../lib/expressionParser";
+import type { ParamDef } from "@/types/params";
 
 export type CommandOutput = {
 	content: string;
@@ -13,17 +14,8 @@ export type ErrorOutput = {
 
 export type CommandResult = string | CommandOutput | ErrorOutput | MultiLineRequest;
 
-type ParamType = "byte" | "word" | "number" | "address" | "range" | "string" | "bool" | "regex" | "name" | "rest";
-type ParamDef =
-	| ParamType
-	| `${ParamType}?`
-	| `${ParamType}|${ParamType}`
-	| `${ParamType}|${ParamType}|${ParamType}`
-	| `${ParamType}|${ParamType}|${ParamType}|${ParamType}`;
-
 export type ParamListItemIdentifier = { text: string; value: number | string | undefined };
 export type ParamListItemRange = { start: number; end: number };
-
 export type ParamListItem = string | number | RegExp | undefined | ParamListItemRange | ParamListItemIdentifier;
 export type ParamList = ParamListItem[];
 
@@ -57,4 +49,8 @@ export type Command = {
 		prepend?: (string | number)[];
 		append?: (string | number)[];
 	};
+};
+
+export type CommandDef = Omit<Command, "paramDef"> & {
+	paramDef?: string[];
 };
