@@ -1,6 +1,6 @@
-import type { Command, CommandContext } from "@/types/command";
+import type { CommandContext, CommandDef } from "@/types/command";
 
-export const stepCmd: Command = {
+export const stepCmd: CommandDef = {
 	description: "Step Instruction",
 	group: "Execution",
 	fn: ({ vm }: CommandContext) => {

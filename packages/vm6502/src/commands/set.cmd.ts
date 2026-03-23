@@ -1,5 +1,5 @@
 import { toHex } from "@/lib/hex.utils";
-import type { Command, CommandContext } from "@/types/command";
+import type { CommandContext, CommandDef } from "@/types/command";
 import {
 	REG_A_OFFSET,
 	REG_PC_OFFSET,
@@ -25,7 +25,7 @@ const WORD_REGISTERS = {
 	PC: REG_PC_OFFSET,
 } as const;
 
-export const setCmd: Command = {
+export const setCmd: CommandDef = {
 	description: "Set register `name` value to `byte` or `word`",
 	paramDef: ["name", "byte|word"],
 	group: "Monitor",

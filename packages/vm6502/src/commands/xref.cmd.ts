@@ -1,8 +1,8 @@
+import { useCrossReferences, type XrefFilter } from "@/composables/useCrossReferences";
 import { formatAddress, toHex } from "@/lib/hex.utils";
-import type { Command, CommandContext, CommandResult, ParamListItemIdentifier } from "@/types/command";
-import { useCrossReferences, type XrefFilter } from "./useCrossReferences";
+import type { CommandContext, CommandDef, CommandResult, ParamListItemIdentifier } from "@/types/command";
 
-export const xrefCmd: Command = {
+export const xrefCmd: CommandDef = {
 	description:
 		"Shows static incoming references (branches, JSR, JMP, Loads/Stores).\nUsage: XREF <\u200baddress> [branch|call|access|all]",
 	paramDef: ["address", "name?"],

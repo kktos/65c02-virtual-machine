@@ -1,8 +1,8 @@
 import { useMachine } from "@/composables/useMachine";
-import type { Command, CommandContext, ParamListItemIdentifier } from "@/types/command";
+import type { CommandContext, CommandDef, ParamListItemIdentifier } from "@/types/command";
 import type { RegisterDescriptor } from "@/types/registers";
 
-export const virtualRegisterCmd: Command = {
+export const virtualRegisterCmd: CommandDef = {
 	description: "Add a virtual register to the machine\nVR name address byte|word r|w|rw",
 	paramDef: ["name", "address", "name", "name"],
 	group: "Monitor",

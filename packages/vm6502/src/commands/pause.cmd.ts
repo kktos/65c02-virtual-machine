@@ -1,6 +1,6 @@
-import type { Command, CommandContext } from "@/types/command";
+import type { CommandContext, CommandDef } from "@/types/command";
 
-export const pause: Command = {
+export const pause: CommandDef = {
 	description: "Pause the vm",
 	paramDef: [],
 	group: "Execution",

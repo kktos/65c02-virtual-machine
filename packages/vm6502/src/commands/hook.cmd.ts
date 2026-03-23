@@ -1,9 +1,9 @@
 import { useBreakpoints } from "@/composables/useBreakpoints";
 import { formatAddress } from "@/lib/hex.utils";
 import type { Breakpoint } from "@/types/breakpoint.interface";
-import type { Command, CommandContext, ParamListItemIdentifier } from "@/types/command";
+import type { CommandContext, CommandDef, ParamListItemIdentifier } from "@/types/command";
 
-export const hook: Command = {
+export const hook: CommandDef = {
 	description: "Set a command to execute when a breakpoint is hit. Usage: HOOK <type> <address> do <command>",
 	paramDef: ["name", "address", "rest"],
 	group: "Breakpoints",

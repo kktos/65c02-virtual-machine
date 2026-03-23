@@ -22,7 +22,6 @@ import { speed } from "./speed.cmd";
 import { undefLabel } from "./undefLabel.cmd";
 import { routineCmd } from "./routine.cmd";
 import { explainCmd } from "./explainCode.cmd";
-import type { Command, ParamDef } from "@/types/command";
 import { useCommands } from "@/composables/useCommands";
 import { stepCmd } from "./step.cmd";
 import { glCmd } from "./gl.cmd";
@@ -40,8 +39,11 @@ import { transformCmd } from "./tr.cmd";
 import { sedCmd } from "./sed.cmd";
 import { hexDumpCmd } from "./hexdump.cmd";
 import { xrefCmd } from "./xref.cmd";
+import type { Command, CommandDef } from "@/types/command";
+import { parseParamList } from "@/lib/param-parser.lib";
+import type { ParamDef } from "@/types/params";
 
-function d(g: string, d: string, p?: ParamDef[]) {
+function d(g: string, d: string, p?: string[]) {
 	return {
 		description: d,
 		group: g,
@@ -50,13 +52,12 @@ function d(g: string, d: string, p?: ParamDef[]) {
 	};
 }
 
-export type COMMANDS = keyof typeof COMMAND_LIST;
-
-export const COMMAND_LIST = {
-	IF: d("Scripting", "Conditional: IF `expression` [THEN] `command`", ["expr"] as unknown as ParamDef[]),
+export type COMMANDS = keyof typeof COMMANDDEF_LIST;
+const COMMANDDEF_LIST = {
+	IF: d("Scripting", "Conditional: IF `expression` [THEN] `command`", ["number"]),
 	DO: d("Scripting", "Execute a defined routine.\ndo <\u200broutinename> [args...]\n&<\u200broutinename> [args...]", [
 		"name",
-		"rest?",
+		"rest",
 	]),
 	"&": "DO",
 
@@ -213,7 +214,7 @@ export const COMMAND_LIST = {
 	PRINT: {
 		description:
 			"Prints evaluated expressions to the console. Args can be strings, numbers, or expressions (e.g. A, X+1, mem[PC]).",
-		paramDef: ["rest?"],
+		paramDef: ["rest"],
 		fn: printCmdFn,
 		staticParams: { prepend: ["text"] },
 		group: "Console",
@@ -221,7 +222,7 @@ export const COMMAND_LIST = {
 	PRINTMD: {
 		description:
 			"Prints evaluated expressions to the console. Args can be strings, numbers, or expressions (e.g. A, X+1, mem[PC]).",
-		paramDef: ["rest?"],
+		paramDef: ["rest"],
 		fn: printCmdFn,
 		staticParams: { prepend: ["markdown"] },
 		group: "Console",
@@ -241,7 +242,7 @@ export const COMMAND_LIST = {
 	SED: sedCmd,
 	NOP: {
 		description: "No Operation (outputs nothing). Usage: `command` |> NOP",
-		paramDef: ["rest?"],
+		paramDef: ["rest"],
 		group: "Streams",
 		fn: () => "",
 	},
@@ -249,4 +250,22 @@ export const COMMAND_LIST = {
 
 	SHOW: showCmd,
 	HIDE: hideCmd,
-} satisfies Record<string, Command | string>;
+} satisfies Record<string, CommandDef | string>;
+
+export let COMMAND_LIST: Record<string, Command> = {};
+
+for (const [k, v] of Object.entries(COMMANDDEF_LIST)) {
+	if (typeof v !== "object") continue;
+	let paramDef: ParamDef[];
+	try {
+		paramDef = parseParamList(v.paramDef ?? []);
+	} catch (e) {
+		throw new Error(`Parsing parameters for command '${k}' failed: ${e}`);
+	}
+	COMMAND_LIST[k] = { ...v, paramDef };
+}
+for (const [k, v] of Object.entries(COMMANDDEF_LIST)) {
+	if (typeof v !== "string") continue;
+	if (typeof COMMAND_LIST[v] !== "object" || !COMMAND_LIST[v]) throw new Error(`No command found for alias '${v}'.`);
+	COMMAND_LIST[k] = COMMAND_LIST[v];
+}

@@ -1,7 +1,7 @@
-import type { Command, CommandContext } from "@/types/command";
+import type { CommandContext, CommandDef } from "@/types/command";
 import { REG_PC_OFFSET } from "@/virtualmachine/cpu/shared-memory";
 
-export const run: Command = {
+export const run: CommandDef = {
 	description: "Run the vm at PC or <address>",
 	paramDef: ["word?"],
 	closeOnSuccess: true,

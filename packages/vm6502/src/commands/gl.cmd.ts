@@ -1,8 +1,8 @@
 import { generateLabels } from "@/lib/disassembler";
 import { formatAddress } from "@/lib/hex.utils";
-import type { Command, CommandContext, ParamListItemIdentifier } from "@/types/command";
+import type { CommandContext, CommandDef, ParamListItemIdentifier } from "@/types/command";
 
-export const glCmd: Command = {
+export const glCmd: CommandDef = {
 	description: "Generate labels for a memory `range` with optional memory `scope`",
 	paramDef: ["range", "name?"],
 	group: "Symbols",

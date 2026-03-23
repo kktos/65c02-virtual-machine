@@ -1,9 +1,13 @@
 import { formatAddress, hexDump, toHex } from "@/lib/hex.utils";
-import type { Command, CommandContext, CommandResult } from "@/types/command";
+import type { CommandContext, CommandDef, CommandResult } from "@/types/command";
 
-export const searchCmd: Command = {
-	description: 'Search memory. Usage: SEARCH [start:end] <"string" | hex bytes>',
-	paramDef: ["rest"],
+export const searchCmd: CommandDef = {
+	description:
+		"Search memory.\n" +
+		'Usage: SEARCH [start:end] <"string" | hex bytes>\n' +
+		"String Wildcards: ? any characters; [] one of the characters; \\ escape character.\n" +
+		"Bytes Wildcards: ?? any value.\n",
+	paramDef: ["range?", "string?", "wbyte*"],
 	group: "Memory",
 	fn: ({ vm, params }: CommandContext): CommandResult => {
 		const maxBank = (vm.machineConfig.memory.banks ?? 1) - 1;
@@ -30,6 +34,8 @@ export const searchCmd: Command = {
 		arg = params[parmIdx];
 
 		if (typeof arg === "string") {
+			if (params.length !== parmIdx + 1) throw new Error("Could only search one string at a time.");
+
 			const str = arg;
 			let i = 0;
 			while (i < str.length) {
@@ -73,8 +79,12 @@ export const searchCmd: Command = {
 			is7Bit = true;
 		} else {
 			for (; parmIdx < params.length; parmIdx++) {
-				arg = params[parmIdx] as number;
-				bytes.push(arg & 0xff);
+				arg = params[parmIdx];
+				if (arg === null) {
+					bytes.push(null);
+				} else {
+					bytes.push((arg as number) & 0xff);
+				}
 				is7Bit = false;
 			}
 		}

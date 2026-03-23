@@ -1,7 +1,7 @@
 import { useBreakpoints } from "@/composables/useBreakpoints";
 import { formatAddress } from "@/lib/hex.utils";
 import { useRoutines } from "@/composables/useRoutines";
-import type { Command, CommandContext, ParamListItemIdentifier } from "@/types/command";
+import type { CommandContext, CommandDef, ParamListItemIdentifier } from "@/types/command";
 import { useCommands } from "@/composables/useCommands";
 
 function listHooks() {
@@ -57,7 +57,7 @@ function listHistory() {
 
 const LISTS = ["HOOKS", "ROUTINES", "HISTORY"];
 
-export const listCmd: Command = {
+export const listCmd: CommandDef = {
 	description: "List <hooks|routines|history>.",
 	paramDef: ["name", "name?"],
 	group: "Console",

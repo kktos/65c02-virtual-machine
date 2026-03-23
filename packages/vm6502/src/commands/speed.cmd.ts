@@ -1,7 +1,7 @@
 import { useEmulatorSpeed } from "@/composables/useEmulatorSpeed";
-import type { Command, CommandContext } from "@/types/command";
+import type { CommandContext, CommandDef } from "@/types/command";
 
-export const speed: Command = {
+export const speed: CommandDef = {
 	description: "Set the Machine speed in MHz.",
 	paramDef: ["number?"],
 	group: "Execution",

@@ -1,6 +1,6 @@
-import type { Command, ParamListItemIdentifier } from "@/types/command";
+import type { CommandDef, ParamListItemIdentifier } from "@/types/command";
 
-export const transformCmd: Command = {
+export const transformCmd: CommandDef = {
 	description: "Tranform a stream. Usage: `content_producer` |> TR type",
 	paramDef: ["name", "string"],
 	group: "Streams",

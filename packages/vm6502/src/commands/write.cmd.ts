@@ -1,6 +1,6 @@
-import type { Command } from "@/types/command";
+import type { CommandDef } from "@/types/command";
 
-export const writeCommand: Command = {
+export const writeCommand: CommandDef = {
 	description: "Save content to a file. Usage: `content_producer` |> WRITE `filename`",
 	// First string is filename, second is content (usually piped)
 	paramDef: ["string", "string"],

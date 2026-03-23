@@ -3,12 +3,12 @@ import { isParamListItemRange } from "@/composables/useCommands";
 import { useDebuggerNav } from "@/composables/useDebuggerNav";
 import { disassembleRange, formatDisassemblyAsText } from "@/lib/disassembler";
 import { formatAddress } from "@/lib/hex.utils";
-import type { Command, CommandContext, ParamListItemIdentifier } from "@/types/command";
+import type { CommandContext, CommandDef, ParamListItemIdentifier } from "@/types/command";
 
 const { setActiveTab } = useDebuggerNav();
 const { jumpToAddress } = useAddressHistory("disassembly");
 
-export const setDisasmView: Command = {
+export const setDisasmView: CommandDef = {
 	description: "Set disasm <address>, or disasm a <range> to console",
 	paramDef: ["range|address", "name?"],
 	group: "Viewers",

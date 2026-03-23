@@ -1,17 +1,17 @@
 import { isParamListItemIdentifier } from "@/composables/useCommands";
-import type { Command, CommandContext, CommandResult, ParamDef } from "@/types/command";
+import type { Command, CommandContext, CommandDef, CommandResult } from "@/types/command";
 import { COMMAND_LIST } from ".";
 
 function typedKeys<T extends object>(obj: T): (keyof T)[] {
 	return Object.keys(obj) as (keyof T)[];
 }
 
-export const cmdHelp: Command = {
+export const cmdHelp: CommandDef = {
 	description:
 		"Lists all available commands.\n" +
 		"Can search for a command (HELP search).\n" +
 		"Can be filtered by group name (HELP g cons).",
-	paramDef: ["name|string?", "name|string?"] as unknown as ParamDef[],
+	paramDef: ["name|string?", "name|string?"],
 	group: "Console",
 	fn: ({ params }: CommandContext): CommandResult => {
 		const groups: Record<string, { key: string; cmd: Command; aliases: string[] }[]> = {};

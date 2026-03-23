@@ -1,7 +1,7 @@
 import { runHexDump } from "@/lib/mini-monitor";
-import type { Command, CommandContext } from "@/types/command";
+import type { CommandContext, CommandDef } from "@/types/command";
 
-export const hexDumpCmd: Command = {
+export const hexDumpCmd: CommandDef = {
 	description: "Displays a hex dump of a memory range. Usage: HD <\u200bfrom> <\u200bto>",
 	paramDef: ["address", "address"],
 	group: "Memory",

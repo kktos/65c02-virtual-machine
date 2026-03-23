@@ -1,17 +1,17 @@
 import { isParamListItemIdentifier } from "@/composables/useCommands";
-import type { Command, CommandContext } from "@/types/command";
+import type { CommandContext, CommandDef } from "@/types/command";
 
 // Internal storage for named buffers
 const buffers = new Map<string, string[]>();
 
-export const bufCmd: Command = {
+export const bufCmd: CommandDef = {
 	description:
 		"Manage named text buffers.\n" +
 		"Usage: BUF ; list all buffers\n" +
 		"BUF PUSH <\u200bname> [text] ; add line\n" +
 		"BUF FLUSH <\u200bname> [delimiter?] ; ouput buffer lines\n" +
 		"BUF CLEAR <\u200bname> ; clear buffer",
-	paramDef: ["name?", "name?", "rest?"],
+	paramDef: ["name?", "name?", "rest"],
 	group: "Streams",
 	fn: ({ params }: CommandContext) => {
 		if (params.length === 0) {

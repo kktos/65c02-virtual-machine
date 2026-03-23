@@ -1,8 +1,8 @@
 import { useFormatting } from "@/composables/useDataFormattings";
 import { formatAddress } from "@/lib/hex.utils";
-import type { Command, CommandContext } from "@/types/command";
+import type { CommandContext, CommandDef } from "@/types/command";
 
-export const defCode: Command = {
+export const defCode: CommandDef = {
 	description: "Define code region at <address>.",
 	paramDef: ["address"],
 	group: "Memory",

@@ -1,8 +1,8 @@
 import { useFloatingWindows } from "@/composables/useFloatingWindows";
-import type { Command, CommandContext, CommandResult } from "@/types/command";
+import type { CommandContext, CommandDef, CommandResult } from "@/types/command";
 
 const { availableWindows, close } = useFloatingWindows();
-export const hideCmd: Command = {
+export const hideCmd: CommandDef = {
 	description: "Hide a window. Usage: HIDE `windowID`.",
 	paramDef: ["name"],
 	group: "Console",

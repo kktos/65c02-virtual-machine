@@ -1,19 +1,19 @@
 import { assemble } from "@/lib/mini-assembler";
 import { useSymbols } from "@/composables/useSymbols";
-import type { Command, CommandContext, CommandResult, CommandSegment, ResultOnLinePayload } from "@/types/command";
+import type { CommandContext, CommandDef, CommandResult, ResultOnLinePayload } from "@/types/command";
 import { toHex } from "@/lib/hex.utils";
 import { isParamListItemIdentifier } from "@/composables/useCommands";
 
 const { getAddressForLabel, addSymbol } = useSymbols();
 
-export const asmCmd: Command = {
+export const asmCmd: CommandDef = {
 	description: "Start mini-assembler at `address`. if `show` is specified, displays the assembled bytes.",
 	paramDef: ["address", "name?"],
 	group: "Assembler",
-	fn: ({ vm, params, pipeDest }: CommandContext): CommandResult => {
+	fn: ({ vm, params, isPiped }: CommandContext): CommandResult => {
 		let currentAddr = (params[0] as number) & 0xffff;
 		let showBytes =
-			!pipeDest &&
+			!isPiped &&
 			params.length > 1 &&
 			isParamListItemIdentifier(params[1]) &&
 			"SHOW".startsWith(params[1].text.toUpperCase());
@@ -60,11 +60,7 @@ export const asmCmd: Command = {
 			prompt: getPrompt(currentAddr),
 			terminator: ".",
 			onLine: doAsm,
-			onComplete: (lines: string | (CommandSegment | string)[]) => {
-				if (typeof lines === "string") {
-					const res = doAsm(lines);
-					return res?.error ? res.error : (res?.content ?? "Assembly finished.");
-				}
+			onComplete: () => {
 				return "Assembly finished.";
 			},
 		};

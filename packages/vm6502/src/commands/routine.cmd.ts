@@ -1,9 +1,9 @@
 import { useRoutines } from "@/composables/useRoutines";
-import type { Command, CommandContext, ParamListItemIdentifier } from "@/types/command";
+import type { CommandContext, CommandDef, ParamListItemIdentifier } from "@/types/command";
 
-export const routineCmd: Command = {
+export const routineCmd: CommandDef = {
 	description: "Define a routine on multiple lines, ended by END.",
-	paramDef: ["name", "rest?"],
+	paramDef: ["name", "rest"],
 	group: "Scripting",
 	fn: ({ params }: CommandContext) => {
 		const routineName = params[0] as ParamListItemIdentifier;

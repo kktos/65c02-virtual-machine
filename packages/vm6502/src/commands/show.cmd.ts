@@ -1,9 +1,9 @@
 import { useFloatingWindows } from "@/composables/useFloatingWindows";
-import type { Command, CommandContext, CommandResult, ParamListItemIdentifier } from "@/types/command";
+import type { CommandContext, CommandDef, CommandResult, ParamListItemIdentifier } from "@/types/command";
 
 const { availableWindows, open } = useFloatingWindows();
 
-export const showCmd: Command = {
+export const showCmd: CommandDef = {
 	description: "Show a window. Usage: SHOW to list all the windows or SHOW `windowID`.",
 	paramDef: ["name?"],
 	group: "Console",

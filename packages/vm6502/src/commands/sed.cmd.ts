@@ -1,6 +1,6 @@
-import type { Command } from "@/types/command";
+import type { CommandDef } from "@/types/command";
 
-export const sedCmd: Command = {
+export const sedCmd: CommandDef = {
 	description: "Stream editor. Usage: `content` |> SED `pattern` `replacement`",
 	paramDef: ["regex", "string", "string"],
 	group: "Streams",

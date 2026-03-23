@@ -1,11 +1,11 @@
 import { useSymbols } from "@/composables/useSymbols";
-import type { Command, CommandContext, CommandResult } from "@/types/command";
+import type { CommandContext, CommandDef, CommandResult } from "@/types/command";
 
 const { setScopeSearchPath, scopeSearchPath } = useSymbols();
 
-export const scopePathCmd: Command = {
+export const scopePathCmd: CommandDef = {
 	description: "Get or set the scope search path. Usage: SCOPEPATH [scope1 scope2 ...]",
-	paramDef: ["rest?"],
+	paramDef: ["string*"],
 	group: "Symbols",
 	fn: async ({ params }: CommandContext): Promise<CommandResult> => {
 		if (params.length === 0)

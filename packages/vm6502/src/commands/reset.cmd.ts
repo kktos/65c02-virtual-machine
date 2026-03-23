@@ -1,6 +1,6 @@
-import type { Command, CommandContext } from "@/types/command";
+import type { CommandContext, CommandDef } from "@/types/command";
 
-export const reset: Command = {
+export const reset: CommandDef = {
 	description: "Reset the vm",
 	paramDef: [],
 	group: "Execution",

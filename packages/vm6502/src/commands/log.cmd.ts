@@ -1,10 +1,10 @@
 import { useLogWindows } from "@/composables/useLogWindows";
-import type { Command, CommandContext, ParamListItemIdentifier } from "@/types/command";
+import type { CommandContext, CommandDef, ParamListItemIdentifier } from "@/types/command";
 
-export const logCmd: Command = {
+export const logCmd: CommandDef = {
 	description:
 		"Interact with log windows. Usage: log <name> [open|close|clear] | <args...>. Args can be strings, numbers, or expressions (e.g. A, X+1, mem[PC]).",
-	paramDef: ["name", "name?", "rest?"],
+	paramDef: ["name", "name?", "rest"],
 	group: "Logging",
 	fn: ({ params }: CommandContext) => {
 		const { open, close, trace, clear } = useLogWindows();

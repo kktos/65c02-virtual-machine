@@ -1,8 +1,8 @@
 import { useSymbols } from "@/composables/useSymbols";
 import { formatAddress } from "@/lib/hex.utils";
-import type { Command, CommandContext } from "@/types/command";
+import type { CommandContext, CommandDef } from "@/types/command";
 
-export const undefLabel: Command = {
+export const undefLabel: CommandDef = {
 	description: "Remove a user-defined label at <address>. Params: <address> [scope?]",
 	paramDef: ["address", "string?"],
 	group: "Symbols",

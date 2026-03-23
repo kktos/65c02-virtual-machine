@@ -1,9 +1,9 @@
 import { useGemini } from "@/composables/useGemini";
 import { useMachine } from "@/composables/useMachine";
 import { disassembleRange, formatDisassemblyAsText } from "@/lib/disassembler";
-import type { Command, CommandContext, CommandResult, ParamListItemIdentifier } from "@/types/command";
+import type { CommandContext, CommandDef, CommandResult, ParamListItemIdentifier } from "@/types/command";
 
-export const explainCmd: Command = {
+export const explainCmd: CommandDef = {
 	description:
 		"explain code from <range> [mode?] [output?]. Mode can be CONCISE (default) or DETAILED. Output can be CONSOLE (default) or ASNOTE (to create a Note).",
 	paramDef: ["range", "name?", "name?"],

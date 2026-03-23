@@ -1,12 +1,12 @@
 import { useConsoleSettings } from "@/composables/useConsoleSettings";
 import { toHex } from "@/lib/hex.utils";
-import type { Command, CommandContext } from "@/types/command";
+import type { CommandContext, CommandDef } from "@/types/command";
 
 const { fontFamily, fontSize, fontColor, MIN_SIZE, MAX_SIZE } = useConsoleSettings();
 
-export const font: Command = {
+export const font: CommandDef = {
 	description: 'Set console font properties. Usage: font [name] [size] [color]. Ex: font "arial", 14, $FF0000',
-	paramDef: ["rest?"],
+	paramDef: ["rest"],
 	group: "Console",
 	fn: ({ params }: CommandContext) => {
 		if (params.length === 0)
