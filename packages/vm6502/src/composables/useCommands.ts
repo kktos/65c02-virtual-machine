@@ -369,14 +369,6 @@ async function handleDoCommand(
 	item.injectedPipe = undefined;
 }
 
-function resolveAlias(cmd: COMMANDS) {
-	let cmdSpecOrAlias: Command | string = COMMAND_LIST[cmd];
-	if (typeof cmdSpecOrAlias === "string") cmdSpecOrAlias = COMMAND_LIST[cmdSpecOrAlias as COMMANDS];
-	if (typeof cmdSpecOrAlias === "string" || !cmdSpecOrAlias)
-		throw new Error(`Invalid command alias configuration for '${cmd}'.`);
-	return cmdSpecOrAlias;
-}
-
 function splitIntoCommands(input: string, vm: VirtualMachine): QueueItem[] {
 	const parser = new ExpressionParser(input, vm);
 	const tokens = parser.getTokens();
@@ -527,7 +519,7 @@ async function executeSubQueue(
 				}
 
 				let paramIndex = initialParamIndex;
-				const cmdSpec = resolveAlias(cmd);
+				const cmdSpec = COMMAND_LIST[cmd];
 				const finalParams = parseCommandParams(cmdParser, cmd, paramIndex, userParams, cmdSpec, pipeValue);
 
 				const cmdResult = await cmdSpec.fn({

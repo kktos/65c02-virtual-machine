@@ -258,7 +258,7 @@ for (const [k, v] of Object.entries(COMMANDDEF_LIST)) {
 	if (typeof v !== "object") continue;
 	let paramDef: ParamDef[];
 	try {
-		paramDef = parseParamList(v.paramDef ?? []);
+		paramDef = parseParamList((v as CommandDef).paramDef ?? []);
 	} catch (e) {
 		throw new Error(`Parsing parameters for command '${k}' failed: ${e}`);
 	}
