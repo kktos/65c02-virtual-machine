@@ -91,21 +91,23 @@ export const COMMANDDEF_LIST = {
 
 	CODE: defCode,
 	DB: {
-		description: "define n bytes at `address` with n = `word`",
+		description: "define n bytes at `address`. Usage: db <\u200baddress> <\u200bcount>",
 		paramDef: ["address", "word"],
 		fn: defDataFn,
 		staticParams: { prepend: ["byte"] },
 		group: "Memory",
 	},
+	BYTE: "DB",
 	DW: {
-		description: "define n words at `address` with n = `word`",
+		description: "define n words at `address`. Usage: dw <\u200baddress> <\u200bcount>",
 		paramDef: ["address", "word"],
 		fn: defDataFn,
 		staticParams: { prepend: ["word"] },
 		group: "Memory",
 	},
+	WORD: "DW",
 	DA: {
-		description: "define a string/ascii at `address` with length `word`",
+		description: "define a string/ascii at `address`. Usage: da <\u200baddress> <\u200blength>",
 		paramDef: ["address", "word"],
 		fn: defDataFn,
 		staticParams: { prepend: ["string"] },

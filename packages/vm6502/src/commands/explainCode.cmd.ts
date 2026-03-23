@@ -2,15 +2,26 @@ import { defineCommand } from "@/composables/useCommands";
 import { useGemini } from "@/composables/useGemini";
 import { useMachine } from "@/composables/useMachine";
 import { disassembleRange, formatDisassemblyAsText } from "@/lib/disassembler";
-import type { CommandContext, CommandResult, ParamListItemIdentifier } from "@/types/command";
 
 export const explainCmd = defineCommand({
 	description:
-		"explain code from <range> [mode?] [output?]. Mode can be CONCISE (default) or DETAILED. Output can be CONSOLE (default) or ASNOTE (to create a Note).",
-	paramDef: ["range", "name?", "name?"],
+		"explain code from <\u200brange> [--mode] [--output].\n" +
+		"Mode can be concise (default) or detailed.\n" +
+		" Output can be console (default) or asnote (to create a Note).",
+	paramDef: ["range"],
+	options: [
+		{
+			name: "mode",
+			value: { kind: "oneOf", choices: ["detailed", "concise"], default: "concise" },
+		},
+		{
+			name: "output",
+			value: { kind: "oneOf", choices: ["console", "asnote"], default: "console" },
+		},
+	] as const,
 	group: "A.I.",
 	closeOnSuccess: false,
-	fn: async ({ vm, progress, params }: CommandContext): Promise<CommandResult> => {
+	fn: async ({ vm, progress, params, opts }) => {
 		const readByte = (address: number, debug = true) => (debug ? vm.readDebug(address) : vm.read(address)) ?? 0;
 		const { registers } = useMachine();
 		const { explainCode } = useGemini();
@@ -25,44 +36,14 @@ export const explainCmd = defineCommand({
 		});
 		const source = formatDisassemblyAsText(lines);
 
-		let mode: "DETAILED" | "CONCISE" = "CONCISE";
-		let outputTarget: "ASNOTE" | "CONSOLE" = "CONSOLE";
+		const mode = opts.mode;
+		const outputTarget = opts.output;
 
-		const p1 = (params[1] as ParamListItemIdentifier)?.text.toUpperCase();
-		const p2 = (params[2] as ParamListItemIdentifier)?.text.toUpperCase();
-
-		const validModes = ["DETAILED", "CONCISE"];
-		const validOutputs = ["ASNOTE", "CONSOLE"];
-
-		// param 1 can be mode or output
-		if (p1) {
-			if (validModes.includes(p1)) {
-				mode = p1 as "DETAILED" | "CONCISE";
-			} else if (validOutputs.includes(p1)) {
-				outputTarget = p1 as "ASNOTE" | "CONSOLE";
-			} else {
-				throw new Error("Invalid argument: must be a mode (DETAILED/CONCISE) or output (ASNOTE/CONSOLE).");
-			}
-		}
-
-		// param 2 can only be output, and only if param 1 was a mode
-		if (p2) {
-			if (validOutputs.includes(p2)) {
-				// if p1 was also an output, it's an error
-				if (validOutputs.includes(p1 ?? "")) {
-					throw new Error("Output target specified twice.");
-				}
-				outputTarget = p2 as "ASNOTE" | "CONSOLE";
-			} else {
-				throw new Error("Invalid third argument: must be an output target (ASNOTE/CONSOLE).");
-			}
-		}
-
-		const updatePanel = outputTarget === "ASNOTE";
+		const updatePanel = outputTarget === "asnote";
 		const text = await explainCode(source, mode, { updatePanel, progress });
 		if (!text) return "";
 
-		if (outputTarget === "CONSOLE") {
+		if (outputTarget === "console") {
 			return {
 				content: text,
 				format: "markdown",

@@ -10,7 +10,7 @@ const { jumpToAddress } = useAddressHistory("disassembly");
 export const setDisasmView = defineCommand({
 	description: "Set DisasmViewer to show<\u200baddress> or disasm a <\u200brange> to console",
 	paramDef: ["range|address", "name?"],
-	options: [{ name: "lowercase" }, { name: "test", value: { kind: "number", default: 0 } }] as const,
+	options: [{ name: "lowercase" }] as const,
 	group: "Viewers",
 	fn: async ({ vm, params, opts }) => {
 		const val = params[0];

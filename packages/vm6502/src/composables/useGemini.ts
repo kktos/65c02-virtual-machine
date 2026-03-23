@@ -96,7 +96,7 @@ export function useGemini() {
 
 	async function explainCode(
 		codeBlock: string,
-		mode: "DETAILED" | "CONCISE" = "CONCISE",
+		mode: "detailed" | "concise" = "concise",
 		options: { updatePanel?: boolean; progress?: Ref<number> } = {},
 	): Promise<string | null> {
 		const { updatePanel = true, progress } = options;
@@ -128,7 +128,7 @@ export function useGemini() {
 		}
 
 		const userQuery = (
-			mode === "DETAILED" ? EXPLAIN_CODE_USER_PROMPT_DETAILED : EXPLAIN_CODE_USER_PROMPT_CONCISE
+			mode === "detailed" ? EXPLAIN_CODE_USER_PROMPT_DETAILED : EXPLAIN_CODE_USER_PROMPT_CONCISE
 		).replaceAll("%%CODE%%", codeBlock);
 
 		const payload = {
