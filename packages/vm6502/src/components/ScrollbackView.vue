@@ -58,8 +58,16 @@ const handleCommandClick = (event: MouseEvent) => {
 	if (link) {
 		const href = link.getAttribute("href");
 		if (href && href.startsWith("command:")) {
+			const isCtrlPressed = event.ctrlKey;
+			const isShiftPressed = event.shiftKey;
+			const isAltPressed = event.altKey;
 			event.preventDefault();
-			const command = href.substring(8);
+			const command = href
+				.substring(8)
+				.replaceAll("%20", " ")
+				.replaceAll("@CTRL", isCtrlPressed ? "1" : "0")
+				.replaceAll("@SHIFT", isShiftPressed ? "1" : "0")
+				.replaceAll("@ALT", isAltPressed ? "1" : "0");
 			if (command) emit("onLink", command);
 		}
 	}
