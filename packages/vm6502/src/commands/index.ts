@@ -250,12 +250,14 @@ export const COMMANDDEF_LIST = {
 
 	SHOW: showCmd,
 	HIDE: hideCmd,
-} satisfies Record<string, CommandDef | string>;
+} satisfies Record<string, Command | CommandDef | string>;
 
 export let COMMAND_LIST: Record<string, Command> = {};
 
 for (const [k, v] of Object.entries(COMMANDDEF_LIST)) {
 	if (typeof v !== "object") continue;
+	if ("paramDef" in v && v.paramDef && typeof v.paramDef[0] !== "string") continue;
+
 	let paramDef: ParamDef[];
 	try {
 		paramDef = parseParamList((v as CommandDef).paramDef ?? []);

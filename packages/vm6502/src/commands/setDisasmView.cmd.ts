@@ -1,18 +1,18 @@
 import { useAddressHistory } from "@/composables/useAddressHistory";
-import { isParamListItemRange } from "@/composables/useCommands";
+import { defineCommand, isParamListItemRange } from "@/composables/useCommands";
 import { useDebuggerNav } from "@/composables/useDebuggerNav";
 import { disassembleRange, formatDisassemblyAsText } from "@/lib/disassembler";
 import { formatAddress } from "@/lib/hex.utils";
-import type { CommandContext, CommandDef, ParamListItemIdentifier } from "@/types/command";
 
 const { setActiveTab } = useDebuggerNav();
 const { jumpToAddress } = useAddressHistory("disassembly");
 
-export const setDisasmView: CommandDef = {
-	description: "Set disasm <address>, or disasm a <range> to console",
+export const setDisasmView = defineCommand({
+	description: "Set DisasmViewer to show<\u200baddress> or disasm a <\u200brange> to console",
 	paramDef: ["range|address", "name?"],
+	options: [{ name: "lowercase" }] as const,
 	group: "Viewers",
-	fn: async ({ vm, params }: CommandContext) => {
+	fn: async ({ vm, params, opts }) => {
 		const val = params[0];
 
 		if (typeof val === "number") {
@@ -21,24 +21,19 @@ export const setDisasmView: CommandDef = {
 			return `DisasmViewer address set to ${formatAddress(val)}`;
 		}
 
-		if (isParamListItemRange(val)) {
-			const { start, end } = val;
-			const readByte = (address: number, debug = true) => (debug ? vm.readDebug(address) : vm.read(address)) ?? 0;
+		if (!isParamListItemRange(val)) throw new Error("Invalid parameter type for disassembly command.");
 
-			const wantLowercase = params[1] as ParamListItemIdentifier;
+		const { start, end } = val;
+		const readByte = (address: number, debug = true) => (debug ? vm.readDebug(address) : vm.read(address)) ?? 0;
 
-			const lines = disassembleRange({
-				readByte,
-				scope: vm.getScope(start),
-				fromAddress: start,
-				toAddress: end,
-				//registers,
-				lowercase: "lowercase".startsWith(wantLowercase?.text.toLowerCase()),
-			});
-			const source = formatDisassemblyAsText(lines);
-			return source;
-		}
-
-		throw new Error("Invalid parameter type for disassembly command.");
+		const lines = disassembleRange({
+			readByte,
+			scope: vm.getScope(start),
+			fromAddress: start,
+			toAddress: end,
+			lowercase: opts.lowercase,
+		});
+		const source = formatDisassemblyAsText(lines);
+		return source;
 	},
-};
+});

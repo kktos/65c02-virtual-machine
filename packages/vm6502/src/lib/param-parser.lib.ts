@@ -1,22 +1,7 @@
 import type { ParamType, Quantifier, SingleParamDef, RestParamDef, ParamDef, ParamDefList } from "@/types/params";
 
-const PARAM_TYPES = new Set<ParamType>([
-	"byte",
-	"wbyte",
-	"word",
-	"number",
-	"address",
-	"range",
-	"string",
-	"bool",
-	"regex",
-	"name",
-	"rest",
-]);
-
-const QUANTIFIERS = new Set(["?", "*", "+"]);
-
 function parseQuantifier(raw: string): { type: string; qty: Quantifier } {
+	const QUANTIFIERS = new Set(["?", "*", "+"]);
 	const last = raw[raw.length - 1];
 	if (QUANTIFIERS.has(last)) {
 		return { type: raw.slice(0, -1), qty: last as Quantifier };
@@ -25,6 +10,20 @@ function parseQuantifier(raw: string): { type: string; qty: Quantifier } {
 }
 
 function parseSingleOrRest(raw: string): SingleParamDef | RestParamDef {
+	const PARAM_TYPES = new Set<ParamType>([
+		"byte",
+		"wbyte",
+		"word",
+		"number",
+		"address",
+		"range",
+		"string",
+		"bool",
+		"regex",
+		"name",
+		"rest",
+	]);
+
 	const { type, qty } = parseQuantifier(raw);
 
 	if (!PARAM_TYPES.has(type as ParamType)) throw new Error(`Unknown param type: "${type}"`);

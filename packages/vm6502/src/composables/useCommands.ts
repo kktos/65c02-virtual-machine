@@ -21,9 +21,13 @@ import type {
 	ParamListItemIdentifier,
 	CommandSegment,
 	ParamListItemRange,
+	CommandContext,
+	CommandResult,
 } from "@/types/command";
 import type { ParamDef } from "@/types/params";
 import { useCmdConsole } from "./useCmdConsole";
+import { parseParamList } from "@/lib/param-parser.lib";
+import type { OptionItemDef } from "@/types/options";
 
 const HISTORY_MAX_SIZE = 50;
 const LS_KEY_HISTORY = "vm6502-console-history";
@@ -78,6 +82,24 @@ export function isParamListItemRange(r: unknown): r is ParamListItemRange {
 	return typeof r === "object" && r !== null && "start" in r && "end" in r;
 }
 
+export function defineCommand<O extends readonly OptionItemDef[]>(def: {
+	description: string;
+	group: string;
+	paramDef?: string[];
+	options?: O;
+	fn: (context: CommandContext<O>) => Promise<CommandResult> | CommandResult;
+	closeOnSuccess?: boolean;
+	staticParams?: {
+		prepend?: (string | number)[];
+		append?: (string | number)[];
+	};
+}): Command<O> {
+	return {
+		...def,
+		paramDef: def.paramDef ? parseParamList(def.paramDef) : undefined,
+	} as Command<O>;
+}
+
 function parseUserCommand(cmdParser: ExpressionParser) {
 	const userParams: ParamList = [];
 	let paramIndex = 0;
@@ -85,6 +107,9 @@ function parseUserCommand(cmdParser: ExpressionParser) {
 	let isValidCmd = false;
 	const tok = cmdParser.peek();
 
+	//
+	// do <routine> | & <routine>
+	//
 	if (cmdParser.match(TokenType.AND)) {
 		const nextTok = cmdParser.peek();
 		cmd = "DO";
@@ -92,15 +117,17 @@ function parseUserCommand(cmdParser: ExpressionParser) {
 		userParams.push(nextTok.text);
 		isValidCmd = true;
 	} else if (cmdParser.match(TokenType.IDENTIFIER)) {
+		//
+		// <dest> = <value> => SET <dest> <value>
+		//
 		const nextTok = cmdParser.peek();
 		if (nextTok?.type === TokenType.ASSIGN) {
 			cmd = "SET";
 			paramIndex = 1;
 			userParams.push(tok.text);
 			cmdParser.consume();
-		} else {
-			cmd = tok.text.toUpperCase() as COMMANDS;
-		}
+		} else cmd = tok.text.toUpperCase() as COMMANDS;
+
 		isValidCmd = !!COMMAND_LIST[cmd];
 	}
 
@@ -544,6 +571,7 @@ async function executeSubQueue(
 					vm,
 					progress,
 					params: finalParams,
+					opts: {},
 					isPiped: isPiped || (chain.length > 1 && !isLastInChain),
 				});
 

@@ -2,6 +2,7 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import type { Ref } from "vue";
 import type { Token } from "../lib/expressionParser";
 import type { ParamDef } from "@/types/params";
+import type { OptionItemDef, ResolveOptions } from "@/types/options";
 
 export type CommandOutput = {
 	content: string;
@@ -32,18 +33,22 @@ export type MultiLineRequest = {
 	onLine: (line: string, index: number) => ResultOnLineFn;
 };
 
-export interface CommandContext {
+// ─── Context ──────────────────────────────────────────────────────────────────
+export type CommandContext<O extends readonly OptionItemDef[] = []> = {
 	vm: VirtualMachine;
 	progress: Ref<number>;
 	params: ParamList;
+	opts: ResolveOptions<O>;
 	isPiped: boolean;
-}
+};
 
-export type Command = {
+// ─── Command types ────────────────────────────────────────────────────────────
+export type Command<O extends readonly OptionItemDef[] = readonly OptionItemDef[]> = {
 	description: string;
 	paramDef?: ParamDef[];
+	options?: O;
 	group: string;
-	fn: (context: CommandContext) => Promise<CommandResult> | CommandResult;
+	fn: (context: CommandContext<O>) => Promise<CommandResult> | CommandResult;
 	closeOnSuccess?: boolean;
 	staticParams?: {
 		prepend?: (string | number)[];
@@ -51,6 +56,15 @@ export type Command = {
 	};
 };
 
-export type CommandDef = Omit<Command, "paramDef"> & {
+export type CommandDef<O extends readonly OptionItemDef[] = readonly OptionItemDef[]> = {
+	description: string;
 	paramDef?: string[];
+	options?: O;
+	group: string;
+	fn: (context: CommandContext<O>) => Promise<CommandResult> | CommandResult;
+	closeOnSuccess?: boolean;
+	staticParams?: {
+		prepend?: (string | number)[];
+		append?: (string | number)[];
+	};
 };
