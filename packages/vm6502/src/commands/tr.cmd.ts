@@ -1,6 +1,7 @@
-import type { CommandDef, ParamListItemIdentifier } from "@/types/command";
+import { defineCommand } from "@/composables/useCommands";
+import type { ParamListItemIdentifier } from "@/types/command";
 
-export const transformCmd: CommandDef = {
+export const transformCmd = defineCommand({
 	description: "Tranform a stream. Usage: `content_producer` |> TR type",
 	paramDef: ["name", "string"],
 	group: "Streams",
@@ -17,7 +18,7 @@ export const transformCmd: CommandDef = {
 				throw new Error("Uknown transform type");
 		}
 	},
-};
+});
 
 function convertToText(content: string): string {
 	return content

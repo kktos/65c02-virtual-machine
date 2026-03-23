@@ -1,10 +1,11 @@
+import { defineCommand } from "@/composables/useCommands";
 import { useSymbols } from "@/composables/useSymbols";
 import { formatAddress } from "@/lib/hex.utils";
-import type { CommandContext, CommandDef, CommandResult, ParamListItemIdentifier } from "@/types/command";
+import type { CommandContext, CommandResult, ParamListItemIdentifier } from "@/types/command";
 
 const HEADER = `| Address | Namespace | Scope | Label | Disk |\n|---|---|---|---|---|`;
 
-export const findLabelCmd: CommandDef = {
+export const findLabelCmd = defineCommand({
 	description: "Find labels matching a query (address or label). Params: <query> [namespace?]",
 	paramDef: ["name", "name?"],
 	group: "Symbols",
@@ -36,4 +37,4 @@ export const findLabelCmd: CommandDef = {
 			format: "markdown",
 		};
 	},
-};
+});

@@ -1,8 +1,9 @@
+import { defineCommand } from "@/composables/useCommands";
 import { useSymbols } from "@/composables/useSymbols";
 import { formatAddress } from "@/lib/hex.utils";
-import type { CommandContext, CommandDef, ParamListItemIdentifier } from "@/types/command";
+import type { CommandContext, ParamListItemIdentifier } from "@/types/command";
 
-export const defLabel: CommandDef = {
+export const defLabel = defineCommand({
 	description: "Define a label <label> at <address> [scope?]",
 	paramDef: ["name", "address", "name?"],
 	group: "Symbols",
@@ -32,4 +33,4 @@ export const defLabel: CommandDef = {
 
 		return `Label '${label}' defined at ${formatAddress(address)} in scope '${scope}'.`;
 	},
-};
+});

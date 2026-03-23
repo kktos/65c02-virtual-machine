@@ -1,9 +1,10 @@
+import { defineCommand } from "@/composables/useCommands";
 import { useSymbols } from "@/composables/useSymbols";
-import type { CommandContext, CommandDef, ParamListItemIdentifier } from "@/types/command";
+import type { CommandContext, ParamListItemIdentifier } from "@/types/command";
 
 const { addManySymbols } = useSymbols();
 
-export const labelsCmd: CommandDef = {
+export const labelsCmd = defineCommand({
 	description: "Define multiple labels. Usage: LABELS <namespace> [<scope>] ... END",
 	paramDef: ["name", "name?"],
 	group: "Symbols",
@@ -39,4 +40,4 @@ export const labelsCmd: CommandDef = {
 			},
 		};
 	},
-};
+});

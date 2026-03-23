@@ -1,5 +1,6 @@
+import { defineCommand } from "@/composables/useCommands";
 import { toHex } from "@/lib/hex.utils";
-import type { CommandContext, CommandDef } from "@/types/command";
+import type { CommandContext } from "@/types/command";
 import {
 	REG_A_OFFSET,
 	REG_PC_OFFSET,
@@ -25,7 +26,7 @@ const WORD_REGISTERS = {
 	PC: REG_PC_OFFSET,
 } as const;
 
-export const setCmd: CommandDef = {
+export const setCmd = defineCommand({
 	description: "Set register `name` value to `byte` or `word`",
 	paramDef: ["name", "byte|word"],
 	group: "Monitor",
@@ -48,4 +49,4 @@ export const setCmd: CommandDef = {
 
 		throw new Error(`Invalid register: ${reg}`);
 	},
-};
+});

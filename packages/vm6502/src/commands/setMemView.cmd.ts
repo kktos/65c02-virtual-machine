@@ -1,9 +1,10 @@
+import { defineCommand } from "@/composables/useCommands";
 import { useDebuggerNav } from "@/composables/useDebuggerNav";
 import { useMemView } from "@/composables/useMemView";
 import { formatAddress, toHex } from "@/lib/hex.utils";
-import type { CommandContext, CommandDef } from "@/types/command";
+import type { CommandContext } from "@/types/command";
 
-export const setMemView: CommandDef = {
+export const setMemView = defineCommand({
 	description: "set MemViewer [index number] <address>",
 	paramDef: ["address", "byte?"],
 	group: "Viewers",
@@ -28,6 +29,6 @@ export const setMemView: CommandDef = {
 
 		return `Active MemViewer address set to ${formatAddress(address)}`;
 	},
-};
+});
 
 export const setMemViewFn = setMemView.fn;

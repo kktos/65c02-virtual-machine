@@ -1,7 +1,8 @@
+import { defineCommand } from "@/composables/useCommands";
 import { useLogWindows } from "@/composables/useLogWindows";
-import type { CommandContext, CommandDef, ParamListItemIdentifier } from "@/types/command";
+import type { CommandContext, ParamListItemIdentifier } from "@/types/command";
 
-export const logCmd: CommandDef = {
+export const logCmd = defineCommand({
 	description:
 		"Interact with log windows. Usage: log <name> [open|close|clear] | <args...>. Args can be strings, numbers, or expressions (e.g. A, X+1, mem[PC]).",
 	paramDef: ["name", "name?", "rest"],
@@ -44,4 +45,4 @@ export const logCmd: CommandDef = {
 
 		return "";
 	},
-};
+});

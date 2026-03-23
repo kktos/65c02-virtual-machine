@@ -1,7 +1,8 @@
-import type { CommandContext, CommandDef } from "@/types/command";
+import { defineCommand } from "@/composables/useCommands";
+import type { CommandContext } from "@/types/command";
 import { REG_PC_OFFSET } from "@/virtualmachine/cpu/shared-memory";
 
-export const run: CommandDef = {
+export const run = defineCommand({
 	description: "Run the vm at PC or <address>",
 	paramDef: ["word?"],
 	closeOnSuccess: true,
@@ -12,4 +13,4 @@ export const run: CommandDef = {
 		vm.play();
 		return `Run the vm`;
 	},
-};
+});

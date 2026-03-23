@@ -1,8 +1,9 @@
+import { defineCommand } from "@/composables/useCommands";
 import { generateLabels } from "@/lib/disassembler";
 import { formatAddress } from "@/lib/hex.utils";
-import type { CommandContext, CommandDef, ParamListItemIdentifier } from "@/types/command";
+import type { CommandContext, ParamListItemIdentifier } from "@/types/command";
 
-export const glCmd: CommandDef = {
+export const glCmd = defineCommand({
 	description: "Generate labels for a memory `range` with optional memory `scope`",
 	paramDef: ["range", "name?"],
 	group: "Symbols",
@@ -23,4 +24,4 @@ export const glCmd: CommandDef = {
 		);
 		return `Labels generated for $${formatAddress(from)}-$${formatAddress(to)} ('${scope}')`;
 	},
-};
+});

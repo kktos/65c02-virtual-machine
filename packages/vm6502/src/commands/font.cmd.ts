@@ -1,10 +1,11 @@
+import { defineCommand } from "@/composables/useCommands";
 import { useConsoleSettings } from "@/composables/useConsoleSettings";
 import { toHex } from "@/lib/hex.utils";
-import type { CommandContext, CommandDef } from "@/types/command";
+import type { CommandContext } from "@/types/command";
 
 const { fontFamily, fontSize, fontColor, MIN_SIZE, MAX_SIZE } = useConsoleSettings();
 
-export const font: CommandDef = {
+export const font = defineCommand({
 	description: 'Set console font properties. Usage: font [name] [size] [color]. Ex: font "arial", 14, $FF0000',
 	paramDef: ["rest"],
 	group: "Console",
@@ -28,4 +29,4 @@ export const font: CommandDef = {
 
 		return `Font set to: '${fontFamily.value}', ${fontSize.value}px, ${fontColor.value}`;
 	},
-};
+});

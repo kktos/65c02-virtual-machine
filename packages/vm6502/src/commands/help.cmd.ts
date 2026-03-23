@@ -1,29 +1,34 @@
-import { isParamListItemIdentifier } from "@/composables/useCommands";
-import type { CommandContext, CommandDef, CommandResult } from "@/types/command";
+import { defineCommand, isParamListItemIdentifier } from "@/composables/useCommands";
+import type { Command, CommandDef } from "@/types/command";
 import { COMMANDDEF_LIST } from ".";
 
 function typedKeys<T extends object>(obj: T): (keyof T)[] {
 	return Object.keys(obj) as (keyof T)[];
 }
 
-export const cmdHelp: CommandDef = {
+export const cmdHelp = defineCommand({
 	description:
 		"Lists all available commands.\n" +
 		"Can search for a command (HELP search).\n" +
-		"Can be filtered by group name (HELP g cons).",
-	paramDef: ["name?|string?", "name?|string?"],
+		"Can be filtered by group name (HELP --group cons).",
+	paramDef: ["name?|string?"],
+	options: [{ name: "group" }] as const,
 	group: "Console",
-	fn: ({ params }: CommandContext): CommandResult => {
-		const groups: Record<string, { key: string; cmd: CommandDef; aliases: string[] }[]> = {};
+	fn: ({ params, opts }) => {
+		const groups: Record<string, { key: string; cmd: Command | CommandDef; aliases: string[] }[]> = {};
 		const commandAliases: Record<string, string[]> = {};
 
 		let groupFilter: string | undefined;
 		let cmdFilter: string | undefined;
+		let output = "";
 
-		if (params.length > 1) {
-			groupFilter = (isParamListItemIdentifier(params[1]) ? params[1].text : (params[1] as string)).toUpperCase();
-		} else cmdFilter = isParamListItemIdentifier(params[0]) ? params[0].text : (params[0] as string);
-		if (cmdFilter) cmdFilter = cmdFilter.toUpperCase();
+		const parm = (
+			isParamListItemIdentifier(params[0]) ? params[0].text : ((params[0] ?? "") as string)
+		).toUpperCase();
+
+		if (opts.group) {
+			groupFilter = parm;
+		} else cmdFilter = parm;
 
 		// First pass: find all aliases and the commands they refer to.
 		typedKeys(COMMANDDEF_LIST).forEach((key) => {
@@ -49,8 +54,6 @@ export const cmdHelp: CommandDef = {
 				groups[groupName]!.push({ key, cmd, aliases });
 			});
 
-		let output = "";
-
 		let sortedGroupNames = Object.keys(groups).sort();
 		if (groupFilter)
 			sortedGroupNames = sortedGroupNames.filter((name) => name.toUpperCase().startsWith(groupFilter));
@@ -67,9 +70,10 @@ export const cmdHelp: CommandDef = {
 			const commandHelp = commandsInGroup
 				.map(({ key, cmd, aliases }) => {
 					const allNames = [key, ...aliases].sort().join(", ");
-					const params = cmd.paramDef?.map((p) => `${p.replaceAll("|", "\\|")}`).join(" ") || "";
+					const params = ("params" in cmd ? cmd.params : cmd.paramDef) as string[];
+					const allParams = params?.map((p) => `${p.replaceAll("|", "\\|")}`).join(" ") || "";
 					const description = cmd.description?.replaceAll("|", "\\|").replace(/\n/g, "<br/>") || "";
-					return `| ${allNames} | ${params} | ${description} |`;
+					return `| ${allNames} | ${allParams} | ${description} |`;
 				})
 				.join("\n");
 			output += commandHelp;
@@ -77,4 +81,4 @@ export const cmdHelp: CommandDef = {
 
 		return { content: output, format: "markdown" };
 	},
-};
+});

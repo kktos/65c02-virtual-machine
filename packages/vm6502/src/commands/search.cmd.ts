@@ -1,7 +1,8 @@
+import { defineCommand } from "@/composables/useCommands";
 import { formatAddress, hexDump, toHex } from "@/lib/hex.utils";
-import type { CommandContext, CommandDef, CommandResult } from "@/types/command";
+import type { CommandContext, CommandResult } from "@/types/command";
 
-export const searchCmd: CommandDef = {
+export const searchCmd = defineCommand({
 	description:
 		"Search memory.\n" +
 		'Usage: SEARCH [start:end] <"string" | hex bytes>\n' +
@@ -110,4 +111,4 @@ export const searchCmd: CommandDef = {
 
 		return { content: `${output}\n${resultText}`, format: "markdown" };
 	},
-};
+});

@@ -1,6 +1,6 @@
-import type { CommandDef } from "@/types/command";
+import { defineCommand } from "@/composables/useCommands";
 
-export const sedCmd: CommandDef = {
+export const sedCmd = defineCommand({
 	description: "Stream editor. Usage: `content` |> SED `pattern` `replacement`",
 	paramDef: ["regex", "string", "string"],
 	group: "Streams",
@@ -15,4 +15,4 @@ export const sedCmd: CommandDef = {
 			throw new Error(`Invalid regex: ${e.message}`);
 		}
 	},
-};
+});

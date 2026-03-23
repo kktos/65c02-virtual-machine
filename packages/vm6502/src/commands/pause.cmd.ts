@@ -1,6 +1,7 @@
-import type { CommandContext, CommandDef } from "@/types/command";
+import { defineCommand } from "@/composables/useCommands";
+import type { CommandContext } from "@/types/command";
 
-export const pause: CommandDef = {
+export const pause = defineCommand({
 	description: "Pause the vm",
 	paramDef: [],
 	group: "Execution",
@@ -8,4 +9,4 @@ export const pause: CommandDef = {
 		vm.pause();
 		return `Pause the vm`;
 	},
-};
+});

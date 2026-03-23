@@ -1,6 +1,6 @@
-import type { CommandDef } from "@/types/command";
+import { defineCommand } from "@/composables/useCommands";
 
-export const writeCommand: CommandDef = {
+export const writeCommand = defineCommand({
 	description: "Save content to a file. Usage: `content_producer` |> WRITE `filename`",
 	// First string is filename, second is content (usually piped)
 	paramDef: ["string", "string"],
@@ -30,4 +30,4 @@ export const writeCommand: CommandDef = {
 			return `Error saving file: ${e.message}`;
 		}
 	},
-};
+});

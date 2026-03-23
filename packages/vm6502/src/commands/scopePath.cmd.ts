@@ -1,9 +1,10 @@
+import { defineCommand } from "@/composables/useCommands";
 import { useSymbols } from "@/composables/useSymbols";
-import type { CommandContext, CommandDef, CommandResult } from "@/types/command";
+import type { CommandContext, CommandResult } from "@/types/command";
 
 const { setScopeSearchPath, scopeSearchPath } = useSymbols();
 
-export const scopePathCmd: CommandDef = {
+export const scopePathCmd = defineCommand({
 	description: "Get or set the scope search path. Usage: SCOPEPATH [scope1 scope2 ...]",
 	paramDef: ["string*"],
 	group: "Symbols",
@@ -26,4 +27,4 @@ export const scopePathCmd: CommandDef = {
 			format: "text",
 		};
 	},
-};
+});

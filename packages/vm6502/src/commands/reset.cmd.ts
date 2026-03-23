@@ -1,6 +1,7 @@
-import type { CommandContext, CommandDef } from "@/types/command";
+import { defineCommand } from "@/composables/useCommands";
+import type { CommandContext } from "@/types/command";
 
-export const reset: CommandDef = {
+export const reset = defineCommand({
 	description: "Reset the vm",
 	paramDef: [],
 	group: "Execution",
@@ -8,4 +9,4 @@ export const reset: CommandDef = {
 		vm.reset();
 		return `Reset the vm`;
 	},
-};
+});

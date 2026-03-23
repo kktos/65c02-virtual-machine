@@ -1,9 +1,10 @@
 import { useBreakpoints } from "@/composables/useBreakpoints";
+import { defineCommand } from "@/composables/useCommands";
 import { formatAddress } from "@/lib/hex.utils";
 import type { Breakpoint } from "@/types/breakpoint.interface";
-import type { CommandContext, CommandDef, ParamListItemIdentifier } from "@/types/command";
+import type { CommandContext, ParamListItemIdentifier } from "@/types/command";
 
-export const hook: CommandDef = {
+export const hook = defineCommand({
 	description: "Set a command to execute when a breakpoint is hit. Usage: HOOK <type> <address> do <command>",
 	paramDef: ["name", "address", "rest"],
 	group: "Breakpoints",
@@ -28,4 +29,4 @@ export const hook: CommandDef = {
 
 		return `Hook set on ${type.toUpperCase()} @ ${formatAddress(address)}`;
 	},
-};
+});

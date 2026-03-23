@@ -41,7 +41,6 @@ import { hexDumpCmd } from "./hexdump.cmd";
 import { xrefCmd } from "./xref.cmd";
 import type { Command, CommandDef } from "@/types/command";
 import { parseParamList } from "@/lib/param-parser.lib";
-import type { ParamDef } from "@/types/params";
 
 function d(g: string, d: string, p?: string[]) {
 	return {
@@ -256,18 +255,21 @@ export let COMMAND_LIST: Record<string, Command> = {};
 
 for (const [k, v] of Object.entries(COMMANDDEF_LIST)) {
 	if (typeof v !== "object") continue;
-	if ("paramDef" in v && v.paramDef && typeof v.paramDef[0] !== "string") continue;
-
-	let paramDef: ParamDef[];
+	if ("paramDef" in v && v.paramDef && typeof v.paramDef[0] !== "string") {
+		COMMAND_LIST[k] = v as Command;
+		continue;
+	}
 	try {
-		paramDef = parseParamList((v as CommandDef).paramDef ?? []);
+		const allParams = (v as CommandDef).paramDef ?? [];
+		COMMAND_LIST[k] = { ...v, paramDef: parseParamList(allParams), params: allParams };
 	} catch (e) {
 		throw new Error(`Parsing parameters for command '${k}' failed: ${e}`);
 	}
-	COMMAND_LIST[k] = { ...v, paramDef };
 }
 for (const [k, v] of Object.entries(COMMANDDEF_LIST)) {
 	if (typeof v !== "string") continue;
 	if (typeof COMMAND_LIST[v] !== "object" || !COMMAND_LIST[v]) throw new Error(`No command found for alias '${v}'.`);
 	COMMAND_LIST[k] = COMMAND_LIST[v];
 }
+
+// console.log("COMMAND_LIST", COMMAND_LIST);

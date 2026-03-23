@@ -1,10 +1,10 @@
-import { isParamListItemIdentifier } from "@/composables/useCommands";
-import type { CommandContext, CommandDef } from "@/types/command";
+import { defineCommand, isParamListItemIdentifier } from "@/composables/useCommands";
+import type { CommandContext } from "@/types/command";
 
 // Internal storage for named buffers
 const buffers = new Map<string, string[]>();
 
-export const bufCmd: CommandDef = {
+export const bufCmd = defineCommand({
 	description:
 		"Manage named text buffers.\n" +
 		"Usage: BUF ; list all buffers\n" +
@@ -56,4 +56,4 @@ export const bufCmd: CommandDef = {
 				throw new Error(`Unknown subcommand '${subcmd}'. Expected: PUSH, FLUSH, CLEAR.`);
 		}
 	},
-};
+});

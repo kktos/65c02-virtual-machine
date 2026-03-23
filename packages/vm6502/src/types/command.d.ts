@@ -46,6 +46,7 @@ export type CommandContext<O extends readonly OptionItemDef[] = []> = {
 export type Command<O extends readonly OptionItemDef[] = readonly OptionItemDef[]> = {
 	description: string;
 	paramDef?: ParamDef[];
+	params?: string[];
 	options?: O;
 	group: string;
 	fn: (context: CommandContext<O>) => Promise<CommandResult> | CommandResult;

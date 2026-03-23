@@ -1,7 +1,7 @@
+import { defineCommand } from "@/composables/useCommands";
 import { useMachine } from "@/composables/useMachine";
-import type { CommandDef } from "@/types/command";
 
-export const reboot: CommandDef = {
+export const reboot = defineCommand({
 	description: "Reboot the vm",
 	paramDef: [],
 	group: "Execution",
@@ -10,4 +10,4 @@ export const reboot: CommandDef = {
 		loadMachine();
 		return `Rebooted the vm`;
 	},
-};
+});

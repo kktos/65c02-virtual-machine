@@ -1,9 +1,10 @@
+import { defineCommand } from "@/composables/useCommands";
 import { useGemini } from "@/composables/useGemini";
 import { useMachine } from "@/composables/useMachine";
 import { disassembleRange, formatDisassemblyAsText } from "@/lib/disassembler";
-import type { CommandContext, CommandDef, CommandResult, ParamListItemIdentifier } from "@/types/command";
+import type { CommandContext, CommandResult, ParamListItemIdentifier } from "@/types/command";
 
-export const explainCmd: CommandDef = {
+export const explainCmd = defineCommand({
 	description:
 		"explain code from <range> [mode?] [output?]. Mode can be CONCISE (default) or DETAILED. Output can be CONSOLE (default) or ASNOTE (to create a Note).",
 	paramDef: ["range", "name?", "name?"],
@@ -70,4 +71,4 @@ export const explainCmd: CommandDef = {
 
 		return "Explanation panel updated.";
 	},
-};
+});

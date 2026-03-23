@@ -1,7 +1,8 @@
+import { defineCommand } from "@/composables/useCommands";
 import { runHexDump } from "@/lib/mini-monitor";
-import type { CommandContext, CommandDef } from "@/types/command";
+import type { CommandContext } from "@/types/command";
 
-export const hexDumpCmd: CommandDef = {
+export const hexDumpCmd = defineCommand({
 	description: "Displays a hex dump of a memory range. Usage: HD <\u200bfrom> <\u200bto>",
 	paramDef: ["address", "address"],
 	group: "Memory",
@@ -12,4 +13,4 @@ export const hexDumpCmd: CommandDef = {
 		to = Math.max(from, to);
 		return runHexDump(from, to, vm);
 	},
-};
+});

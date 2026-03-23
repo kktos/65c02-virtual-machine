@@ -1,8 +1,9 @@
+import { defineCommand } from "@/composables/useCommands";
 import { useSymbols } from "@/composables/useSymbols";
 import { formatAddress } from "@/lib/hex.utils";
-import type { CommandContext, CommandDef, ParamListItemIdentifier } from "@/types/command";
+import type { CommandContext, ParamListItemIdentifier } from "@/types/command";
 
-export const renLabel: CommandDef = {
+export const renLabel = defineCommand({
 	description: "Rename a user-defined label. Params: <old_label> <new_label> [scope?]",
 	paramDef: ["name", "name", "name?"],
 	group: "Symbols",
@@ -40,4 +41,4 @@ export const renLabel: CommandDef = {
 
 		return `Label '${oldLabel.text}' at $${formatAddress(originalAddress)} renamed to '${newLabel.text}'.`;
 	},
-};
+});

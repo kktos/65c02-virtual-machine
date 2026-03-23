@@ -1,6 +1,7 @@
-import type { CommandContext, CommandDef } from "@/types/command";
+import { defineCommand } from "@/composables/useCommands";
+import type { CommandContext } from "@/types/command";
 
-export const stepCmd: CommandDef = {
+export const stepCmd = defineCommand({
 	description: "Step Instruction",
 	group: "Execution",
 	fn: ({ vm }: CommandContext) => {
@@ -9,4 +10,4 @@ export const stepCmd: CommandDef = {
 		vm.step();
 		return `One step beyond`;
 	},
-};
+});

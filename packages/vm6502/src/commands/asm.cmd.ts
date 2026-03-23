@@ -1,12 +1,12 @@
 import { assemble } from "@/lib/mini-assembler";
 import { useSymbols } from "@/composables/useSymbols";
-import type { CommandContext, CommandDef, CommandResult, ResultOnLinePayload } from "@/types/command";
+import type { CommandContext, CommandResult, ResultOnLinePayload } from "@/types/command";
 import { toHex } from "@/lib/hex.utils";
-import { isParamListItemIdentifier } from "@/composables/useCommands";
+import { defineCommand, isParamListItemIdentifier } from "@/composables/useCommands";
 
 const { getAddressForLabel, addSymbol } = useSymbols();
 
-export const asmCmd: CommandDef = {
+export const asmCmd = defineCommand({
 	description: "Start mini-assembler at `address`. if `show` is specified, displays the assembled bytes.",
 	paramDef: ["address", "name?"],
 	group: "Assembler",
@@ -65,4 +65,4 @@ export const asmCmd: CommandDef = {
 			},
 		};
 	},
-};
+});

@@ -1,7 +1,8 @@
+import { defineCommand } from "@/composables/useCommands";
 import { useRoutines } from "@/composables/useRoutines";
-import type { CommandContext, CommandDef, ParamListItemIdentifier } from "@/types/command";
+import type { CommandContext, ParamListItemIdentifier } from "@/types/command";
 
-export const routineCmd: CommandDef = {
+export const routineCmd = defineCommand({
 	description: "Define a routine on multiple lines, ended by END.",
 	paramDef: ["name", "rest"],
 	group: "Scripting",
@@ -29,4 +30,4 @@ export const routineCmd: CommandDef = {
 			},
 		};
 	},
-};
+});
