@@ -18,8 +18,6 @@ import type {
 	CommandOutput,
 	ParamList,
 	Command,
-	ParamDef,
-	ParamListItem,
 	ParamListItemIdentifier,
 	CommandSegment,
 	ParamListItemRange,
@@ -108,133 +106,133 @@ function parseUserCommand(cmdParser: ExpressionParser) {
 	return { cmd, paramIndex, userParams, isValidCmd };
 }
 
+function matchesType(value: any, allowedTypes: string[]): boolean {
+	for (const type of allowedTypes) {
+		if (type === "rest") return true;
+		if (value === null && type === "wbyte") return true;
+		if (typeof value === "string") {
+			if (type === "string") return true;
+			if (type === "at" && value.startsWith("@")) return true;
+		}
+		if (typeof value === "number") {
+			if (type === "number" || type === "float") return true;
+			if (type === "byte" || type === "wbyte") {
+				if (value >= 0 && value <= 0xff) return true;
+			}
+			if (type === "word" || type === "address") {
+				if (value >= 0 && value <= 0xffff) return true;
+			}
+		}
+		if (typeof value === "object") {
+			if ("start" in value && type === "range") return true;
+			if ("text" in value && type === "name") return true;
+			if (value instanceof RegExp && type === "regex") return true;
+		}
+	}
+	return false;
+}
+
+function tryParseToken(parser: ExpressionParser, allowedTypes: string[]): { matched: boolean; value?: any } {
+	const startPos = parser.pos;
+	const token = parser.peek();
+
+	if (token.type === TokenType.EOF) return { matched: false };
+
+	// 1. Special Handling: wbyte wildcard (??)
+	if (token.type === TokenType.DOUBLE_QUESTION && allowedTypes.includes("wbyte")) {
+		parser.consume();
+		return { matched: true, value: null };
+	}
+
+	// 2. Special Handling: range (strict start:end)
+	if (allowedTypes.includes("range") && token.type === TokenType.INTEGER) {
+		try {
+			const s = parser.parse();
+			if (parser.match(TokenType.COLON)) {
+				const e = parser.parse();
+				if (s.type === TokenType.INTEGER && e.type === TokenType.INTEGER) {
+					const start = s.value as number;
+					const end = e.value as number;
+					return { matched: true, value: { start: Math.min(start, end), end: Math.max(start, end) } };
+				}
+			}
+		} catch {}
+		parser.pos = startPos; // Backtrack
+	}
+
+	// 3. General Parsing
+	try {
+		const res = parser.parse();
+		let val: any = res.value;
+
+		if (res.type === TokenType.IDENTIFIER && allowedTypes.includes("name")) {
+			val = { text: res.raw, value: res.value };
+		} else if (res.type === TokenType.AT) {
+			val = res.raw;
+		}
+
+		if (matchesType(val, allowedTypes)) return { matched: true, value: val };
+	} catch {}
+
+	parser.pos = startPos;
+	return { matched: false };
+}
+
 function parseCommandParams(
 	cmdParser: ExpressionParser,
 	cmd: COMMANDS,
-	paramIndex: number,
+	startParamIndex: number,
 	userParams: ParamList,
 	cmdSpec: Command,
 	injectedValue?: any,
 ) {
 	const paramDef = cmdSpec.paramDef;
-	const hasRestParam = paramDef?.at(-1)?.startsWith("rest");
-	const paramCount = paramDef?.length ?? 0;
-	const minParamCount = paramDef?.filter((p) => !p.endsWith("?")).length ?? 0;
+	const paramDefs = paramDef || [];
 
-	while (!cmdParser.eof()) {
-		if (!hasRestParam && paramIndex >= paramCount)
-			throw new Error(`Too many parameters for command "${cmd}". Max is ${paramCount}. Got ${paramIndex - 1}.`);
+	let defIndex = startParamIndex;
+	let injectedConsumed = false;
 
-		let paramDefStr = paramDef?.[paramIndex] ?? "rest";
-		const isOptional = paramDefStr.endsWith("?");
-		if (isOptional) paramDefStr = paramDefStr.slice(0, -1) as ParamDef;
-		const allowedTypes = paramDefStr.split("|");
+	while (defIndex < paramDefs.length) {
+		const def = paramDefs[defIndex];
+		const isOptional = def.endsWith("?") || def.endsWith("*");
+		const isVariadic = def.endsWith("*") || def.endsWith("+");
+		const cleanDef = def.replace(/[?*+]$/, "");
+		const allowedTypes = cleanDef.split("|");
 
-		const paramValue = cmdParser.parse();
-		cmdParser.match(TokenType.COMMA);
-		paramIndex++;
+		let matchesForThisDef = 0;
 
-		let parsedValue: ParamListItem;
-		switch (paramValue.type) {
-			case TokenType.STRING:
-				if (!(hasRestParam || allowedTypes.includes("string")))
-					throw new Error(`Expected a [${allowedTypes.join(" or ")}].`);
-				parsedValue = paramValue.value;
-				break;
-			case TokenType.AT:
-				parsedValue = paramValue.raw;
-				break;
-			case TokenType.REGEX:
-				parsedValue = paramValue.value;
-				break;
-			case TokenType.IDENTIFIER:
-				if (allowedTypes.includes("name")) {
-					parsedValue = { text: paramValue.raw, value: paramValue.value as number };
-					break;
-				}
-				if (
-					!(
-						hasRestParam ||
-						allowedTypes.includes("byte") ||
-						allowedTypes.includes("word") ||
-						allowedTypes.includes("address")
-					)
-				)
-					throw new Error(`Expected a [${allowedTypes.join(" or ")}].`);
-				parsedValue = paramValue.value as number;
-				break;
-			case TokenType.FLOAT:
-				if (!(hasRestParam || allowedTypes.includes("number")))
-					throw new Error(`Expected a [${allowedTypes.join(" or ")}].`);
-				parsedValue = paramValue.value;
-				break;
-			case TokenType.INTEGER:
-				if (
-					!(
-						hasRestParam ||
-						allowedTypes.includes("byte") ||
-						allowedTypes.includes("word") ||
-						allowedTypes.includes("range") ||
-						allowedTypes.includes("address")
-					)
-				)
-					throw new Error(`Expected a [${allowedTypes.join(" or ")}].`);
-
-				if (cmdParser.match(TokenType.COLON)) {
-					const secondValue = cmdParser.parse();
-					if (secondValue.type !== TokenType.INTEGER)
-						throw new Error(`Expected a [${allowedTypes.join(" or ")}].`);
-					let start = paramValue.value as number;
-					let end = secondValue.value as number;
-					if (start > end) [start, end] = [end, start];
-					parsedValue = { start, end };
-				} else {
-					parsedValue = paramValue.value;
-				}
-				break;
-			default:
-				throw new Error(`Unsupported token type ${paramValue.type}`);
-		}
-		userParams.push(parsedValue);
-	}
-
-	// Handle injected value (from pipe)
-	if (injectedValue !== undefined) {
-		if (!hasRestParam && paramIndex >= paramCount)
-			throw new Error(
-				`Too many parameters for command "${cmd}" (input piped). Max is ${paramCount}. Got ${paramIndex - 1}.`,
-			);
-
-		let paramDefStr = paramDef?.[paramIndex] ?? "rest";
-		if (paramDefStr.endsWith("?")) paramDefStr = paramDefStr.slice(0, -1) as ParamDef;
-		const allowedTypes = paramDefStr.split("|");
-
-		const valType = typeof injectedValue;
-		let typeOk = false;
-		if (allowedTypes.includes("rest")) typeOk = true;
-		else if (valType === "string" && allowedTypes.includes("string")) typeOk = true;
-		else if (
-			valType === "number" &&
-			(allowedTypes.includes("byte") ||
-				allowedTypes.includes("word") ||
-				allowedTypes.includes("address") ||
-				allowedTypes.includes("number"))
-		)
-			typeOk = true;
-		else if (valType === "object" && allowedTypes.includes("range") && "start" in injectedValue) typeOk = true;
-
-		if (!typeOk) {
-			if (valType === "number" && allowedTypes.includes("string")) {
-				injectedValue = injectedValue.toString();
-				typeOk = true;
+		while (true) {
+			// Try to parse from token stream
+			const { matched, value } = tryParseToken(cmdParser, allowedTypes);
+			if (matched) {
+				userParams.push(value);
+				cmdParser.match(TokenType.COMMA); // optional comma consumption
+				matchesForThisDef++;
+				if (!isVariadic) break; // If not variadic, move to next definition
+				continue;
 			}
+
+			// Try to use injected value if parsing failed/EOF
+			if (!injectedConsumed && injectedValue !== undefined && matchesType(injectedValue, allowedTypes)) {
+				userParams.push(injectedValue);
+				injectedConsumed = true;
+				matchesForThisDef++;
+				if (!isVariadic) break;
+				continue;
+			}
+
+			break; // No match found
 		}
 
-		userParams.push(injectedValue);
-		paramIndex++;
+		if (matchesForThisDef === 0 && !isOptional) {
+			throw new Error(`Missing required parameter: ${cleanDef}`);
+		}
+
+		defIndex++;
 	}
 
-	if (paramIndex < minParamCount) throw new Error(`Missing required parameter(s) for "${cmd}".`);
+	if (!cmdParser.eof()) throw new Error(`Too many parameters for command "${cmd}".`);
+	if (!injectedConsumed && injectedValue !== undefined) throw new Error("Too many parameters (piped value unused).");
 
 	let finalParams: ParamList = userParams;
 	if (cmdSpec.staticParams) {
