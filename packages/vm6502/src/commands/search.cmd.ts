@@ -78,14 +78,10 @@ export const searchCmd: CommandDef = {
 			}
 			is7Bit = true;
 		} else {
+			is7Bit = false;
 			for (; parmIdx < params.length; parmIdx++) {
-				arg = params[parmIdx];
-				if (arg === null) {
-					bytes.push(null);
-				} else {
-					bytes.push((arg as number) & 0xff);
-				}
-				is7Bit = false;
+				const arg = params[parmIdx] as number | null;
+				bytes.push(arg);
 			}
 		}
 
