@@ -254,9 +254,6 @@ export class ExpressionParser {
 		let left = this.nud(token);
 
 		while (left.value !== undefined && precedence < this.getPrecedence(this.peek().type)) {
-			if (typeof left.value === "string")
-				throw new Error(`Operator ${this.peek().text} cannot be applied to a string.`);
-
 			token = this.consume();
 			left = this.led(token, left);
 		}
@@ -351,6 +348,22 @@ export class ExpressionParser {
 	private led(token: Token, left: ParsedResult): ParsedResult {
 		const precedence = this.getPrecedence(token.type);
 		const rightRes = this.parse(precedence);
+
+		if (typeof left.value === "string" || typeof rightRes.value === "string") {
+			if (typeof left.value === "string" && typeof rightRes.value === "string") {
+				if (token.type === TokenType.EQ)
+					return { type: TokenType.INTEGER, value: left.value === rightRes.value ? 1 : 0, raw: token.text };
+				if (token.type === TokenType.NEQ)
+					return { type: TokenType.INTEGER, value: left.value !== rightRes.value ? 1 : 0, raw: token.text };
+				if (token.type === TokenType.PLUS)
+					return {
+						type: TokenType.STRING,
+						value: (left.value as string) + (rightRes.value as string),
+						raw: token.text,
+					};
+			}
+			throw new Error(`Operator ${token.text} cannot be applied to strings or mixed types.`);
+		}
 
 		if (typeof left.value !== "number")
 			throw new Error(`Left-hand side of operator ${token.text} must be a number.`);
