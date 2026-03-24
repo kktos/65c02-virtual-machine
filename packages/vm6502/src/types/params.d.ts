@@ -19,10 +19,10 @@ type SingleParamDef = {
 	qty: Quantifier;
 };
 
-// "rest" stays isolated — always + and never in a choice
+// "rest" stays isolated — always * and never in a choice
 type RestParamDef = {
 	type: "rest";
-	qty: "+";
+	qty: "*";
 };
 
 // A choice between 2+ fully-qualified params (each with its own type+qty)

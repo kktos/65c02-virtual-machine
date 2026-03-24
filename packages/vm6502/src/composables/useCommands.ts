@@ -1,8 +1,7 @@
 import { computed, ref, watch } from "vue";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
-import { useRoutines, type Routine } from "./useRoutines";
-import { ExpressionParser, TokenType } from "@/lib/expressionParser";
-import { COMMAND_LIST, type COMMANDS } from "@/commands";
+import { ExpressionParser } from "@/lib/expressionParser";
+import { COMMAND_LIST } from "@/commands";
 import { minimonitor, type MiniMonitorCommandRequest } from "@/lib/mini-monitor";
 import { useBreakpoints } from "./useBreakpoints";
 import {
@@ -16,33 +15,24 @@ import {
 import type {
 	MultiLineRequest,
 	CommandOutput,
-	ParamList,
 	Command,
 	ParamListItemIdentifier,
-	CommandSegment,
 	ParamListItemRange,
 	CommandContext,
 	CommandResult,
 } from "@/types/command";
-import type { ParamDef } from "@/types/params";
 import { useCmdConsole } from "./useCmdConsole";
-import { parseParamList } from "@/lib/param-parser.lib";
+import { parseParamList } from "@/lib/param-compiler.lib";
 import type { OptionItemDef } from "@/types/options";
+import { handleDoCommand } from "@/commands/do.cmd";
+import type { QueueItem, Sink } from "@/types/queueitem";
+import { handleIfCommand } from "@/commands/if.cmd";
+import { parseUserCommand, splitIntoCommands, splitTokensByPipe } from "@/lib/cli-commands.lib";
+import { parseCommandParams } from "@/lib/cli-params.lib";
 
 const HISTORY_MAX_SIZE = 50;
 const LS_KEY_HISTORY = "vm6502-console-history";
-const END_ROUTINE_MARKER = "--END-ROUTINE--";
 
-type QueueItemLine = {
-	type: "line";
-	source: string;
-	tokens?: CommandSegment;
-	chain?: CommandSegment[] | null;
-	injectedPipe?: any;
-};
-type QueueItemMarker = { type: "marker"; value: string };
-type QueueItem = QueueItemLine | QueueItemMarker;
-type Sink = (output: any) => void;
 type CommandRunResult = {
 	success: CommandOutput[];
 	error?: string;
@@ -61,7 +51,6 @@ const commandHistory = ref<string[]>(JSON.parse(localStorage.getItem(LS_KEY_HIST
 const errorHistory = ref<string[]>([]);
 
 const { addBreakpoint } = useBreakpoints();
-const { getRoutine } = useRoutines();
 
 watch(commandHistory, (history) => localStorage.setItem(LS_KEY_HISTORY, JSON.stringify(history)), { deep: true });
 watch(error, (err) => err && errorHistory.value.push(err));
@@ -101,265 +90,6 @@ export function defineCommand<O extends readonly OptionItemDef[]>(def: {
 	} as Command<O>;
 }
 
-function parseUserCommand(cmdParser: ExpressionParser) {
-	const userParams: ParamList = [];
-	let paramIndex = 0;
-	let cmd = "" as COMMANDS;
-	let isValidCmd = false;
-	const tok = cmdParser.peek();
-
-	//
-	// do <routine> | & <routine>
-	//
-	if (cmdParser.match(TokenType.AND)) {
-		const nextTok = cmdParser.peek();
-		cmd = "DO";
-		paramIndex = 1;
-		userParams.push(nextTok.text);
-		isValidCmd = true;
-	} else if (cmdParser.match(TokenType.IDENTIFIER)) {
-		//
-		// <dest> = <value> => SET <dest> <value>
-		//
-		const nextTok = cmdParser.peek();
-		if (nextTok?.type === TokenType.ASSIGN) {
-			cmd = "SET";
-			paramIndex = 1;
-			userParams.push(tok.text);
-			cmdParser.consume();
-		} else cmd = tok.text.toUpperCase() as COMMANDS;
-
-		isValidCmd = !!COMMAND_LIST[cmd];
-	}
-
-	return { cmd, paramIndex, userParams, isValidCmd };
-}
-
-function matchesType(value: any, allowedTypes: string[]): boolean {
-	for (const type of allowedTypes) {
-		if (type === "rest") return true;
-		if (value === null && type === "wbyte") return true;
-		if (typeof value === "string") {
-			if (type === "string") return true;
-			if (type === "at" && value.startsWith("@")) return true;
-		}
-		if (typeof value === "number") {
-			if (type === "number" || type === "float") return true;
-			if (type === "byte" || type === "wbyte") {
-				if (value >= 0 && value <= 0xff) return true;
-			}
-			if (type === "word" || type === "address") {
-				if (value >= 0 && value <= 0xffff) return true;
-			}
-		}
-		if (typeof value === "object") {
-			if ("start" in value && type === "range") return true;
-			if ("text" in value && type === "name") return true;
-			if (value instanceof RegExp && type === "regex") return true;
-		}
-	}
-	return false;
-}
-
-function tryParseToken(parser: ExpressionParser, allowedTypes: string[]): { matched: boolean; value?: any } {
-	const startPos = parser.pos;
-	const token = parser.peek();
-
-	if (token.type === TokenType.EOF) return { matched: false };
-
-	// 1. Special Handling: wbyte wildcard (??)
-	if (token.type === TokenType.DOUBLE_QUESTION && allowedTypes.includes("wbyte")) {
-		parser.consume();
-		return { matched: true, value: null };
-	}
-
-	// 2. Special Handling: range (strict start:end)
-	if (allowedTypes.includes("range") && token.type === TokenType.INTEGER) {
-		try {
-			const s = parser.parse();
-			if (parser.match(TokenType.COLON)) {
-				const e = parser.parse();
-				if (s.type === TokenType.INTEGER && e.type === TokenType.INTEGER) {
-					const start = s.value as number;
-					const end = e.value as number;
-					return { matched: true, value: { start: Math.min(start, end), end: Math.max(start, end) } };
-				}
-			}
-		} catch {}
-		parser.pos = startPos; // Backtrack
-	}
-
-	// 3. General Parsing
-	try {
-		const res = parser.parse();
-		let val: any = res.value;
-
-		if (res.type === TokenType.IDENTIFIER && allowedTypes.includes("name")) {
-			val = { text: res.raw, value: res.value };
-		} else if (res.type === TokenType.AT) {
-			val = res.raw;
-		}
-
-		if (matchesType(val, allowedTypes)) return { matched: true, value: val };
-	} catch {}
-
-	parser.pos = startPos;
-	return { matched: false };
-}
-
-function tryParseOption(
-	parser: ExpressionParser,
-	availableOptions: readonly OptionItemDef[] | undefined,
-	optsStore: Record<string, any>,
-): boolean {
-	if (parser.peek().type !== TokenType.DOUBLE_DASH) return false;
-
-	const res = parser.parse();
-	const optName = res.raw;
-
-	const optDef = availableOptions?.find((o) => o.name === optName);
-	if (!optDef) throw new Error(`Unknown option "--${optName}".`);
-
-	let val: any = true;
-
-	if (parser.match(TokenType.ASSIGN)) {
-		const valRes = parser.parse();
-		val = valRes.value;
-
-		if (val === undefined && valRes.type === TokenType.IDENTIFIER) {
-			const text = valRes.raw.toLowerCase();
-			if (text === "true") val = true;
-			else if (text === "false") val = false;
-			else val = valRes.raw;
-		}
-	}
-
-	if (optDef.value) {
-		const { kind } = optDef.value;
-		if (kind === "number") {
-			if (typeof val !== "number") throw new Error(`Option "--${optName}" expects a number.`);
-		} else if (kind === "string") {
-			if (typeof val !== "string" && typeof val !== "number")
-				throw new Error(`Option "--${optName}" expects a string.`);
-			val = String(val);
-		} else if (kind === "oneOf") {
-			const choices = optDef.value.choices as readonly string[];
-			if (!choices.includes(String(val)))
-				throw new Error(`Option "--${optName}" expects one of: ${choices.join(", ")}`);
-			val = String(val);
-		}
-	} else {
-		if (typeof val !== "boolean") {
-			if (val === 0) val = false;
-			else if (val === 1) val = true;
-			else if (typeof val === "string" && val.toLowerCase() === "false") val = false;
-			else if (typeof val === "string" && val.toLowerCase() === "true") val = true;
-			else throw new Error(`Option "--${optName}" is a flag and expects a boolean.`);
-		}
-	}
-
-	optsStore[optName] = val;
-	return true;
-}
-
-function getParamDefinition(def: ParamDef) {
-	if ("oneOf" in def) {
-		return {
-			allowedTypes: def.oneOf.map((p) => p.type),
-			qty: def.oneOf[0].qty,
-		};
-	}
-	return {
-		allowedTypes: [def.type],
-		qty: def.qty,
-	};
-}
-
-function parseCommandParams(
-	cmdParser: ExpressionParser,
-	cmd: COMMANDS,
-	startParamIndex: number,
-	userParams: ParamList,
-	cmdSpec: Command,
-	injectedValue?: any,
-) {
-	const opts: Record<string, any> = {};
-	const paramDef = cmdSpec.paramDef;
-	const paramDefs = paramDef || [];
-
-	let defIndex = startParamIndex;
-	let injectedConsumed = false;
-	let hasAMatch = false;
-
-	while (defIndex < paramDefs.length) {
-		const def = paramDefs[defIndex];
-		const { allowedTypes, qty } = getParamDefinition(def);
-		const isOptional = qty === "?" || qty === "*";
-		const isVariadic = qty === "*" || qty === "+";
-
-		let matchesForThisDef = 0;
-
-		while (true) {
-			if (tryParseOption(cmdParser, cmdSpec.options, opts)) continue;
-
-			// Try to parse from token stream
-			const { matched, value } = tryParseToken(cmdParser, allowedTypes);
-
-			if (matched) {
-				hasAMatch = true;
-				userParams.push(value);
-				cmdParser.match(TokenType.COMMA); // optional comma consumption
-				matchesForThisDef++;
-				if (!isVariadic) break; // If not variadic, move to next definition
-				continue;
-			}
-
-			// Try to use injected value if parsing failed/EOF
-			if (!injectedConsumed && injectedValue !== undefined && matchesType(injectedValue, allowedTypes)) {
-				userParams.push(injectedValue);
-				injectedConsumed = true;
-				matchesForThisDef++;
-				if (!isVariadic) break;
-				continue;
-			}
-
-			break; // No match found
-		}
-
-		if (matchesForThisDef === 0 && !isOptional)
-			throw new Error(`Missing required parameter: ${allowedTypes.join("|")}`);
-
-		defIndex++;
-	}
-
-	while (!cmdParser.eof()) {
-		if (tryParseOption(cmdParser, cmdSpec.options, opts)) continue;
-		if (hasAMatch) throw new Error(`Too many parameters for command "${cmd}".`);
-		else throw new Error(`Wrong type of parameters for command "${cmd}"`);
-	}
-	if (!injectedConsumed && injectedValue !== undefined) throw new Error("Too many parameters (piped value unused).");
-
-	if (cmdSpec.options) {
-		for (const opt of cmdSpec.options) {
-			if (!(opt.name in opts)) {
-				if (opt.value) {
-					if (opt.value.default !== undefined) opts[opt.name] = opt.value.default;
-				} else {
-					opts[opt.name] = false;
-				}
-			}
-		}
-	}
-
-	let finalParams: ParamList = userParams;
-	if (cmdSpec.staticParams) {
-		if (cmdSpec.staticParams.prepend) finalParams = [...cmdSpec.staticParams.prepend, ...finalParams];
-		if (cmdSpec.staticParams.append) finalParams = [...finalParams, ...cmdSpec.staticParams.append];
-	}
-
-	return { params: finalParams, opts };
-}
-
 function handleJsrOutput(output: any, vm: VirtualMachine, result: CommandRunResult) {
 	const jsrAddress = output.address ?? vm.sharedRegisters.getUint16(REG_PC_OFFSET, true);
 	const fakeReturnAddress = 0xfffe;
@@ -385,131 +115,6 @@ function handleJsrOutput(output: any, vm: VirtualMachine, result: CommandRunResu
 	vm.writeDebug(0x0100 + sp - 1, fakeReturnAddress & 0xff);
 	vm.sharedRegisters.setUint16(REG_PC_OFFSET, jsrAddress, true);
 	vm.play();
-}
-
-function handleIfCommand(cmdParser: ExpressionParser, item: QueueItemLine, commandQueue: QueueItem[]) {
-	let isTrue = false;
-
-	const expr = cmdParser.parse();
-	const condition = expr.value;
-
-	if (typeof condition === "string") isTrue = condition.length > 0;
-	else isTrue = condition !== 0;
-
-	if (!isTrue) return;
-
-	if (cmdParser.isIdentifier("THEN")) cmdParser.consume();
-
-	const nextTok = cmdParser.peek();
-	if (!nextTok) return;
-	const source = item.source.slice(nextTok.start).trim();
-	if (!source) return;
-
-	commandQueue.unshift({
-		type: "line",
-		source,
-	});
-}
-
-function expandRoutineLines(routine: Routine, args: string[]) {
-	const expandedLines: QueueItem[] = [];
-
-	routine.lines
-		.filter((line) => !line.trim().startsWith(";") && line.trim() !== "")
-		.forEach((line) => {
-			let processed = line;
-			routine.args.forEach((argName, index) => {
-				processed = processed.replaceAll(`@${argName}`, args[index]);
-			});
-
-			expandedLines.push({
-				type: "line",
-				source: processed,
-			});
-		});
-
-	return expandedLines;
-}
-
-function parseRoutineArgs(cmdParser: ExpressionParser, pipeValue: unknown) {
-	const args: string[] = [];
-	while (!cmdParser.eof()) {
-		const argToken = cmdParser.peek();
-		switch (argToken.type) {
-			case TokenType.STRING:
-				args.push(`"${argToken.text}"`);
-				break;
-			default:
-				args.push(argToken.text);
-				break;
-		}
-		cmdParser.consume();
-	}
-	if (pipeValue !== undefined) {
-		if (typeof pipeValue === "string") args.push(`"${pipeValue}"`);
-		else args.push(String(pipeValue));
-	}
-
-	return args;
-}
-
-async function handleDoCommand(
-	cmdParser: ExpressionParser,
-	item: QueueItemLine,
-	subQueue: QueueItem[],
-	isLastInChain: boolean,
-	currentSink: Sink,
-	pipeValue: unknown,
-	vm: VirtualMachine,
-) {
-	const token = cmdParser.peek();
-	if (!cmdParser.matchIdentifier()) throw new Error("DO needs a routine name !!!.");
-
-	const routineName = token.text;
-	const routine = getRoutine(routineName);
-	if (!routine) throw new Error(`Routine '${routineName}' not found.`);
-
-	const args = parseRoutineArgs(cmdParser, pipeValue);
-	if (args.length !== routine.args.length)
-		throw new Error(`Routine '${routineName}' expects ${routine.args.length} argument(s), but got ${args.length}.`);
-
-	const expandedLines = expandRoutineLines(routine, args);
-
-	if (isLastInChain) {
-		subQueue.unshift(...expandedLines, { type: "marker", value: END_ROUTINE_MARKER });
-	} else {
-		const res = await executeSubQueue([...expandedLines], new ExpressionParser("", vm), true, vm);
-		if (res.error) throw new Error(res.error);
-		res.success.forEach((out) => currentSink(out));
-	}
-
-	item.injectedPipe = undefined;
-}
-
-function splitIntoCommands(input: string, vm: VirtualMachine): QueueItem[] {
-	const parser = new ExpressionParser(input, vm);
-	const tokens = parser.getTokens();
-
-	const result: QueueItem[] = [];
-	let sliceStart = 0;
-
-	for (const tok of tokens) {
-		if (tok.type === TokenType.SEMICOLON || tok.type === TokenType.EOF) {
-			const sliceEnd = tok.start;
-			const source = input.slice(sliceStart, sliceEnd).trim();
-
-			if (source) {
-				result.push({
-					type: "line",
-					source,
-				});
-			}
-
-			sliceStart = tok.end;
-		}
-	}
-
-	return result;
 }
 
 async function processMultilineSession(input: string) {
@@ -538,37 +143,7 @@ async function processMultilineSession(input: string) {
 	return result;
 }
 
-function splitTokensByPipe(tokens: CommandSegment): {
-	first: CommandSegment;
-	chain: CommandSegment[] | null;
-} {
-	const segments: CommandSegment[] = [];
-
-	let segStart = 0;
-
-	for (let i = 0; i < tokens.length; i++) {
-		const tok = tokens[i];
-
-		if (tok.type === TokenType.PIPE) {
-			const seg = tokens.slice(segStart, i).filter((t) => t.type !== TokenType.EOF);
-			if (seg.length > 0) segments.push(seg);
-			segStart = i + 1;
-		}
-	}
-
-	// final segment
-	const last = tokens.slice(segStart).filter((t) => t.type !== TokenType.EOF);
-	if (last.length > 0) segments.push(last);
-
-	if (segments.length === 0) return { first: [], chain: null };
-
-	return {
-		first: segments[0],
-		chain: segments.length > 1 ? segments.slice(1) : null,
-	};
-}
-
-async function executeSubQueue(
+export async function executeSubQueue(
 	subQueue: QueueItem[],
 	cmdParser: ExpressionParser,
 	isPiped: boolean,

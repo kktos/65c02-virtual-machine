@@ -40,7 +40,7 @@ import { sedCmd } from "./sed.cmd";
 import { hexDumpCmd } from "./hexdump.cmd";
 import { xrefCmd } from "./xref.cmd";
 import type { Command, CommandDef } from "@/types/command";
-import { parseParamList } from "@/lib/param-parser.lib";
+import { parseParamList } from "@/lib/param-compiler.lib";
 
 function d(g: string, d: string, p?: string[]) {
 	return {

@@ -3,9 +3,7 @@ import type { ParamType, Quantifier, SingleParamDef, RestParamDef, ParamDef, Par
 function parseQuantifier(raw: string): { type: string; qty: Quantifier } {
 	const QUANTIFIERS = new Set(["?", "*", "+"]);
 	const last = raw[raw.length - 1];
-	if (QUANTIFIERS.has(last)) {
-		return { type: raw.slice(0, -1), qty: last as Quantifier };
-	}
+	if (QUANTIFIERS.has(last)) return { type: raw.slice(0, -1), qty: last as Quantifier };
 	return { type: raw, qty: "1" };
 }
 
@@ -29,9 +27,8 @@ function parseSingleOrRest(raw: string): SingleParamDef | RestParamDef {
 	if (!PARAM_TYPES.has(type as ParamType)) throw new Error(`Unknown param type: "${type}"`);
 
 	if (type === "rest") {
-		if (qty !== "1" && qty !== "+")
-			throw new Error(`"rest" only supports implicit(1) or + quantifier, got "${qty}"`);
-		return { type: "rest", qty: "+" };
+		if (type !== raw && qty !== "*") throw new Error(`"rest" only supports * quantifier, got "${qty}"`);
+		return { type: "rest", qty: "*" };
 	}
 
 	return { type: type as Exclude<ParamType, "rest">, qty };
