@@ -41,6 +41,7 @@ type CommandRunResult = {
 
 const error = ref("");
 const success = ref<CommandOutput[]>([]);
+const last = ref<CommandOutput>();
 const isLoading = ref(false);
 const progress = ref(0);
 const shouldClose = ref(false);
@@ -328,6 +329,7 @@ async function executeCommand(cmdInput: string, vm: VirtualMachine | null) {
 	isLoading.value = true;
 	progress.value = 0;
 	error.value = "";
+	last.value = success.value.at(-1);
 	success.value = [];
 	shouldClose.value = false;
 
@@ -368,6 +370,7 @@ export function useCommands() {
 		error,
 		errorHistory,
 		success,
+		last,
 		isLoading,
 		progress,
 		executeCommand,

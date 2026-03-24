@@ -16,7 +16,6 @@ import { renLabel } from "./renLabel.cmd";
 import { reset } from "./reset.cmd";
 import { run } from "./run.cmd";
 import { showCmd } from "./show.cmd";
-import { setDisasmView } from "./setDisasmView.cmd";
 import { setMemView, setMemViewFn } from "./setMemView.cmd";
 import { speed } from "./speed.cmd";
 import { undefLabel } from "./undefLabel.cmd";
@@ -41,6 +40,8 @@ import { hexDumpCmd } from "./hexdump.cmd";
 import { xrefCmd } from "./xref.cmd";
 import type { Command, CommandDef } from "@/types/command";
 import { parseParamList } from "@/lib/param-compiler.lib";
+import { disasmCmd } from "./disasm.cmd";
+import { disasmViewCmd } from "./disasmView.cmd";
 
 function d(g: string, d: string, p?: string[]) {
 	return {
@@ -87,7 +88,8 @@ export const COMMANDDEF_LIST = {
 	ASM: asmCmd,
 	SEARCH: searchCmd,
 	XREF: xrefCmd,
-	D: setDisasmView,
+	DV: disasmViewCmd,
+	D: disasmCmd,
 
 	CODE: defCode,
 	DB: {
@@ -208,6 +210,14 @@ export const COMMANDDEF_LIST = {
 			const errList = errorHistory.value.join("\n");
 			errorHistory.value = [];
 			return errList;
+		},
+		group: "Console",
+	},
+	LAST: {
+		description: "Output last command output",
+		fn: () => {
+			const { last } = useCommands();
+			return last.value ?? "";
 		},
 		group: "Console",
 	},
