@@ -1,5 +1,5 @@
 import { defineCommand, isParamListItemIdentifier } from "@/composables/useCommands";
-import type { CommandResult, ParamListItem } from "@/types/command";
+import type { CommandOutput, CommandResult, ParamListItem } from "@/types/command";
 
 // Internal storage for named buffers
 const buffers = new Map<string, string[]>();
@@ -34,8 +34,8 @@ export const bufCmd = defineCommand({
 	},
 });
 
-function listBuffers(): CommandResult {
-	if (buffers.size === 0) return "No buffers defined.";
+export function listBuffers(): CommandOutput {
+	if (buffers.size === 0) return { content: "No buffers defined.", format: "text" };
 	const lines = ["| Name | Lines |", "|---|---|"];
 	for (const [key, val] of buffers.entries()) lines.push(`| ${key} | ${val.length} |`);
 	return { content: lines.join("\n"), format: "markdown" };

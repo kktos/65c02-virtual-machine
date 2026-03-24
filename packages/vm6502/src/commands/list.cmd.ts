@@ -3,6 +3,7 @@ import { formatAddress } from "@/lib/hex.utils";
 import { useRoutines } from "@/composables/useRoutines";
 import type { CommandContext, ParamListItemIdentifier } from "@/types/command";
 import { defineCommand, useCommands } from "@/composables/useCommands";
+import { listBuffers } from "./buf.cmd";
 
 function listHooks() {
 	const { breakpoints } = useBreakpoints();
@@ -55,10 +56,10 @@ function listHistory() {
 	return `${historyList}\n`;
 }
 
-const LISTS = ["HOOKS", "ROUTINES", "HISTORY"];
+const LISTS = ["HOOKS", "ROUTINES", "HISTORY", "BUFFERS"];
 
 export const listCmd = defineCommand({
-	description: "List <hooks|routines|history>.",
+	description: "List <hooks|routines|history|buffers>.",
 	paramDef: ["name", "name?"],
 	group: "Console",
 	fn: ({ params }: CommandContext) => {
@@ -76,6 +77,9 @@ export const listCmd = defineCommand({
 			}
 			case "HISTORY":
 				content = listHistory();
+				break;
+			case "BUFFERS":
+				content = listBuffers().content;
 				break;
 			default:
 				throw new Error("Invalid list name");
