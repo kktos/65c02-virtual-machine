@@ -1,12 +1,15 @@
 # TODO
 
+### 2026-03-24
+
+- add a command to create a note
+- add a color setting for the line where the PC is for DisasmView
+
 ### 2026-03-23
 
-- command `buf` has a problem with the "rest"
-- command `explain` doesn't work with pipe; like `buf flush dsprite |> explain --detailed`
 - command `d` has a problem with range and data (pc is not updated ?); like `d $6300:$63ff` with `6300: .db <256>`
 
----
+### 2026
 
 - **NOT_YET**
   Can we add a feature to highlight bytes that have changed since the last update in the Memory Viewer?
@@ -66,6 +69,9 @@ log Acc every 100ms time $C019 is accessed
 - let's refactor cmd search to uses the new wildcards
 
 # History
+
+- **FIXED** command `buf` has a problem with the "rest"
+- **FIXED** command `explain` doesn't work with pipe; like `buf flush dsprite |> explain --detailed`
 
 -2- **DONE** -> scopepath
 in disasm, the scope is from the location of the running code and it's not the same as the operand address.
