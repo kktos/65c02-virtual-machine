@@ -27,7 +27,7 @@ export const xrefCmd = defineCommand({
 		const header = "| Address | Type | Instruction |\n|---|---|---|";
 		const rows = results
 			.map((r) => {
-				const link = `[${formatAddress(r.address)}](command:&disasm_at$${toHex(r.address)} "Click to view in Disasm Viewer")`;
+				const link = `[${formatAddress(r.address)}](command:&disasm_at%20$${toHex(r.address)}%20@CTRL "Click to view in Disasm Viewer")`;
 				return `| ${link} | ${r.type} | ${r.instruction} |`;
 			})
 			.join("\n");
