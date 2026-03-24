@@ -87,6 +87,114 @@ const ABS_OPCODES: Record<number, string> = {
 	0xfe: "INC",
 };
 
+const ZP_OPCODES: Record<number, string> = {
+	// Standard ZP & ZP,X/Y & Indirect
+	0x05: "ORA",
+	0x15: "ORA",
+	0x12: "ORA",
+	0x01: "ORA",
+	0x11: "ORA",
+	0x25: "AND",
+	0x35: "AND",
+	0x32: "AND",
+	0x21: "AND",
+	0x31: "AND",
+	0x45: "EOR",
+	0x55: "EOR",
+	0x52: "EOR",
+	0x41: "EOR",
+	0x51: "EOR",
+	0x65: "ADC",
+	0x75: "ADC",
+	0x72: "ADC",
+	0x61: "ADC",
+	0x71: "ADC",
+	0x85: "STA",
+	0x95: "STA",
+	0x92: "STA",
+	0x81: "STA",
+	0x91: "STA",
+	0xa5: "LDA",
+	0xb5: "LDA",
+	0xb2: "LDA",
+	0xa1: "LDA",
+	0xb1: "LDA",
+	0xc5: "CMP",
+	0xd5: "CMP",
+	0xd2: "CMP",
+	0xc1: "CMP",
+	0xd1: "CMP",
+	0xe5: "SBC",
+	0xf5: "SBC",
+	0xf2: "SBC",
+	0xe1: "SBC",
+	0xf1: "SBC",
+	0x06: "ASL",
+	0x16: "ASL",
+	0x26: "ROL",
+	0x36: "ROL",
+	0x46: "LSR",
+	0x56: "LSR",
+	0x66: "ROR",
+	0x76: "ROR",
+	0x86: "STX",
+	0x96: "STX",
+	0xa6: "LDX",
+	0xb6: "LDX",
+	0xc6: "DEC",
+	0xd6: "DEC",
+	0xe6: "INC",
+	0xf6: "INC",
+	0x24: "BIT",
+	0x34: "BIT",
+	0x84: "STY",
+	0x94: "STY",
+	0xa4: "LDY",
+	0xb4: "LDY",
+	0xc4: "CPY",
+	0xe4: "CPX",
+	0x04: "TSB",
+	0x14: "TRB",
+	0x64: "STZ",
+	0x74: "STZ",
+
+	// RMB/SMB (65C02)
+	0x07: "RMB0",
+	0x17: "RMB1",
+	0x27: "RMB2",
+	0x37: "RMB3",
+	0x47: "RMB4",
+	0x57: "RMB5",
+	0x67: "RMB6",
+	0x77: "RMB7",
+	0x87: "SMB0",
+	0x97: "SMB1",
+	0xa7: "SMB2",
+	0xb7: "SMB3",
+	0xc7: "SMB4",
+	0xd7: "SMB5",
+	0xe7: "SMB6",
+	0xf7: "SMB7",
+
+	// BBR/BBS (65C02)
+	0x0f: "BBR0",
+	0x1f: "BBR1",
+	0x2f: "BBR2",
+	0x3f: "BBR3",
+	0x4f: "BBR4",
+	0x5f: "BBR5",
+	0x6f: "BBR6",
+	0x7f: "BBR7",
+	0x8f: "BBS0",
+	0x9f: "BBS1",
+	0xaf: "BBS2",
+	0xbf: "BBS3",
+	0xcf: "BBS4",
+	0xdf: "BBS5",
+	0xef: "BBS6",
+	0xff: "BBS7",
+};
+
 const CALL_OPS = new Set([0x20, 0x4c]);
 const ACCESS_OPS = Object.keys(ABS_OPCODES)
 	.map(Number)
@@ -147,6 +255,26 @@ export function useCrossReferences() {
 					}
 				});
 			}
+		}
+
+		// 3. Zero Page References (Access)
+		if (targetAddr < 0x100 && filter !== "BRANCH" && (filter === "ALL" || filter === "ACCESS")) {
+			const targetLo = targetAddr & 0xff;
+			const candidates = Object.keys(ZP_OPCODES).map(Number);
+
+			// Search for [Opcode, ZP_Addr]
+			const matches = vm.search([null, targetLo], 0, 0xffff, false, [candidates]) || [];
+			matches.forEach((m) => {
+				const opcode = read(m.address);
+				const mnemonic = ZP_OPCODES[opcode];
+				if (mnemonic) {
+					results.push({
+						address: m.address,
+						type: "Access",
+						instruction: `${mnemonic} $${toHex(targetAddr, 2)}`,
+					});
+				}
+			});
 		}
 
 		return results.sort((a, b) => a.address - b.address);
