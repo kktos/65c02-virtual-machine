@@ -111,9 +111,7 @@ export function useGemini() {
 		).replaceAll("%%MACHINE%%", selectedMachine.value.name);
 
 		isLoading.value = true;
-		if (updatePanel) {
-			explanation.value = null;
-		}
+		if (updatePanel) explanation.value = null;
 
 		let progressInterval: ReturnType<typeof setInterval> | undefined;
 		if (progress) {

@@ -425,7 +425,7 @@ const handleExplain = async () => {
 	if (hasSelection.value) {
 		const start = selectionStart.value!;
 		const end = selectionEnd.value!;
-		const lines = disassembleRange({
+		const lines = await disassembleRange({
 			readByte,
 			scope: vm!.value.getScope(start),
 			fromAddress: start,

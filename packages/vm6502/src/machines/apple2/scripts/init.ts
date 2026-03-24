@@ -177,7 +177,7 @@ export const initRoutine = `
 	end
 
 	routine disasm_at @addr @wantMem
-		IF @wantMem==0 d @addr |> nop
+		IF @wantMem==0 dv @addr |> nop
 		IF @wantMem m1 @addr |> nop
 	end
 

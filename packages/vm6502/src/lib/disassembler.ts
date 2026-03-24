@@ -12,7 +12,7 @@ type FunctionGetScope = (address: number) => string;
 const { getFormat } = useFormatting();
 const { getSymbolForAddress, getLabelForAddress, addManySymbols, findSymbolWithOffset } = useSymbols();
 
-function findPreviousInstruction(
+async function findPreviousInstruction(
 	readByte: (address: number, debug?: boolean) => number,
 	targetAddress: number,
 	scope: string,
@@ -28,7 +28,7 @@ function findPreviousInstruction(
 		if (candidateStart < 0) continue;
 
 		// Disassemble a small chunk to see if it aligns with targetAddress
-		const lines = disassemble({ readByte, scope, fromAddress: candidateStart, lineCount: offset + 4 });
+		const lines = await disassemble({ readByte, scope, fromAddress: candidateStart, lineCount: offset + 4 });
 
 		// If we hit an invalid opcode, this starting point is likely misaligned.
 		if (lines.some((line) => line.opc === "???")) continue;
@@ -125,17 +125,26 @@ type DisassembleContext = {
 	pivotLineIndex?: number;
 	lowercase?: boolean;
 };
-export function disassemble(ctx: DisassembleContext) {
+export async function disassemble(ctx: DisassembleContext) {
 	const disassembly: DisassemblyLine[] = [];
 
 	let pc = ctx.fromAddress;
 
 	if (ctx.pivotLineIndex && ctx.pivotLineIndex > 0)
-		for (let i = 0; i < ctx.pivotLineIndex; i++) pc = findPreviousInstruction(ctx.readByte, pc, ctx.scope);
+		for (let i = 0; i < ctx.pivotLineIndex; i++) pc = await findPreviousInstruction(ctx.readByte, pc, ctx.scope);
+
+	let lineCount = 0;
+	const wannaDoPause = ctx.lineCount > 500;
 
 	while (disassembly.length < ctx.lineCount) {
 		// Safety check to prevent infinite loops if PC goes out of bounds
 		if (pc > 0xffffff) break;
+
+		lineCount++;
+		if (wannaDoPause && lineCount % 100 === 0) {
+			await new Promise((resolve) => setTimeout(resolve, 0));
+			// await scheduler.yield();
+		}
 
 		const symbol = getSymbolForAddress(pc, ctx.scope);
 
@@ -487,14 +496,29 @@ export type DisassembleRangeContext = {
 	lowercase?: boolean;
 };
 
-export function disassembleRange(ctx: DisassembleRangeContext) {
+export async function disassembleRange(ctx: DisassembleRangeContext) {
 	const { readByte, scope, fromAddress, toAddress, registers, lowercase } = ctx;
 	const lines: DisassemblyLine[] = [];
 	const start = Math.min(fromAddress, toAddress);
 	const end = Math.max(fromAddress, toAddress);
+
+	let loopCount = 0;
 	let currentAddr = start;
 	while (currentAddr <= end) {
-		const chunk = disassemble({ readByte, scope, fromAddress: currentAddr, lineCount: 20, registers, lowercase });
+		loopCount++;
+		if (loopCount % 100 === 0) {
+			await new Promise((resolve) => setTimeout(resolve, 0));
+			// await scheduler.yield();
+		}
+
+		const chunk = await disassemble({
+			readByte,
+			scope,
+			fromAddress: currentAddr,
+			lineCount: 20,
+			registers,
+			lowercase,
+		});
 		if (!chunk || chunk.length === 0) break;
 
 		for (const line of chunk) {
