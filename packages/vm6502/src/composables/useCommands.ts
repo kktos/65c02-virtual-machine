@@ -20,6 +20,7 @@ import type {
 	ParamListItemRange,
 	CommandContext,
 	CommandResult,
+	ErrorOutput,
 } from "@/types/command";
 import { useCmdConsole } from "./useCmdConsole";
 import { parseParamList } from "@/lib/param-compiler.lib";
@@ -182,12 +183,14 @@ export async function executeSubQueue(
 				cmdParser.reset(chain[i]);
 
 				const isLastInChain = i === chain.length - 1;
-				const currentSink: Sink = (output: CommandOutput | MiniMonitorCommandRequest) => {
+				const currentSink: Sink = (output: CommandOutput | MiniMonitorCommandRequest | ErrorOutput) => {
 					if (isLastInChain) {
 						if (isMiniMonitorCommandRequest(output)) {
 							if (output.type === "JSR") handleJsrOutput(output, vm, result);
 						} else {
-							result.success.push(output);
+							if ("error" in output) {
+								result.error = output.error;
+							} else result.success.push(output);
 						}
 					} else {
 						pipeValue = isCommandOutput(output) ? output.content : output;
@@ -206,7 +209,7 @@ export async function executeSubQueue(
 					try {
 						await handleDoCommand(cmdParser, item, subQueue, isLastInChain, currentSink, pipeValue, vm);
 					} catch (e) {
-						currentSink({ content: (e as Error).message, format: "text" });
+						currentSink({ error: (e as Error).message });
 					}
 					continue;
 				}
