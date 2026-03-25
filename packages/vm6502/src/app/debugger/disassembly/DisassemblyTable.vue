@@ -26,19 +26,9 @@
 						@on-label-click="handleLabelClick($event, line)"
 					/>
 				</tr>
-				<tr v-if="getBlockComments(line).length > 0">
-					<td :colspan="settings.disassembly.showCycles ? 8 : 7" class="border-l-4 border-transparent">
-						<div
-							class="bg-gray-800/60 border-l-2 border-yellow-500/40 p-2 rounded-r text-gray-300 shadow-sm my-0.5"
-						>
-							<div
-								v-for="(comment, idx) in getBlockComments(line)"
-								:key="idx"
-								class="whitespace-pre-wrap"
-							>
-								{{ comment.text }}
-							</div>
-						</div>
+				<tr v-if="getBlockComment(line)">
+					<td colspan="8" class="border-l-4 border-transparent">
+						<BlockCommentViewer :line="line" />
 					</td>
 				</tr>
 				<tr
@@ -254,6 +244,7 @@ import LabelReferencesPopover from "./LabelReferencesPopover.vue";
 import { useAddressHistory } from "@/composables/useAddressHistory";
 import { useCrossReferences } from "@/composables/useCrossReferences";
 import { formatAddress, toHex } from "@/lib/hex.utils";
+import BlockCommentViewer from "./BlockCommentViewer.vue";
 
 const vm = inject<Ref<VirtualMachine>>("vm");
 
@@ -369,8 +360,9 @@ const getUserInlineComments = (line: DisassemblyLine) => {
 	return line.comments.filter((c) => c.source === "user" && c.kind === "inline");
 };
 
-const getBlockComments = (line: DisassemblyLine) => {
-	return line.comments.filter((c) => c.source === "user" && c.kind === "block");
+const getBlockComment = (line: DisassemblyLine) => {
+	const list = line.comments.filter((c) => c.source === "user" && c.kind === "block");
+	return list[0];
 };
 
 const getCommentColor = () => {
