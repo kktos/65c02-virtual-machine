@@ -3,7 +3,6 @@
 ### 2026-03-24
 
 - add a command to create a note
-- add a color setting for the line where the PC is for DisasmView
 
 ### 2026-03-23
 
@@ -11,6 +10,7 @@
 
 ### 2026
 
+- **DONE** add a color setting for the line where the PC is for DisasmView
 - **NOT_YET**
   Can we add a feature to highlight bytes that have changed since the last update in the Memory Viewer?
 - do we store the mods into a patch list... associated with the disk... patch manager ?
