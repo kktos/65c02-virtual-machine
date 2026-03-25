@@ -1,3 +1,4 @@
+import { useComments } from "@/composables/useComments";
 import { useFormatting, type DataBlock } from "@/composables/useDataFormattings";
 import { useSymbols, type SymbolEntry } from "@/composables/useSymbols";
 import type { DisassemblyLine } from "@/types/disassemblyline.interface";
@@ -11,6 +12,7 @@ type FunctionGetScope = (address: number) => string;
 
 const { getFormat } = useFormatting();
 const { getSymbolForAddress, getLabelForAddress, addManySymbols, findSymbolWithOffset } = useSymbols();
+const { getComments } = useComments();
 
 async function findPreviousInstruction(
 	readByte: (address: number, debug?: boolean) => number,
@@ -61,7 +63,7 @@ function handleDataRegion(
 	for (let i = 0; i < byteCount; i++) bytes.push(readByte(pc + i));
 
 	let opcode = "";
-	const comment = "";
+	const comments: DisassemblyLine["comments"] = [...getComments(pc)];
 	let rawBytesStr = "";
 
 	// Format Raw Bytes (limit to ~8 for display)
@@ -109,7 +111,7 @@ function handleDataRegion(
 		opr: "",
 		oprn: 0,
 		bytes: rawBytesStr,
-		comment,
+		comments,
 		cycles: 0,
 	});
 
@@ -183,7 +185,7 @@ export async function disassemble(ctx: DisassembleContext) {
 				opr: "",
 				oprn: 0,
 				bytes: toHex(opcodeByte, 2),
-				comment: "",
+				comments: [],
 				cycles: 1,
 			});
 			pc++;
@@ -204,7 +206,7 @@ export async function disassemble(ctx: DisassembleContext) {
 			oprn: 0,
 
 			bytes: "",
-			comment: "",
+			comments: [...getComments(pc)],
 			cycles,
 		};
 
@@ -215,7 +217,7 @@ export async function disassemble(ctx: DisassembleContext) {
 		line.bytes = allBytes.map((b) => toHex(b, 2)).join(" ");
 
 		let effectiveAddress: number | null = null;
-
+		let dbgComment = "";
 		switch (mode) {
 			case "IMP":
 			case "ACC":
@@ -224,7 +226,7 @@ export async function disassemble(ctx: DisassembleContext) {
 			case "IMM":
 				line.opr = `#$${toHex(operandBytes[0], 2)}`;
 				if (line.opc.toUpperCase() === "CMP")
-					line.comment = `'${String.fromCharCode(operandBytes[0] & 0x7f)}' ${operandBytes[0]}`;
+					dbgComment = `'${String.fromCharCode(operandBytes[0] & 0x7f)}' ${operandBytes[0]}`;
 				break;
 			case "ZP": {
 				effectiveAddress = operandBytes[0] ?? 0;
@@ -286,7 +288,7 @@ export async function disassemble(ctx: DisassembleContext) {
 				line.oprn = effectiveAddress;
 				const match = findSymbolWithOffset(effectiveAddress, ctx.scope, 32);
 				if (match) {
-					line.comment = match.symbol.scope ? `= [${match.symbol.scope}]` : "";
+					if (match.symbol.scope) dbgComment = `= [${match.symbol.scope}]`;
 					if (match.offset === 0) {
 						line.opr = match.symbol.label;
 					} else {
@@ -294,7 +296,7 @@ export async function disassemble(ctx: DisassembleContext) {
 						line.opr = `${match.symbol.label}${offsetStr}`;
 					}
 				} else {
-					line.comment = "";
+					// line.comments is already empty
 					line.opr = `$${toHex(effectiveAddress, 4)}`;
 					effectiveAddress = null;
 				}
@@ -476,9 +478,9 @@ export async function disassemble(ctx: DisassembleContext) {
 
 		if (effectiveAddress !== null) {
 			const hexAddr = toHex(effectiveAddress, 4);
-			if (line.comment) line.comment += ` $${hexAddr}`;
-			else line.comment = `= $${hexAddr}`;
+			dbgComment = `${dbgComment} $${hexAddr}`;
 		}
+		line.comments.push({ kind: "inline", text: dbgComment, source: "debugger" });
 
 		disassembly.push(line);
 		pc += bytes;
@@ -547,7 +549,8 @@ function formatAddr(addr: number) {
 }
 function disasmTextOnly(line: DisassemblyLine, asMarkdown = false) {
 	const SPACE = asMarkdown ? String.fromCharCode(160) : " ";
-	const finalComment = line.comment ? `; ${line.comment}` : "";
+	const commentsText = line.comments.map((c) => c.text).join(" ");
+	const finalComment = commentsText ? `; ${commentsText}` : "";
 	const op = line.opc + (line.opr ? ` ${line.opr}` : "");
 	let finalLine = `\t${op.padEnd(20, SPACE)} ${finalComment}`;
 	if (line.label) finalLine = asMarkdown ? `**${line.label}**<br>${finalLine}` : `${line.label}:\n${finalLine}`;
@@ -555,7 +558,8 @@ function disasmTextOnly(line: DisassemblyLine, asMarkdown = false) {
 }
 function disasmWithAddr(line: DisassemblyLine, asMarkdown = false) {
 	const SPACE = asMarkdown ? String.fromCharCode(160) : " ";
-	const finalComment = line.comment ? `; ${line.comment}` : "";
+	const commentsText = line.comments.map((c) => c.text).join(" ");
+	const finalComment = commentsText ? `; ${commentsText}` : "";
 	const op = line.opc + (line.opr ? ` ${line.opr}` : "");
 	let finalLine = `${formatAddr(line.addr)}:  ${op.padEnd(20, SPACE)} ${finalComment}`;
 	if (line.label) finalLine = asMarkdown ? `**${line.label}**<br>${finalLine}` : `${line.label}:\n${finalLine}`;
@@ -563,7 +567,8 @@ function disasmWithAddr(line: DisassemblyLine, asMarkdown = false) {
 }
 function disasmWithBytes(line: DisassemblyLine, asMarkdown = false) {
 	const SPACE = asMarkdown ? String.fromCharCode(160) : " ";
-	const finalComment = line.comment ? `; ${line.comment}` : "";
+	const commentsText = line.comments.map((c) => c.text).join(" ");
+	const finalComment = commentsText ? `; ${commentsText}` : "";
 	const op = line.opc + (line.opr ? ` ${line.opr}` : "");
 	let finalLine = `${formatAddr(line.addr)}:  ${line.bytes.padEnd(10, SPACE)} ${op.padEnd(20, SPACE)} ${finalComment}`;
 	if (line.label) finalLine = asMarkdown ? `**${line.label}**<br>${finalLine}` : `${line.label}:\n${finalLine}`;

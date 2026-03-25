@@ -42,6 +42,7 @@ import type { Command, CommandDef } from "@/types/command";
 import { parseParamList } from "@/lib/param-compiler.lib";
 import { disasmCmd } from "./disasm.cmd";
 import { disasmViewCmd } from "./disasmView.cmd";
+import { commentCmd } from "./comment.cmd";
 
 function d(g: string, d: string, p?: string[]) {
 	return {
@@ -86,6 +87,7 @@ export const COMMANDDEF_LIST = {
 	SPEED: speed,
 
 	ASM: asmCmd,
+	COMMENT: commentCmd,
 	SEARCH: searchCmd,
 	XREF: xrefCmd,
 	DV: disasmViewCmd,
