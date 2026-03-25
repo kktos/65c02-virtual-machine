@@ -6,6 +6,11 @@ const SETTINGS_KEY = "vm6502_debugger_settings";
 interface DebuggerSettings {
 	disassembly: {
 		showCycles: boolean;
+		showInfo: boolean;
+		showComments: boolean;
+		showBytes: boolean;
+		highlightPc: boolean;
+		addressWidth: number;
 		lowercase: boolean;
 		scopeColors: Record<string, string>;
 		syntax: {
@@ -16,6 +21,7 @@ interface DebuggerSettings {
 			register: string;
 			punctuation: string;
 			comment: string;
+			pcLine: string;
 		};
 		gemini: {
 			apiKey: string;
@@ -28,6 +34,11 @@ interface DebuggerSettings {
 const defaultSettings: DebuggerSettings = {
 	disassembly: {
 		showCycles: true,
+		showInfo: true,
+		showComments: true,
+		showBytes: true,
+		highlightPc: true,
+		addressWidth: 4,
 		lowercase: false,
 		scopeColors: {
 			main: "#000000",
@@ -40,6 +51,7 @@ const defaultSettings: DebuggerSettings = {
 			register: "#60A5FA",
 			punctuation: "#60A5FA",
 			comment: "#0ba229",
+			pcLine: "#422006", // Default brownish-yellow (bg-yellow-800/70 equivalent)
 		},
 		gemini: {
 			apiKey: "",
