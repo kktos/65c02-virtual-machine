@@ -1,6 +1,6 @@
 <template>
 	<!-- This anchor div holds the component's place in the layout -->
-	<div class="h-full w-full">
+	<div class="h-full w-full relative">
 		<Teleport to="body" :disabled="!isMaximized">
 			<div :class="containerClasses" ref="scrollContainer">
 				<!-- Header combining title, count, and action button -->
@@ -12,11 +12,14 @@
 					:available-scopes="availableScopes"
 					:is-maximized="isMaximized"
 					:has-selection="hasSelection"
+					:is-settings-open="isSettingsOpen"
+					ref="toolbarInstance"
 					@toggle-maximize="isMaximized = !isMaximized"
 					@sync-to-pc="syncToPc"
 					@explain="handleExplain"
 					@goto-address="gotoAddress"
 					@generate-labels="handleGenerateLabels"
+					@toggle-settings="isSettingsOpen = !isSettingsOpen"
 				/>
 
 				<!-- Selection Actions -->
@@ -69,16 +72,21 @@
 					@save-as-note="saveExplanationAsNote"
 				/>
 			</div>
+			<DisassemblySettingsPanel
+				:is-open="isSettingsOpen"
+				:available-scopes="availableScopes"
+				:ignore-ref="toolbarInstance?.settingsBtnRef"
+				@close="isSettingsOpen = false"
+			/>
 		</Teleport>
 	</div>
 </template>
 
 <script lang="ts" setup>
-/** biome-ignore-all lint/correctness/noUnusedVariables: vue */
-
 import { computed, inject, type Ref, ref, watch } from "vue";
 import DisassemblyTable from "@/app/debugger/disassembly/DisassemblyTable.vue";
 import DisassemblyToolbar from "@/app/debugger/disassembly/DisassemblyToolbar.vue";
+import DisassemblySettingsPanel from "@/app/debugger/disassembly/settings/DisassemblySettingsPanel.vue";
 import FormattingManager from "@/app/debugger/FormattingManager/FormattingManager.vue";
 import SymbolManager from "@/app/debugger/SymbolManager/SymbolManager.vue";
 import ExplanationDrawer from "@/app/debugger/disassembly/ExplanationDrawer.vue";
@@ -115,7 +123,7 @@ const isMaximized = ref(false);
 const containerClasses = computed(() => {
 	if (isMaximized.value) return "fixed inset-0 bg-gray-900 z-50 flex flex-col p-4 border border-cyan-500";
 	// Classes for inline mode
-	return "p-4 bg-gray-800 rounded-lg shadow-xl h-full flex flex-col";
+	return "p-4 bg-gray-800 rounded-lg shadow-xl h-full flex flex-col relative";
 });
 
 watch(isMaximized, (isMax) => {
@@ -136,6 +144,9 @@ const {
 } = useGemini();
 const { symbolsState } = useSymbols();
 const { addNote } = useNotes();
+
+const isSettingsOpen = ref(false);
+const toolbarInstance = ref<InstanceType<typeof DisassemblyToolbar> | null>(null);
 
 const availableScopes: Ref<string[]> = ref([]);
 const banks = vm?.value.machineConfig.memory.banks || 1;

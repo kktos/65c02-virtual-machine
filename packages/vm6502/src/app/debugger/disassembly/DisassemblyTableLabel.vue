@@ -3,8 +3,8 @@
 		:style="{ color: getScopeColor(line.addr) }"
 		@contextmenu.prevent="$emit('onContextMenu', $event, line)"
 		:title="line.src"
-		@click.stop="$emit('onLabelClick', $event, line)"
-		@dblclick="startLabelEdit(line)"
+		@click.stop="handleClick($event)"
+		@dblclick="handleDblClick"
 		class="cursor-pointer hover:bg-gray-800/50"
 	>
 		<template v-if="editingLabelAddress === line.addr">
@@ -30,7 +30,9 @@
 				</div>
 			</div>
 		</template>
-		<template v-else> {{ line.label }}: </template>
+		<template v-else>
+			<div class="p-0.5 pl-1">{{ line.label }}:</div>
+		</template>
 	</td>
 </template>
 
@@ -41,11 +43,11 @@ import type { DisassemblyLine } from "@/types/disassemblyline.interface";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import { inject, nextTick, ref, type Ref } from "vue";
 
-defineProps<{
+const props = defineProps<{
 	line: DisassemblyLine;
 }>();
 
-defineEmits<{
+const emit = defineEmits<{
 	(e: "onContextMenu", event: MouseEvent, line: DisassemblyLine): void;
 	(e: "onLabelClick", event: MouseEvent, line: DisassemblyLine): void;
 }>();
@@ -59,6 +61,25 @@ const editLabelText = ref("");
 const originalLabel = ref("");
 const labelError = ref("");
 const editLabelInputRef = ref<HTMLInputElement | null>(null);
+const clickTimeout = ref<number | null>(null);
+
+const handleClick = (event: MouseEvent) => {
+	if (clickTimeout.value !== null) {
+		window.clearTimeout(clickTimeout.value);
+	}
+	clickTimeout.value = window.setTimeout(() => {
+		emit("onLabelClick", event, props.line);
+		clickTimeout.value = null;
+	}, 200);
+};
+
+const handleDblClick = () => {
+	if (clickTimeout.value !== null) {
+		window.clearTimeout(clickTimeout.value);
+		clickTimeout.value = null;
+	}
+	startLabelEdit(props.line);
+};
 
 const startLabelEdit = (line: DisassemblyLine) => {
 	editingLabelAddress.value = line.addr;

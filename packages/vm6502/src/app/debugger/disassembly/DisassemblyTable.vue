@@ -1,39 +1,62 @@
 <template>
-	<table class="table-fixed">
+	<table class="table-fixed w-full">
 		<thead>
 			<tr class="text-gray-400 sticky top-0 bg-gray-900 border-b border-gray-700 shadow-md z-10">
 				<!-- Header -->
 				<th class="py-1 text-center w-6"></th>
 				<th class="py-1 text-center w-6"><StickyNote class="w-3 h-3 mx-auto" /></th>
-				<th class="py-1 text-left px-2 w-20">Addr</th>
-				<th class="py-1 text-left w-20"></th>
-				<th class="py-1 text-left w-60">Opcode</th>
-				<th class="py-1 text-left flex-grow">Comment</th>
-				<th v-if="settings.disassembly.showCycles" class="py-1 text-right w-12">Cycles</th>
+				<th class="py-1 text-left px-2" :class="settings.disassembly.addressWidth === 6 ? 'w-19' : 'w-13'">
+					Addr
+				</th>
+				<th v-if="settings.disassembly.showBytes" class="py-1 text-left w-20"></th>
+				<th class="py-1 text-left w-40">Opcode</th>
+				<th v-if="settings.disassembly.showInfo" class="py-1 text-left w-30 text-gray-500">Info</th>
+				<th v-if="settings.disassembly.showComments" class="py-1 text-left flex-grow">Comment</th>
+				<th v-if="settings.disassembly.showCycles" class="py-1 text-right">#</th>
 			</tr>
 		</thead>
-		<tbody>
+		<tbody class="align-baseline tabular-nums">
 			<template v-for="line in disassembly" :key="line.addr">
 				<tr v-if="line.label">
 					<DisassemblyTableLabel
-						colspan="7"
-						class="py-0.5 px-2 text-yellow-500 font-bold font-mono text-xs border-l-4 border-transparent"
+						:colspan="settings.disassembly.showCycles ? 8 : 7"
+						class="py-0.5 px-2 text-yellow-500 font-bold border-l-4 border-transparent"
 						:line="line"
 						@on-context-menu="handleContextMenu($event, line)"
 						@on-label-click="handleLabelClick($event, line)"
 					/>
 				</tr>
+				<tr v-if="getBlockComments(line).length > 0">
+					<td :colspan="settings.disassembly.showCycles ? 8 : 7" class="border-l-4 border-transparent">
+						<div
+							class="bg-gray-800/60 border-l-2 border-yellow-500/40 p-2 rounded-r text-gray-300 shadow-sm my-0.5"
+						>
+							<div
+								v-for="(comment, idx) in getBlockComments(line)"
+								:key="idx"
+								class="whitespace-pre-wrap"
+							>
+								{{ comment.text }}
+							</div>
+						</div>
+					</td>
+				</tr>
 				<tr
 					@contextmenu.prevent="handleContextMenu($event, line)"
 					:class="[
 						'hover:bg-gray-700 transition duration-100 border-l-4',
-						line.addr === address
-							? 'bg-yellow-800/70 text-yellow-100 font-bold border-yellow-400'
+						line.addr === address && settings.disassembly.highlightPc
+							? 'text-yellow-100 font-bold border-yellow-400'
 							: 'border-transparent text-gray-300',
 						isLineSelected(line.addr) ? 'bg-indigo-900/40 border-indigo-500/50' : '',
 						line.addr === selectionStart || line.addr === selectionEnd ? 'bg-indigo-800/60' : '',
 						contextMenu.isOpen && contextMenu.address === line.addr ? 'bg-gray-700' : '',
 					]"
+					:style="
+						line.addr === address && settings.disassembly.highlightPc
+							? { backgroundColor: settings.disassembly.syntax.pcLine }
+							: {}
+					"
 				>
 					<td class="py-0.5 text-center">
 						<button
@@ -63,14 +86,14 @@
 						</button>
 					</td>
 					<td
-						class="py-0.5 px-2 tabular-nums text-indigo-300 font-mono cursor-pointer align-baseline"
+						class="py-0.5 px-2 text-indigo-300 cursor-pointer"
 						:style="{ 'background-color': getScopeColor(line.addr) + '1A' }"
 						:title="`Scope: ${getScopeForAddr(line.addr)} | CTRL+Click to view in Memory Viewer`"
 						@click.ctrl.prevent="$emit('addressClick', line.addr)"
 					>
-						{{ line.faddr }}
+						{{ settings.disassembly.addressWidth === 6 ? line.faddr : `$${toHex(line.addr, 4)}` }}
 					</td>
-					<td class="py-0.5 tabular-nums text-gray-400">
+					<td v-if="settings.disassembly.showBytes" class="py-0.5 text-gray-400">
 						{{ line.bytes }}
 					</td>
 					<td
@@ -129,10 +152,25 @@
 							</span>
 						</template>
 					</td>
-					<td class="py-0.5 text-left align-baseline" :style="{ color: settings.disassembly.syntax.comment }">
-						{{ line.comment }}
+					<td v-if="settings.disassembly.showInfo" class="py-0.5 text-left text-gray-500">
+						<span
+							v-for="(comment, idx) in getDebuggerComments(line)"
+							:key="idx"
+							class="mr-3 block whitespace-nowrap overflow-hidden text-ellipsis max-w-[12rem]"
+							:title="comment.text"
+							>{{ comment.text }}</span
+						>
 					</td>
-					<td v-if="settings.disassembly.showCycles" class="py-0.5 text-center text-gray-400">
+					<td v-if="settings.disassembly.showComments" class="py-0.5 text-left">
+						<span
+							v-for="(comment, idx) in getUserInlineComments(line)"
+							:key="idx"
+							:style="{ color: getCommentColor() }"
+							class="mr-3"
+							>; {{ comment.text }}</span
+						>
+					</td>
+					<td v-if="settings.disassembly.showCycles" class="py-0.5 text-right text-gray-400">
 						{{ line.cycles }}
 					</td>
 				</tr>
@@ -215,7 +253,7 @@ import DisassemblyTableLabel from "./DisassemblyTableLabel.vue";
 import LabelReferencesPopover from "./LabelReferencesPopover.vue";
 import { useAddressHistory } from "@/composables/useAddressHistory";
 import { useCrossReferences } from "@/composables/useCrossReferences";
-import { formatAddress } from "@/lib/hex.utils";
+import { formatAddress, toHex } from "@/lib/hex.utils";
 
 const vm = inject<Ref<VirtualMachine>>("vm");
 
@@ -321,6 +359,22 @@ const getScopeColor = (addr: number) => {
 const getOpcodeColor = (opc: string) => {
 	if (opc.startsWith(".")) return settings.disassembly.syntax.pseudo;
 	return settings.disassembly.syntax.opcode;
+};
+
+const getDebuggerComments = (line: DisassemblyLine) => {
+	return line.comments.filter((c) => c.source === "debugger");
+};
+
+const getUserInlineComments = (line: DisassemblyLine) => {
+	return line.comments.filter((c) => c.source === "user" && c.kind === "inline");
+};
+
+const getBlockComments = (line: DisassemblyLine) => {
+	return line.comments.filter((c) => c.source === "user" && c.kind === "block");
+};
+
+const getCommentColor = () => {
+	return settings.disassembly.syntax.comment;
 };
 
 const parseOperand = (opr: string) => {
