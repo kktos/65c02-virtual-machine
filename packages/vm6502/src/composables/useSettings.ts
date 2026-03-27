@@ -14,6 +14,7 @@ interface DebuggerSettings {
 		lowercase: boolean;
 		scopeColors: Record<string, string>;
 		syntax: {
+			addr: string;
 			opcode: string;
 			pseudo: string;
 			number: string;
@@ -21,6 +22,8 @@ interface DebuggerSettings {
 			register: string;
 			punctuation: string;
 			comment: string;
+			bytes: string;
+			info: string;
 			pcLine: string;
 		};
 		gemini: {
@@ -44,6 +47,7 @@ const defaultSettings: DebuggerSettings = {
 			main: "#000000",
 		},
 		syntax: {
+			addr: "#a3b3ff",
 			opcode: "#60A5FA",
 			pseudo: "#C084FC",
 			number: "#5EEAD4",
@@ -51,7 +55,9 @@ const defaultSettings: DebuggerSettings = {
 			register: "#60A5FA",
 			punctuation: "#60A5FA",
 			comment: "#0ba229",
-			pcLine: "#422006", // Default brownish-yellow (bg-yellow-800/70 equivalent)
+			pcLine: "#422006",
+			info: "#99a1af",
+			bytes: "#99a1af",
 		},
 		gemini: {
 			apiKey: "",
