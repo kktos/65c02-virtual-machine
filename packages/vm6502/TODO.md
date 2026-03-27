@@ -1,8 +1,6 @@
 # TODO
 
-### 2026-03-24
-
-- add a command to create a note
+### 2026-03-26
 
 ### 2026-03-23
 
@@ -10,6 +8,7 @@
 
 ### 2026
 
+- **DONE** add a command to create a note -> comment
 - **DONE** add a color setting for the line where the PC is for DisasmView
 - **NOT_YET**
   Can we add a feature to highlight bytes that have changed since the last update in the Memory Viewer?
