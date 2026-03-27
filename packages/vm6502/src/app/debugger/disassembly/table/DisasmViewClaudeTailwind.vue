@@ -1,7 +1,12 @@
 <template>
-	<div class="overflow-hidden font-mono text-[0.78rem] text-gray-400 relative">
+	<div
+		class="overflow-hidden font-mono text-[0.78rem] text-gray-400 relative"
+		@keydown.escape="clearSelection"
+		tabindex="0"
+	>
 		<div class="overflow-auto">
 			<div :style="{ display: 'grid', gridTemplateColumns }">
+				<!-- ── Header ───────────────────────────────────────────────── -->
 				<div
 					class="col-span-full grid sticky top-0 z-[5] border-b border-gray-700"
 					:style="{ gridTemplateColumns }"
@@ -16,6 +21,7 @@
 					</div>
 				</div>
 
+				<!-- ── Rows ─────────────────────────────────────────────────── -->
 				<template v-for="(row, idx) in rows" :key="idx">
 					<BlockCommentViewer v-if="row.line.blockComment" class="col-span-full" :line="row.line" />
 
@@ -26,12 +32,13 @@
 					/>
 
 					<div
-						class="col-span-full grid items-center h-[1.6rem] cursor-pointer border-b border-transparent transition-colors duration-75 even:bg-[#00000050] hover:bg-[#3194f969] hover:border-[#1e3a1e]"
+						class="col-span-full grid items-center h-[1.6rem] cursor-pointer border-b transition-colors duration-75 select-none even:bg-[#00000050] hover:bg-[#3194f969]"
+						:class="rowBorderClass(row)"
 						:style="{
 							gridTemplateColumns,
-							backgroundColor: row.highlight ? highlightColors[row.highlight] : '',
+							backgroundColor: rowBackgroundColor(row),
 						}"
-						@click="onRowClick?.(row)"
+						@click="handleRowClick(row, $event)"
 					>
 						<!-- Gutter indicator -->
 						<div class="flex items-center justify-center">
@@ -40,7 +47,7 @@
 								class="border-l-4 border-transparent min-h-6"
 							></div>
 							<button
-								@click="onToggleBreakpoint(row.line.addr)"
+								@click.stop="onToggleBreakpoint(row.line.addr)"
 								class="w-full h-full flex items-center justify-center cursor-pointer group"
 							>
 								<span
@@ -56,7 +63,7 @@
 							:key="col.key"
 							class="px-1.5 truncate"
 							:style="{ color: columnColors[col.key] }"
-							:class="[row.highlight ? HIGHLIGHT_TEXT[row.highlight] : '']"
+							:class="[cellTextClass(row)]"
 						>
 							<CellValue :col="col.key" :line="row.line" />
 						</div>
@@ -68,24 +75,30 @@
 </template>
 
 <script setup lang="ts">
-import { computed, defineComponent, h, inject, type Ref } from "vue";
+import { computed, defineComponent, h, inject, watch, type Ref } from "vue";
 import DisasmLabel from "./DisasmLabel.vue";
 import type { DisassemblyLine, DisassemblyLineKeys } from "@/types/disassemblyline.interface";
 import { useSettings } from "@/composables/useSettings";
 import { useBreakpoints } from "@/composables/useBreakpoints";
+import { useDisasmSelection } from "@/composables/useDisasmSelection";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import BlockCommentViewer from "../BlockCommentViewer.vue";
 
-const vm = inject<Ref<VirtualMachine>>("vm");
+// ── Injections / composables ───────────────────────────────────────────────
 
+const vm = inject<Ref<VirtualMachine>>("vm");
 const { settings } = useSettings();
 const { pcBreakpoints, toggleBreakpoint } = useBreakpoints();
 
+// ── Types ──────────────────────────────────────────────────────────────────
+
 type HighlightReason = "pc" | "breakpoint" | "selected" | "watch" | null;
+
 interface DisassemblyRow {
 	line: DisassemblyLine;
 	highlight: HighlightReason;
 }
+
 interface ColumnDef {
 	key: DisassemblyLineKeys;
 	label: string;
@@ -93,7 +106,20 @@ interface ColumnDef {
 	canGrow: boolean;
 }
 
-// Column track widths for CSS grid-template-columns
+// ── Props / emits ──────────────────────────────────────────────────────────
+
+const props = defineProps<{
+	address: number;
+	lines: DisassemblyLine[];
+	onRowClick?: (row: DisassemblyRow) => void;
+}>();
+
+const emit = defineEmits<{
+	(e: "selection-change", addrs: number[]): void;
+}>();
+
+// ── Column config ──────────────────────────────────────────────────────────
+
 const COLUMN_WIDTHS: Partial<Record<ColumnDef["key"], string>> = {
 	faddr: "10ch",
 	bytes: "10ch",
@@ -102,7 +128,7 @@ const COLUMN_WIDTHS: Partial<Record<ColumnDef["key"], string>> = {
 	comment: "1fr",
 	cycles: "2ch",
 };
-// Per-column Tailwind text colour + style classes
+
 const COLUMN_CLASSES: Partial<Record<ColumnDef["key"], string>> = {
 	faddr: "text-emerald-300 font-semibold",
 	bytes: "text-emerald-700 text-[0.72rem]",
@@ -111,33 +137,34 @@ const COLUMN_CLASSES: Partial<Record<ColumnDef["key"], string>> = {
 	info: "text-sky-300 text-[0.72rem]",
 	comment: "text-emerald-800 italic",
 };
-// Tailwind override text colour for highlighted cells
-const HIGHLIGHT_TEXT: Record<NonNullable<HighlightReason>, string> = {
-	pc: "font-bold",
-	breakpoint: "!text-red-300",
-	selected: "!text-indigo-200",
-	watch: "!text-yellow-200",
-};
 
-const props = defineProps<{
-	address: number;
-	lines: DisassemblyLine[];
-	onRowClick?: (row: DisassemblyRow) => void;
-}>();
+// ── Selection ──────────────────────────────────────────────────────────────
 
-const rows = computed(() => {
-	return props.lines.map((line) => {
-		return {
-			line: {
-				...line,
-				info: getInfo(line),
-				comment: line.comment,
-				blockComment: getBlockComment(line),
-			},
-			highlight: (props.address === line.addr ? "pc" : null) as HighlightReason,
-		};
-	});
-});
+const orderedAddrs = computed(() => rows.value.map((r) => r.line.addr));
+
+const {
+	isSelected,
+	handleClick: selectionClick,
+	clearSelection,
+	selectedList,
+} = useDisasmSelection(() => orderedAddrs.value);
+
+// Propagate selection changes to parent
+watch(selectedList, (val) => emit("selection-change", val));
+
+// ── Row building ───────────────────────────────────────────────────────────
+
+const rows = computed(() =>
+	props.lines.map((line) => ({
+		line: {
+			...line,
+			info: getInfo(line),
+			comment: line.comment,
+			blockComment: getBlockComment(line),
+		},
+		highlight: (props.address === line.addr ? "pc" : null) as HighlightReason,
+	})),
+);
 
 const columns = computed(() => {
 	const DEFAULT_COLUMNS: ColumnDef[] = [
@@ -148,7 +175,6 @@ const columns = computed(() => {
 		{ key: "comment", label: "COMMENT", visible: settings.disassembly.showComments, canGrow: true },
 		{ key: "cycles", label: "#", visible: settings.disassembly.showCycles, canGrow: false },
 	];
-
 	return DEFAULT_COLUMNS.filter((c) => c.visible);
 });
 
@@ -164,31 +190,109 @@ const columnWidths = computed(() => {
 	return widths;
 });
 
-const columnColors = computed<Partial<Record<ColumnDef["key"], string>>>(() => {
-	return {
-		faddr: settings.disassembly.syntax.addr,
-		bytes: settings.disassembly.syntax.bytes,
-		opc: settings.disassembly.syntax.opcode,
-		info: settings.disassembly.syntax.info,
-		comment: settings.disassembly.syntax.comment,
-	};
+const columnColors = computed<Partial<Record<ColumnDef["key"], string>>>(() => ({
+	faddr: settings.disassembly.syntax.addr,
+	bytes: settings.disassembly.syntax.bytes,
+	opc: settings.disassembly.syntax.opcode,
+	info: settings.disassembly.syntax.info,
+	comment: settings.disassembly.syntax.comment,
+}));
+
+const highlightColors = computed(() => ({
+	pc: settings.disassembly.syntax.pcLine,
+	breakpoint: "",
+	selected: "",
+	watch: "",
+}));
+
+const gridTemplateColumns = computed(() => {
+	const tracks = columns.value.map((c) => columnWidths.value[c.key] ?? "auto");
+	return `1.4rem ${tracks.join(" ")}`;
 });
 
-const highlightColors = computed(() => {
-	return {
-		pc: settings.disassembly.syntax.pcLine,
-		breakpoint: "",
-		selected: "",
-		watch: "",
-	};
-});
+// ── Row styling helpers ────────────────────────────────────────────────────
+
+function rowBackgroundColor(row: DisassemblyRow): string {
+	if (isSelected(row.line.addr)) return "rgba(49, 148, 249, 0.25)";
+	if (row.highlight) return highlightColors.value[row.highlight];
+	return "";
+}
+
+function rowBorderClass(row: DisassemblyRow): string {
+	if (isSelected(row.line.addr)) return "border-b-blue-500/50";
+	if (row.highlight === "pc") return "border-b-yellow-500/60";
+	if (row.highlight === "breakpoint") return "border-b-red-500/50";
+	return "border-b-transparent";
+}
+
+function cellTextClass(row: DisassemblyRow): string {
+	if (isSelected(row.line.addr)) return "!text-blue-100";
+	if (row.highlight === "pc") return "font-bold";
+	if (row.highlight === "breakpoint") return "!text-red-300";
+	if (row.highlight === "selected") return "!text-indigo-200";
+	if (row.highlight === "watch") return "!text-yellow-200";
+	return "";
+}
+
+// ── Event handlers ─────────────────────────────────────────────────────────
+
+function handleRowClick(row: DisassemblyRow, event: MouseEvent) {
+	selectionClick(row.line.addr, event);
+	props.onRowClick?.(row);
+}
+
+// ── Breakpoints ────────────────────────────────────────────────────────────
+
+const onToggleBreakpoint = (address: number) => toggleBreakpoint({ type: "pc", address }, vm?.value);
+
+const getBreakpointClass = (address: number) => {
+	if (!pcBreakpoints.value.has(address)) return "bg-gray-700 group-hover:bg-red-500/50";
+	return pcBreakpoints.value.get(address)
+		? "bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.6)]"
+		: "bg-transparent border-2 border-red-500/40";
+};
+
+// ── Line helpers ───────────────────────────────────────────────────────────
+
+const getBlockComment = (line: DisassemblyLine) =>
+	line.comments.filter((c) => c.source === "user" && c.kind === "block")[0]?.text ?? "";
+
+const getInfo = (line: DisassemblyLine) => line.comments.filter((c) => c.source === "debugger")[0]?.text ?? "";
+
+// ── Operand syntax highlighting ────────────────────────────────────────────
+
+const parseOperand = (opr: string) => {
+	if (!opr) return [];
+	const tokens: { text: string; color: string }[] = [];
+	const regex = /(\$[0-9A-Fa-f]+)|(\d+)|([a-zA-Z_][a-zA-Z0-9_.]*)|([(),#])/g;
+	let match: RegExpExecArray | null;
+	let lastIndex = 0;
+
+	while ((match = regex.exec(opr)) !== null) {
+		if (match.index > lastIndex) tokens.push({ text: opr.substring(lastIndex, match.index), color: "" });
+
+		const text = match[0];
+		let color = "";
+		if (match[1] || match[2]) color = settings.disassembly.syntax.number;
+		else if (match[3])
+			color = ["A", "X", "Y"].includes(text.toUpperCase())
+				? settings.disassembly.syntax.register
+				: settings.disassembly.syntax.label;
+		else if (match[4]) color = settings.disassembly.syntax.punctuation;
+
+		tokens.push({ text, color });
+		lastIndex = regex.lastIndex;
+	}
+	if (lastIndex < opr.length) tokens.push({ text: opr.substring(lastIndex), color: "" });
+	return tokens;
+};
 
 const CellValue = defineComponent(
 	(props: { col: DisassemblyLineKeys; line: DisassemblyLine }) => {
 		return () => {
 			if (props.col === "opc") {
 				const tokens = parseOperand(props.line["opr"]);
-				const children = tokens.map((token) => h("span", { style: { color: token.color } }, token.text));
+				const children = tokens.map((t) => h("span", { style: { color: t.color } }, t.text));
 				const isPseudo = props.line["opc"].startsWith(".");
 				children.unshift(
 					h(
@@ -207,63 +311,6 @@ const CellValue = defineComponent(
 			return h("div", String(props.line[props.col]));
 		};
 	},
-	{
-		props: ["col", "line"],
-	},
+	{ props: ["col", "line"] },
 );
-
-/** CSS grid-template-columns: fixed gutter + one track per visible column */
-const gridTemplateColumns = computed(() => {
-	const tracks = columns.value.map((c) => columnWidths.value[c.key] ?? "auto");
-	return `1.4rem ${tracks.join(" ")}`;
-});
-
-const getBlockComment = (line: DisassemblyLine) => {
-	const list = line.comments.filter((c) => c.source === "user" && c.kind === "block");
-	return list[0]?.text ?? "";
-};
-const getInfo = (line: DisassemblyLine) => {
-	return line.comments.filter((c) => c.source === "debugger")[0]?.text ?? "";
-};
-
-const parseOperand = (opr: string) => {
-	if (!opr) return [];
-	const tokens = [];
-	// 1. Hex ($1234)
-	// 2. Decimal (1234)
-	// 3. Symbols (Label or Register)
-	// 4. Punctuation
-	const regex = /(\$[0-9A-Fa-f]+)|(\d+)|([a-zA-Z_][a-zA-Z0-9_.]*)|([(),#])/g;
-	let match;
-	let lastIndex = 0;
-
-	while ((match = regex.exec(opr)) !== null) {
-		if (match.index > lastIndex) tokens.push({ text: opr.substring(lastIndex, match.index), color: "" });
-
-		const text = match[0];
-		let color = "";
-
-		if (match[1] || match[2]) {
-			color = settings.disassembly.syntax.number;
-		} else if (match[3]) {
-			color = ["A", "X", "Y"].includes(text.toUpperCase())
-				? settings.disassembly.syntax.register
-				: settings.disassembly.syntax.label;
-		} else if (match[4]) {
-			color = settings.disassembly.syntax.punctuation;
-		}
-		tokens.push({ text, color });
-		lastIndex = regex.lastIndex;
-	}
-	if (lastIndex < opr.length) tokens.push({ text: opr.substring(lastIndex), color: "" });
-	return tokens;
-};
-
-const onToggleBreakpoint = (address: number) => toggleBreakpoint({ type: "pc", address }, vm?.value);
-const getBreakpointClass = (address: number) => {
-	if (!pcBreakpoints.value.has(address)) return "bg-gray-700 group-hover:bg-red-500/50";
-	return pcBreakpoints.value.get(address)
-		? "bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.6)]" // Enabled
-		: "bg-transparent border-2 border-red-500/40"; // Disabled
-};
 </script>
