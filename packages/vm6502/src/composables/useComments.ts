@@ -13,6 +13,12 @@ export function useComments() {
 		return comments[address] || [];
 	}
 
+	function getBlockComment(address: number): DisassemblyComment | undefined {
+		let list = comments[address] || [];
+		list = list.filter((c) => c.kind === "block");
+		return list[0];
+	}
+
 	function updateComment(address: number, comment: DisassemblyComment) {
 		if (!comments[address]) return;
 		const index = comments[address].findIndex((c) => c.source === comment.source && c.kind === comment.kind);
@@ -29,5 +35,6 @@ export function useComments() {
 		getComments,
 		updateComment,
 		clearComments,
+		getBlockComment,
 	};
 }

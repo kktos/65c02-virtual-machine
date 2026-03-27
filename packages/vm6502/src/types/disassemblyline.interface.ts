@@ -8,6 +8,8 @@ export interface DisassemblyComment {
 	source: "user" | "debugger";
 }
 
+export type DisassemblyLineKeys = keyof DisassemblyLine;
+
 export interface DisassemblyLine {
 	label: string;
 	src: string;
@@ -19,5 +21,10 @@ export interface DisassemblyLine {
 	oprn: number;
 	cycles: number;
 	bytes: string;
+
 	comments: DisassemblyComment[];
+
+	info: string;
+	comment: string;
+	blockComment: string;
 }
