@@ -16,15 +16,15 @@
 			v-else
 			ref="inputRef"
 			v-model="editText"
-			class="w-full bg-black text-yellow-100 font-mono text-xs focus:outline-none rounded resize-y bg-transparent"
-			:style="{ height: text.split('\n').length + 'rem' }"
+			class="w-full -translate-y-[3.9px] bg-black text-yellow-100 border-none -mb-2 whitespace-pre-wrap focus:outline-none rounded resize-none bg-transparent overflow-y-auto"
+			:style="{ height: textAreaHeight }"
 			@keydown.esc="cancelEdit"
 		></textarea>
 	</div>
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick, onMounted } from "vue";
+import { ref, nextTick, onMounted, computed } from "vue";
 import { onClickOutside } from "@vueuse/core";
 import { useComments } from "@/composables/useComments";
 import type { DisassemblyComment } from "@/types/disassemblyline.interface";
@@ -46,11 +46,17 @@ const editText = ref(text.trim());
 const containerRef = ref<HTMLElement | null>(null);
 const inputRef = ref<HTMLTextAreaElement | null>(null);
 
+const textAreaHeight = computed(() => {
+	const lines = editText.value.split("\n").length;
+	return Math.min(Math.max(lines, 1), 6) + "rem";
+});
+
 onMounted(() => {
 	if (wannaEdit) startEdit();
 });
 
 const startEdit = () => {
+	editText.value = text.trim();
 	isEditing.value = true;
 	nextTick(() => inputRef.value?.focus());
 };
