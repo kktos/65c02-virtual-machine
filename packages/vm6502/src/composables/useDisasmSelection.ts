@@ -1,20 +1,25 @@
 import { ref, computed } from "vue";
 
-export function useDisasmSelection(getOrderedAddrs: () => number[]) {
-	const selectedAddrs = ref<Set<number>>(new Set());
-	const lastClickedAddr = ref<number | null>(null);
+const selectedAddrs = ref<Set<number>>(new Set());
+const startSelectionAddr = ref<number | null>(null);
+const endSelectionAddr = ref<number | null>(null);
+const selectedList = computed(() => [...selectedAddrs.value].sort((a, b) => a - b));
+const isSelected = (addr: number) => selectedAddrs.value.has(addr);
 
-	/** Sorted list of currently selected addresses */
-	const selectedList = computed(() => [...selectedAddrs.value].sort((a, b) => a - b));
+function clearSelection() {
+	selectedAddrs.value = new Set();
+	startSelectionAddr.value = null;
+	endSelectionAddr.value = null;
+}
 
-	const isSelected = (addr: number) => selectedAddrs.value.has(addr);
-
+export function useDisasmSelection(getOrderedAddrs?: () => number[]) {
 	function handleClick(addr: number, event: MouseEvent) {
-		const ordered = getOrderedAddrs();
+		const ordered = getOrderedAddrs?.() ?? [];
+		if (ordered.length === 0) return;
 
-		if (event.shiftKey && lastClickedAddr.value !== null) {
+		if (event.shiftKey && startSelectionAddr.value !== null) {
 			// ── Range select ──────────────────────────────────────────────────
-			const anchorIdx = ordered.indexOf(lastClickedAddr.value);
+			const anchorIdx = ordered.indexOf(startSelectionAddr.value);
 			const targetIdx = ordered.indexOf(addr);
 			if (anchorIdx !== -1 && targetIdx !== -1) {
 				const [from, to] = anchorIdx < targetIdx ? [anchorIdx, targetIdx] : [targetIdx, anchorIdx];
@@ -26,6 +31,8 @@ export function useDisasmSelection(getOrderedAddrs: () => number[]) {
 					// Shift: replace selection with range
 					selectedAddrs.value = range;
 				}
+				endSelectionAddr.value = ordered[to];
+				startSelectionAddr.value = ordered[from];
 			}
 		} else if (event.ctrlKey || event.metaKey) {
 			// ── Toggle individual ─────────────────────────────────────────────
@@ -33,25 +40,30 @@ export function useDisasmSelection(getOrderedAddrs: () => number[]) {
 			if (next.has(addr)) next.delete(addr);
 			else next.add(addr);
 			selectedAddrs.value = next;
-			lastClickedAddr.value = addr;
+			endSelectionAddr.value = addr;
 		} else {
 			// ── Single select (deselect if sole selection) ────────────────────
 			if (selectedAddrs.value.size === 1 && selectedAddrs.value.has(addr)) {
 				selectedAddrs.value = new Set();
-				lastClickedAddr.value = null;
+				startSelectionAddr.value = null;
+				endSelectionAddr.value = null;
 				return;
 			}
 			selectedAddrs.value = new Set([addr]);
-			lastClickedAddr.value = addr;
+			startSelectionAddr.value = addr;
+			endSelectionAddr.value = addr;
 		}
 
-		if (!event.shiftKey) lastClickedAddr.value = addr;
+		if (!event.shiftKey) endSelectionAddr.value = addr;
 	}
 
-	function clearSelection() {
-		selectedAddrs.value = new Set();
-		lastClickedAddr.value = null;
-	}
-
-	return { selectedAddrs, selectedList, lastClickedAddr, isSelected, handleClick, clearSelection };
+	return {
+		selectedAddrs,
+		selectedList,
+		startSelectionAddr,
+		endSelectionAddr,
+		isSelected,
+		handleClick,
+		clearSelection,
+	};
 }
