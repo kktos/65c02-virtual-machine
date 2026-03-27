@@ -7,5 +7,25 @@
 	"editor.codeActionsOnSave": {
 		"source.fixAll.oxc": "always"
 	},
-	"oxc.enable.oxlint": true
+	"oxc.enable.oxlint": true,
+	"workbench.colorCustomizations": {
+		"activityBar.activeBackground": "#4b7e5a",
+		"activityBar.background": "#4b7e5a",
+		"activityBar.foreground": "#e7e7e7",
+		"activityBar.inactiveForeground": "#e7e7e799",
+		"activityBarBadge.background": "#473b64",
+		"activityBarBadge.foreground": "#e7e7e7",
+		"commandCenter.border": "#e7e7e799",
+		"sash.hoverBorder": "#4b7e5a",
+		"statusBar.background": "#385e43",
+		"statusBar.foreground": "#e7e7e7",
+		"statusBarItem.hoverBackground": "#4b7e5a",
+		"statusBarItem.remoteBackground": "#385e43",
+		"statusBarItem.remoteForeground": "#e7e7e7",
+		"titleBar.activeBackground": "#385e43",
+		"titleBar.activeForeground": "#e7e7e7",
+		"titleBar.inactiveBackground": "#385e4399",
+		"titleBar.inactiveForeground": "#e7e7e799"
+	},
+	"peacock.color": "#385e43"
 }
