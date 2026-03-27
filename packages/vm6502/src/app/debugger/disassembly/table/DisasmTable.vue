@@ -23,7 +23,13 @@
 
 				<!-- ── Rows ─────────────────────────────────────────────────── -->
 				<template v-for="(row, idx) in rows" :key="idx">
-					<BlockCommentViewer v-if="row.line.blockComment" class="col-span-full" :line="row.line" />
+					<BlockCommentViewer
+						v-if="row.line.blockComment"
+						class="col-span-full"
+						:text="row.line.blockComment"
+						:addr="row.line.addr"
+						:wanna-edit="editingBlockCommentAddr === row.line.addr"
+					/>
 
 					<DisasmLabel
 						v-if="row.line.label"
@@ -75,20 +81,19 @@
 </template>
 
 <script setup lang="ts">
-import { computed, defineComponent, h, inject, watch, type Ref } from "vue";
+import { computed, defineComponent, h, inject, type Ref } from "vue";
 import DisasmLabel from "./DisasmLabel.vue";
 import type { DisassemblyLine, DisassemblyLineKeys } from "@/types/disassemblyline.interface";
 import { useSettings } from "@/composables/useSettings";
 import { useBreakpoints } from "@/composables/useBreakpoints";
 import { useDisasmSelection } from "@/composables/useDisasmSelection";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
-import BlockCommentViewer from "../BlockCommentViewer.vue";
+import BlockCommentViewer from "./BlockCommentViewer.vue";
 
 // ── Injections / composables ───────────────────────────────────────────────
 
 const vm = inject<Ref<VirtualMachine>>("vm");
 const { settings } = useSettings();
-const { pcBreakpoints, toggleBreakpoint } = useBreakpoints();
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -111,11 +116,8 @@ interface ColumnDef {
 const props = defineProps<{
 	address: number;
 	lines: DisassemblyLine[];
+	editingBlockCommentAddr?: number | null;
 	onRowClick?: (row: DisassemblyRow) => void;
-}>();
-
-const emit = defineEmits<{
-	(e: "selection-change", addrs: number[]): void;
 }>();
 
 // ── Column config ──────────────────────────────────────────────────────────
@@ -128,29 +130,21 @@ const COLUMN_WIDTHS: Partial<Record<ColumnDef["key"], string>> = {
 	comment: "1fr",
 	cycles: "2ch",
 };
-
-const COLUMN_CLASSES: Partial<Record<ColumnDef["key"], string>> = {
-	faddr: "text-emerald-300 font-semibold",
-	bytes: "text-emerald-700 text-[0.72rem]",
-	opc: "text-yellow-300 font-bold tracking-wide",
-	opr: "text-orange-300",
-	info: "text-sky-300 text-[0.72rem]",
-	comment: "text-emerald-800 italic",
-};
+// not used for now
+// const COLUMN_CLASSES: Partial<Record<ColumnDef["key"], string>> = {
+// 	faddr: "text-emerald-300 font-semibold",
+// 	bytes: "text-emerald-700 text-[0.72rem]",
+// 	opc: "text-yellow-300 font-bold tracking-wide",
+// 	opr: "text-orange-300",
+// 	info: "text-sky-300 text-[0.72rem]",
+// 	comment: "text-emerald-800 italic",
+// };
 
 // ── Selection ──────────────────────────────────────────────────────────────
 
 const orderedAddrs = computed(() => rows.value.map((r) => r.line.addr));
 
-const {
-	isSelected,
-	handleClick: selectionClick,
-	clearSelection,
-	selectedList,
-} = useDisasmSelection(() => orderedAddrs.value);
-
-// Propagate selection changes to parent
-watch(selectedList, (val) => emit("selection-change", val));
+const { isSelected, handleClick: selectionClick, clearSelection } = useDisasmSelection(() => orderedAddrs.value);
 
 // ── Row building ───────────────────────────────────────────────────────────
 
@@ -242,6 +236,8 @@ function handleRowClick(row: DisassemblyRow, event: MouseEvent) {
 }
 
 // ── Breakpoints ────────────────────────────────────────────────────────────
+
+const { pcBreakpoints, toggleBreakpoint } = useBreakpoints();
 
 const onToggleBreakpoint = (address: number) => toggleBreakpoint({ type: "pc", address }, vm?.value);
 
