@@ -5,7 +5,7 @@
 	<div class="mt-0">
 		<!-- Group header -->
 		<button
-			class="w-full flex items-center justify-between px-3 py-1.5 text-[0.7rem] uppercase tracking-[.15em] hover:text-[#4afa8a] border-b border-[#1e1e1e] transition-colors group"
+			class="w-full bg-white/10 border-t border-gray-500 flex items-center justify-between px-3 py-1.5 text-[0.7rem] uppercase tracking-[.15em] hover:text-[#4afa8a] transition-colors group"
 			@click="open = !open"
 		>
 			<span class="flex items-center gap-1"><Square class="w-4 h-4" />{{ label }}</span>
