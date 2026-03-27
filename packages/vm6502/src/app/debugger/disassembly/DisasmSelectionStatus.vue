@@ -9,7 +9,8 @@
 				size="sm"
 				variant="ghost"
 				class="h-6 px-2 text-xs border-gray-600 hover:bg-gray-200 hover:text-gray-200"
-				@click="$emit('format', 'byte')"
+				@click="addLabel"
+				:disabled="start !== end"
 				><Kbd class="bg-gray-600 text-gray-100">L</Kbd></Button
 			>
 			<Button
@@ -17,7 +18,8 @@
 				size="sm"
 				variant="ghost"
 				class="h-6 px-2 text-xs border-gray-600 hover:bg-gray-200 hover:text-gray-200"
-				@click="addBlockComment()"
+				@click="addBlockComment"
+				:disabled="start !== end"
 				><Kbd class="bg-gray-600 text-gray-100">C</Kbd></Button
 			>
 		</div>
@@ -27,7 +29,7 @@
 				size="sm"
 				variant="ghost"
 				class="h-6 px-2 text-xs border-gray-600 hover:bg-gray-200 hover:text-gray-200"
-				@click="setregion('code')"
+				@click="setDataRegion('code')"
 				><Kbd class="bg-gray-600 text-gray-100">I</Kbd></Button
 			>
 			<Button
@@ -35,7 +37,7 @@
 				size="sm"
 				variant="ghost"
 				class="h-6 px-2 text-xs border-gray-600 hover:bg-gray-200 hover:text-gray-200"
-				@click="setregion('byte')"
+				@click="setDataRegion('byte')"
 				><Kbd class="bg-gray-600 text-gray-100">B</Kbd></Button
 			>
 			<Button
@@ -43,7 +45,7 @@
 				size="sm"
 				variant="ghost"
 				class="h-6 px-2 text-xs border-gray-600 hover:bg-gray-200 hover:text-gray-200"
-				@click="setregion('word')"
+				@click="setDataRegion('word')"
 				><Kbd class="bg-gray-600 text-gray-100">W</Kbd></Button
 			>
 			<Button
@@ -51,7 +53,7 @@
 				size="sm"
 				variant="ghost"
 				class="h-6 px-2 text-xs border-gray-600 hover:bg-gray-200 hover:text-gray-200"
-				@click="setregion('string')"
+				@click="setDataRegion('string')"
 				><Kbd class="bg-gray-600 text-gray-100">S</Kbd></Button
 			>
 		</div>
@@ -72,29 +74,33 @@
 <script lang="ts" setup>
 import { X } from "lucide-vue-next";
 import { Button } from "@/components/ui/button";
-import { formatAddress } from "@/lib/hex.utils";
+import { formatAddress, toHex } from "@/lib/hex.utils";
 import { useDisasmSelection } from "@/composables/useDisasmSelection";
 import { Kbd } from "@/components/ui/kbd";
 import { useFormatting } from "@/composables/useDataFormattings";
 import { useComments } from "@/composables/useComments";
-
-const emit = defineEmits<{
-	(e: "editBlockComment", addr: number): void;
-}>();
+import { useSymbols } from "@/composables/useSymbols";
 
 const { clearSelection, startSelectionAddr: start, endSelectionAddr: end } = useDisasmSelection();
 const { addFormatting, removeFormatting } = useFormatting();
-const { addComment, getBlockComment } = useComments();
+const { addComment, getBlockComment, editingBlockCommentAddr } = useComments();
+const { getLabelForAddress, addSymbol } = useSymbols();
 
+const addLabel = async () => {
+	if (start.value === null) return;
+	const existing = getLabelForAddress(start.value);
+	if (existing) return;
+	await addSymbol(start.value, `L${toHex(start.value, 4)}`);
+};
 const addBlockComment = () => {
 	const addr = start.value ?? 0;
 	if (!getBlockComment(addr)) {
 		addComment(addr, { kind: "block", source: "user", text: " " });
+		editingBlockCommentAddr.value = addr;
 	}
-	emit("editBlockComment", addr);
 };
 
-const setregion = (type: "byte" | "word" | "string" | "code") => {
+const setDataRegion = (type: "byte" | "word" | "string" | "code") => {
 	if (start.value === null || end.value === null) return;
 	if (type === "code") removeFormatting(start.value);
 	else addFormatting(start.value, type, end.value - start.value + 1);
