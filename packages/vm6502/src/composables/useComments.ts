@@ -1,7 +1,8 @@
 import type { DisassemblyComment } from "@/types/disassemblyline.interface";
-import { reactive } from "vue";
+import { reactive, ref } from "vue";
 
 const comments = reactive<Record<number, DisassemblyComment[]>>({});
+const editingBlockCommentAddr = ref<number | null>(null);
 
 export function useComments() {
 	function addComment(address: number, comment: DisassemblyComment) {
@@ -36,5 +37,6 @@ export function useComments() {
 		updateComment,
 		clearComments,
 		getBlockComment,
+		editingBlockCommentAddr,
 	};
 }
