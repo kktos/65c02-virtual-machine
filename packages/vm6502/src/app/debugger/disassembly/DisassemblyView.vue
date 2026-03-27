@@ -23,7 +23,7 @@
 				/>
 
 				<!-- Selection Actions -->
-				<div
+				<!-- <div
 					v-if="hasSelection"
 					class="flex items-center justify-between bg-indigo-900/40 border-b border-indigo-500/50 px-2 py-1 text-xs shrink-0"
 				>
@@ -35,7 +35,7 @@
 					<button @click="clearSelection" class="hover:bg-indigo-700 rounded-full">
 						<X class="w-4 h-4" />
 					</button>
-				</div>
+				</div> -->
 
 				<!-- Scrollable disassembly table -->
 				<div
@@ -48,29 +48,33 @@
 					<p v-if="!disassembly || disassembly.length === 0" class="text-gray-500 italic p-4 text-center">
 						Disassembly data is empty or unavailable. (Check console for debug logs)
 					</p>
-					<DisassemblyTable
-						v-else
-						:registers="registers"
-						:disassembly="disassembly"
-						:address="fullPcAddress"
-						:get-breakpoint-class="getBreakpointClass"
-						:selection-start="selectionStart"
-						:selection-end="selectionEnd"
-						@toggle-breakpoint="onToggleBreakpoint"
-						@address-click="handleAddressClick"
-						@opcode-click="handleOpcodeClick"
-						@set-selection-start="(addr) => (selectionStart = addr)"
-						@set-selection-end="(addr) => (selectionEnd = addr)"
-					/>
+					<div class="grid grid-rows-[400px_1fr]" style="grid-template-rows: auto" v-else>
+						<div class="min-h-0 overflow-y-auto">
+							<DisasmTable
+								:lines="disassembly"
+								:address="fullPcAddress"
+								:registers="registers"
+								:editing-block-comment-addr="editingBlockCommentAddr"
+							/>
+						</div>
+						<div class="min-h-0 overflow-y-auto" style="display: none">
+							<!-- <DisassemblyTable
+								:registers="registers"
+								:disassembly="disassembly"
+								:address="fullPcAddress"
+								:get-breakpoint-class="getBreakpointClass"
+								:selection-start="selectionStart"
+								:selection-end="selectionEnd"
+								@toggle-breakpoint="onToggleBreakpoint"
+								@address-click="handleAddressClick"
+								@opcode-click="handleOpcodeClick"
+								@set-selection-start="(addr) => (selectionStart = addr)"
+								@set-selection-end="(addr) => (selectionEnd = addr)"
+							/> -->
+						</div>
+					</div>
 				</div>
-				<SymbolManager @goto-address="gotoAddress" />
-				<FormattingManager @goto-address="gotoAddress" />
-				<ExplanationDrawer
-					v-model:open="isExplanationOpen"
-					:explanation="explanationText"
-					:is-loading="isExplainLoading"
-					@save-as-note="saveExplanationAsNote"
-				/>
+				<DisasmSelectionStatus v-if="hasSelection" @edit-block-comment="editBlockComment" />
 			</div>
 			<DisassemblySettingsPanel
 				:is-open="isSettingsOpen"
@@ -80,11 +84,18 @@
 			/>
 		</Teleport>
 	</div>
+	<SymbolManager @goto-address="gotoAddress" />
+	<FormattingManager @goto-address="gotoAddress" />
+	<ExplanationDrawer
+		v-model:open="isExplanationOpen"
+		:explanation="explanationText"
+		:is-loading="isExplainLoading"
+		@save-as-note="saveExplanationAsNote"
+	/>
 </template>
 
 <script lang="ts" setup>
 import { computed, inject, type Ref, ref, watch } from "vue";
-import DisassemblyTable from "@/app/debugger/disassembly/DisassemblyTable.vue";
 import DisassemblyToolbar from "@/app/debugger/disassembly/DisassemblyToolbar.vue";
 import DisassemblySettingsPanel from "@/app/debugger/disassembly/settings/DisassemblySettingsPanel.vue";
 import FormattingManager from "@/app/debugger/FormattingManager/FormattingManager.vue";
@@ -105,9 +116,11 @@ import type { EmulatorRegisters } from "@/types/emulatorstate.interface";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import { BRANCH_OPCODES } from "@/lib/opcodes";
 import { getRandomColor } from "@/lib/colors.utils";
-import { toHex } from "@/lib/hex.utils";
-import { X } from "lucide-vue-next";
 import { useAddressHistory } from "@/composables/useAddressHistory";
+import DisasmTable from "./table/DisasmTable.vue";
+import { useDisasmSelection } from "@/composables/useDisasmSelection";
+import DisasmSelectionStatus from "./DisasmSelectionStatus.vue";
+import { useComments } from "@/composables/useComments";
 
 const vm = inject<Ref<VirtualMachine>>("vm");
 
@@ -144,6 +157,7 @@ const {
 } = useGemini();
 const { symbolsState } = useSymbols();
 const { addNote } = useNotes();
+const { comments } = useComments();
 
 const isSettingsOpen = ref(false);
 const toolbarInstance = ref<InstanceType<typeof DisassemblyToolbar> | null>(null);
@@ -257,9 +271,11 @@ const isFollowingPc = ref(true);
 const pcRowIndex = ref(-1);
 const pivotIndex = ref(0);
 
+const { startSelectionAddr, endSelectionAddr } = useDisasmSelection();
 const selectionStart = ref<number | null>(null);
 const selectionEnd = ref<number | null>(null);
-const hasSelection = computed(() => selectionStart.value !== null && selectionEnd.value !== null);
+// const hasSelection = computed(() => selectionStart.value !== null && selectionEnd.value !== null);
+const hasSelection = computed(() => startSelectionAddr.value !== null && endSelectionAddr.value !== null);
 
 const gotoAddress = (addr: number) => {
 	if (addr >= totalMemory) return;
@@ -328,6 +344,7 @@ watch(
 		registers,
 		formattingState.value,
 		symbolsState.value,
+		comments,
 		isFollowingPc.value,
 		fullPcAddress.value,
 		pivotIndex.value,
@@ -450,5 +467,11 @@ const handleExplain = async () => {
 	}
 
 	await explainCode(codeBlock);
+};
+
+const editingBlockCommentAddr = ref<number | null>(null);
+const editBlockComment = (addr: number) => {
+	editingBlockCommentAddr.value = addr;
+	// nextTick(() => (editingBlockCommentAddr.value = null));
 };
 </script>
