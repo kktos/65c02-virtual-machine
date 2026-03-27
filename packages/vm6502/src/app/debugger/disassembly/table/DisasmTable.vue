@@ -71,7 +71,7 @@
 							:style="{ color: columnColors[col.key] }"
 							:class="[cellTextClass(row)]"
 						>
-							<CellValue :col="col.key" :line="row.line" />
+							<CellValue :col="col.key" :line="row.line" :data-id="col.key" />
 						</div>
 					</div>
 				</template>
@@ -89,6 +89,7 @@ import { useBreakpoints } from "@/composables/useBreakpoints";
 import { useDisasmSelection } from "@/composables/useDisasmSelection";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import BlockCommentViewer from "./BlockCommentViewer.vue";
+import { useComments } from "@/composables/useComments";
 
 // ── Injections / composables ───────────────────────────────────────────────
 
@@ -116,10 +117,12 @@ interface ColumnDef {
 const props = defineProps<{
 	address: number;
 	lines: DisassemblyLine[];
-	editingBlockCommentAddr?: number | null;
 	onRowClick?: (row: DisassemblyRow) => void;
 }>();
 
+const emit = defineEmits<{
+	(e: "cellClick", cellId: string, line: DisassemblyLine): void;
+}>();
 // ── Column config ──────────────────────────────────────────────────────────
 
 const COLUMN_WIDTHS: Partial<Record<ColumnDef["key"], string>> = {
@@ -231,6 +234,28 @@ function cellTextClass(row: DisassemblyRow): string {
 // ── Event handlers ─────────────────────────────────────────────────────────
 
 function handleRowClick(row: DisassemblyRow, event: MouseEvent) {
+	let target = event.target as HTMLElement;
+	while (target && !target.dataset?.id) {
+		target = target.parentElement as HTMLElement;
+	}
+
+	console.log(target?.dataset?.id);
+
+	switch (target?.dataset?.id) {
+		case "faddr":
+			if (event.ctrlKey) {
+				emit("cellClick", "addr", row.line);
+				return;
+			}
+			break;
+		case "opc":
+			if (event.ctrlKey) {
+				emit("cellClick", "opc", row.line);
+				return;
+			}
+			break;
+	}
+
 	selectionClick(row.line.addr, event);
 	props.onRowClick?.(row);
 }
@@ -248,7 +273,9 @@ const getBreakpointClass = (address: number) => {
 		: "bg-transparent border-2 border-red-500/40";
 };
 
-// ── Line helpers ───────────────────────────────────────────────────────────
+// ── Comments ───────────────────────────────────────────────────────────
+
+const { editingBlockCommentAddr } = useComments();
 
 const getBlockComment = (line: DisassemblyLine) =>
 	line.comments.filter((c) => c.source === "user" && c.kind === "block")[0]?.text ?? "";

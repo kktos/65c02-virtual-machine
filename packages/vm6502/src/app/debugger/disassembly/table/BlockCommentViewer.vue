@@ -24,7 +24,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick, onMounted, computed } from "vue";
+import { ref, nextTick, computed, watch } from "vue";
 import { onClickOutside } from "@vueuse/core";
 import { useComments } from "@/composables/useComments";
 import type { DisassemblyComment } from "@/types/disassemblyline.interface";
@@ -39,7 +39,7 @@ const {
 	wannaEdit: boolean;
 }>();
 
-const { updateComment } = useComments();
+const { updateComment, editingBlockCommentAddr } = useComments();
 
 const isEditing = ref(false);
 const editText = ref(text.trim());
@@ -49,10 +49,6 @@ const inputRef = ref<HTMLTextAreaElement | null>(null);
 const textAreaHeight = computed(() => {
 	const lines = editText.value.split("\n").length;
 	return Math.min(Math.max(lines, 1), 6) + "rem";
-});
-
-onMounted(() => {
-	if (wannaEdit) startEdit();
 });
 
 const startEdit = () => {
@@ -67,9 +63,20 @@ const cancelEdit = () => {
 
 onClickOutside(containerRef, () => {
 	if (isEditing.value) {
-		const newComment = { source: "user", kind: "block", text: editText.value } as DisassemblyComment;
+		const newComment = { source: "user", kind: "block", text: editText.value.trim() + " " } as DisassemblyComment;
 		updateComment(addr, newComment);
 		isEditing.value = false;
 	}
 });
+
+watch(
+	editingBlockCommentAddr,
+	(newAddr) => {
+		if (newAddr === addr) {
+			startEdit();
+			editingBlockCommentAddr.value = null;
+		}
+	},
+	{ immediate: true },
+);
 </script>

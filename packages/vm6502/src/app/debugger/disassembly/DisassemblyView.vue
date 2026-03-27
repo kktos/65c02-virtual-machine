@@ -54,7 +54,7 @@
 								:lines="disassembly"
 								:address="fullPcAddress"
 								:registers="registers"
-								:editing-block-comment-addr="editingBlockCommentAddr"
+								@cell-click="onCellClick"
 							/>
 						</div>
 						<div class="min-h-0 overflow-y-auto" style="display: none">
@@ -74,7 +74,7 @@
 						</div>
 					</div>
 				</div>
-				<DisasmSelectionStatus v-if="hasSelection" @edit-block-comment="editBlockComment" />
+				<DisasmSelectionStatus v-if="hasSelection" />
 			</div>
 			<DisassemblySettingsPanel
 				:is-open="isSettingsOpen"
@@ -101,7 +101,6 @@ import DisassemblySettingsPanel from "@/app/debugger/disassembly/settings/Disass
 import FormattingManager from "@/app/debugger/FormattingManager/FormattingManager.vue";
 import SymbolManager from "@/app/debugger/SymbolManager/SymbolManager.vue";
 import ExplanationDrawer from "@/app/debugger/disassembly/ExplanationDrawer.vue";
-import { useBreakpoints } from "@/composables/useBreakpoints";
 import { useDebuggerNav } from "@/composables/useDebuggerNav";
 import { useDisassembly } from "@/composables/useDisassembly";
 import { useDisassemblyScroll } from "@/composables/useDisassemblyScroll";
@@ -143,7 +142,6 @@ watch(isMaximized, (isMax) => {
 	if (isMax) window.dispatchEvent(new Event("resize"));
 });
 
-const { pcBreakpoints, toggleBreakpoint } = useBreakpoints();
 const { jumpEvent } = useDisassembly();
 const { setMemoryViewAddress, setActiveTab } = useDebuggerNav();
 const { addJumpHistory, historyNavigationEvent, clearHistory } = useAddressHistory("disassembly");
@@ -181,9 +179,43 @@ watch(
 	{ immediate: true },
 );
 
+// Event Handling
+
+const onCellClick = (col: string, line: DisassemblyLine) => {
+	if (col === "addr") {
+		handleAddressClick(line.addr);
+		return;
+	} else if (col === "opc") handleOpcodeClick(line);
+};
+
 const handleAddressClick = (address: number) => {
 	setMemoryViewAddress(address);
 	setActiveTab("memory");
+};
+
+const handleOpcodeClick = (line: DisassemblyLine) => {
+	if (BRANCH_OPCODES.has(line.opc.toUpperCase())) {
+		const currentBank = line.addr & 0xff0000;
+		const newAddress = currentBank | line.oprn;
+
+		// addJumpHistory(newAddress);
+		addJumpHistory(disassemblyStartAddress.value);
+
+		isFollowingPc.value = false;
+		disassemblyStartAddress.value = newAddress;
+		return;
+	}
+
+	const effectiveAddress = getEffectiveAddress(line);
+	if (effectiveAddress !== null) {
+		let bank = 0;
+		if (vm?.value?.getScope(effectiveAddress) === "aux") {
+			bank = 0x01;
+		}
+
+		setMemoryViewAddress((bank << 16) | effectiveAddress);
+		setActiveTab("memory");
+	}
 };
 
 const getEffectiveAddress = (line: DisassemblyLine): number | null => {
@@ -244,19 +276,6 @@ watch(historyNavigationEvent, (event) => {
 	isFollowingPc.value = false;
 	disassemblyStartAddress.value = event.address;
 });
-
-const onToggleBreakpoint = (address: number) => {
-	toggleBreakpoint({ type: "pc", address }, vm?.value);
-};
-
-const getBreakpointClass = (address: number) => {
-	if (pcBreakpoints.value.has(address)) {
-		return pcBreakpoints.value.get(address)
-			? "bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.6)]" // Enabled
-			: "bg-transparent border-2 border-red-500/40"; // Disabled
-	}
-	return "bg-gray-700 group-hover:bg-red-500/50";
-};
 
 const busState = computed(() => vm?.value?.busState ?? {});
 
@@ -388,31 +407,6 @@ watch(jumpEvent, (event) => {
 	if (event) gotoAddress(event.address);
 });
 
-const handleOpcodeClick = (line: DisassemblyLine) => {
-	if (BRANCH_OPCODES.has(line.opc.toUpperCase())) {
-		const currentBank = line.addr & 0xff0000;
-		const newAddress = currentBank | line.oprn;
-
-		// addJumpHistory(newAddress);
-		addJumpHistory(disassemblyStartAddress.value);
-
-		isFollowingPc.value = false;
-		disassemblyStartAddress.value = newAddress;
-		return;
-	}
-
-	const effectiveAddress = getEffectiveAddress(line);
-	if (effectiveAddress !== null) {
-		let bank = 0;
-		if (vm?.value?.getScope(effectiveAddress) === "aux") {
-			bank = 0x01;
-		}
-
-		setMemoryViewAddress((bank << 16) | effectiveAddress);
-		setActiveTab("memory");
-	}
-};
-
 const handleGenerateLabels = async () => {
 	if (selectionStart.value === null || selectionEnd.value === null || !vm?.value) return;
 
@@ -467,11 +461,5 @@ const handleExplain = async () => {
 	}
 
 	await explainCode(codeBlock);
-};
-
-const editingBlockCommentAddr = ref<number | null>(null);
-const editBlockComment = (addr: number) => {
-	editingBlockCommentAddr.value = addr;
-	// nextTick(() => (editingBlockCommentAddr.value = null));
 };
 </script>
