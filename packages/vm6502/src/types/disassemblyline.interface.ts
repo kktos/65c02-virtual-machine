@@ -5,7 +5,6 @@ type CommentKind = "inline" | "block";
 export interface DisassemblyComment {
 	kind: CommentKind;
 	text: string;
-	source: "user" | "debugger";
 }
 
 export type DisassemblyLineKeys = keyof DisassemblyLine;
@@ -21,8 +20,6 @@ export interface DisassemblyLine {
 	oprn: number;
 	cycles: number;
 	bytes: string;
-
-	comments: DisassemblyComment[];
 
 	info: string;
 	comment: string;

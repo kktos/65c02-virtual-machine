@@ -34,11 +34,11 @@
 					<DisasmLabel
 						v-if="row.line.label"
 						:line="row.line"
-						class="col-span-full flex items-center h-[1.6rem] px-2"
+						class="col-span-full flex items-center h-[1.6rem] px-2 even:bg-[#00000050]"
 					/>
 
 					<div
-						class="col-span-full grid items-center h-[1.6rem] cursor-pointer border-b transition-colors duration-75 select-none even:bg-[#00000050] hover:bg-[#3194f969]"
+						class="col-span-full grid items-center h-[1.6rem] cursor-pointer transition-colors duration-75 select-none even:bg-[#00000050] hover:bg-[#3194f969]"
 						:class="rowBorderClass(row)"
 						:style="{
 							gridTemplateColumns,
@@ -128,7 +128,7 @@ const emit = defineEmits<{
 const COLUMN_WIDTHS: Partial<Record<ColumnDef["key"], string>> = {
 	faddr: "10ch",
 	bytes: "10ch",
-	opc: "17ch",
+	opc: "30ch",
 	info: "14ch",
 	comment: "1fr",
 	cycles: "2ch",
@@ -145,7 +145,7 @@ const COLUMN_WIDTHS: Partial<Record<ColumnDef["key"], string>> = {
 
 // ── Selection ──────────────────────────────────────────────────────────────
 
-const orderedAddrs = computed(() => rows.value.map((r) => r.line.addr));
+const orderedAddrs = computed(() => props.lines.map((l) => l.addr));
 
 const { isSelected, handleClick: selectionClick, clearSelection } = useDisasmSelection(() => orderedAddrs.value);
 
@@ -153,12 +153,7 @@ const { isSelected, handleClick: selectionClick, clearSelection } = useDisasmSel
 
 const rows = computed(() =>
 	props.lines.map((line) => ({
-		line: {
-			...line,
-			info: getInfo(line),
-			comment: line.comment,
-			blockComment: getBlockComment(line),
-		},
+		line,
 		highlight: (props.address === line.addr ? "pc" : null) as HighlightReason,
 	})),
 );
@@ -239,8 +234,6 @@ function handleRowClick(row: DisassemblyRow, event: MouseEvent) {
 		target = target.parentElement as HTMLElement;
 	}
 
-	console.log(target?.dataset?.id);
-
 	switch (target?.dataset?.id) {
 		case "faddr":
 			if (event.ctrlKey) {
@@ -257,7 +250,7 @@ function handleRowClick(row: DisassemblyRow, event: MouseEvent) {
 	}
 
 	selectionClick(row.line.addr, event);
-	props.onRowClick?.(row);
+	// props.onRowClick?.(row);
 }
 
 // ── Breakpoints ────────────────────────────────────────────────────────────
@@ -276,11 +269,6 @@ const getBreakpointClass = (address: number) => {
 // ── Comments ───────────────────────────────────────────────────────────
 
 const { editingBlockCommentAddr } = useComments();
-
-const getBlockComment = (line: DisassemblyLine) =>
-	line.comments.filter((c) => c.source === "user" && c.kind === "block")[0]?.text ?? "";
-
-const getInfo = (line: DisassemblyLine) => line.comments.filter((c) => c.source === "debugger")[0]?.text ?? "";
 
 // ── Operand syntax highlighting ────────────────────────────────────────────
 

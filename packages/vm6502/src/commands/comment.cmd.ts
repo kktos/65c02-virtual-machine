@@ -17,11 +17,7 @@ export const commentCmd = defineCommand({
 
 		const { addComment } = useComments();
 
-		addComment(address, {
-			kind: opts.b ? "block" : "inline",
-			text,
-			source: "user",
-		});
+		addComment(address, opts.b ? "block" : "inline", text);
 
 		return `Comment added at ${formatAddress(address)}`;
 	},

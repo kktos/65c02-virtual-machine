@@ -27,7 +27,6 @@
 import { ref, nextTick, computed, watch } from "vue";
 import { onClickOutside } from "@vueuse/core";
 import { useComments } from "@/composables/useComments";
-import type { DisassemblyComment } from "@/types/disassemblyline.interface";
 
 const {
 	addr,
@@ -63,8 +62,7 @@ const cancelEdit = () => {
 
 onClickOutside(containerRef, () => {
 	if (isEditing.value) {
-		const newComment = { source: "user", kind: "block", text: editText.value.trim() + " " } as DisassemblyComment;
-		updateComment(addr, newComment);
+		updateComment(addr, "block", editText.value.trim() + " ");
 		isEditing.value = false;
 	}
 });
