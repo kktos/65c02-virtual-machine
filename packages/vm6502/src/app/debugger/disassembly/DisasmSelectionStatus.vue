@@ -57,6 +57,25 @@
 				><Kbd class="bg-gray-600 text-gray-100">S</Kbd></Button
 			>
 		</div>
+		<div class="flex items-center pl-2 border-l border-gray-700">
+			<button
+				:title="'Explain code with AI' + (isExplainConfigured ? '' : ' !! requires API Key in settings !!')"
+				@click="$emit('explain')"
+				:disabled="isLoading || start === end || !isExplainConfigured"
+				class="text-xs px-3 py-1 rounded text-gray-500 hover:text-white hover:bg-indigo-500 transition duration-150 shadow-md flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+			>
+				{{ isLoading ? "Analyzing..." : "" }}
+				<component :is="isExplainConfigured ? Sparkles : KeyRound" class="w-4 h-4" />
+			</button>
+			<button
+				@click="$emit('generateLabels')"
+				title="Generate Labels"
+				:disabled="start === end"
+				class="px-3 py-1 rounded text-gray-500 hover:text-white transition-colors hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
+			>
+				<Wand2 class="h-4 w-4" />
+			</button>
+		</div>
 		<div class="flex-1 flex justify-end">
 			<Button
 				variant="ghost"
@@ -72,7 +91,7 @@
 </template>
 
 <script lang="ts" setup>
-import { X } from "lucide-vue-next";
+import { X, Wand2, Sparkles, KeyRound } from "lucide-vue-next";
 import { Button } from "@/components/ui/button";
 import { formatAddress, toHex } from "@/lib/hex.utils";
 import { useDisasmSelection } from "@/composables/useDisasmSelection";
@@ -80,11 +99,18 @@ import { Kbd } from "@/components/ui/kbd";
 import { useFormatting } from "@/composables/useDataFormattings";
 import { useComments } from "@/composables/useComments";
 import { useSymbols } from "@/composables/useSymbols";
+import { useGemini } from "@/composables/useGemini";
+import { generateLabels } from "@/lib/disassembler";
+import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
+import { inject, type Ref } from "vue";
+
+const vm = inject<Ref<VirtualMachine>>("vm");
 
 const { clearSelection, startSelectionAddr: start, endSelectionAddr: end } = useDisasmSelection();
 const { addFormatting, removeFormatting } = useFormatting();
 const { addComment, getBlockComment, editingBlockCommentAddr } = useComments();
 const { getLabelForAddress, addSymbol } = useSymbols();
+const { isLoading, isConfigured: isExplainConfigured } = useGemini();
 
 const addLabel = async () => {
 	if (start.value === null) return;
@@ -92,10 +118,11 @@ const addLabel = async () => {
 	if (existing) return;
 	await addSymbol(start.value, `L${toHex(start.value, 4)}`);
 };
+
 const addBlockComment = () => {
 	const addr = start.value ?? 0;
 	if (!getBlockComment(addr)) {
-		addComment(addr, { kind: "block", source: "user", text: " " });
+		addComment(addr, "block", " ");
 		editingBlockCommentAddr.value = addr;
 	}
 };
@@ -104,5 +131,16 @@ const setDataRegion = (type: "byte" | "word" | "string" | "code") => {
 	if (start.value === null || end.value === null) return;
 	if (type === "code") removeFormatting(start.value);
 	else addFormatting(start.value, type, end.value - start.value + 1);
+};
+
+const readByte = (address: number, debug = true) => {
+	return (debug ? vm?.value.readDebug(address) : vm?.value.read(address)) ?? 0;
+};
+
+const handleGenerateLabels = async () => {
+	if (start.value === null || end.value === null || !vm?.value) return;
+	const scope = vm.value.getScope(start.value);
+	await generateLabels(start.value, scope, end.value, { read: readByte, getScope: vm.value.getScope });
+	clearSelection();
 };
 </script>
