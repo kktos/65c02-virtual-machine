@@ -6,8 +6,6 @@
 				<!-- Header combining title, count, and action button -->
 				<DisassemblyToolbar
 					:is-following-pc="isFollowingPc"
-					:is-loading="isExplainLoading"
-					:is-explain-configured="isExplainConfigured"
 					:has-disassembly="!!(disassembly && disassembly.length > 0)"
 					:available-scopes="availableScopes"
 					:is-maximized="isMaximized"
@@ -16,26 +14,9 @@
 					ref="toolbarInstance"
 					@toggle-maximize="isMaximized = !isMaximized"
 					@sync-to-pc="syncToPc"
-					@explain="handleExplain"
 					@goto-address="gotoAddress"
-					@generate-labels="handleGenerateLabels"
 					@toggle-settings="isSettingsOpen = !isSettingsOpen"
 				/>
-
-				<!-- Selection Actions -->
-				<!-- <div
-					v-if="hasSelection"
-					class="flex items-center justify-between bg-indigo-900/40 border-b border-indigo-500/50 px-2 py-1 text-xs shrink-0"
-				>
-					<span class="text-indigo-200 font-mono">
-						Selection: ${{ toHex(Math.min(selectionStart!, selectionEnd!), 4) }} - ${{
-							toHex(Math.max(selectionStart!, selectionEnd!), 4)
-						}}
-					</span>
-					<button @click="clearSelection" class="hover:bg-indigo-700 rounded-full">
-						<X class="w-4 h-4" />
-					</button>
-				</div> -->
 
 				<!-- Scrollable disassembly table -->
 				<div
@@ -109,7 +90,7 @@ import { useSettings } from "@/composables/useSettings";
 import { useGemini } from "@/composables/useGemini";
 import { useSymbols } from "@/composables/useSymbols";
 import { useNotes } from "@/composables/useNotes";
-import { disassemble, disassembleRange, formatDisassemblyAsText, generateLabels } from "@/lib/disassembler";
+import { disassemble, disassembleRange, formatDisassemblyAsText } from "@/lib/disassembler";
 import type { DisassemblyLine } from "@/types/disassemblyline.interface";
 import type { EmulatorRegisters } from "@/types/emulatorstate.interface";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
@@ -147,12 +128,7 @@ const { setMemoryViewAddress, setActiveTab } = useDebuggerNav();
 const { addJumpHistory, historyNavigationEvent, clearHistory } = useAddressHistory("disassembly");
 const { settings } = useSettings();
 const { formattingState } = useFormatting();
-const {
-	explanation: explanationText,
-	isLoading: isExplainLoading,
-	isConfigured: isExplainConfigured,
-	explainCode,
-} = useGemini();
+const { explanation: explanationText, isLoading: isExplainLoading, explainCode } = useGemini();
 const { symbolsState } = useSymbols();
 const { addNote } = useNotes();
 const { comments } = useComments();
@@ -406,18 +382,6 @@ watch(
 watch(jumpEvent, (event) => {
 	if (event) gotoAddress(event.address);
 });
-
-const handleGenerateLabels = async () => {
-	if (selectionStart.value === null || selectionEnd.value === null || !vm?.value) return;
-
-	const start = Math.min(selectionStart.value, selectionEnd.value);
-	const end = Math.max(selectionStart.value, selectionEnd.value);
-	const scope = vm.value.getScope(start);
-
-	await generateLabels(start, scope, end, { read: readByte, getScope: vm.value.getScope });
-
-	clearSelection();
-};
 
 const isExplanationOpen = ref(false);
 
