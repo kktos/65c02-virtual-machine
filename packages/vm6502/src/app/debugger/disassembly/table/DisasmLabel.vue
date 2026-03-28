@@ -1,11 +1,10 @@
 <template>
 	<div
-		:style="{ color: getScopeColor(line.addr) }"
-		@contextmenu.prevent="$emit('onContextMenu', $event, line)"
-		:title="line.src"
+		:style="{ 'border-color': getScopeColor(line.addr), color: settings.disassembly.syntax.label }"
+		:title="line.src + '[' + vm?.getScope(line.addr) + ']'"
 		@click.stop="handleClick($event)"
 		@dblclick="handleDblClick"
-		class="col-span-full cursor-pointer hover:bg-gray-800/50"
+		class="col-span-full border-l-3 cursor-pointer hover:bg-gray-800/50"
 	>
 		<template v-if="editingLabelAddress === line.addr">
 			<div class="relative w-full inline-block">
@@ -16,7 +15,7 @@
 						}
 					"
 					v-model="editLabelText"
-					class="bg-black text-yellow-500 font-bold font-mono text-xs border border-blue-500 px-1 h-5 w-full focus:outline-none"
+					class="bg-black font-bold font-mono text-xs border border-blue-500 px-1 h-5 w-full focus:outline-none"
 					@keydown.enter="commitLabelEdit"
 					@keydown.esc="cancelLabelEdit"
 					@blur="cancelLabelEdit"
@@ -31,7 +30,7 @@
 			</div>
 		</template>
 		<template v-else>
-			<div class="p-0.5 pl-1">{{ line.label }}:</div>
+			<div class="p-0.5 pl-1 font-bold">{{ line.label }}:</div>
 		</template>
 	</div>
 </template>
@@ -48,7 +47,6 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-	(e: "onContextMenu", event: MouseEvent, line: DisassemblyLine): void;
 	(e: "onLabelClick", event: MouseEvent, line: DisassemblyLine): void;
 }>();
 
