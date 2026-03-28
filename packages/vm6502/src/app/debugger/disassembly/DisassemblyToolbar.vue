@@ -31,23 +31,6 @@
 			>
 				<Binary class="h-4 w-4" />
 			</button>
-			<button
-				title="Explain code with AI (requires API Key in settings)"
-				@click="$emit('explain')"
-				:disabled="isLoading || !hasDisassembly || !isExplainConfigured"
-				class="text-xs px-3 py-1 rounded-full bg-indigo-600 text-white hover:bg-indigo-500 transition duration-150 shadow-md flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
-			>
-				{{ isLoading ? "Analyzing..." : "" }}
-				<component :is="isExplainConfigured ? Sparkles : KeyRound" class="w-4 h-4" />
-			</button>
-			<button
-				@click="$emit('generateLabels')"
-				title="Generate Labels"
-				:disabled="!hasSelection"
-				class="p-1 rounded text-gray-500 transition-colors hover:text-gray-300 hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
-			>
-				<Wand2 class="h-4 w-4" />
-			</button>
 		</div>
 
 		<div class="flex space-x-2">
@@ -76,24 +59,11 @@
 import { ref } from "vue";
 import AddressNavigator from "@/app/debugger/AddressNavigator.vue";
 import { useFloatingWindows } from "@/composables/useFloatingWindows";
-import {
-	Binary,
-	KeyRound,
-	Lock,
-	LockOpen,
-	Maximize,
-	Minimize,
-	Settings2,
-	Sparkles,
-	Tags,
-	Wand2,
-} from "lucide-vue-next";
+import { Binary, Lock, LockOpen, Maximize, Minimize, Settings2, Tags } from "lucide-vue-next";
 
 const props = defineProps<{
 	isFollowingPc: boolean;
-	isLoading: boolean;
 	hasDisassembly: boolean;
-	isExplainConfigured: boolean;
 	availableScopes: string[];
 	isMaximized: Boolean;
 	hasSelection: boolean;
@@ -102,10 +72,8 @@ const props = defineProps<{
 
 const emit = defineEmits<{
 	(e: "syncToPc"): void;
-	(e: "explain"): void;
 	(e: "gotoAddress", address: number): void;
 	(e: "toggle-maximize"): void;
-	(e: "generateLabels"): void;
 	(e: "toggle-settings"): void;
 }>();
 
