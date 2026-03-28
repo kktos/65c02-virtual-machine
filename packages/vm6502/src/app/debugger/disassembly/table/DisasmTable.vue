@@ -28,7 +28,6 @@
 						class="col-span-full"
 						:text="row.line.blockComment"
 						:addr="row.line.addr"
-						:wanna-edit="editingBlockCommentAddr === row.line.addr"
 					/>
 
 					<DisasmLabel
@@ -89,7 +88,6 @@ import { useBreakpoints } from "@/composables/useBreakpoints";
 import { useDisasmSelection } from "@/composables/useDisasmSelection";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import BlockCommentViewer from "./BlockCommentViewer.vue";
-import { useComments } from "@/composables/useComments";
 
 // ── Injections / composables ───────────────────────────────────────────────
 
@@ -265,10 +263,6 @@ const getBreakpointClass = (address: number) => {
 		? "bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.6)]"
 		: "bg-transparent border-2 border-red-500/40";
 };
-
-// ── Comments ───────────────────────────────────────────────────────────
-
-const { editingBlockCommentAddr } = useComments();
 
 // ── Operand syntax highlighting ────────────────────────────────────────────
 

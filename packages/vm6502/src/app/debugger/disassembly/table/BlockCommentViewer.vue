@@ -1,7 +1,8 @@
 <template>
 	<div
 		ref="containerRef"
-		class="bg-gray-800/60 border-l-2 border-yellow-500/40 p-2 rounded-r text-gray-300 shadow-sm my-0.5 group cursor-pointer"
+		class="bg-gray-800/60 p-2 rounded-r shadow-sm my-0.5 group cursor-pointer"
+		:style="{ color: settings.disassembly.syntax.comment }"
 		@dblclick="startEdit"
 	>
 		<div v-if="!isEditing" class="whitespace-pre-wrap relative">
@@ -27,18 +28,15 @@
 import { ref, nextTick, computed, watch } from "vue";
 import { onClickOutside } from "@vueuse/core";
 import { useComments } from "@/composables/useComments";
+import { useSettings } from "@/composables/useSettings";
 
-const {
-	addr,
-	text,
-	wannaEdit = false,
-} = defineProps<{
+const { addr, text } = defineProps<{
 	addr: number;
 	text: string;
-	wannaEdit: boolean;
 }>();
 
 const { updateComment, editingBlockCommentAddr } = useComments();
+const { settings } = useSettings();
 
 const isEditing = ref(false);
 const editText = ref(text.trim());
