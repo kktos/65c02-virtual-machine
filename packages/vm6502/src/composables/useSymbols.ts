@@ -568,6 +568,26 @@ export function useSymbols() {
 		return getSymbolForAddress(address, scopeOrPath)?.label;
 	};
 
+	const getLabelAtOrBefore = (address: number, scopeOrPath?: string | string[]): string | null => {
+		// Collect all unique addresses from both dictionaries
+		const addresses = new Set([
+			...Object.keys(systemDict.value).map(Number),
+			...Object.keys(diskDict.value).map(Number),
+		]);
+
+		// Filter for addresses at or before the target, and sort descending
+		const candidates = Array.from(addresses)
+			.filter((a) => a <= address)
+			.sort((a, b) => b - a);
+
+		// Iterate through candidates and return the first one that yields a valid label in scope
+		for (const addr of candidates) {
+			const label = getLabelForAddress(addr, scopeOrPath);
+			if (label) return label;
+		}
+		return null;
+	};
+
 	const findSymbolWithOffset = (
 		address: number,
 		scopeOrPath?: string | string[],
@@ -633,6 +653,7 @@ export function useSymbols() {
 		generateTextFromSymbols,
 
 		getLabelForAddress,
+		getLabelAtOrBefore,
 		getSymbolForAddress,
 		findSymbolWithOffset,
 		getAddressForLabel,
