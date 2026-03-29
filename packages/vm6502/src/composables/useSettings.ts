@@ -9,6 +9,7 @@ interface DebuggerSettings {
 		showInfo: boolean;
 		showComments: boolean;
 		showBytes: boolean;
+		showContextBadge: boolean;
 		highlightPc: boolean;
 		addressWidth: number;
 		lowercase: boolean;
@@ -46,6 +47,7 @@ const defaultSettings: DebuggerSettings = {
 		showComments: true,
 		showBytes: true,
 		highlightPc: true,
+		showContextBadge: true,
 		addressWidth: 4,
 		lowercase: false,
 		scopeColors: {

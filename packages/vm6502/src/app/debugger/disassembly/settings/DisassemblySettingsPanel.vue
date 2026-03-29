@@ -45,6 +45,9 @@
 					<SettingRow label="Branch arrows">
 						<CheckBox v-model="branchArrows" />
 					</SettingRow>
+					<SettingRow label="Context Badge">
+						<CheckBox v-model="settings.disassembly.showContextBadge" />
+					</SettingRow>
 					<SettingRow label="Address width">
 						<SegmentControl :options="[4, 6]" v-model="settings.disassembly.addressWidth" />
 					</SettingRow>
