@@ -7,15 +7,15 @@
 	>
 		<!-- ── Procedure Context Badge ────────────────────────────────── -->
 		<div
-			v-if="currentProcedure && settings.disassembly.showContextBadge"
+			v-if="currentProcInfo && settings.disassembly.showContextBadge"
 			ref="contextBadge"
-			class="absolute z-[10] px-2 py-0.5 bg-gray-700/90 border-l-4 border-l-cyan-500/50 text-[0.68rem] shadow-2xl select-none backdrop-blur-md flex items-center gap-2 cursor-move active:opacity-80"
+			class="absolute z-[10] px-2 py-0.5 bg-gray-700/90 border-l-4 text-[0.68rem] shadow-2xl select-none backdrop-blur-md flex items-center gap-2 cursor-move active:opacity-80"
 			:class="{ 'transition-all duration-300': !isDragging }"
-			:style="contextBadgeStyle"
+			:style="{ ...contextBadgeStyle, borderColor: currentProcInfo.scopeColor }"
 			title="Drag to move badge"
 		>
 			<span :style="{ color: settings.disassembly.syntax.label }" class="font-bold tracking-tight">
-				{{ currentProcedure }}
+				{{ currentProcInfo.name }}
 			</span>
 		</div>
 
@@ -112,12 +112,30 @@ import { useTemplateRef } from "vue";
 const vm = inject<Ref<VirtualMachine>>("vm");
 const { settings } = useSettings();
 
+// ── Procedure Context ─────────────────────────────────────────────────────
+const { getLabelAtOrBefore } = useSymbols();
+
+const currentProcInfo = computed(() => {
+	if (!props.lines.length || !vm?.value) return null;
+	const addr = props.lines[0].addr;
+	return { name: getLabelAtOrBefore(addr) || null, scopeColor: getScopeColor(addr) };
+});
+
 const contextBadgeRef = useTemplateRef("contextBadge");
 const disasmTableRef = useTemplateRef("disasmTable");
 const containerBounds = useElementBounding(disasmTableRef);
 const badgeBounds = useElementBounding(contextBadgeRef);
 const { x, y, isDragging } = useDraggable(contextBadgeRef, { containerElement: disasmTableRef });
 let contextBadgeLastPosition = { right: "1rem", top: "2.1rem" };
+
+const getScopeColor = (addr: number) => {
+	const scope = vm?.value?.getScope(addr & 0xffff);
+	if (!scope) return "";
+	const color = settings.disassembly.scopeColors[scope];
+	// If color is black or transparent, use default class
+	if (!color || color === "#000000" || color === "#00000000") return "";
+	return color;
+};
 
 const contextBadgeStyle = computed(() => {
 	// Fallback to initial position if coordinates aren't ready or container is missing
@@ -185,14 +203,6 @@ const COLUMN_WIDTHS: Partial<Record<ColumnDef["key"], string>> = {
 const orderedAddrs = computed(() => props.lines.map((l) => l.addr));
 
 const { isSelected, handleClick: selectionClick, clearSelection } = useDisasmSelection(() => orderedAddrs.value);
-
-// ── Procedure Context ─────────────────────────────────────────────────────
-const { getLabelAtOrBefore } = useSymbols();
-
-const currentProcedure = computed(() => {
-	if (!props.lines.length || !vm?.value) return null;
-	return getLabelAtOrBefore(props.lines[0].addr) || null;
-});
 
 // ── Row building ───────────────────────────────────────────────────────────
 

@@ -69,6 +69,10 @@ export const initRoutine = `
 		$c08a LCROMIN1
 		$c08b LCBANK1_R
 	END
+	LABELS SYSTEM int_rom
+		$c300 card80col
+		$c500 cardSmartport
+	END
 	LABELS SYSTEM rom
 		$e000 BASIC
 		$e003 BASIC2
