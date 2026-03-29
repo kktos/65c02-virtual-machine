@@ -585,6 +585,14 @@ export function useSymbols() {
 			if (foundSym) return { symbol: foundSym, offset: i };
 		}
 
+		// 2. Look forwards for a nearby label
+		for (let i = 1; i <= maxLookback; i++) {
+			const lookbackAddress = address + i;
+			// if (lookbackAddress < 0) break;
+			const foundSym = getSymbolForAddress(lookbackAddress, scopeOrPath);
+			if (foundSym) return { symbol: foundSym, offset: -i };
+		}
+
 		return null;
 	};
 
