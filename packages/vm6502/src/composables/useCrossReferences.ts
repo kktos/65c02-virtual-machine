@@ -8,6 +8,7 @@ export interface XrefResult {
 	address: number;
 	type: XrefType;
 	instruction: string;
+	isExtended?: boolean;
 }
 
 const BRANCH_OPCODES: Record<number, string> = {
@@ -195,13 +196,36 @@ const ZP_OPCODES: Record<number, string> = {
 	0xff: "BBS7",
 };
 
+const EXTENDED_BIT_OPS = new Set([
+	0x0c,
+	0x1c, // TSB, TRB (Abs)
+	0x04,
+	0x14, // TSB, TRB (ZP)
+]);
+
+/**
+ * Returns true if the opcode is one of the 65C02 bit manipulation instructions
+ * specifically identified as "unusual" (TSB, TRB, RMBx, SMBx, BBRx, BBSx).
+ */
+const isExtendedOpcode = (op: number) => {
+	if (EXTENDED_BIT_OPS.has(op)) return true;
+	const low = op & 0x0f;
+	// RMB/SMB are $x7, BBR/BBS are $xF
+	return low === 0x07 || low === 0x0f;
+};
+
 const CALL_OPS = new Set([0x20, 0x4c]);
 const ACCESS_OPS = Object.keys(ABS_OPCODES)
 	.map(Number)
 	.filter((op) => !CALL_OPS.has(op));
 
 export function useCrossReferences() {
-	const findReferences = (vm: VirtualMachine, targetAddr: number, filter: XrefFilter = "ALL"): XrefResult[] => {
+	const findReferences = (
+		vm: VirtualMachine,
+		targetAddr: number,
+		filter: XrefFilter = "ALL",
+		includeExtended = false,
+	): XrefResult[] => {
 		const results: XrefResult[] = [];
 		const read = (a: number) => vm.readDebug(a) ?? 0;
 
@@ -246,11 +270,15 @@ export function useCrossReferences() {
 					const opcode = read(m.address);
 					const mnemonic = ABS_OPCODES[opcode];
 					if (mnemonic) {
+						const isExt = isExtendedOpcode(opcode);
+						if (isExt && !includeExtended) return;
+
 						const type = CALL_OPS.has(opcode) ? "Call" : "Access";
 						results.push({
 							address: m.address,
 							type,
 							instruction: `${mnemonic} $${toHex(targetAddr, 4)}`,
+							isExtended: isExt,
 						});
 					}
 				});
@@ -268,10 +296,14 @@ export function useCrossReferences() {
 				const opcode = read(m.address);
 				const mnemonic = ZP_OPCODES[opcode];
 				if (mnemonic) {
+					const isExt = isExtendedOpcode(opcode);
+					if (isExt && !includeExtended) return;
+
 					results.push({
 						address: m.address,
 						type: "Access",
 						instruction: `${mnemonic} $${toHex(targetAddr, 2)}`,
+						isExtended: isExt,
 					});
 				}
 			});
