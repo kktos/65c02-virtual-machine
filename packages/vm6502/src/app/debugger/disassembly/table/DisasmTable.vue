@@ -4,6 +4,17 @@
 		@keydown.escape="clearSelection"
 		tabindex="0"
 	>
+		<!-- ── Procedure Context Badge ────────────────────────────────── -->
+		<div
+			v-if="currentProcedure"
+			class="absolute top-[2.1rem] right-4 z-[10] px-2 py-0.5 rounded bg-gray-900/90 border border-gray-700/50 text-[0.68rem] shadow-2xl pointer-events-none select-none backdrop-blur-md flex items-center gap-2 border-l-2 border-l-cyan-500/50 transition-opacity duration-300"
+		>
+			<span class="text-gray-500 font-bold uppercase tracking-widest text-[0.55rem] opacity-70"> Context </span>
+			<span :style="{ color: settings.disassembly.syntax.label }" class="font-bold uppercase tracking-tight">
+				{{ currentProcedure }}
+			</span>
+		</div>
+
 		<div class="overflow-auto">
 			<div :style="{ display: 'grid', gridTemplateColumns }">
 				<!-- ── Header ───────────────────────────────────────────────── -->
@@ -88,6 +99,7 @@ import { useBreakpoints } from "@/composables/useBreakpoints";
 import { useDisasmSelection } from "@/composables/useDisasmSelection";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import BlockCommentViewer from "./BlockCommentViewer.vue";
+import { useSymbols } from "@/composables/useSymbols";
 
 // ── Injections / composables ───────────────────────────────────────────────
 
@@ -146,6 +158,14 @@ const COLUMN_WIDTHS: Partial<Record<ColumnDef["key"], string>> = {
 const orderedAddrs = computed(() => props.lines.map((l) => l.addr));
 
 const { isSelected, handleClick: selectionClick, clearSelection } = useDisasmSelection(() => orderedAddrs.value);
+
+// ── Procedure Context ─────────────────────────────────────────────────────
+const { getLabelAtOrBefore } = useSymbols();
+
+const currentProcedure = computed(() => {
+	if (!props.lines.length || !vm?.value) return null;
+	return getLabelAtOrBefore(props.lines[0].addr) || null;
+});
 
 // ── Row building ───────────────────────────────────────────────────────────
 
