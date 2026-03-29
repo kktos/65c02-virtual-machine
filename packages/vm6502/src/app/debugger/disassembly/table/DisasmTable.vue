@@ -37,7 +37,7 @@
 					/>
 
 					<div
-						class="col-span-full grid items-center h-[1.6rem] cursor-pointer transition-colors duration-75 select-none even:bg-[#00000050] hover:bg-[#3194f969]"
+						class="col-span-full grid items-top cursor-pointer transition-colors duration-75 select-none even:bg-[#00000050] hover:bg-[#3194f969]"
 						:class="rowBorderClass(row)"
 						:style="{
 							gridTemplateColumns,
@@ -66,7 +66,7 @@
 						<div
 							v-for="col in columns"
 							:key="col.key"
-							class="px-1.5 truncate"
+							class="px-1.5"
 							:style="{ color: columnColors[col.key] }"
 							:class="[cellTextClass(row)]"
 						>
