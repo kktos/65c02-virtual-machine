@@ -9,6 +9,7 @@ import { hook } from "./hook.cmd";
 import { labelsCmd } from "./labels.cmd";
 import { listCmd } from "./list.cmd";
 import { logCmd } from "./log.cmd";
+import { gplCmd } from "./gpl.cmd";
 import { pause } from "./pause.cmd";
 import { reboot } from "./reboot.cmd";
 import { execRemoveBP } from "./removeBP.cmd";
@@ -76,6 +77,7 @@ export const COMMANDDEF_LIST = {
 	"SP=": d("Monitor", "Set value to Stack Pointer"),
 
 	GL: glCmd,
+	GPL: gplCmd,
 	VR: virtualRegisterCmd,
 
 	RUN: run,
