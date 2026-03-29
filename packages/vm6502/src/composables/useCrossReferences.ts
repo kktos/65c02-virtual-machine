@@ -225,14 +225,18 @@ export function useCrossReferences() {
 		targetAddr: number,
 		filter: XrefFilter = "ALL",
 		includeExtended = false,
+		range?: { start: number; end: number },
 	): XrefResult[] => {
 		const results: XrefResult[] = [];
 		const read = (a: number) => vm.readDebug(a) ?? 0;
 
+		const searchStart = range?.start ?? 0;
+		const searchEnd = range?.end ?? 0xffff;
+
 		// 1. Branches (Relative)
 		if (filter === "ALL" || filter === "BRANCH") {
-			const start = Math.max(0, targetAddr - 130);
-			const end = Math.min(0xffff, targetAddr + 130);
+			const start = Math.max(searchStart, targetAddr - 130);
+			const end = Math.min(searchEnd, targetAddr + 130);
 
 			for (let addr = start; addr <= end; addr++) {
 				const opcode = read(addr);
@@ -265,7 +269,8 @@ export function useCrossReferences() {
 			if (filter === "ALL" || filter === "ACCESS") candidates.push(...ACCESS_OPS);
 
 			if (candidates.length > 0) {
-				const matches = vm.search([null, targetLo, targetHi], 0, 0xffff, false, [candidates]) || [];
+				const matches =
+					vm.search([null, targetLo, targetHi], searchStart, searchEnd, false, [candidates]) || [];
 				matches.forEach((m) => {
 					const opcode = read(m.address);
 					const mnemonic = ABS_OPCODES[opcode];
@@ -291,7 +296,7 @@ export function useCrossReferences() {
 			const candidates = Object.keys(ZP_OPCODES).map(Number);
 
 			// Search for [Opcode, ZP_Addr]
-			const matches = vm.search([null, targetLo], 0, 0xffff, false, [candidates]) || [];
+			const matches = vm.search([null, targetLo], searchStart, searchEnd, false, [candidates]) || [];
 			matches.forEach((m) => {
 				const opcode = read(m.address);
 				const mnemonic = ZP_OPCODES[opcode];
