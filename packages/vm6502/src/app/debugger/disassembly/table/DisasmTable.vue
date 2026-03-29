@@ -1,16 +1,20 @@
 <template>
 	<div
+		ref="disasmTable"
 		class="overflow-hidden font-mono text-[0.78rem] text-gray-400 relative"
 		@keydown.escape="clearSelection"
 		tabindex="0"
 	>
 		<!-- ── Procedure Context Badge ────────────────────────────────── -->
 		<div
-			v-if="currentProcedure"
-			class="absolute top-[2.1rem] right-4 z-[10] px-2 py-0.5 bg-gray-900/90 border border-gray-700/50 text-[0.68rem] shadow-2xl select-none backdrop-blur-md flex items-center gap-2 border-l-2 border-l-cyan-500/50 transition-opacity duration-300"
+			v-if="currentProcedure && settings.disassembly.showContextBadge"
+			ref="contextBadge"
+			class="absolute z-[10] px-2 py-0.5 bg-gray-700/90 border-l-4 border-l-cyan-500/50 text-[0.68rem] shadow-2xl select-none backdrop-blur-md flex items-center gap-2 cursor-move active:opacity-80"
+			:class="{ 'transition-all duration-300': !isDragging }"
+			:style="contextBadgeStyle"
+			title="Drag to move badge"
 		>
-			<span class="text-gray-500 font-bold uppercase tracking-widest text-[0.55rem] opacity-70">Proc</span>
-			<span :style="{ color: settings.disassembly.syntax.label }" class="font-bold uppercase tracking-tight">
+			<span :style="{ color: settings.disassembly.syntax.label }" class="font-bold tracking-tight">
 				{{ currentProcedure }}
 			</span>
 		</div>
@@ -100,11 +104,34 @@ import { useDisasmSelection } from "@/composables/useDisasmSelection";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import BlockCommentViewer from "./BlockCommentViewer.vue";
 import { useSymbols } from "@/composables/useSymbols";
+import { useDraggable, useElementBounding } from "@vueuse/core";
+import { useTemplateRef } from "vue";
 
 // ── Injections / composables ───────────────────────────────────────────────
 
 const vm = inject<Ref<VirtualMachine>>("vm");
 const { settings } = useSettings();
+
+const contextBadgeRef = useTemplateRef("contextBadge");
+const disasmTableRef = useTemplateRef("disasmTable");
+const containerBounds = useElementBounding(disasmTableRef);
+const badgeBounds = useElementBounding(contextBadgeRef);
+const { x, y, isDragging } = useDraggable(contextBadgeRef, { containerElement: disasmTableRef });
+let contextBadgeLastPosition = { right: "1rem", top: "2.1rem" };
+
+const contextBadgeStyle = computed(() => {
+	// Fallback to initial position if coordinates aren't ready or container is missing
+	if (!x.value || !y.value || !containerBounds.width.value) {
+		return contextBadgeLastPosition;
+	}
+
+	contextBadgeLastPosition = {
+		right: `${containerBounds.width.value - x.value - badgeBounds.width.value}px`,
+		top: `${y.value}px`,
+	};
+	// Map the absolute x/y from useDraggable back to right/top offsets relative to the container
+	return contextBadgeLastPosition;
+});
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
