@@ -12,6 +12,7 @@
 			ref="dragHandle"
 			@mousedown="startDrag"
 			class="flex items-center justify-between px-3 py-1 cursor-move select-none shrink-0 transition-colors"
+			:style="headerStyle"
 			:class="isFocused ? 'bg-cyan-900/30 border-b-cyan-700' : 'bg-gray-900/70 border-b-gray-700'"
 		>
 			<div class="flex items-center gap-2 text-gray-300">
@@ -73,6 +74,7 @@
 import { X, MoveDiagonal } from "lucide-vue-next";
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import { useFloatingWindows } from "@/composables/useFloatingWindows";
+import { useSettings } from "@/composables/useSettings";
 
 const SNAP_THRESHOLD = 20;
 
@@ -118,6 +120,7 @@ const emit = defineEmits<{
 	(e: "resize", size: { width: number; height: number }): void;
 }>();
 
+const { settings } = useSettings();
 const { register, unregister, nextZIndex, activeWindowId, setActiveWindow } = useFloatingWindows();
 const isOpen = ref(false);
 const floatingWindow = ref<HTMLElement | null>(null);
@@ -150,6 +153,11 @@ const floatingWindowStyle = computed(() => ({
 	width: `${size.value.width}px`,
 	height: `${size.value.height}px`,
 	zIndex: zIndex.value,
+	backgroundColor: settings.floatingWindows.contentBg,
+}));
+
+const headerStyle = computed(() => ({
+	backgroundColor: isFocused.value ? settings.floatingWindows.titleBarFocusedBg : settings.floatingWindows.titleBarBg,
 }));
 
 const clampToViewport = (options?: { ignoreRight?: boolean; ignoreBottom?: boolean }) => {

@@ -31,6 +31,11 @@ interface DebuggerSettings {
 			url: string;
 		};
 	};
+	floatingWindows: {
+		titleBarBg: string;
+		titleBarFocusedBg: string;
+		contentBg: string;
+	};
 }
 
 // Default settings
@@ -64,6 +69,11 @@ const defaultSettings: DebuggerSettings = {
 			url: "",
 		},
 	},
+	floatingWindows: {
+		titleBarBg: "#01214b", // bg-gray-900/70
+		titleBarFocusedBg: "#003983", // bg-cyan-900/30
+		contentBg: "#000000cc", // bg-black/80
+	},
 };
 
 // Load initial settings from localStorage or use defaults
@@ -90,6 +100,10 @@ const loadSettings = (): DebuggerSettings => {
 						...defaultSettings.disassembly.gemini,
 						...(parsed.disassembly?.gemini || {}),
 					},
+				},
+				floatingWindows: {
+					...defaultSettings.floatingWindows,
+					...(parsed.floatingWindows || {}),
 				},
 			};
 		}
