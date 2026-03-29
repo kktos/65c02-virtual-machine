@@ -6,18 +6,7 @@
 		tabindex="0"
 	>
 		<!-- ── Procedure Context Badge ────────────────────────────────── -->
-		<div
-			v-if="currentProcInfo && settings.disassembly.showContextBadge"
-			ref="contextBadge"
-			class="absolute z-[10] px-2 py-0.5 bg-gray-700/90 border-l-4 text-[0.68rem] shadow-2xl select-none backdrop-blur-md flex items-center gap-2 cursor-move active:opacity-80"
-			:class="{ 'transition-all duration-300': !isDragging }"
-			:style="{ ...contextBadgeStyle, borderColor: currentProcInfo.scopeColor }"
-			title="Drag to move badge"
-		>
-			<span :style="{ color: settings.disassembly.syntax.label }" class="font-bold tracking-tight">
-				{{ currentProcInfo.name }}
-			</span>
-		</div>
+		<ProcContextFloatPanel v-if="lines.length > 0" :addr="lines[0].addr" />
 
 		<div class="overflow-auto">
 			<div :style="{ display: 'grid', gridTemplateColumns }">
@@ -97,59 +86,18 @@
 <script setup lang="ts">
 import { computed, defineComponent, h, inject, type Ref } from "vue";
 import DisasmLabel from "./DisasmLabel.vue";
+import ProcContextFloatPanel from "./ProcContextFloatPanel.vue";
 import type { DisassemblyLine, DisassemblyLineKeys } from "@/types/disassemblyline.interface";
 import { useSettings } from "@/composables/useSettings";
 import { useBreakpoints } from "@/composables/useBreakpoints";
 import { useDisasmSelection } from "@/composables/useDisasmSelection";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import BlockCommentViewer from "./BlockCommentViewer.vue";
-import { useSymbols } from "@/composables/useSymbols";
-import { useDraggable, useElementBounding } from "@vueuse/core";
-import { useTemplateRef } from "vue";
 
 // ── Injections / composables ───────────────────────────────────────────────
 
 const vm = inject<Ref<VirtualMachine>>("vm");
 const { settings } = useSettings();
-
-// ── Procedure Context ─────────────────────────────────────────────────────
-const { getLabelAtOrBefore } = useSymbols();
-
-const currentProcInfo = computed(() => {
-	if (!props.lines.length || !vm?.value) return null;
-	const addr = props.lines[0].addr;
-	return { name: getLabelAtOrBefore(addr) || null, scopeColor: getScopeColor(addr) };
-});
-
-const contextBadgeRef = useTemplateRef("contextBadge");
-const disasmTableRef = useTemplateRef("disasmTable");
-const containerBounds = useElementBounding(disasmTableRef);
-const badgeBounds = useElementBounding(contextBadgeRef);
-const { x, y, isDragging } = useDraggable(contextBadgeRef, { containerElement: disasmTableRef });
-let contextBadgeLastPosition = { right: "1rem", top: "2.1rem" };
-
-const getScopeColor = (addr: number) => {
-	const scope = vm?.value?.getScope(addr & 0xffff);
-	if (!scope) return "";
-	const color = settings.disassembly.scopeColors[scope];
-	// If color is black or transparent, use default class
-	if (!color || color === "#000000" || color === "#00000000") return "";
-	return color;
-};
-
-const contextBadgeStyle = computed(() => {
-	// Fallback to initial position if coordinates aren't ready or container is missing
-	if (!x.value || !y.value || !containerBounds.width.value) {
-		return contextBadgeLastPosition;
-	}
-
-	contextBadgeLastPosition = {
-		right: `${containerBounds.width.value - x.value - badgeBounds.width.value}px`,
-		top: `${y.value}px`,
-	};
-	// Map the absolute x/y from useDraggable back to right/top offsets relative to the container
-	return contextBadgeLastPosition;
-});
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
