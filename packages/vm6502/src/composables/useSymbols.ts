@@ -229,6 +229,26 @@ export function useSymbols() {
 		return results;
 	};
 
+	const getSymbolsInRange = (start: number, end: number, namespace = "") => {
+		const nsQuery = namespace.toUpperCase();
+		const results: SymbolEntry[] = [];
+
+		const searchInDict = (dict: SymbolDict) => {
+			for (const namespaces of Object.values(dict)) {
+				if (!namespaces) continue;
+				for (const ns in namespaces) {
+					if (nsQuery && ns.toUpperCase() !== nsQuery) continue;
+					const entry = namespaces[ns];
+					if (entry && entry.addr >= start && entry.addr <= end) results.push(entry);
+				}
+			}
+		};
+
+		searchInDict(systemDict.value);
+		searchInDict(diskDict.value);
+		return results.sort((a, b) => a.addr - b.addr);
+	};
+
 	const addSymbol = async (address: number, label: string, namespace = "user", scope = "main") => {
 		if (!label.match(/^[A-Za-z_][A-Za-z_0-9]*/)) throw new Error(`Invalid label name "${label}"`);
 		if (!namespace.match(/^[A-Za-z_][A-Za-z_0-9]*/)) throw new Error(`Invalid namespace name "${namespace}"`);
@@ -309,7 +329,7 @@ export function useSymbols() {
 	};
 
 	const updateSymbol = async (id: number, address: number, label: string, namespace: string, scope: string) => {
-		if (!label.match(/^[A-Za-z_][A-Za-z_0-9]*/)) throw new Error(`Invalid label name "${label}"`);
+		if (!label.match(/^:?[A-Za-z_][A-Za-z_0-9]*/)) throw new Error(`Invalid label name "${label}"`);
 		if (!namespace.match(/^[A-Za-z_][A-Za-z_0-9]*/)) throw new Error(`Invalid namespace name "${namespace}"`);
 		if (!scope.match(/^[A-Za-z_][A-Za-z_0-9]*/)) throw new Error(`Invalid scope name "${scope}"`);
 
@@ -666,6 +686,7 @@ export function useSymbols() {
 		removeSymbol,
 		removeManySymbols,
 		updateSymbol,
+		getSymbolsInRange,
 		findSymbols,
 		findSymbolsDB,
 
