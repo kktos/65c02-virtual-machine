@@ -6,7 +6,7 @@
 		tabindex="0"
 	>
 		<!-- ── Procedure Context Badge ────────────────────────────────── -->
-		<ProcContextFloatPanel v-if="lines.length > 0" :addr="lines[0].addr" />
+		<ProcContextFloatPanel v-if="lines.length > 0" :addr="lines[0].addr" :pos="{ right: '1rem', top: '2.1rem' }" />
 
 		<div class="overflow-auto">
 			<div :style="{ display: 'grid', gridTemplateColumns }">
