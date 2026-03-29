@@ -4,7 +4,9 @@ import { formatAddress } from "@/lib/hex.utils";
 import type { CommandContext, ParamListItemIdentifier } from "@/types/command";
 
 export const glCmd = defineCommand({
-	description: "Generate labels for a memory `range` with optional memory `scope`",
+	description:
+		"Generate labels for a memory <\u200brange> with optional memory <\u200bscope>\n" +
+		"Generates labels for all referenced addresses (J??, B??, LD?, ST?, etc)",
 	paramDef: ["range", "name?"],
 	group: "Symbols",
 	fn: async ({ vm, progress, params }: CommandContext) => {
@@ -22,6 +24,6 @@ export const glCmd = defineCommand({
 				progress.value = p;
 			},
 		);
-		return `Labels generated for $${formatAddress(from)}-$${formatAddress(to)} ('${scope}')`;
+		return `Labels generated for ${formatAddress(from)}-${formatAddress(to)} ('${scope}')`;
 	},
 });
