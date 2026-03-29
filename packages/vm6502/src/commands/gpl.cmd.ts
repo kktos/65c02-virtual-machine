@@ -2,7 +2,7 @@ import { defineCommand } from "@/composables/useCommands";
 import { useCrossReferences } from "@/composables/useCrossReferences";
 import { useSymbols } from "@/composables/useSymbols";
 import { formatAddress, toHex } from "@/lib/hex.utils";
-import type { CommandContext } from "@/types/command";
+import type { CommandContext, ParamListItemRange } from "@/types/command";
 
 export const gplCmd = defineCommand({
 	description:
@@ -11,7 +11,7 @@ export const gplCmd = defineCommand({
 	paramDef: ["range"],
 	group: "Symbols",
 	fn: async ({ vm, progress, params }: CommandContext) => {
-		const { start, end } = params[0] as { start: number; end: number };
+		const { start, end } = params[0] as ParamListItemRange;
 		const { symbolsState, updateSymbol } = useSymbols();
 		const { findReferences } = useCrossReferences();
 

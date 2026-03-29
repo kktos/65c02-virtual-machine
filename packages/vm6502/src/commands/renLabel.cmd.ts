@@ -1,34 +1,34 @@
-import { defineCommand } from "@/composables/useCommands";
+import { defineCommand, isParamListItemIdentifier } from "@/composables/useCommands";
 import { useSymbols } from "@/composables/useSymbols";
 import { formatAddress } from "@/lib/hex.utils";
 import type { CommandContext, ParamListItemIdentifier } from "@/types/command";
 
 export const renLabel = defineCommand({
 	description: "Rename a user-defined label. Params: <old_label> <new_label> [scope?]",
-	paramDef: ["name", "name", "name?"],
+	paramDef: ["name|string", "name|string", "name?"],
 	group: "Symbols",
 	fn: async ({ params }: CommandContext) => {
-		const oldLabel = params[0] as ParamListItemIdentifier;
-		const newLabel = params[1] as ParamListItemIdentifier;
+		const oldLabel = isParamListItemIdentifier(params[0]) ? params[0].text : (params[0] as string);
+		const newLabel = isParamListItemIdentifier(params[1]) ? params[1].text : (params[1] as string);
 		const scope = params[2] as ParamListItemIdentifier | undefined;
 		const namespace = "user";
 
 		const { findSymbols, updateSymbol } = useSymbols();
 
-		const potentialSymbols = findSymbols(oldLabel.text, namespace).filter(
-			(s) => s.label.toUpperCase() === oldLabel.text.toUpperCase(),
+		const potentialSymbols = findSymbols(oldLabel, namespace).filter(
+			(s) => s.label.toUpperCase() === oldLabel.toUpperCase(),
 		);
 
 		const symbolsToUpdate = scope ? potentialSymbols.filter((s) => s.scope === scope.text) : potentialSymbols;
 
 		if (symbolsToUpdate.length === 0) {
-			let error = `No user-defined label '${oldLabel.text}' found.`;
-			if (scope) error = `No user-defined label '${oldLabel.text}' found in scope '${scope.text}'.`;
+			let error = `No user-defined label '${oldLabel}' found.`;
+			if (scope) error = `No user-defined label '${oldLabel}' found in scope '${scope.text}'.`;
 			throw new Error(error);
 		}
 
 		if (symbolsToUpdate.length > 1)
-			throw new Error(`Multiple labels named '${oldLabel.text}' found. Please specify a scope.`);
+			throw new Error(`Multiple labels named '${oldLabel}' found. Please specify a scope.`);
 
 		const symbolToUpdate = symbolsToUpdate[0]!;
 
@@ -37,8 +37,8 @@ export const renLabel = defineCommand({
 		const originalAddress = symbolToUpdate.addr;
 		const originalScope = symbolToUpdate.scope;
 
-		await updateSymbol(symbolToUpdate.id, originalAddress, newLabel.text, namespace, originalScope);
+		await updateSymbol(symbolToUpdate.id, originalAddress, newLabel, namespace, originalScope);
 
-		return `Label '${oldLabel.text}' at $${formatAddress(originalAddress)} renamed to '${newLabel.text}'.`;
+		return `Label '${oldLabel}' at $${formatAddress(originalAddress)} renamed to '${newLabel}'.`;
 	},
 });
