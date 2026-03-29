@@ -15,7 +15,7 @@
 		<template #icon>
 			<Binary class="h-4 w-4 text-gray-300" />
 		</template>
-		<div class="flex flex-col h-full bg-gray-800 text-gray-200 p-4">
+		<div class="flex flex-col h-full text-gray-200 p-4">
 			<div class="text-gray-400 mb-4 -mt-2 text-xs">Manage data formatting rules across all groups.</div>
 			<!-- Search and Filter -->
 			<div class="flex justify-between items-center mb-4 gap-4">

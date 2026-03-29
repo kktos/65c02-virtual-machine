@@ -16,7 +16,7 @@
 			<Tags class="h-4 w-4 text-gray-300" />
 		</template>
 
-		<div class="p-4 flex flex-col h-full bg-gray-800/95 text-gray-200">
+		<div class="p-4 flex flex-col h-full text-gray-200">
 			<p class="text-xs text-gray-400 -mt-2 mb-4">
 				Browse, search, and manage symbols across all namespaces. Click a symbol to navigate.
 			</p>
