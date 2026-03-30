@@ -46,8 +46,8 @@ export function useFormatting() {
 	};
 
 	const getDb = async () => {
-		if (!diskKey.value) throw new Error("No disk key provided");
-		if (!storeName) throw new Error("No store name provided");
+		if (!diskKey.value) throw new Error("useFormatting -- No disk key provided");
+		if (!storeName) throw new Error("useFormatting -- No store name provided");
 
 		// 1. Probe the current version
 		const probeDb = await openDB(DB_NAME);
@@ -215,6 +215,79 @@ export function useFormatting() {
 		}
 	};
 
+	const removeManyFormattings = async (ids: Set<number>) => {
+		if (ids.size === 0) return;
+
+		const db = await getDb();
+		const tx = db.transaction(storeName as unknown as "datablocks", "readwrite");
+		const store = tx.store;
+
+		// Fetch all records first to operate on them in memory
+		const recordsToDelete = (await Promise.all(Array.from(ids).map((id) => store.get(id)))).filter(
+			(r): r is DataBlock => r !== undefined,
+		);
+
+		if (recordsToDelete.length === 0) {
+			await tx.done;
+			return;
+		}
+
+		// Batch delete from DB in parallel
+		const deletePromises = recordsToDelete.map((r) => store.delete(r.id!));
+		await Promise.all(deletePromises);
+		await tx.done;
+
+		// Group records by disk to process dicts separately
+		const systemRecords = recordsToDelete.filter((r) => r.disk === "*");
+		const diskRecords = recordsToDelete.filter((r) => r.disk !== "*");
+
+		// Update systemRules atomically
+		if (systemRecords.length > 0) {
+			const newSystemRules = { ...systemRules.value };
+			const modifiedAddrs = new Set<number>();
+
+			for (const record of systemRecords) {
+				if (newSystemRules[record.address]) {
+					if (!modifiedAddrs.has(record.address)) {
+						newSystemRules[record.address] = { ...newSystemRules[record.address] };
+						modifiedAddrs.add(record.address);
+					}
+					delete newSystemRules[record.address]![record.group];
+				}
+			}
+
+			for (const addr of modifiedAddrs) {
+				if (Object.keys(newSystemRules[addr]!).length === 0) {
+					delete newSystemRules[addr];
+				}
+			}
+			systemRules.value = newSystemRules;
+		}
+
+		// Update diskRules atomically
+		if (diskRecords.length > 0) {
+			const newDiskRules = { ...diskRules.value };
+			const modifiedAddrs = new Set<number>();
+
+			for (const record of diskRecords) {
+				if (newDiskRules[record.address]) {
+					if (!modifiedAddrs.has(record.address)) {
+						newDiskRules[record.address] = { ...newDiskRules[record.address] };
+						modifiedAddrs.add(record.address);
+					}
+					delete newDiskRules[record.address]![record.group];
+				}
+			}
+
+			for (const addr of modifiedAddrs) {
+				if (Object.keys(newDiskRules[addr]!).length === 0) {
+					delete newDiskRules[addr];
+				}
+			}
+			diskRules.value = newDiskRules;
+		}
+	};
+
 	const getFormat = (address: number) => {
 		const search = (dict: FormattingDict) => {
 			const map = dict[address];
@@ -327,6 +400,7 @@ export function useFormatting() {
 
 		addFormatting,
 		removeFormatting,
+		removeManyFormattings,
 		findFormattings,
 
 		getFormat,

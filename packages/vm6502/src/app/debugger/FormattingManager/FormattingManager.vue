@@ -55,6 +55,16 @@
 						<Download class="h-4 w-4" />
 					</Button>
 				</ButtonGroup>
+				<Button
+					:disabled="!selectedCount"
+					@click="handleBulkDelete"
+					variant="destructive"
+					size="icon"
+					class="h-10 text-white shrink-0 bg-red-600 hover:bg-red-500"
+					title="Delete Selected"
+				>
+					<Trash2 class="h-4 w-4" />
+				</Button>
 				<Button @click="triggerAddRule" class="h-10 bg-blue-600 hover:bg-blue-500 text-white shrink-0">
 					<PlusCircle class="h-4 w-4" />
 				</Button>
@@ -73,7 +83,7 @@
 </template>
 
 <script setup lang="ts">
-import { PlusCircle, Download, Upload, Binary } from "lucide-vue-next";
+import { PlusCircle, Download, Upload, Binary, Trash2 } from "lucide-vue-next";
 import { computed, nextTick, ref } from "vue";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
@@ -88,13 +98,15 @@ const emit = defineEmits<{
 	(e: "gotoAddress", address: number): void;
 }>();
 
-const { getFormattingGroups, generateTextFromFormattings, addFormattingsFromText, diskKey } = useFormatting();
+const { getFormattingGroups, generateTextFromFormattings, addFormattingsFromText, removeManyFormattings, diskKey } =
+	useFormatting();
 const { downloadFile } = useFileDownload();
 
 const searchTerm = ref("");
 const selectedGroup = ref("");
 const formattingTableRef = ref<InstanceType<typeof FormattingTable> | null>(null);
 const searchInput = ref<any>(null);
+const selectedCount = computed(() => formattingTableRef.value?.selectedRules.size ?? 0);
 
 const ROW_HEIGHT = 41;
 const itemsPerPage = ref(10);
@@ -139,6 +151,16 @@ const handleExport = async () => {
 
 	const content = await generateTextFromFormattings();
 	downloadFile(`${name}.fmt`, "text/plain;charset=utf-8", content);
+};
+
+const handleBulkDelete = async () => {
+	const rulesToDelete = formattingTableRef.value?.selectedRules;
+	if (!rulesToDelete || rulesToDelete.size === 0) return;
+
+	if (confirm(`Are you sure you want to delete ${rulesToDelete.size} selected rule(s)?`)) {
+		await removeManyFormattings(rulesToDelete);
+		formattingTableRef.value?.clearSelection();
+	}
 };
 
 const onOpen = () => {

@@ -4,6 +4,15 @@
 			<Table>
 				<TableHeader class="sticky top-0 bg-gray-800">
 					<TableRow class="border-gray-700 hover:bg-gray-700/50">
+						<TableHead class="w-12 px-4">
+							<input
+								type="checkbox"
+								:checked="isAllSelected"
+								@change="toggleSelectAll"
+								class="h-4 w-4 rounded border-gray-600 bg-gray-900 text-blue-500 focus:ring-blue-500 focus:ring-offset-gray-800"
+								title="Select All/None"
+							/>
+						</TableHead>
 						<SortableTableHeader
 							sort-key="address"
 							:current-key="sortKey"
@@ -46,9 +55,30 @@
 						<TableRow
 							v-else
 							@click="gotoRule(rule)"
-							class="cursor-pointer border-gray-700 hover:bg-gray-700"
+							class="cursor-pointer border-gray-700 hover:bg-gray-700 h-[41px]"
+							:class="{ 'bg-blue-900/30 hover:bg-blue-900/40': selectedRules.has(getRuleId(rule)) }"
 						>
-							<TableCell class="font-mono text-indigo-300">{{ formatAddress(rule.address) }}</TableCell>
+							<TableCell class="px-4" @click.stop>
+								<input
+									type="checkbox"
+									:checked="selectedRules.has(getRuleId(rule))"
+									@change="toggleSelection(getRuleId(rule))"
+									class="h-4 w-4 rounded border-gray-600 bg-gray-900 text-blue-500 focus:ring-blue-500 focus:ring-offset-gray-800"
+								/>
+							</TableCell>
+							<TableCell class="font-mono text-indigo-300">
+								<div class="flex flex-col leading-none gap-0.5">
+									<span>{{ formatAddress(rule.address) }}</span>
+									<span
+										v-if="formatSymbol(rule.address)"
+										class="text-xs font-sans truncate max-w-[120px]"
+										:style="{ color: settings.disassembly.syntax.label }"
+										:title="formatSymbol(rule.address)!"
+									>
+										{{ formatSymbol(rule.address) }}
+									</span>
+								</div>
+							</TableCell>
 							<TableCell class="text-gray-200">{{ rule.type }}</TableCell>
 							<TableCell class="text-gray-400">{{ rule.length }}</TableCell>
 							<TableCell
@@ -66,20 +96,13 @@
 									>
 										<Pencil class="h-4 w-4" />
 									</button>
-									<button
-										@click="handleDelete(rule)"
-										class="p-1 text-gray-400 hover:text-red-400 hover:bg-gray-600 rounded"
-										title="Delete"
-									>
-										<Trash2 class="h-4 w-4" />
-									</button>
 								</div>
 							</TableCell>
 						</TableRow>
 					</template>
 
-					<TableRow v-if="filteredRules.length === 0 && !editingRule" class="hover:bg-transparent">
-						<TableCell colspan="6" class="text-center text-gray-500 py-8"
+					<TableRow v-if="filteredRules.length === 0 && !editingRule">
+						<TableCell colspan="7" class="text-center text-gray-500 py-8"
 							>No formatting rules found.</TableCell
 						>
 					</TableRow>
@@ -88,6 +111,7 @@
 		</div>
 		<div class="shrink-0 flex items-center justify-end mt-3 text-sm text-gray-400">
 			<div>
+				<span v-if="selectedRules.size > 0" class="mr-4">Selected: {{ selectedRules.size }}</span>
 				<span class="mr-4">Showing {{ paginatedRules.length }} of {{ filteredRules.length }} total </span>
 			</div>
 			<div class="flex items-center gap-2" v-if="totalPages > 1">
@@ -114,16 +138,18 @@
 </template>
 
 <script setup lang="ts">
-import { ChevronLeft, ChevronRight, Pencil, Trash2 } from "lucide-vue-next";
+import { ChevronLeft, ChevronRight, Pencil } from "lucide-vue-next";
 import { computed, ref, watch } from "vue";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { type DataBlock, useFormatting } from "@/composables/useDataFormattings";
+import { useSymbols } from "@/composables/useSymbols";
 import { formatAddress } from "@/lib/hex.utils";
 import FormattingEditRow from "./FormattingEditRow.vue";
 import { useFormattingEditing } from "@/composables/useFormattingEditing";
 import { useTableSort } from "@/composables/useTableSort";
 import { usePagination } from "@/composables/usePagination";
 import SortableTableHeader from "@/components/SortableTableHeader.vue";
+import { useSettings } from "@/composables/useSettings";
 
 const props = defineProps<{
 	searchTerm: string;
@@ -135,13 +161,51 @@ const emit = defineEmits<{
 	(e: "gotoAddress", address: number): void;
 }>();
 
-const { findFormattings, removeFormatting } = useFormatting();
+const { findFormattings } = useFormatting();
 const { editingRule, getPreview, beginAddRule: _beginAddRule, beginEdit } = useFormattingEditing();
+const { findSymbolWithOffset } = useSymbols();
+const { settings } = useSettings();
+
+const formatSymbol = (address: number) => {
+	const match = findSymbolWithOffset(address);
+	if (!match) return null;
+	const { symbol, offset } = match;
+	if (offset === 0) return symbol.label;
+	return `${symbol.label}${offset > 0 ? "+" : ""}${offset}`;
+};
+
+const selectedRules = ref(new Set<number>());
+const getRuleId = (rule: DataBlock) => rule.id as number;
 
 type SortKey = "address" | "group";
 const { sortKey, sortDirection, handleSort, resolveAndCompare } = useTableSort<SortKey>("address");
 
 const tableContainerRef = ref<HTMLElement | null>(null);
+
+const isAllSelected = computed(() => {
+	if (!filteredRules.value || filteredRules.value.length === 0) return false;
+	return filteredRules.value.every((r) => selectedRules.value.has(getRuleId(r)));
+});
+
+const toggleSelectAll = () => {
+	if (isAllSelected.value) {
+		selectedRules.value.clear();
+	} else {
+		filteredRules.value.forEach((r) => selectedRules.value.add(getRuleId(r)));
+	}
+};
+
+const toggleSelection = (ruleId: number) => {
+	if (selectedRules.value.has(ruleId)) {
+		selectedRules.value.delete(ruleId);
+	} else {
+		selectedRules.value.add(ruleId);
+	}
+};
+
+const clearSelection = () => {
+	selectedRules.value.clear();
+};
 
 const beginAddRule = () => {
 	_beginAddRule();
@@ -149,7 +213,8 @@ const beginAddRule = () => {
 };
 
 watch([() => props.searchTerm, () => props.selectedGroup], () => {
-	// Reset page when filters change
+	// Reset page and selection when filters change
+	selectedRules.value.clear();
 	currentPage.value = 1;
 });
 
@@ -171,13 +236,9 @@ const {
 	paginatedItems: paginatedRules,
 } = usePagination(filteredRules, () => props.itemsPerPage);
 
-const handleDelete = (rule: DataBlock) => {
-	if (confirm(`Remove formatting at ${formatAddress(rule.address)}?`)) {
-		removeFormatting(rule.address, rule.group);
-	}
-};
-
 defineExpose({
 	beginAddRule,
+	selectedRules,
+	clearSelection,
 });
 </script>

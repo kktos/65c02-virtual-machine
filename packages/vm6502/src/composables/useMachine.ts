@@ -119,6 +119,12 @@ const loadMachine = async (newMachine?: MachineConfig) => {
 	});
 
 	{
+		const { initFormats, setDiskKey } = useFormatting();
+		await initFormats(selectedMachine.value.name, selectedMachine.value.debug?.dataBlocks);
+		setDiskKey("*");
+	}
+
+	{
 		const { executeCommand } = useCommands();
 		const { initSymbols, setDiskKey } = useSymbols();
 		await initSymbols(selectedMachine.value.name);
@@ -130,12 +136,6 @@ const loadMachine = async (newMachine?: MachineConfig) => {
 			await executeCommand("do init", newVm);
 		}
 
-		setDiskKey("*");
-	}
-
-	{
-		const { initFormats, setDiskKey } = useFormatting();
-		await initFormats(selectedMachine.value.name, selectedMachine.value.debug?.dataBlocks);
 		setDiskKey("*");
 	}
 
