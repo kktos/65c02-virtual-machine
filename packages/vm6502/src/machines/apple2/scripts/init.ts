@@ -1,5 +1,14 @@
 export const initRoutine = `
+;
+; Apple 2e init script
+; run once on machine load; useless afterwards
+; visible here for reference
+;
+
+	; clear console
 	cls
+
+	; load Apple 2e system symbols
 	LABELS SYSTEM
 		$0100 STACK
 		$0200 INPUTBUF
@@ -163,23 +172,29 @@ export const initRoutine = `
 		$fce2 INIT_SYSTEM
 	END
 
+	; define a string at $FF0A where the machine name is stored
 	; Apple //e
 	da $FF0A 9
 
+	; labels are search first in x, then y, etc
 	SCOPEPATH "main" "io" "rom"
 
+	; define a virtual register for BANKSEL ($C073)
 	vr BR BANKSEL byte rw
 
+	; set console font to Apple //e 40cols font ;)
 	font "PRINTCHAR21"
 
 	printmd "|  **Apple //e**  |<br>|:-----------:|"
 
 	;printmd "![alt text](https://github.com/adam-p/markdown-here/raw/master/src/common/images/icon48.png 'Logo Title Text 1')"
 
+	; routine to dump hex bytes without addresses
 	routine hd @from @to
 	  hd @from @to |> tr text |> sed //.+?:\\s*((?:[0-9A-F]{2} )+)\\s+.+// "$1"
 	end
 
+	; routine uses by xref, for instance, to goto to addr on click on the link
 	routine disasm_at @addr @wantMem
 		IF @wantMem==0 dv @addr |> nop
 		IF @wantMem m1 @addr |> nop
