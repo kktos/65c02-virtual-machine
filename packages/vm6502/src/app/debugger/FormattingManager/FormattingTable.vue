@@ -161,9 +161,9 @@ const emit = defineEmits<{
 	(e: "gotoAddress", address: number): void;
 }>();
 
-const { findFormattings } = useFormatting();
+const { findFormattings, getFormat } = useFormatting();
 const { editingRule, getPreview, beginAddRule: _beginAddRule, beginEdit } = useFormattingEditing();
-const { findSymbolWithOffset } = useSymbols();
+const { findSymbolWithOffset, findSymbols } = useSymbols();
 const { settings } = useSettings();
 
 const formatSymbol = (address: number) => {
@@ -225,6 +225,13 @@ const gotoRule = (rule: { address: number }) => {
 
 const filteredRules = computed(() => {
 	const rules = findFormattings(props.searchTerm, props.selectedGroup);
+	if (props.searchTerm) {
+		const addrList = findSymbols(props.searchTerm);
+		addrList.forEach((s) => {
+			const r = getFormat(s.addr);
+			if (r && !rules.includes(r)) rules.push(r);
+		});
+	}
 	return rules.sort((a, b) =>
 		resolveAndCompare(a, b, (item, key) => (key === "address" ? item.address : item.group || "")),
 	);

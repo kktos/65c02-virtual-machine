@@ -168,7 +168,7 @@ export function useFormatting() {
 					const entry = groups[grp];
 					if (!entry) continue;
 
-					const addrStr = entry.address.toString(16).toUpperCase().padStart(4, "0");
+					const addrStr = entry.address.toString(16).toUpperCase();
 					if (addrStr.startsWith(hexQuery)) results.push(entry);
 				}
 			}

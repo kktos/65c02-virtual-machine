@@ -22,7 +22,7 @@
 				<Input
 					ref="searchInput"
 					v-model="searchTerm"
-					placeholder="Search address..."
+					placeholder="Search label or address..."
 					class="flex-1 bg-gray-700 border-gray-600 text-gray-200 placeholder:text-gray-400"
 				/>
 				<select

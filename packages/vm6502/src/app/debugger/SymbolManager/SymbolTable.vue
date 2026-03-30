@@ -93,7 +93,7 @@
 								/>
 							</TableCell>
 							<TableCell class="truncate" :title="symbol.ns">{{ symbol.ns }}</TableCell>
-							<TableCell class="font-semibold text-yellow-400">
+							<TableCell class="font-semibold" :style="{ color: settings.disassembly.syntax.label }">
 								<div class="flex items-center gap-2">
 									<span>{{ symbol.label }}</span>
 									<div v-if="symbol.src" :title="symbol.src">
@@ -185,6 +185,7 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import SymbolEditRow from "./SymbolEditRow.vue";
 import { useSymbolEditing } from "@/composables/useSymbolEditing";
 import { usePagination } from "@/composables/usePagination";
+import { useSettings } from "@/composables/useSettings";
 
 const props = defineProps<{
 	searchTerm: string;
@@ -201,6 +202,7 @@ const vm = inject<Ref<VirtualMachine>>("vm");
 const { findSymbols } = useSymbols();
 const { pcBreakpoints, toggleBreakpoint } = useBreakpoints();
 const { editingSymbol, beginAddSymbol: _beginAddSymbol, beginEdit } = useSymbolEditing();
+const { settings } = useSettings();
 
 const selectedSymbols = ref(new Set<number>());
 const tableContainerRef = ref<HTMLElement | null>(null);
