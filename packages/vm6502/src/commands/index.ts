@@ -97,8 +97,13 @@ export const COMMANDDEF_LIST = {
 
 	CODE: defCode,
 	DB: {
-		description: "define n bytes at `address`. Usage: db <\u200baddress> <\u200bcount>",
-		paramDef: ["address|range", "word"],
+		description:
+			"define n bytes at `address` [times].\n" +
+			"define n bytes  for `range`.\n" +
+			"Usage: db $2000 8 ; $2000: bytes[8]\n" +
+			"Usage: db $2000 8 x2 ; $2000: bytes[8] $2008: bytes[8]\n" +
+			"Usage: db $2000:$2010 8 ; $2000: bytes[8], bytes[8],\n",
+		paramDef: ["address|range", "word", "name?"],
 		fn: defDataFn,
 		staticParams: { prepend: ["byte"] },
 		group: "Memory",

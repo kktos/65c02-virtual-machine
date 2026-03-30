@@ -1,4 +1,4 @@
-import { isParamListItemRange } from "@/composables/useCommands";
+import { isParamListItemIdentifier, isParamListItemRange } from "@/composables/useCommands";
 import { useFormatting, type DataType } from "@/composables/useDataFormattings";
 import { formatAddress } from "@/lib/hex.utils";
 import type { Command, CommandContext } from "@/types/command";
@@ -19,6 +19,14 @@ export const defDataFn: Command["fn"] = async ({ params }: CommandContext) => {
 		end = start;
 	}
 	const length = params[2] as number;
+	const timesStr = isParamListItemIdentifier(params[3]) ? params[3].text : "";
+	let times = 1;
+
+	if (timesStr) {
+		times = parseInt(timesStr.slice(1));
+		if (times > 1 && start !== end) throw new Error("Times cannot be used with range.");
+		end = start + times * length - 1;
+	}
 
 	const { addFormatting } = useFormatting();
 
