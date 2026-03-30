@@ -14,9 +14,8 @@
 		<template #icon>
 			<FileCode2 class="w-4 h-4" />
 		</template>
-		<div class="flex flex-grow min-h-0">
-			<!-- Left panel: Routine list -->
-			<div class="w-1/3 border-r border-gray-700 flex flex-col bg-gray-900/50">
+		<ResizablePanelGroup direction="horizontal" auto-save-id="routineEditorPanelLayout">
+			<ResizablePanel :default-size="15" class="flex flex-col">
 				<div class="flex-grow overflow-y-auto">
 					<ul v-if="routineNames.length > 0 || isCreating">
 						<li
@@ -74,10 +73,11 @@
 						<Trash2 class="w-4 h-4" />
 					</button>
 				</div>
-			</div>
+			</ResizablePanel>
 
-			<!-- Right panel: Text editor -->
-			<div class="w-2/3 flex flex-col">
+			<ResizableHandle />
+
+			<ResizablePanel>
 				<div v-if="selectedRoutineName" class="flex flex-col h-full">
 					<div class="flex items-center gap-2 p-2 border-b border-gray-700 bg-gray-900/30">
 						<span class="text-xs text-gray-500 font-mono select-none">ARGS:</span>
@@ -103,8 +103,8 @@
 				<div v-else class="flex items-center justify-center h-full text-gray-500 text-sm">
 					Select a routine to edit.
 				</div>
-			</div>
-		</div>
+			</ResizablePanel>
+		</ResizablePanelGroup>
 	</FloatingWindow>
 </template>
 
@@ -116,6 +116,9 @@ import { useRoutines } from "@/composables/useRoutines";
 import { FileCode2, Plus, Trash2 } from "lucide-vue-next";
 import FloatingWindow from "@/components/FloatingWindow.vue";
 import { shellRoutine } from "@/lib/codemirror/routine";
+import ResizableHandle from "../../components/ui/resizable/ResizableHandle.vue";
+import ResizablePanel from "../../components/ui/resizable/ResizablePanel.vue";
+import ResizablePanelGroup from "../../components/ui/resizable/ResizablePanelGroup.vue";
 
 const { getRoutineNames, getRoutine, setRoutine, deleteRoutine, routineExists } = useRoutines();
 
