@@ -13,7 +13,7 @@
 	},
 	"dependencies": {
 		"@codemirror/commands": "^6.10.3",
-		"@codemirror/language": "^6.12.2",
+		"@codemirror/language": "^6.12.3",
 		"@codemirror/state": "^6.6.0",
 		"@codemirror/view": "^6.40.0",
 		"@fsegurai/codemirror-theme-vscode-dark": "^6.2.4",
@@ -42,11 +42,11 @@
 		"@vue/tsconfig": "^0.9.1",
 		"oxfmt": "^0.42.0",
 		"oxlint": "^1.57.0",
-		"oxlint-tsgolint": "^0.17.3",
+		"oxlint-tsgolint": "^0.18.1",
 		"typescript": "~6.0.2",
-		"vite": "8.0.2",
+		"vite": "8.0.3",
 		"vite-tsconfig-paths": "^6.1.1",
-		"vitest": "^4.1.1",
+		"vitest": "^4.1.2",
 		"vue-tsc": "^3.2.6"
 	},
 	"pnpm": {
