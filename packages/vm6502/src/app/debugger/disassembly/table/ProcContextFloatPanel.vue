@@ -1,5 +1,5 @@
 <template>
-	<FloatPanel v-if="info && settings.disassembly.showContextBadge" :initial-pos="pos">
+	<FloatPanel v-if="info" v-model:show="settings.disassembly.showContextBadge" :initial-pos="pos">
 		<template #default="{ isDragging }">
 			<div
 				class="px-2 py-0.5 bg-gray-700/90 border-l-4 text-[0.68rem] shadow-2xl backdrop-blur-md flex items-center gap-2 active:opacity-80"

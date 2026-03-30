@@ -8,6 +8,15 @@
 		<!-- ── Procedure Context Badge ────────────────────────────────── -->
 		<ProcContextFloatPanel v-if="lines.length > 0" :addr="lines[0].addr" :pos="{ right: '1rem', top: '2.1rem' }" />
 
+		<!-- ── X-Ref Panel ────────────────────────────────────────────── -->
+		<XRefFloatPanel
+			v-if="xrefState.show"
+			v-model:show="xrefState.show"
+			:addr="xrefState.addr"
+			:label="xrefState.label"
+			:pos="{ right: '1.5rem', top: '4.5rem' }"
+		/>
+
 		<div class="overflow-auto">
 			<div :style="{ display: 'grid', gridTemplateColumns }">
 				<!-- ── Header ───────────────────────────────────────────────── -->
@@ -37,6 +46,7 @@
 					<DisasmLabel
 						v-if="row.line.label"
 						:line="row.line"
+						@show-x-ref="onShowXRef"
 						class="col-span-full flex items-center h-[1.6rem] px-2 even:bg-[#00000050]"
 					/>
 
@@ -84,9 +94,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, defineComponent, h, inject, type Ref } from "vue";
+import { computed, defineComponent, h, inject, reactive, type Ref } from "vue";
 import DisasmLabel from "./DisasmLabel.vue";
 import ProcContextFloatPanel from "./ProcContextFloatPanel.vue";
+import XRefFloatPanel from "./XRefFloatPanel.vue";
 import type { DisassemblyLine, DisassemblyLineKeys } from "@/types/disassemblyline.interface";
 import { useSettings } from "@/composables/useSettings";
 import { useBreakpoints } from "@/composables/useBreakpoints";
@@ -98,6 +109,18 @@ import BlockCommentViewer from "./BlockCommentViewer.vue";
 
 const vm = inject<Ref<VirtualMachine>>("vm");
 const { settings } = useSettings();
+
+// ── XRef State ─────────────────────────────────────────────────────────────
+
+const xrefState = reactive({
+	show: false,
+	addr: 0,
+	label: "",
+});
+
+const onShowXRef = (addr: number, label: string) => {
+	Object.assign(xrefState, { show: true, addr, label });
+};
 
 // ── Types ──────────────────────────────────────────────────────────────────
 

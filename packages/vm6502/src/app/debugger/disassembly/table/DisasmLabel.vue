@@ -4,6 +4,7 @@
 		:title="line.src + '[' + vm?.getScope(line.addr) + ']'"
 		@click.stop="handleClick($event)"
 		@dblclick="handleDblClick"
+		@contextmenu.prevent="handleContextMenu($event)"
 		class="col-span-full border-l-3 cursor-pointer hover:bg-gray-800/50"
 	>
 		<template v-if="editingLabelAddress === line.addr">
@@ -48,6 +49,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
 	(e: "onLabelClick", event: MouseEvent, line: DisassemblyLine): void;
+	(e: "showXRef", addr: number, label: string): void;
 }>();
 
 const vm = inject<Ref<VirtualMachine>>("vm");
@@ -69,6 +71,10 @@ const handleClick = (event: MouseEvent) => {
 		emit("onLabelClick", event, props.line);
 		clickTimeout.value = null;
 	}, 200);
+};
+
+const handleContextMenu = (event: MouseEvent) => {
+	emit("showXRef", props.line.addr, props.line.label || "");
 };
 
 const handleDblClick = () => {
