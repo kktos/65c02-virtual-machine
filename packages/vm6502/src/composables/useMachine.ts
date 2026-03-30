@@ -1,5 +1,5 @@
 // c:\devwork\65c02-virtual-machine\packages\vm6502\src\composables\useMachine.ts
-import { markRaw, reactive, ref, shallowRef } from "vue";
+import { markRaw, reactive, readonly, ref, shallowRef } from "vue";
 import { availableMachines } from "../machines";
 import type { MachineConfig } from "../types/machine.interface";
 import { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
@@ -108,6 +108,7 @@ const loadMachine = async (newMachine?: MachineConfig) => {
 	const newVm = new VirtualMachine(selectedMachine.value);
 	vm.value = markRaw<VirtualMachine>(newVm);
 	setupVmListeners(newVm);
+	virtualRegisters.value = [];
 
 	if (videoCanvas.value) newVm.initVideo(videoCanvas.value);
 
@@ -146,6 +147,12 @@ const loadMachine = async (newMachine?: MachineConfig) => {
 	}
 };
 
+const addVirtualRegister = (vr: RegisterDescriptor) => {
+	if (virtualRegisters.value.find((r) => r.key === vr.key))
+		throw new Error(`Virtual register ${vr.key} already exists`);
+	virtualRegisters.value.push(vr);
+};
+
 export function useMachine() {
 	return {
 		selectedMachine,
@@ -154,6 +161,7 @@ export function useMachine() {
 		loadMachine,
 		vm,
 		registers,
-		virtualRegisters,
+		virtualRegisters: readonly(virtualRegisters),
+		addVirtualRegister,
 	};
 }

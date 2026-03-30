@@ -13,7 +13,7 @@ export const virtualRegisterCmd = defineCommand({
 		const sizeDef = params[2] as ParamListItemIdentifier;
 		const mode = params[3] as ParamListItemIdentifier;
 
-		const { virtualRegisters, vm } = useMachine();
+		const { addVirtualRegister, vm } = useMachine();
 
 		const am = mode.text.toLowerCase();
 		if (!["r", "w", "rw"].includes(am)) throw new Error("Invalid access mode; must be 'r', 'w', or 'rw'");
@@ -41,7 +41,7 @@ export const virtualRegisterCmd = defineCommand({
 		if (am === "r" || am === "rw") vr.read = () => vm.value?.read(address) ?? 0;
 		if (am === "w" || am === "rw") vr.write = (value: number) => vm.value?.writeIO(address, value);
 
-		virtualRegisters.value.push(vr);
+		addVirtualRegister(vr);
 
 		return `New virtual register added:${name.text}`;
 	},
