@@ -98,7 +98,7 @@ export const COMMANDDEF_LIST = {
 	CODE: defCode,
 	DB: {
 		description: "define n bytes at `address`. Usage: db <\u200baddress> <\u200bcount>",
-		paramDef: ["address", "word"],
+		paramDef: ["address|range", "word"],
 		fn: defDataFn,
 		staticParams: { prepend: ["byte"] },
 		group: "Memory",
@@ -106,7 +106,7 @@ export const COMMANDDEF_LIST = {
 	BYTE: "DB",
 	DW: {
 		description: "define n words at `address`. Usage: dw <\u200baddress> <\u200bcount>",
-		paramDef: ["address", "word"],
+		paramDef: ["address|range", "word"],
 		fn: defDataFn,
 		staticParams: { prepend: ["word"] },
 		group: "Memory",
@@ -114,7 +114,7 @@ export const COMMANDDEF_LIST = {
 	WORD: "DW",
 	DA: {
 		description: "define a string/ascii at `address`. Usage: da <\u200baddress> <\u200blength>",
-		paramDef: ["address", "word"],
+		paramDef: ["address|range", "word"],
 		fn: defDataFn,
 		staticParams: { prepend: ["string"] },
 		group: "Memory",

@@ -1,3 +1,4 @@
+import { isParamListItemRange } from "@/composables/useCommands";
 import { useFormatting, type DataType } from "@/composables/useDataFormattings";
 import { formatAddress } from "@/lib/hex.utils";
 import type { Command, CommandContext } from "@/types/command";
@@ -8,12 +9,23 @@ export const defDataFn: Command["fn"] = async ({ params }: CommandContext) => {
 	const type = params[0] as string;
 	if (!TYPES.has(type)) throw new Error("Invalid data type.");
 
-	const address = params[1] as number;
+	let start: number;
+	let end: number;
+	if (isParamListItemRange(params[1])) {
+		start = params[1].start;
+		end = params[1].end;
+	} else {
+		start = params[1] as number;
+		end = start;
+	}
 	const length = params[2] as number;
 
 	const { addFormatting } = useFormatting();
 
-	addFormatting(address, type as DataType, length);
-
-	return `Data region set for ${formatAddress(address)}: $${type}[${length}]`;
+	for (let i = start; i <= end; i += length) {
+		const len = Math.min(length, end - i + 1);
+		await addFormatting(i, type as DataType, len);
+	}
+	if (start !== end) return `Data regions set for ${formatAddress(start)}:${formatAddress(end)}: ${type}[${length}]`;
+	else return `Data region set for ${formatAddress(start)}: ${type}[${length}]`;
 };
