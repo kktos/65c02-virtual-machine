@@ -31,10 +31,18 @@ export const setCmd = defineCommand({
 	paramDef: ["name", "byte|word"],
 	group: "Monitor",
 	fn: ({ vm, params }: CommandContext) => {
+		const val = params[1] as number;
+
+		const isAddress = (params[0] as string).match(/^[0-9]+$/);
+		if (isAddress) {
+			const addr = parseInt(params[0] as string);
+			vm.writeDebug(addr, val);
+			return `$${toHex(addr)} = $${toHex(val)}`;
+		}
+
 		const reg = (params[0] as string).toUpperCase() as Register;
 		if (!reg) throw new Error(`Invalid register: ${reg}`);
 
-		const val = params[1] as number;
 		if (reg in BYTE_REGISTERS) {
 			if (val > 0xff || val < 0) throw new Error(`Value out of range [0-255]`);
 			vm.sharedRegisters.setUint8(BYTE_REGISTERS[reg as Register8], val);
