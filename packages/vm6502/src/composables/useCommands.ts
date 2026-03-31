@@ -212,18 +212,13 @@ export async function executeSubQueue(
 					continue;
 				}
 
-				console.log("------", cmd, pipeValue);
-
 				let paramIndex = initialParamIndex;
 				const cmdSpec = COMMAND_LIST[cmd];
-				const { params: finalParams, opts: finalOpts } = parseCommandParams(
-					cmdParser,
-					cmd,
-					paramIndex,
-					userParams,
-					cmdSpec,
-					pipeValue,
-				);
+				const {
+					params: finalParams,
+					opts: finalOpts,
+					injectedConsumed,
+				} = parseCommandParams(cmdParser, cmd, paramIndex, userParams, cmdSpec, pipeValue);
 
 				const cmdResult = await cmdSpec.fn({
 					vm,
@@ -236,6 +231,13 @@ export async function executeSubQueue(
 				if (isMultiLineRequest(cmdResult)) {
 					const request = cmdResult;
 					if (pipeValue) {
+						if (!injectedConsumed) {
+							// console.log(typeof pipeValue, pipeValue);
+							pipeValue.split("\n").forEach(async (line: string, index: number) => {
+								const res = await request.onLine(line, index);
+								if (typeof res === "object" && res.error) currentSink({ error: res.error });
+							});
+						}
 						const res = await request.onComplete();
 						if (typeof res === "string") currentSink({ content: res, format: "text" });
 						else throw new Error(res.error);
