@@ -254,7 +254,6 @@ export class ExpressionParser {
 	public parse(precedence = 0): ParsedResult {
 		let token = this.consume();
 		let left = this.nud(token);
-
 		while (left.value !== undefined && precedence < this.getPrecedence(this.peek().type)) {
 			token = this.consume();
 			left = this.led(token, left);
@@ -365,15 +364,16 @@ export class ExpressionParser {
 		const rightRes = this.parse(precedence);
 
 		if (typeof left.value === "string" || typeof rightRes.value === "string") {
-			if (typeof left.value === "string" && typeof rightRes.value === "string") {
+			if (typeof left.value === "string") {
+				const rightValue = typeof rightRes.value === "string" ? rightRes.value : String(rightRes.value);
 				if (token.type === TokenType.EQ)
-					return { type: TokenType.INTEGER, value: left.value === rightRes.value ? 1 : 0, raw: token.text };
+					return { type: TokenType.INTEGER, value: left.value === rightValue ? 1 : 0, raw: token.text };
 				if (token.type === TokenType.NEQ)
-					return { type: TokenType.INTEGER, value: left.value !== rightRes.value ? 1 : 0, raw: token.text };
+					return { type: TokenType.INTEGER, value: left.value !== rightValue ? 1 : 0, raw: token.text };
 				if (token.type === TokenType.PLUS)
 					return {
 						type: TokenType.STRING,
-						value: (left.value as string) + (rightRes.value as string),
+						value: (left.value as string) + rightValue,
 						raw: token.text,
 					};
 			}
