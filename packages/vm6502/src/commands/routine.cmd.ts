@@ -4,7 +4,7 @@ import type { CommandContext, ParamListItemIdentifier } from "@/types/command";
 
 export const routineCmd = defineCommand({
 	description: "Define a routine on multiple lines, ended by END.",
-	paramDef: ["name", "rest"],
+	paramDef: ["name", "name*"],
 	group: "Scripting",
 	fn: ({ params }: CommandContext) => {
 		const routineName = params[0] as ParamListItemIdentifier;
@@ -12,7 +12,7 @@ export const routineCmd = defineCommand({
 
 		// Collect arguments (e.g. routine test @arg1 @arg2)
 		const args: string[] = [];
-		for (let i = 1; i < params.length; i++) args.push(String(params[i]));
+		for (let i = 1; i < params.length; i++) args.push((params[i] as ParamListItemIdentifier).text.trim());
 
 		const lines: string[] = [];
 		return {
