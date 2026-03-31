@@ -85,10 +85,12 @@ function tryParseOption(
 	if (parser.peek().type !== TokenType.DOUBLE_DASH) return false;
 
 	const res = parser.parse();
-	const optName = res.raw;
 
-	const optDef = availableOptions?.find((o) => o.name === optName);
-	if (!optDef) throw new Error(`Unknown option "--${optName}".`);
+	const optDefFound = availableOptions?.filter((o) => o.name.startsWith(res.raw)) as OptionItemDef[];
+	if (optDefFound.length > 1) throw new Error(`Unknown option "--${res.raw}".`);
+	const optDef = optDefFound[0];
+
+	const optName = optDef.name;
 
 	let val: any = true;
 
