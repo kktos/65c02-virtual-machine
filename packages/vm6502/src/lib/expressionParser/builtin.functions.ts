@@ -121,23 +121,23 @@ export const BUILTINS: Record<string, BuiltinFunctionDef> = {
 			}
 			switch (reg) {
 				case "A":
-					result = inc + registers.getUint8(REG_A_OFFSET);
+					result = (inc + registers.getUint8(REG_A_OFFSET)) & 0xff;
 					registers.setUint8(REG_A_OFFSET, result);
 					break;
 				case "X":
-					result = inc + registers.getUint8(REG_X_OFFSET);
+					result = (inc + registers.getUint8(REG_X_OFFSET)) & 0xff;
 					registers.setUint8(REG_X_OFFSET, result);
 					break;
 				case "Y":
-					result = inc + registers.getUint8(REG_Y_OFFSET);
+					result = (inc + registers.getUint8(REG_Y_OFFSET)) & 0xff;
 					registers.setUint8(REG_Y_OFFSET, result);
 					break;
 				case "SP":
-					result = inc + registers.getUint8(REG_SP_OFFSET);
+					result = (inc + registers.getUint8(REG_SP_OFFSET)) & 0xff;
 					registers.setUint8(REG_SP_OFFSET, result);
 					break;
 				case "PC":
-					result = inc + registers.getUint16(REG_PC_OFFSET, true);
+					result = (inc + registers.getUint16(REG_PC_OFFSET, true)) & 0xffff;
 					registers.setUint16(REG_PC_OFFSET, result, true);
 					break;
 				default:
