@@ -7,7 +7,11 @@
 				:style="{ borderColor: info.scopeColor }"
 				title="Drag to move badge"
 			>
-				<span :style="{ color: settings.disassembly.syntax.label }" class="font-bold tracking-tight">
+				<span
+					:style="{ color: settings.disassembly.syntax.label }"
+					class="font-bold tracking-tight cursor-pointer"
+					@click="handleJump()"
+				>
 					{{ info.name }}
 				</span>
 			</div>
@@ -21,6 +25,8 @@ import { useSettings } from "@/composables/useSettings";
 import { useSymbols } from "@/composables/useSymbols";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import FloatPanel from "./FloatPanel.vue";
+import { useAddressHistory } from "@/composables/useAddressHistory";
+import { useDebuggerNav } from "@/composables/useDebuggerNav";
 
 const props = defineProps<{
 	addr: number;
@@ -33,6 +39,8 @@ const props = defineProps<{
 const vm = inject<Ref<VirtualMachine>>("vm");
 const { settings } = useSettings();
 const { getLabelAtOrBefore } = useSymbols();
+const { setActiveTab } = useDebuggerNav();
+const { jumpToAddress } = useAddressHistory("disassembly");
 
 const getScopeColor = (addr: number) => {
 	const scope = vm?.value?.getScope(addr & 0xffff);
@@ -50,4 +58,11 @@ const info = computed(() => {
 		scopeColor: getScopeColor(props.addr),
 	};
 });
+
+const handleJump = () => {
+	setActiveTab("disassembly");
+	console.log("handleJump", props.addr);
+	jumpToAddress(0x2000);
+	jumpToAddress(props.addr);
+};
 </script>

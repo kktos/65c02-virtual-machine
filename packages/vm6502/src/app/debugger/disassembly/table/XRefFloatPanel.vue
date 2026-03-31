@@ -49,7 +49,7 @@ const { findReferences } = useCrossReferences();
 const { setActiveTab } = useDebuggerNav();
 const { jumpToAddress } = useAddressHistory("disassembly");
 
-const references = computed(() => findReferences(vm.value, props.addr) || []);
+const references = computed(() => (vm ? findReferences(vm.value, props.addr) || [] : []));
 
 const handleJump = (address: number) => {
 	jumpToAddress(address);
