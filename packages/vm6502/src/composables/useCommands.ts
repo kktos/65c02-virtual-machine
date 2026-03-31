@@ -4,14 +4,7 @@ import { ExpressionParser } from "@/lib/expressionParser";
 import { COMMAND_LIST } from "@/commands";
 import { minimonitor, type MiniMonitorCommandRequest } from "@/lib/mini-monitor";
 import { useBreakpoints } from "./useBreakpoints";
-import {
-	REG_A_OFFSET,
-	REG_PC_OFFSET,
-	REG_SP_OFFSET,
-	REG_STATUS_OFFSET,
-	REG_X_OFFSET,
-	REG_Y_OFFSET,
-} from "@/virtualmachine/cpu/shared-memory";
+import { REG_PC_OFFSET, REG_SP_OFFSET } from "@/virtualmachine/cpu/shared-memory";
 import type {
 	MultiLineRequest,
 	CommandOutput,
@@ -103,13 +96,8 @@ function handleJsrOutput(output: any, vm: VirtualMachine, result: CommandRunResu
 		return;
 	}
 
-	const pc = vm.sharedRegisters.getUint16(REG_PC_OFFSET, true);
-	const a = vm.sharedRegisters.getUint8(REG_A_OFFSET);
-	const x = vm.sharedRegisters.getUint8(REG_X_OFFSET);
-	const y = vm.sharedRegisters.getUint8(REG_Y_OFFSET);
-	const p = vm.sharedRegisters.getUint8(REG_STATUS_OFFSET);
-	const lines = [`pc=${pc}`, `sp=${sp}`, `a=${a}`, `x=${x}`, `y=${y}`, `p=${p}`, `print "done"`];
-
+	vm.saveRegisters();
+	const lines = [`regs restore`, `print "done"`];
 	addBreakpoint({ type: "pc", address: breakpointAddress, isTemporary: true, command: lines.join(";") }, vm);
 
 	vm.sharedRegisters.setUint8(REG_SP_OFFSET, sp - 2);
@@ -200,7 +188,7 @@ export async function executeSubQueue(
 				const { cmd, paramIndex: initialParamIndex, userParams, isValidCmd } = parseUserCommand(cmdParser);
 
 				if (!isValidCmd) {
-					const output = minimonitor(item.source, vm);
+					const output = await minimonitor(item.source, vm);
 					currentSink(output);
 					continue;
 				}
