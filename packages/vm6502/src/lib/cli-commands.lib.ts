@@ -80,11 +80,11 @@ export function parseUserCommand(cmdParser: ExpressionParser) {
 		let nextTok = cmdParser.peek();
 
 		if (tok.type === TokenType.MEM_START) {
-			tok = nextTok;
+			const addr = cmdParser.parse();
+			if (addr.type !== TokenType.INTEGER) throw new Error("Wrong type for address");
 			cmdParser.consume();
-			cmdParser.consume();
+			tok.text = (addr.value as number).toString();
 			nextTok = cmdParser.peek();
-			tok.text = tok.value.toString();
 		}
 
 		//
