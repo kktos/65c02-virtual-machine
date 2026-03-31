@@ -22,6 +22,7 @@ export enum TokenType {
 	MINUS,
 	MUL,
 	DIV,
+	MOD,
 	AND,
 	OR,
 	XOR, // Bitwise
@@ -67,6 +68,7 @@ const ONE_CHAR_OPS: Record<string, TokenType> = {
 	"-": TokenType.MINUS,
 	"*": TokenType.MUL,
 	"/": TokenType.DIV,
+	"%": TokenType.MOD,
 	"=": TokenType.ASSIGN,
 	"&": TokenType.AND,
 	"|": TokenType.OR,
@@ -144,6 +146,16 @@ const BUILTINS: Record<string, BuiltinFunctionDef> = {
 			const val = args[0];
 			if (typeof val !== "number") throw new Error("PEEK expects a number");
 			const res = vm.read(val);
+			return { type: TokenType.INTEGER, value: res, raw: res.toString() };
+		},
+	},
+	INT: {
+		minArgs: 1,
+		maxArgs: 1,
+		impl: (args) => {
+			const val = args[0];
+			if (typeof val !== "number") throw new Error("INT expects a number");
+			const res = val | 0;
 			return { type: TokenType.INTEGER, value: res, raw: res.toString() };
 		},
 	},
@@ -240,6 +252,7 @@ export class ExpressionParser {
 				return 80;
 			case TokenType.MUL:
 			case TokenType.DIV:
+			case TokenType.MOD:
 				return 90;
 			default:
 				return 0;
@@ -411,6 +424,9 @@ export class ExpressionParser {
 				break;
 			case TokenType.DIV:
 				resultValue = leftVal / rightVal;
+				break;
+			case TokenType.MOD:
+				resultValue = leftVal % rightVal;
 				break;
 			case TokenType.AND:
 				resultValue = leftVal & rightVal;
