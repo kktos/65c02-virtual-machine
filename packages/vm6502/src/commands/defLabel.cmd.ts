@@ -1,18 +1,18 @@
-import { defineCommand } from "@/composables/useCommands";
+import { defineCommand, isParamListItemIdentifier } from "@/composables/useCommands";
 import { useSymbols } from "@/composables/useSymbols";
 import { formatAddress } from "@/lib/hex.utils";
-import type { CommandContext, ParamListItemIdentifier } from "@/types/command";
+import type { CommandContext } from "@/types/command";
 
 export const defLabel = defineCommand({
-	description: "Define a label <label> at <address> [scope?]",
-	paramDef: ["name", "address", "name?"],
+	description: "Define a label <\u200blabel> at <\u200baddress> [scope?]",
+	paramDef: ["name|string", "address", "name?"],
 	group: "Symbols",
 	fn: async ({ vm, params }: CommandContext) => {
-		const fulllabel = params[0] as ParamListItemIdentifier;
+		const fulllabel = isParamListItemIdentifier(params[0]) ? params[0].text : (params[0] as string);
 		const address = params[1] as number;
 		const scope = (params[2] as string) || vm.getScope(address);
 
-		const parts = fulllabel.text.split("::");
+		const parts = fulllabel.split("::");
 		const namespace = (parts.length > 1 ? parts[0] : "user") as string;
 		const label = (parts.length > 1 ? parts[1] : parts[0]) as string;
 
