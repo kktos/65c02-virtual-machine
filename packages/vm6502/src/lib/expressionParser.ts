@@ -47,6 +47,7 @@ export enum TokenType {
 	DOT,
 	DOUBLE_QUESTION, // ??
 	DOUBLE_DASH, // --
+	DOUBLE_COLON, // ::
 }
 
 const TWO_CHAR_OPS: Record<string, TokenType> = {
@@ -59,6 +60,7 @@ const TWO_CHAR_OPS: Record<string, TokenType> = {
 	"|>": TokenType.PIPE,
 	"??": TokenType.DOUBLE_QUESTION,
 	"--": TokenType.DOUBLE_DASH,
+	"::": TokenType.DOUBLE_COLON,
 };
 const ONE_CHAR_OPS: Record<string, TokenType> = {
 	"+": TokenType.PLUS,
@@ -295,9 +297,22 @@ export class ExpressionParser {
 			case TokenType.FLOAT:
 				return { type: TokenType.FLOAT, value: token.value, raw: token.text };
 			case TokenType.IDENTIFIER: {
-				const name = token.text.toUpperCase();
-				if (BUILTINS[name] && this.is(TokenType.LPAREN)) return this.parseBuiltinFunction(name);
-				return { type: TokenType.IDENTIFIER, value: this.resolveIdentifier(token.text), raw: token.text };
+				let name = token.text;
+				let namespace: string | undefined;
+				if (BUILTINS[name.toUpperCase()] && this.is(TokenType.LPAREN))
+					return this.parseBuiltinFunction(name.toUpperCase());
+				if (this.match(TokenType.DOUBLE_COLON)) {
+					namespace = token.text;
+					const tok = this.peek();
+					if (tok.type !== TokenType.IDENTIFIER) throw new Error("Identifier expected after '::'");
+					name = tok.text;
+					this.consume();
+				}
+				return {
+					type: TokenType.IDENTIFIER,
+					value: this.resolveIdentifier(name, namespace),
+					raw: namespace ? `${namespace}::${name}` : name,
+				};
 			}
 			case TokenType.DOUBLE_QUESTION:
 				return { type: TokenType.DOUBLE_QUESTION, value: undefined, raw: token.text };
@@ -436,7 +451,7 @@ export class ExpressionParser {
 		return { type: resultType, value: resultValue, raw: token.text };
 	}
 
-	private resolveIdentifier(name: string) {
+	private resolveIdentifier(name: string, namespace?: string) {
 		const up = name.toUpperCase();
 		switch (up) {
 			case "A":
@@ -454,7 +469,7 @@ export class ExpressionParser {
 				return this.vm.sharedRegisters.getUint8(REG_STATUS_OFFSET);
 		}
 
-		const addr = this.resolveSymbol(name);
+		const addr = this.resolveSymbol(name, namespace);
 		if (addr !== undefined) return addr;
 
 		return undefined;
@@ -782,7 +797,7 @@ export function monitorTokenizer(input: string): Token[] {
 			continue;
 		}
 
-		throw new Error(`Invalid character "${char}" at pos ${i}`);
+		throw new Error(`(Monitor) Invalid character "${char}" at pos ${i}`);
 	}
 	tokens.push({ type: TokenType.EOF, value: 0, text: "", start: i, end: i });
 
