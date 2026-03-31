@@ -56,16 +56,24 @@ export const initRoutine = `
 		IF @wantMem m1 @addr |> nop
 	end
 
-routine drawChar @src
-	mem[$5300]= @src
-	mem[$5700]= @src+1
-	mem[$5b00]= @src+2
-	mem[$5f00]= @src+3
-	mem[$4380]= @src+5
-	mem[$4780]= @src+6
-	mem[$4b80]= @src+7
+routine drawChar @char @xPos @yPos
+	if @char==32 then return
+	pc= $b49d + (@char - 65) * 8
+	mem[$2000 + val("line"+(@yPos+6)) + @xPos]= mem[pc+0]
+	mem[$2000 + val("line"+(@yPos+5)) + @xPos]= mem[pc+1]
+	mem[$2000 + val("line"+(@yPos+4)) + @xPos]= mem[pc+2]
+	mem[$2000 + val("line"+(@yPos+3)) + @xPos]= mem[pc+3]
+	mem[$2000 + val("line"+(@yPos+2)) + @xPos]= mem[pc+5]
+	mem[$2000 + val("line"+(@yPos+1)) + @xPos]= mem[pc+6]
+	mem[$2000 + val("line"+(@yPos+0)) + @xPos]= mem[pc+7]
 	refresh
 end
 
+routine drawString @text @xPos @yPos
+	regs save
+	a=$ff
+	while inc(a)<len(@text) do &drawChar asc(substr(@text,a)) @xPos+a @yPos |> nop
+	reg restore
+end
 
 `;
