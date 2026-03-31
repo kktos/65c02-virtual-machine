@@ -3,7 +3,7 @@ import type { ParamListItemIdentifier } from "@/types/command";
 
 export const transformCmd = defineCommand({
 	description: "Tranform a stream. Usage: `content_producer` |> TR type",
-	paramDef: ["name", "string"],
+	paramDef: ["name", "rest"],
 	group: "Streams",
 	fn: async ({ params }) => {
 		const type = params[0] as ParamListItemIdentifier;
