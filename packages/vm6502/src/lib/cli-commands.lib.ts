@@ -65,7 +65,7 @@ export function parseUserCommand(cmdParser: ExpressionParser) {
 	let paramIndex = 0;
 	let cmd = "" as COMMANDS;
 	let isValidCmd = false;
-	const tok = cmdParser.peek();
+	let tok = cmdParser.peek();
 
 	//
 	// do <routine> | & <routine>
@@ -76,11 +76,20 @@ export function parseUserCommand(cmdParser: ExpressionParser) {
 		paramIndex = 1;
 		userParams.push(nextTok.text);
 		isValidCmd = true;
-	} else if (cmdParser.match(TokenType.IDENTIFIER)) {
+	} else if (cmdParser.match(TokenType.IDENTIFIER) || cmdParser.match(TokenType.MEM_START)) {
+		let nextTok = cmdParser.peek();
+
+		if (tok.type === TokenType.MEM_START) {
+			tok = nextTok;
+			cmdParser.consume();
+			cmdParser.consume();
+			nextTok = cmdParser.peek();
+			tok.text = tok.value.toString();
+		}
+
 		//
 		// <dest> = <value> => SET <dest> <value>
 		//
-		const nextTok = cmdParser.peek();
 		if (nextTok?.type === TokenType.ASSIGN) {
 			cmd = "SET";
 			paramIndex = 1;
