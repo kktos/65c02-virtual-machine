@@ -4,6 +4,7 @@
 
 - REFACTO: registers in useMachine.... updated at everyframe in App.... Not sure it's the best way to do it
 - REFACTO: I don't like the handleJsrOutput in useCommands where it's a mini monitor thing
+- labels in routine; not working; the command is executed ! I reckon multilines are not working in routine
 
 ### 2026-03-23
 

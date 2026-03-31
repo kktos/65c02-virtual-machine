@@ -12,9 +12,10 @@ export const initRoutine = `
 	cls
 
 	; load Apple 2e system symbols
-	${labels_system}
-
-	${labels_graphics}
+	routine define_labels
+		${labels_system}
+		${labels_graphics}
+	end
 
 	; routine whileBody
 	; 	print "$"+hex($2000 + int(a/64)*$28 + int(a%8)*$400 + ((a/8)&7)*$80), "line"+a  |> buf push temp
