@@ -9,10 +9,11 @@ import {
 	REG_PC_OFFSET,
 } from "@/virtualmachine/cpu/shared-memory";
 
+export type BuiltinFunctionArgIdentifer = { type: "identifier"; value: number; text: string };
 export type BuiltinFunctionArg =
 	| { type: "string"; value: string }
 	| { type: "number"; value: number }
-	| { type: "identifier"; value: string }
+	| BuiltinFunctionArgIdentifer
 	| { type: "regex"; value: RegExp };
 
 type BuiltinFunctionDef = {
@@ -89,7 +90,17 @@ export const BUILTINS: Record<string, BuiltinFunctionDef> = {
 		impl: (args) => {
 			const val = args[0];
 			if (val.type !== "string") throw new Error("LEN expects a string");
-			const res = String(val.value).length;
+			const res = val.value.length;
+			return { type: TokenType.INTEGER, value: res, raw: res.toString() };
+		},
+	},
+	ASC: {
+		minArgs: 1,
+		maxArgs: 1,
+		impl: (args) => {
+			const val = args[0];
+			if (val.type !== "string") throw new Error("ASC expects a string");
+			const res = val.value.charCodeAt(0);
 			return { type: TokenType.INTEGER, value: res, raw: res.toString() };
 		},
 	},
@@ -99,7 +110,8 @@ export const BUILTINS: Record<string, BuiltinFunctionDef> = {
 		impl: (args) => {
 			const val = args[0];
 			const index = args[1];
-			if (val.type !== "string" || index.type !== "number")
+
+			if (val.type !== "string" || (index.type !== "number" && index.type !== "identifier"))
 				throw new Error("SUBSTR expects a string and an index");
 			const res = val.value[index.value];
 			return { type: TokenType.STRING, value: res, raw: res };
@@ -111,7 +123,7 @@ export const BUILTINS: Record<string, BuiltinFunctionDef> = {
 		impl: (args, vm) => {
 			const val = args[0];
 			if (val.type !== "identifier") throw new Error("INC expects an identifier");
-			const reg = val.value.toUpperCase();
+			const reg = val.text.toUpperCase();
 			const registers = vm.sharedRegisters;
 			let result: number;
 			let inc = 1;
