@@ -24,7 +24,7 @@ const resolveAddress = (res: ParsedResult): number | undefined => {
 
 let lastAddress = 0;
 
-export function minimonitor(input: string, vm: VirtualMachine): MiniMonitorReturnValue {
+export async function minimonitor(input: string, vm: VirtualMachine): Promise<MiniMonitorReturnValue> {
 	const parser = new ExpressionParser(input, vm, monitorTokenizer);
 	const lhs = parser.parse();
 
@@ -87,7 +87,7 @@ export function minimonitor(input: string, vm: VirtualMachine): MiniMonitorRetur
 		case "G":
 			return { type: "JSR", address: startAddr };
 		case "L": {
-			const res = runDisassembly(startAddr, endAddr, vm);
+			const res = await runDisassembly(startAddr, endAddr, vm);
 			lastAddress = res.endAddr ?? lastAddress;
 			return { content: res.content, format: "markdown" };
 		}
@@ -96,13 +96,13 @@ export function minimonitor(input: string, vm: VirtualMachine): MiniMonitorRetur
 	}
 }
 
-function runDisassembly(start: number, end: number | undefined, vm: VirtualMachine) {
+async function runDisassembly(start: number, end: number | undefined, vm: VirtualMachine) {
 	const { registers } = useMachine();
 	const readByte = (address: number, debug = true) => (debug ? vm.readDebug(address) : vm.read(address)) ?? 0;
 
 	let lines = [];
 	if (end !== undefined) {
-		lines = disassembleRange({
+		lines = await disassembleRange({
 			readByte,
 			scope: vm.getScope(start),
 			fromAddress: start,
@@ -110,7 +110,13 @@ function runDisassembly(start: number, end: number | undefined, vm: VirtualMachi
 			registers,
 		});
 	} else {
-		lines = disassemble({ readByte, scope: vm.getScope(start), fromAddress: start, lineCount: 32, registers });
+		lines = await disassemble({
+			readByte,
+			scope: vm.getScope(start),
+			fromAddress: start,
+			lineCount: 32,
+			registers,
+		});
 	}
 
 	const output = formatDisassemblyAsText(lines, {
