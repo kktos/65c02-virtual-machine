@@ -21,6 +21,7 @@ import type { OptionItemDef } from "@/types/options";
 import { handleDoCommand } from "@/commands/do.cmd";
 import type { QueueItem, Sink } from "@/types/queueitem";
 import { handleIfCommand } from "@/commands/if.cmd";
+import { handleWhileCommand } from "@/commands/while.cmd";
 import { parseUserCommand, splitIntoCommands, splitTokensByPipe } from "@/lib/cli-commands.lib";
 import { parseCommandParams } from "@/lib/cli-params.lib";
 
@@ -160,6 +161,15 @@ export async function executeSubQueue(
 				handleIfCommand(cmdParser, item, subQueue);
 				continue;
 			}
+			if (cmdParser.matchIdentifier("WHILE")) {
+				handleWhileCommand(cmdParser, item, subQueue);
+				continue;
+			}
+			if (cmdParser.matchIdentifier("BREAK")) {
+				const headerIdx = subQueue.findIndex((i: any) => i.isLoopHeader);
+				if (headerIdx !== -1) subQueue.splice(0, headerIdx + 1);
+				continue;
+			}
 
 			// Chain Logic
 			const chain = [item.tokens];
@@ -201,6 +211,8 @@ export async function executeSubQueue(
 					}
 					continue;
 				}
+
+				console.log("------", cmd, pipeValue);
 
 				let paramIndex = initialParamIndex;
 				const cmdSpec = COMMAND_LIST[cmd];

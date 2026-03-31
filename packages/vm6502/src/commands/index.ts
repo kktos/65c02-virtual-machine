@@ -59,6 +59,8 @@ function d(g: string, d: string, p?: string[]) {
 export type COMMANDS = keyof typeof COMMANDDEF_LIST;
 export const COMMANDDEF_LIST = {
 	IF: d("Scripting", "Conditional: IF `expression` [THEN] `command`", ["number"]),
+	WHILE: d("Scripting", "Loop: WHILE `expression` [DO] `command`", ["number"]),
+	BREAK: d("Scripting", "Exit the innermost WHILE loop"),
 	DO: d("Scripting", "Execute a defined routine.\ndo <\u200broutinename> [args...]\n&<\u200broutinename> [args...]", [
 		"name",
 		"rest",
