@@ -1,3 +1,6 @@
+import { labels_graphics } from "./labels.graphics";
+import { labels_system } from "./labels.system";
+
 export const initRoutine = `
 ;
 ; Apple 2e init script
@@ -9,168 +12,21 @@ export const initRoutine = `
 	cls
 
 	; load Apple 2e system symbols
-	LABELS SYSTEM
-		$0100 STACK
-		$0200 INPUTBUF
-		$03f0 BRKV
-		$03f2 SOFTEV
-		$03f4 PWREDUP
-		$03f5 AMPERV
-		$03f8 USRADR
-		$03fB NMI
-		$03fe IRQLOC
-		$0400 TXT_SCRN_START
-		$07f8 MSLOT
-	END
-	LABELS SYSTEM io
-		$c000 KBD
-		$c010 KBDSTRB
-		$c030 SPKR
-		$c050 GRAPHICS
-		$c051 TEXT
-		$c052 FULLSCR
-		$c053 MIXED
-		$c054 PAGE1
-		$c055 PAGE2
-		$c056 LORES
-		$c057 HIRES
-		$c001 SET80COL
-		$c002 RDMAINRAM
-		$c003 RDCARDRAM
-		$c004 WRMAINRAM
-		$c005 WRCARDRAM
-		$c006 SETSLOTCXROM
-		$c007 SETINTCXROM
-		$c008 SETSTDZP
-		$c009 SETALTZP
-		$c00b SETSLOTC3ROM
-		$c00c CLR80VID
-		$c00d SET80VID
-		$c00e CLRALTCHAR
-		$c00f SETALTCHAR
-		$c011 RDLCBNK2
-		$c012 RDLCRAM
-		$c013 RDRAMRD
-		$c014 RDRAMWRT
-		$c015 RDCXROM
-		$c018 RD80COL
-		$c01a RDTEXT
-		$c01c RDPAGE2
-		$c01f RD80VID
+	${labels_system}
 
-		$c058 SETAN0
-		$c05a SETAN1
-		$c05d CLRAN2
-		$c05f CLRAN3
+	${labels_graphics}
 
-		$c061 BUTN0
-		$c062 BUTN1
-		$c064 PADDL0
-		$c070 PTRIG
-		$c073 BANKSEL
-
-		$c080 LCBANK2_RW
-		$c081 ROMIN
-		$c082 LCROMIN2
-		$c083 LCBANK2_R
-		$c088 LCBANK1_RW
-		$c089 ROMIN1
-		$c08a LCROMIN1
-		$c08b LCBANK1_R
-	END
-	LABELS SYSTEM int_rom
-		$c300 card80col
-		$c500 cardSmartport
-	END
-	LABELS SYSTEM rom
-		$e000 BASIC
-		$e003 BASIC2
-
-		$f800 PLOT
-		$f819 HLINE
-		$f828 VLINE
-		$f832 CLRSCR
-		$f836 CLRTOP
-		$f847 GBASCALC
-		$f85f NXTCOL
-		$f871 SCRN
-		$f940 PRNTYX
-		$f941 PRNTAX
-		$f944 PRNTX
-		$f948 PRBLNK
-		$fa40 IRQ
-		$fa62 RESET
-		$fa9b FIXSEV
-		$fafc PWRCON
-		$fb01 DSKID0
-		$fb02 DSKID
-		$fb1e PREAD
-		$fb2f INIT
-		$fb40 SETGR
-		$fb4b SETWND
-		$fb5b VTAB
-		$fb60 APPLEII
-		$fbb4 GOTOCX
-		$fbc1 BASCALC
-		$fbe4 BELL2
-		$fbf4 ADVANCE
-		$fbfd VIDOUT
-		$fc10 BS
-		$fc1a UP
-		$fc22 VTAB
-		$fc42 CLREOP
-		$fc58 HOME
-		$fc62 CR
-		$fc66 LF
-		$fc70 SCROLL
-		$fc9c CLREOL
-		$fca8 WAIT
-		$fcc9 HEADR
-		$fcd6 WRBIT
-		$fcdb ZERDLY
-		$fcec RDBYTE
-		$fcfa RD2BIT
-		$fcfd RDBIT
-		$fd0c RDKEY
-		$fd1b KEYIN
-		$fd35 RDCHAR
-		$fd67 GETLNZ
-		$fd6a GETLN
-		$fd8e CROUT
-		$fd92 PRA1
-		$fd96 PRYX2
-		$fda3 XAM8
-		$fdb3 XAM
-		$fdc6 XAMPM
-		$fdda PRBYTE
-		$fde3 PRHEX
-		$fded COUT
-		$fdf0 COUT1
-		$fe18 SETMODE
-		$fe2c MOVE
-		$fe36 VFY
-		$fe5e LIST
-		$fe80 SETINV
-		$fe84 SETNORM
-		$fe89 SETKBD
-		$fe93 SETVID
-		$feb0 XBASIC
-		$feb3 BASCONT
-		$feb6 GO
-		$febf REGZ
-		$fec2 TRACE
-		$fec4 STEPZ
-		$fecd WRITE
-		$fefd READ
-		$ff2d PRERR
-		$ff3a BELL
-		$ff3f RESTORE
-		$ff4a SAVE
-		$ff59 OLDRST
-		$ff65 MON
-		$ff69 MONZ
-		$fce2 INIT_SYSTEM
-	END
+	; routine whileBody
+	; 	print "$"+hex($2000 + int(a/64)*$28 + int(a%8)*$400 + ((a/8)&7)*$80), "line"+a  |> buf push temp
+	; 	a=a+1
+	; end
+	; routine graphics
+	; 	regs save
+	; 	a=0
+	; 	while a<191 do &whileBody |> nop
+	; 	reg restore
+	; end
+	; do graphics
 
 	; define a string at $FF0A where the machine name is stored
 	; Apple //e
@@ -199,5 +55,17 @@ export const initRoutine = `
 		IF @wantMem==0 dv @addr |> nop
 		IF @wantMem m1 @addr |> nop
 	end
+
+routine drawChar @src
+	mem[$5300]= @src
+	mem[$5700]= @src+1
+	mem[$5b00]= @src+2
+	mem[$5f00]= @src+3
+	mem[$4380]= @src+5
+	mem[$4780]= @src+6
+	mem[$4b80]= @src+7
+	refresh
+end
+
 
 `;
