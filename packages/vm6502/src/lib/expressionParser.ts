@@ -103,7 +103,7 @@ export interface ParsedResult {
 type BuiltinFunctionDef = {
 	minArgs: number;
 	maxArgs: number;
-	impl: (args: (string | number | RegExp)[], vm: VirtualMachine) => ParsedResult;
+	impl: (args: (string | number | RegExp)[], vm: VirtualMachine, parser: ExpressionParser) => ParsedResult;
 };
 
 const BUILTINS: Record<string, BuiltinFunctionDef> = {
@@ -159,6 +159,38 @@ const BUILTINS: Record<string, BuiltinFunctionDef> = {
 			return { type: TokenType.INTEGER, value: res, raw: res.toString() };
 		},
 	},
+	VAL: {
+		minArgs: 1,
+		maxArgs: 1,
+		impl: (args, _vm, parser) => {
+			const val = args[0];
+			if (typeof val !== "string") throw new Error("VAL expects a symbol name");
+			const res = parser.resolveSymbol(val);
+			return { type: TokenType.INTEGER, value: res, raw: res?.toString() ?? "" };
+		},
+	},
+	LEN: {
+		minArgs: 1,
+		maxArgs: 1,
+		impl: (args) => {
+			const val = args[0];
+			if (typeof val !== "string") throw new Error("LEN expects a string");
+			const res = val.length;
+			return { type: TokenType.INTEGER, value: res, raw: res.toString() };
+		},
+	},
+	SUBSTR: {
+		minArgs: 2,
+		maxArgs: 2,
+		impl: (args) => {
+			const val = args[0];
+			const index = args[1];
+			if (typeof val !== "string" || typeof index !== "number")
+				throw new Error("SUBSTR expects a string and an index");
+			const res = val[index];
+			return { type: TokenType.STRING, value: res, raw: res };
+		},
+	},
 };
 
 type TokenizeFn = (input: string) => Token[];
@@ -169,7 +201,7 @@ export class ExpressionParser {
 	public pos = 0;
 
 	private vm: VirtualMachine;
-	private resolveSymbol: (label: string, namespace?: string) => number | undefined;
+	public resolveSymbol: (label: string, namespace?: string) => number | undefined;
 
 	constructor(input: string, vm: VirtualMachine, tokenizeFn?: TokenizeFn) {
 		this.vm = vm;
@@ -295,7 +327,7 @@ export class ExpressionParser {
 		if (args.length < def.minArgs || args.length > def.maxArgs)
 			throw new Error(`${name} expects between ${def.minArgs} and ${def.maxArgs} arguments, got ${args.length}`);
 
-		return def.impl(args, this.vm);
+		return def.impl(args, this.vm, this);
 	}
 
 	private nud(token: Token): ParsedResult {
