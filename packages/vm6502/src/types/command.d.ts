@@ -1,6 +1,6 @@
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import type { Ref } from "vue";
-import type { Token } from "../lib/expressionParser";
+import type { Token } from "../lib/expressionParser/expressionParser";
 import type { ParamDef } from "@/types/params";
 import type { OptionItemDef, ResolveOptions } from "@/types/options";
 

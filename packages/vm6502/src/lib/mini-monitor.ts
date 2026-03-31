@@ -1,7 +1,7 @@
 import { useMachine } from "@/composables/useMachine";
 import { disassemble, disassembleRange, formatDisassemblyAsText } from "./disassembler";
 import { toHex, hexDump } from "./hex.utils";
-import { ExpressionParser, monitorTokenizer, TokenType, type ParsedResult } from "./expressionParser";
+import { ExpressionParser, monitorTokenizer, TokenType, type ParsedResult } from "./expressionParser/expressionParser";
 import type { CommandOutput } from "@/types/command";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 

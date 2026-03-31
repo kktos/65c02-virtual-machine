@@ -1,5 +1,5 @@
 import type { CommandSegment, ParamList } from "@/types/command";
-import { ExpressionParser, TokenType } from "./expressionParser";
+import { ExpressionParser, TokenType } from "./expressionParser/expressionParser";
 import type { QueueItem } from "@/types/queueitem";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import { type COMMANDS, COMMAND_LIST } from "@/commands";

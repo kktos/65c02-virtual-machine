@@ -1,4 +1,4 @@
-import type { ExpressionParser } from "@/lib/expressionParser";
+import type { ExpressionParser } from "@/lib/expressionParser/expressionParser";
 import type { QueueItemLine, QueueItem } from "@/types/queueitem";
 
 export function handleIfCommand(cmdParser: ExpressionParser, item: QueueItemLine, commandQueue: QueueItem[]) {

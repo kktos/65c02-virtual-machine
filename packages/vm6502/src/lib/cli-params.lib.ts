@@ -3,7 +3,7 @@ import type { ParamList } from "@/types/command";
 import type { OptionItemDef } from "@/types/options";
 import type { ParamDef } from "@/types/params";
 import type { Command } from "@/types/command";
-import { type ExpressionParser, TokenType } from "./expressionParser";
+import { type ExpressionParser, TokenType } from "./expressionParser/expressionParser";
 
 function matchesType(value: any, allowedTypes: string[]): boolean {
 	for (const type of allowedTypes) {

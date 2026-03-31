@@ -1,6 +1,6 @@
 import { computed, ref, watch } from "vue";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
-import { ExpressionParser } from "@/lib/expressionParser";
+import { ExpressionParser } from "@/lib/expressionParser/expressionParser";
 import { COMMAND_LIST } from "@/commands";
 import { minimonitor, type MiniMonitorCommandRequest } from "@/lib/mini-monitor";
 import { useBreakpoints } from "./useBreakpoints";

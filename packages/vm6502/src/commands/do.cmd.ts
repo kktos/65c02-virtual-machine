@@ -1,5 +1,5 @@
 import { useRoutines, type Routine } from "@/composables/useRoutines";
-import { TokenType, ExpressionParser } from "@/lib/expressionParser";
+import { TokenType, ExpressionParser } from "@/lib/expressionParser/expressionParser";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import type { QueueItem, QueueItemLine, Sink } from "@/types/queueitem";
 import { executeSubQueue } from "@/composables/useCommands";
