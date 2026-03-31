@@ -4,7 +4,7 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import type { QueueItem, QueueItemLine, Sink } from "@/types/queueitem";
 import { executeSubQueue } from "@/composables/useCommands";
 
-const END_ROUTINE_MARKER = "--END-ROUTINE--";
+export const END_ROUTINE_MARKER = "--END-ROUTINE--";
 
 const { getRoutine } = useRoutines();
 
@@ -64,16 +64,16 @@ function expandRoutineLines(routine: Routine, args: string[]) {
 function parseRoutineArgs(cmdParser: ExpressionParser, pipeValue: unknown) {
 	const args: string[] = [];
 	while (!cmdParser.eof()) {
-		const argToken = cmdParser.peek();
-		switch (argToken.type) {
+		const res = cmdParser.parse();
+		switch (res.type) {
 			case TokenType.STRING:
-				args.push(`"${argToken.text}"`);
+				args.push(`"${res.value}"`);
 				break;
 			default:
-				args.push(argToken.text);
+				args.push(String(res.value));
 				break;
 		}
-		cmdParser.consume();
+		// cmdParser.consume();
 	}
 	if (pipeValue !== undefined) {
 		if (typeof pipeValue === "string") args.push(`"${pipeValue}"`);

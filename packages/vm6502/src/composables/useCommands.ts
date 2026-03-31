@@ -18,7 +18,7 @@ import type {
 import { useCmdConsole } from "./useCmdConsole";
 import { parseParamList } from "@/lib/param-compiler.lib";
 import type { OptionItemDef } from "@/types/options";
-import { handleDoCommand } from "@/commands/do.cmd";
+import { handleDoCommand, END_ROUTINE_MARKER } from "@/commands/do.cmd";
 import type { QueueItem, Sink } from "@/types/queueitem";
 import { handleIfCommand } from "@/commands/if.cmd";
 import { handleWhileCommand } from "@/commands/while.cmd";
@@ -168,6 +168,26 @@ export async function executeSubQueue(
 			if (cmdParser.matchIdentifier("BREAK")) {
 				const headerIdx = subQueue.findIndex((i: any) => i.isLoopHeader);
 				if (headerIdx !== -1) subQueue.splice(0, headerIdx + 1);
+				continue;
+			}
+			if (cmdParser.matchIdentifier("RETURN")) {
+				// Evaluate return value if an expression is provided
+				if (!cmdParser.eof()) {
+					const res = cmdParser.parse();
+					if (res.value !== undefined) {
+						result.success.push({ content: String(res.value), format: "text" });
+					}
+				}
+
+				// Find the end of the routine in the current queue
+				const routineEndIdx = subQueue.findIndex((i) => i.type === "marker" && i.value === END_ROUTINE_MARKER);
+				if (routineEndIdx !== -1) {
+					// Discard all lines until the end of the routine
+					subQueue.splice(0, routineEndIdx + 1);
+				} else {
+					// If no marker is found, we are likely in a piped/sub-queue execution; clear it to return
+					subQueue.length = 0;
+				}
 				continue;
 			}
 

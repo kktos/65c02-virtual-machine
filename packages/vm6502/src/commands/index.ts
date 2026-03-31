@@ -61,6 +61,7 @@ export const COMMANDDEF_LIST = {
 	IF: d("Scripting", "Conditional: IF `expression` [THEN] `command`", ["number"]),
 	WHILE: d("Scripting", "Loop: WHILE `expression` [DO] `command`", ["number"]),
 	BREAK: d("Scripting", "Exit the innermost WHILE loop"),
+	RETURN: d("Scripting", "Exit the current routine with an optional value", ["rest"]),
 	DO: d("Scripting", "Execute a defined routine.\ndo <\u200broutinename> [args...]\n&<\u200broutinename> [args...]", [
 		"name",
 		"rest",
