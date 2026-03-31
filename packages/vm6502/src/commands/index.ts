@@ -16,6 +16,7 @@ import { execRemoveBP } from "./removeBP.cmd";
 import { renLabel } from "./renLabel.cmd";
 import { reset } from "./reset.cmd";
 import { run } from "./run.cmd";
+import { refreshCmd } from "./refresh.cmd";
 import { showCmd } from "./show.cmd";
 import { setMemView, setMemViewFn } from "./setMemView.cmd";
 import { speed } from "./speed.cmd";
@@ -44,6 +45,7 @@ import { parseParamList } from "@/lib/param-compiler.lib";
 import { disasmCmd } from "./disasm.cmd";
 import { disasmViewCmd } from "./disasmView.cmd";
 import { commentCmd } from "./comment.cmd";
+import { regsCmd } from "./regs.cmd";
 
 function d(g: string, d: string, p?: string[]) {
 	return {
@@ -79,6 +81,7 @@ export const COMMANDDEF_LIST = {
 	GL: glCmd,
 	GPL: gplCmd,
 	VR: virtualRegisterCmd,
+	REGS: regsCmd,
 
 	RUN: run,
 	PAUSE: pause,
@@ -95,6 +98,7 @@ export const COMMANDDEF_LIST = {
 	DV: disasmViewCmd,
 	D: disasmCmd,
 
+	REFRESH: refreshCmd,
 	CODE: defCode,
 	DB: {
 		description:
