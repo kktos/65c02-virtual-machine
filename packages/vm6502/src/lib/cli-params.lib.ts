@@ -11,7 +11,8 @@ function matchesType(value: any, allowedTypes: string[]): boolean {
 		if (value === null && type === "wbyte") return true;
 		if (typeof value === "string") {
 			if (type === "string") return true;
-			if (type === "at" && value.startsWith("@")) return true;
+			// if (type === "at" && value.startsWith("@")) return true;
+			// if (type === "name" ) return true;
 		}
 		if (typeof value === "number") {
 			if (type === "number" || type === "float") return true;
@@ -67,7 +68,7 @@ function tryParseToken(parser: ExpressionParser, allowedTypes: string[]): { matc
 		if (res.type === TokenType.IDENTIFIER && allowedTypes.includes("name")) {
 			val = { text: res.raw, value: res.value };
 		} else if (res.type === TokenType.AT) {
-			val = res.raw;
+			val = { text: res.raw };
 		}
 
 		if (matchesType(val, allowedTypes)) return { matched: true, value: val };
@@ -187,7 +188,8 @@ export function parseCommandParams(
 			}
 
 			// Try to use injected value if parsing failed/EOF
-			if (!injectedConsumed && injectedValue !== undefined && matchesType(injectedValue, allowedTypes)) {
+			// if (!injectedConsumed && injectedValue !== undefined && matchesType(injectedValue, allowedTypes)) {
+			if (!injectedConsumed && injectedValue !== undefined && allowedTypes.includes("rest")) {
 				userParams.push(injectedValue);
 				injectedConsumed = true;
 				matchesForThisDef++;
@@ -199,17 +201,19 @@ export function parseCommandParams(
 		}
 
 		if (matchesForThisDef === 0 && !isOptional)
-			throw new Error(`Missing required parameter: ${allowedTypes.join("|")}`);
+			throw new Error(`${cmd} - Missing required parameter: ${allowedTypes.join("|")}`);
 
 		defIndex++;
 	}
 
 	while (!cmdParser.eof()) {
 		if (tryParseOption(cmdParser, cmdSpec.options, opts)) continue;
-		if (hasAMatch) throw new Error(`Too many parameters for command "${cmd}".`);
-		else throw new Error(`Wrong type of parameters for command "${cmd}"`);
+		if (hasAMatch) {
+			console.log(userParams);
+			throw new Error(`Too many parameters for command "${cmd}".`);
+		} else throw new Error(`Wrong type of parameters for command "${cmd}"`);
 	}
-	if (!injectedConsumed && injectedValue !== undefined) throw new Error("Too many parameters (piped value unused).");
+	// if (!injectedConsumed && injectedValue !== undefined) throw new Error("Too many parameters (piped value unused).");
 
 	if (cmdSpec.options) {
 		for (const opt of cmdSpec.options) {
@@ -229,5 +233,5 @@ export function parseCommandParams(
 		if (cmdSpec.staticParams.append) finalParams = [...finalParams, ...cmdSpec.staticParams.append];
 	}
 
-	return { params: finalParams, opts };
+	return { params: finalParams, opts, injectedConsumed };
 }
