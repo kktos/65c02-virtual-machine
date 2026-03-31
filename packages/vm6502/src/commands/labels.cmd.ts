@@ -19,9 +19,10 @@ export const labelsCmd = defineCommand({
 			prompt: `LABELS ${namespace}|`,
 			terminator: "END",
 			onLine: async (line: string, lineIndex: number) => {
-				let [addrStr, label] = line.split(" ") as [string, string];
+				let [addrStr, label] = line.trim().split(" ") as [string, string];
 				addrStr = addrStr.trim().replace(/^(0x|\$)/, "");
 				const addr = parseInt(addrStr, 16);
+
 				if (Number.isNaN(addr))
 					return { error: `LABELS: Invalid address: "${addrStr}" on line ${lineIndex} "${line}"` };
 
