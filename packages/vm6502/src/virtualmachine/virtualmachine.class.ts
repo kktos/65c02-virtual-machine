@@ -75,6 +75,8 @@ export class VirtualMachine {
 	private keyUpHandler = this.handleKeyUp.bind(this);
 	private pasteHandler = this.handlePaste.bind(this);
 
+	private stateStack: number[][] = [];
+
 	constructor(machineConfig: MachineConfig) {
 		this.machineConfig = machineConfig;
 
@@ -277,6 +279,32 @@ export class VirtualMachine {
 		this.worker.postMessage({ command: "initAudio", sampleRate: audioCtx.sampleRate });
 	}
 
+	private queueAudioChunk(samples: Float32Array) {
+		if (!audioCtx) return;
+
+		// Ensure context is running (browsers suspend it until user interaction)
+		if (audioCtx.state === "suspended") audioCtx.resume();
+
+		const audioBuffer = audioCtx.createBuffer(1, samples.length, audioCtx.sampleRate);
+		audioBuffer.copyToChannel(samples as Float32Array<ArrayBuffer>, 0);
+
+		const source = audioCtx.createBufferSource();
+		source.buffer = audioBuffer;
+		source.connect(audioCtx.destination);
+
+		// --- Scheduling Logic ---
+		const currentTime = audioCtx.currentTime;
+
+		// If nextStartTime is in the past, reset it to now. This can happen
+		// if there was a gap in audio data, preventing runaway playback.
+		if (nextStartTime < currentTime) nextStartTime = currentTime;
+
+		source.start(nextStartTime);
+
+		// Schedule the next chunk to start right after this one finishes
+		nextStartTime += audioBuffer.duration;
+	}
+
 	private handleKeyDown(event: KeyboardEvent) {
 		const target = event.target as HTMLElement;
 		if (target && (kbdElements.has(target.tagName) || target.isContentEditable)) return;
@@ -373,32 +401,6 @@ export class VirtualMachine {
 		this.syncBusState();
 		this.videoOutput?.render();
 		requestAnimationFrame(() => this.renderFrame());
-	}
-
-	private queueAudioChunk(samples: Float32Array) {
-		if (!audioCtx) return;
-
-		// Ensure context is running (browsers suspend it until user interaction)
-		if (audioCtx.state === "suspended") audioCtx.resume();
-
-		const audioBuffer = audioCtx.createBuffer(1, samples.length, audioCtx.sampleRate);
-		audioBuffer.copyToChannel(samples as Float32Array<ArrayBuffer>, 0);
-
-		const source = audioCtx.createBufferSource();
-		source.buffer = audioBuffer;
-		source.connect(audioCtx.destination);
-
-		// --- Scheduling Logic ---
-		const currentTime = audioCtx.currentTime;
-
-		// If nextStartTime is in the past, reset it to now. This can happen
-		// if there was a gap in audio data, preventing runaway playback.
-		if (nextStartTime < currentTime) nextStartTime = currentTime;
-
-		source.start(nextStartTime);
-
-		// Schedule the next chunk to start right after this one finishes
-		nextStartTime += audioBuffer.duration;
 	}
 
 	public setSpeed = (speed: number) => this.worker.postMessage({ command: "setSpeed", speed });
@@ -508,6 +510,30 @@ export class VirtualMachine {
 	public updateMemory(addr: number, value: number) {
 		if (this.bus) this.bus.write(addr, value);
 		else this.sharedMemory[addr] = value;
+	}
+
+	public saveRegisters() {
+		const state = [
+			this.sharedRegisters.getUint8(REG_A_OFFSET),
+			this.sharedRegisters.getUint8(REG_X_OFFSET),
+			this.sharedRegisters.getUint8(REG_Y_OFFSET),
+			this.sharedRegisters.getUint8(REG_SP_OFFSET),
+			this.sharedRegisters.getUint8(REG_STATUS_OFFSET),
+			this.sharedRegisters.getUint16(REG_PC_OFFSET, true),
+		];
+		this.stateStack.push(state);
+	}
+
+	public restoreRegisters() {
+		const state = this.stateStack.pop();
+		if (state) {
+			this.sharedRegisters.setUint8(REG_A_OFFSET, state[0]);
+			this.sharedRegisters.setUint8(REG_X_OFFSET, state[1]);
+			this.sharedRegisters.setUint8(REG_Y_OFFSET, state[2]);
+			this.sharedRegisters.setUint8(REG_SP_OFFSET, state[3]);
+			this.sharedRegisters.setUint8(REG_STATUS_OFFSET, state[4]);
+			this.sharedRegisters.setUint16(REG_PC_OFFSET, state[5], true);
+		}
 	}
 
 	public updateRegister(reg: keyof EmulatorRegisters, value: number) {
