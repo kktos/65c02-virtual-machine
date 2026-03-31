@@ -8,7 +8,7 @@ import {
 	REG_Y_OFFSET,
 } from "@/virtualmachine/cpu/shared-memory";
 import { useSymbols } from "@/composables/useSymbols";
-import { BUILTINS, type BuiltinFunctionArg } from "./builtin.functions";
+import { BUILTINS, type BuiltinFunctionArg, type BuiltinFunctionArgIdentifer } from "./builtin.functions";
 
 export enum TokenType {
 	EOF,
@@ -221,14 +221,10 @@ export class ExpressionParser {
 
 		if (!this.match(TokenType.LPAREN)) throw new Error(`Expected '(' after ${name}`);
 
-		console.log("parseBuiltinFunction", name, def);
-
 		const args: BuiltinFunctionArg[] = [];
 		if (!this.is(TokenType.RPAREN)) {
 			do {
 				const res = this.parse();
-
-				console.log(res);
 
 				const arg: Partial<BuiltinFunctionArg> = {};
 				switch (res.type) {
@@ -246,8 +242,9 @@ export class ExpressionParser {
 						arg.type = "regex";
 						break;
 					case TokenType.IDENTIFIER:
-						arg.value = res.raw;
 						arg.type = "identifier";
+						arg.value = res.value;
+						(arg as BuiltinFunctionArgIdentifer).text = res.raw;
 						break;
 					default:
 						throw new Error("Invalid argument type");
