@@ -8,6 +8,7 @@ import {
 	REG_Y_OFFSET,
 } from "@/virtualmachine/cpu/shared-memory";
 import { useSymbols } from "@/composables/useSymbols";
+import { BUILTINS, type BuiltinFunctionArg } from "./builtin.functions";
 
 export enum TokenType {
 	EOF,
@@ -99,99 +100,6 @@ export interface ParsedResult {
 	value: number | string | RegExp | undefined;
 	raw: string;
 }
-
-type BuiltinFunctionDef = {
-	minArgs: number;
-	maxArgs: number;
-	impl: (args: (string | number | RegExp)[], vm: VirtualMachine, parser: ExpressionParser) => ParsedResult;
-};
-
-const BUILTINS: Record<string, BuiltinFunctionDef> = {
-	HEX: {
-		minArgs: 1,
-		maxArgs: 2,
-		impl: (args) => {
-			const val = args[0];
-			if (typeof val !== "number") throw new Error("HEX expects a number as first argument");
-			const width = args[1] !== undefined ? Number(args[1]) : 0;
-			let str = val.toString(16).toUpperCase();
-			if (width > 0) str = str.padStart(width, "0");
-			return { type: TokenType.STRING, value: str, raw: str };
-		},
-	},
-	HI: {
-		minArgs: 1,
-		maxArgs: 1,
-		impl: (args) => {
-			const val = args[0];
-			if (typeof val !== "number") throw new Error("HI expects a number");
-			const res = (val >> 8) & 0xff;
-			return { type: TokenType.INTEGER, value: res, raw: res.toString() };
-		},
-	},
-	LO: {
-		minArgs: 1,
-		maxArgs: 1,
-		impl: (args) => {
-			const val = args[0];
-			if (typeof val !== "number") throw new Error("LO expects a number");
-			const res = val & 0xff;
-			return { type: TokenType.INTEGER, value: res, raw: res.toString() };
-		},
-	},
-	PEEK: {
-		minArgs: 1,
-		maxArgs: 1,
-		impl: (args, vm) => {
-			const val = args[0];
-			if (typeof val !== "number") throw new Error("PEEK expects a number");
-			const res = vm.read(val);
-			return { type: TokenType.INTEGER, value: res, raw: res.toString() };
-		},
-	},
-	INT: {
-		minArgs: 1,
-		maxArgs: 1,
-		impl: (args) => {
-			const val = args[0];
-			if (typeof val !== "number") throw new Error("INT expects a number");
-			const res = val | 0;
-			return { type: TokenType.INTEGER, value: res, raw: res.toString() };
-		},
-	},
-	VAL: {
-		minArgs: 1,
-		maxArgs: 1,
-		impl: (args, _vm, parser) => {
-			const val = args[0];
-			if (typeof val !== "string") throw new Error("VAL expects a symbol name");
-			const res = parser.resolveSymbol(val);
-			return { type: TokenType.INTEGER, value: res, raw: res?.toString() ?? "" };
-		},
-	},
-	LEN: {
-		minArgs: 1,
-		maxArgs: 1,
-		impl: (args) => {
-			const val = args[0];
-			if (typeof val !== "string") throw new Error("LEN expects a string");
-			const res = val.length;
-			return { type: TokenType.INTEGER, value: res, raw: res.toString() };
-		},
-	},
-	SUBSTR: {
-		minArgs: 2,
-		maxArgs: 2,
-		impl: (args) => {
-			const val = args[0];
-			const index = args[1];
-			if (typeof val !== "string" || typeof index !== "number")
-				throw new Error("SUBSTR expects a string and an index");
-			const res = val[index];
-			return { type: TokenType.STRING, value: res, raw: res };
-		},
-	},
-};
 
 type TokenizeFn = (input: string) => Token[];
 
@@ -313,12 +221,39 @@ export class ExpressionParser {
 
 		if (!this.match(TokenType.LPAREN)) throw new Error(`Expected '(' after ${name}`);
 
-		const args: (number | string | RegExp)[] = [];
+		console.log("parseBuiltinFunction", name, def);
+
+		const args: BuiltinFunctionArg[] = [];
 		if (!this.is(TokenType.RPAREN)) {
 			do {
-				const arg = this.parse();
-				if (arg.value === undefined) throw new Error("Argument evaluated to undefined");
-				args.push(arg.value);
+				const res = this.parse();
+
+				console.log(res);
+
+				const arg: Partial<BuiltinFunctionArg> = {};
+				switch (res.type) {
+					case TokenType.INTEGER:
+					case TokenType.FLOAT:
+						arg.value = res.value;
+						arg.type = "number";
+						break;
+					case TokenType.STRING:
+						arg.value = res.value;
+						arg.type = "string";
+						break;
+					case TokenType.REGEX:
+						arg.value = res.value;
+						arg.type = "regex";
+						break;
+					case TokenType.IDENTIFIER:
+						arg.value = res.raw;
+						arg.type = "identifier";
+						break;
+					default:
+						throw new Error("Invalid argument type");
+				}
+
+				args.push(arg as BuiltinFunctionArg);
 			} while (this.match(TokenType.COMMA));
 		}
 
