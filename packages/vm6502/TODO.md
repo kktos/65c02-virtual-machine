@@ -12,8 +12,6 @@
 
 ### 2026
 
-- **DONE** add a command to create a note -> comment
-- **DONE** add a color setting for the line where the PC is for DisasmView
 - **NOT_YET**
   Can we add a feature to highlight bytes that have changed since the last update in the Memory Viewer?
 - do we store the mods into a patch list... associated with the disk... patch manager ?
@@ -72,6 +70,9 @@ log Acc every 100ms time $C019 is accessed
 - let's refactor cmd search to uses the new wildcards
 
 # History
+
+- **DONE** add a command to create a note -> comment
+- **DONE** add a color setting for the line where the PC is for DisasmView
 
 - **FIXED** command `buf` has a problem with the "rest"
 - **FIXED** command `explain` doesn't work with pipe; like `buf flush dsprite |> explain --detailed`
