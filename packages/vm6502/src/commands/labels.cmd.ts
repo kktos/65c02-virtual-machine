@@ -17,7 +17,7 @@ export const labelsCmd = defineCommand({
 		return {
 			__isMultiLineRequest: true,
 			prompt: `LABELS ${namespace}|`,
-			terminator: "END",
+			terminator: "END_LABELS",
 			onLine: async (line: string, lineIndex: number) => {
 				let [addrStr, label] = line.trim().split(" ") as [string, string];
 				addrStr = addrStr.trim().replace(/^(0x|\$)/, "");

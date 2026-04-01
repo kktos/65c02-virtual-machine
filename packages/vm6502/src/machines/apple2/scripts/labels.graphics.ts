@@ -192,5 +192,5 @@ export const labels_graphics = `
  $3F80 line63
  $3FA8 line127
  $3FD0 line191
- end
+ END_LABELS
 `;

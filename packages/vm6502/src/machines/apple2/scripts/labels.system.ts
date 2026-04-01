@@ -11,7 +11,7 @@ export const labels_system = `
 		$03fe IRQLOC
 		$0400 TXT_SCRN_START
 		$07f8 MSLOT
-	END
+	END_LABELS
 	LABELS SYSTEM io
 		$c000 KBD
 		$c010 KBDSTRB
@@ -67,11 +67,11 @@ export const labels_system = `
 		$c089 ROMIN1
 		$c08a LCROMIN1
 		$c08b LCBANK1_R
-	END
+	END_LABELS
 	LABELS SYSTEM int_rom
 		$c300 card80col
 		$c500 cardSmartport
-	END
+	END_LABELS
 	LABELS SYSTEM rom
 		$e000 BASIC
 		$e003 BASIC2
@@ -160,5 +160,5 @@ export const labels_system = `
 		$ff65 MON
 		$ff69 MONZ
 		$fce2 INIT_SYSTEM
-	END
+	END_LABELS
 `;

@@ -17,6 +17,8 @@ export const initRoutine = `
 		${labels_graphics}
 	end
 
+	&define_labels
+
 	; routine whileBody
 	; 	print "$"+hex($2000 + int(a/64)*$28 + int(a%8)*$400 + ((a/8)&7)*$80), "line"+a  |> buf push temp
 	; 	a=a+1
