@@ -1,4 +1,4 @@
-import { hexDump } from "../hex.utils";
+import { formatAddress, hexDump } from "../hex.utils";
 import { ExpressionParser, monitorTokenizer, TokenType, type ParsedResult } from "../expressionParser/expressionParser";
 import type { CommandOutput } from "@/types/command";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
@@ -12,26 +12,31 @@ export type MiniMonitorCommandRequest = {
 };
 type MiniMonitorReturnValue = CommandOutput | MiniMonitorCommandRequest;
 
-const formatAddr = (addr: number) => {
-	const bank = ((addr >> 16) & 0xff).toString(16).toUpperCase().padStart(2, "0");
-	const offset = (addr & 0xffff).toString(16).toUpperCase().padStart(4, "0");
-	return `$${bank}/${offset}`;
-};
-
 const resolveAddress = (res: ParsedResult): number | undefined => {
 	if (typeof res.value === "number") return res.value;
 };
 
 let lastAddress = 0;
-
+/*
+- memview
+  300
+  300.3ff
+- memset
+  300: 00 00 ...
+- disassembly List
+  300L
+  300.310L
+- run
+  G
+  fc58G
+ */
 export async function minimonitor(input: string, vm: VirtualMachine): Promise<MiniMonitorReturnValue> {
 	const parser = new ExpressionParser(input, vm, monitorTokenizer);
 	const lhs = parser.parse();
 
 	// If the expression evaluates to a string (e.g. hex(pc)), return it directly.
-	if (lhs.type === TokenType.STRING && typeof lhs.value === "string") {
+	if (lhs.type === TokenType.STRING && typeof lhs.value === "string")
 		return { content: lhs.value, format: "markdown" };
-	}
 
 	let startAddr = resolveAddress(lhs);
 	let endAddr: number | undefined;
@@ -76,7 +81,7 @@ export async function minimonitor(input: string, vm: VirtualMachine): Promise<Mi
 			}
 		}
 		const bytes = vm.readDebugRange(startAddr, currentAddr - startAddr);
-		const output = hexDump(startAddr, bytes, { formatAddr });
+		const output = hexDump(startAddr, bytes, { formatAddr: (addr) => formatAddress(addr, "/") });
 		return { content: output, format: "markdown" };
 	}
 
