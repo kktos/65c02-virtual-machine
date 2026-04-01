@@ -81,12 +81,15 @@ end
 
 routine test
 	asm $300 show
-		.ORG $10300
 		:loop
 			lda KBD
 			bpl :loop
 			rts
-
+		.ORG $600
+		:loop
+			lda KBD
+			bpl :loop
+			rts
 	.
 end
 `;

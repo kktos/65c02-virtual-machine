@@ -14,7 +14,17 @@ for (const [byteStr, info] of Object.entries(opcodeMap)) {
 const BYTE_MODES = new Set(["ZP", "ZPX", "ZPY", "IDX", "IDY", "ZPI"]);
 const WORD_MODES = new Set(["ABS", "ABX", "ABY", "IND", "IAX"]);
 
-type AssemblerResult = number | string | undefined;
+export type AssemblerSegment = {
+	address: number;
+	bytes: number[];
+};
+
+export type AssemblerOutput = {
+	segments: AssemblerSegment[];
+	finalPc: number;
+};
+
+type AssemblerLineResult = number | string;
 
 type AssemblerOptions = {
 	parseExpression: (expr: string) => number;
@@ -22,15 +32,13 @@ type AssemblerOptions = {
 	defineSymbol: (name: string, value: number, isLocal?: boolean) => void;
 };
 
-function assembleLine(
-	pc: number,
-	text: string,
-	bytes: number[],
-	{ parseExpression, parseExpressions, defineSymbol }: AssemblerOptions,
-): AssemblerResult {
+function assembleLine(pc: number, text: string, bytes: number[], options: AssemblerOptions): AssemblerLineResult {
+	const { parseExpression, parseExpressions, defineSymbol } = options;
+	const startBytesLen = bytes.length;
+
 	// Normalize spaces
 	let cleanText = text.trim().replace(/\s+/g, " ");
-	if (!cleanText) return;
+	if (!cleanText) return pc;
 
 	// Handle labels (e.g., "LABEL: LDA #$00" or "LABEL:")
 	const colonIdx = cleanText.indexOf(":");
@@ -48,7 +56,7 @@ function assembleLine(
 				cleanText = cleanText.substring(colonIdx + 1).trim();
 			}
 		}
-		if (!cleanText) return;
+		if (!cleanText) return pc;
 	}
 
 	const spaceIdx = cleanText.indexOf(" ");
@@ -64,8 +72,7 @@ function assembleLine(
 
 		switch (mnemonic) {
 			case ".ORG":
-				const pc = parseExpression(operandStr);
-				return pc;
+				return parseExpression(operandStr);
 			case ".BYTE":
 			case ".DB": {
 				const res = parseExpressions(operandStr);
@@ -77,7 +84,7 @@ function assembleLine(
 						bytes.push(val & 0xff);
 					}
 				}
-				return;
+				break;
 			}
 			case ".WORD":
 			case ".DW": {
@@ -89,7 +96,7 @@ function assembleLine(
 					bytes.push(val & 0xff);
 					bytes.push((val >> 8) & 0xff);
 				}
-				return;
+				break;
 			}
 			case ".STR": {
 				const res = parseExpressions(operandStr);
@@ -98,11 +105,12 @@ function assembleLine(
 					if (typeof val !== "string") return `".STR: value ${val} is not a string`;
 					compileString(val);
 				}
-				return;
+				break;
 			}
 			default:
 				return `Unknown directive: ${mnemonic}`;
 		}
+		return pc + (bytes.length - startBytesLen);
 	}
 
 	// Handle suffixes
@@ -212,17 +220,36 @@ function assembleLine(
 			}
 	}
 
-	return pc;
+	return pc + (bytes.length - startBytesLen);
 }
 
-export function assemble(pc: number, text: string, options: AssemblerOptions) {
-	let result: AssemblerResult | undefined;
-	const bytes: number[] = [];
+export function assemble(pc: number, text: string, options: AssemblerOptions): AssemblerOutput | string {
+	const segments: AssemblerSegment[] = [];
+	let currentSegment: AssemblerSegment = { address: pc, bytes: [] };
+	segments.push(currentSegment);
+
 	const lines = text.split(/\r?\n/);
+
 	for (let i = 0; i < lines.length; i++) {
-		result = assembleLine(pc, lines[i], bytes, options);
+		const bytesBefore = currentSegment.bytes.length;
+		const result = assembleLine(pc, lines[i], currentSegment.bytes, options);
+
 		if (typeof result === "string") return result;
-		if (typeof result === "number") pc = result;
+
+		const bytesAdded = currentSegment.bytes.length - bytesBefore;
+
+		// If the returned PC is not simply the previous PC plus bytes added,
+		// it means an .ORG directive jumped to a new location.
+		if (result !== pc + bytesAdded) {
+			if (currentSegment.bytes.length === 0) {
+				currentSegment.address = result;
+			} else {
+				currentSegment = { address: result, bytes: [] };
+				segments.push(currentSegment);
+			}
+		}
+		pc = result;
 	}
-	return { pc, bytes };
+
+	return { segments, finalPc: pc };
 }

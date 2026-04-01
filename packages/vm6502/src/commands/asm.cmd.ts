@@ -1,10 +1,9 @@
-import { assemble } from "@/lib/mini-assembler/mini-assembler";
 import { useSymbols } from "@/composables/useSymbols";
 import type { CommandContext, CommandResult, ResultOnLinePayload } from "@/types/command";
-import { formatAddress, toHex } from "@/lib/hex.utils";
 import { defineCommand, isParamListItemIdentifier } from "@/composables/useCommands";
 import { ExpressionParser, TokenType } from "@/lib/expressionParser/expressionParser";
 import { miniAssemblerTokenizer } from "@/lib/mini-assembler/tokenizer";
+import { assemble } from "@/lib/mini-assembler/mini-assembler";
 
 const { addSymbol, getAddressForLabel } = useSymbols();
 
@@ -56,45 +55,64 @@ export const asmCmd = defineCommand({
 			}
 		};
 
-		const getPrompt = (addr: number) => `!${toHex(addr, 4)} `;
+		// const getPrompt = (addr: number) => `!${toHex(addr, 4)} `;
 
+		const lines: string[] = [];
 		const doAsm = (line: string): ResultOnLinePayload => {
 			const trimmed = line.trim();
 			if (!trimmed) return;
 			if (trimmed.startsWith(";")) return; // Ignore comments
 
-			const result = assemble(currentAddr, trimmed, {
-				parseExpression,
-				parseExpressions,
-				defineSymbol,
-			});
-			if (typeof result === "string") return { error: `Error: ${result}` };
-			if (!result) return;
+			lines.push(trimmed);
+			// const result = assemble(currentAddr, trimmed, {
+			// 	parseExpression,
+			// 	parseExpressions,
+			// 	defineSymbol,
+			// });
+			// if (typeof result === "string") return { error: `Error: ${result}` };
+			// if (!result) return;
 
-			currentAddr = result.pc;
-			const bytes = result.bytes;
-			if (bytes && bytes.length > 0) {
-				// Write bytes to VM
-				for (let i = 0; i < bytes.length; i++) vm.writeDebug(currentAddr + i, bytes[i] as number);
+			// currentAddr = result.pc;
+			// const bytes = result.bytes;
+			// if (bytes && bytes.length > 0) {
+			// 	// Write bytes to VM
+			// 	for (let i = 0; i < bytes.length; i++) vm.writeDebug(currentAddr + i, bytes[i] as number);
 
-				let res: ResultOnLinePayload = {};
-				if (showBytes) {
-					const bytesHex = bytes.map((b) => toHex(b, 2)).join(" ");
-					res.content = `${formatAddress(currentAddr)}: ${bytesHex.padEnd(10)} ${trimmed}`;
-				}
-				currentAddr = currentAddr + bytes.length;
-				res.prompt = getPrompt(currentAddr);
-				return res;
-			}
+			// 	let res: ResultOnLinePayload = {};
+			// 	if (showBytes) {
+			// 		const bytesHex = bytes.map((b) => toHex(b, 2)).join(" ");
+			// 		res.content = `${formatAddress(currentAddr)}: ${bytesHex.padEnd(10)} ${trimmed}`;
+			// 	}
+			// 	currentAddr = currentAddr + bytes.length;
+			// 	res.prompt = getPrompt(currentAddr);
+			// 	return res;
+			// }
 		};
 
 		return {
 			__isMultiLineRequest: true,
-			prompt: getPrompt(currentAddr),
+			prompt: "!", //getPrompt(currentAddr),
 			terminator: ".",
 			onLine: doAsm,
 			onComplete: () => {
-				return "Assembly finished.";
+				const source = lines.join("\n");
+				const result = assemble(currentAddr, source, {
+					parseExpression,
+					parseExpressions,
+					defineSymbol,
+				});
+
+				if (typeof result === "string") return { error: result };
+
+				let totalBytes = 0;
+				for (const segment of result.segments) {
+					for (let i = 0; i < segment.bytes.length; i++) {
+						vm.writeDebug(segment.address + i, segment.bytes[i]);
+						totalBytes++;
+					}
+				}
+
+				return `Assembly finished. ${totalBytes} bytes written across ${result.segments.length} segment(s).`;
 			},
 		};
 	},
