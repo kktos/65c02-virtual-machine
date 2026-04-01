@@ -81,7 +81,7 @@ end
 
 routine test
 	asm $300 show
-		.word $600
+		.ORG $600
 		:loop
 			lda KBD
 			bpl :loop

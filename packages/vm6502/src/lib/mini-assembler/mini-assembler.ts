@@ -14,7 +14,8 @@ for (const [byteStr, info] of Object.entries(opcodeMap)) {
 const BYTE_MODES = new Set(["ZP", "ZPX", "ZPY", "IDX", "IDY", "ZPI"]);
 const WORD_MODES = new Set(["ABS", "ABX", "ABY", "IND", "IAX"]);
 
-type AssemblerResult = { bytes: number[]; error?: string };
+type AssemblerResult = { pc: number; bytes?: number[] } | string | undefined;
+
 type AssemblerOptions = {
 	parseExpression: (expr: string) => number;
 	parseExpressions: (expr: string) => (number | string)[];
@@ -24,12 +25,13 @@ type AssemblerOptions = {
 function assembleLine(
 	pc: number,
 	text: string,
-	bytes: number[],
 	{ parseExpression, parseExpressions, defineSymbol }: AssemblerOptions,
-): string | undefined {
+): AssemblerResult {
 	// Normalize spaces
 	let cleanText = text.trim().replace(/\s+/g, " ");
 	if (!cleanText) return;
+
+	const bytes: number[] = [];
 
 	// Handle labels (e.g., "LABEL: LDA #$00" or "LABEL:")
 	const colonIdx = cleanText.indexOf(":");
@@ -54,8 +56,6 @@ function assembleLine(
 	let mnemonic = (spaceIdx === -1 ? cleanText : cleanText.substring(0, spaceIdx)).toUpperCase();
 	const operandStr = spaceIdx === -1 ? "" : cleanText.substring(spaceIdx + 1).trim();
 
-	console.log(mnemonic, operandStr);
-
 	if (mnemonic.startsWith(".")) {
 		const compileString = (str: string) => {
 			for (let i = 0; i < str.length; i++) {
@@ -65,8 +65,8 @@ function assembleLine(
 
 		switch (mnemonic) {
 			case ".ORG":
-				pc = parseExpression(operandStr);
-				return;
+				const pc = parseExpression(operandStr);
+				return { pc };
 			case ".BYTE":
 			case ".DB": {
 				const res = parseExpressions(operandStr);
@@ -215,16 +215,15 @@ function assembleLine(
 			}
 	}
 
-	return;
+	return { pc: pc, bytes };
 }
 
 export function assemble(pc: number, text: string, options: AssemblerOptions): AssemblerResult {
-	const bytes: number[] = [];
+	let result: AssemblerResult | undefined;
 	const lines = text.split(/\r?\n/);
-	for (const line of lines) {
-		const currentPc = (pc + bytes.length) & 0xffff;
-		const error = assembleLine(currentPc, line, bytes, options);
-		if (error) return { bytes: [], error };
+	for (let i = 0; i < lines.length; i++) {
+		result = assembleLine(pc, lines[i], options);
+		if (typeof result === "string") return result;
 	}
-	return { bytes };
+	return result;
 }

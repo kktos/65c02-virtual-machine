@@ -68,19 +68,21 @@ export const asmCmd = defineCommand({
 				parseExpressions,
 				defineSymbol,
 			});
-			if (result.error) return { error: `Error: ${result.error}` };
+			if (typeof result === "string") return { error: `Error: ${result}` };
+			if (!result) return;
 
-			if (result.bytes.length > 0) {
+			currentAddr = result.pc;
+			const bytes = result.bytes;
+			if (bytes && bytes.length > 0) {
 				// Write bytes to VM
-				for (let i = 0; i < result.bytes.length; i++)
-					vm.writeDebug((currentAddr + i) & 0xffff, result.bytes[i] as number);
+				for (let i = 0; i < bytes.length; i++) vm.writeDebug((currentAddr + i) & 0xffff, bytes[i] as number);
 
 				let res: ResultOnLinePayload = {};
 				if (showBytes) {
-					const bytesHex = result.bytes.map((b) => toHex(b, 2)).join(" ");
+					const bytesHex = bytes.map((b) => toHex(b, 2)).join(" ");
 					res.content = `${toHex(currentAddr, 4)}: ${bytesHex.padEnd(8)} ${trimmed}`;
 				}
-				currentAddr = (currentAddr + result.bytes.length) & 0xffff;
+				currentAddr = (currentAddr + bytes.length) & 0xffff;
 				res.prompt = getPrompt(currentAddr);
 				return res;
 			}
