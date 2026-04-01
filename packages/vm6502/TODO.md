@@ -4,7 +4,6 @@
 
 - REFACTO: registers in useMachine.... updated at everyframe in App.... Not sure it's the best way to do it
 - REFACTO: I don't like the handleJsrOutput in useCommands where it's a mini monitor thing
-- labels in routine; not working; the command is executed ! I reckon multilines are not working in routine
 
 ### 2026-03-23
 
@@ -70,6 +69,8 @@ log Acc every 100ms time $C019 is accessed
 - let's refactor cmd search to uses the new wildcards
 
 # History
+
+- **FIXED** labels in routine; not working; the command is executed ! I reckon multilines are not working in routine
 
 - **DONE** add a command to create a note -> comment
 - **DONE** add a color setting for the line where the PC is for DisasmView
