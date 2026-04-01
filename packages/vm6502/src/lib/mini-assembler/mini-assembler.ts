@@ -196,10 +196,8 @@ function assembleLine(
 			bytes.push(value & 0xff);
 			break;
 		case "REL":
-			const offset = value - pc - 2;
-			if (offset < -128 || offset > 127) {
-				return `Branch target out of range (offset ${offset})`;
-			}
+			const offset = (value & 0xffff) - (pc & 0xffff) - 2;
+			if (offset < -128 || offset > 127) return `Branch target out of range (offset ${offset})`;
 			bytes.push(offset & 0xff);
 			break;
 		default:

@@ -1,7 +1,7 @@
 import { assemble } from "@/lib/mini-assembler/mini-assembler";
 import { useSymbols } from "@/composables/useSymbols";
 import type { CommandContext, CommandResult, ResultOnLinePayload } from "@/types/command";
-import { toHex } from "@/lib/hex.utils";
+import { formatAddress, toHex } from "@/lib/hex.utils";
 import { defineCommand, isParamListItemIdentifier } from "@/composables/useCommands";
 import { ExpressionParser, TokenType } from "@/lib/expressionParser/expressionParser";
 import { miniAssemblerTokenizer } from "@/lib/mini-assembler/tokenizer";
@@ -75,14 +75,14 @@ export const asmCmd = defineCommand({
 			const bytes = result.bytes;
 			if (bytes && bytes.length > 0) {
 				// Write bytes to VM
-				for (let i = 0; i < bytes.length; i++) vm.writeDebug((currentAddr + i) & 0xffff, bytes[i] as number);
+				for (let i = 0; i < bytes.length; i++) vm.writeDebug(currentAddr + i, bytes[i] as number);
 
 				let res: ResultOnLinePayload = {};
 				if (showBytes) {
 					const bytesHex = bytes.map((b) => toHex(b, 2)).join(" ");
-					res.content = `${toHex(currentAddr, 4)}: ${bytesHex.padEnd(8)} ${trimmed}`;
+					res.content = `${formatAddress(currentAddr)}: ${bytesHex.padEnd(10)} ${trimmed}`;
 				}
-				currentAddr = (currentAddr + bytes.length) & 0xffff;
+				currentAddr = currentAddr + bytes.length;
 				res.prompt = getPrompt(currentAddr);
 				return res;
 			}
