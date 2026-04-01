@@ -3,8 +3,9 @@ import { useSymbols } from "@/composables/useSymbols";
 import type { CommandContext, CommandResult, ResultOnLinePayload } from "@/types/command";
 import { toHex } from "@/lib/hex.utils";
 import { defineCommand, isParamListItemIdentifier } from "@/composables/useCommands";
+import { ExpressionParser } from "@/lib/expressionParser/expressionParser";
 
-const { getAddressForLabel, addSymbol } = useSymbols();
+const { addSymbol } = useSymbols();
 
 export const asmCmd = defineCommand({
 	description: "Start mini-assembler at `address`. if `show` is specified, displays the assembled bytes.",
@@ -19,11 +20,9 @@ export const asmCmd = defineCommand({
 			"SHOW".startsWith(params[1].text.toUpperCase());
 
 		const parseExpression = (expr: string): number => {
-			const e = expr.trim();
-			if (e.startsWith("$")) return parseInt(e.substring(1), 16);
-			if (/^-?\d+$/.test(e)) return parseInt(e, 10);
-			const resolved = getAddressForLabel(e);
-			return resolved !== undefined ? resolved : NaN;
+			const parser = new ExpressionParser(expr, vm);
+			const res = parser.parse();
+			return res.value !== undefined ? (res.value as number) : NaN;
 		};
 
 		const getPrompt = (addr: number) => `!${toHex(addr, 4)} `;

@@ -104,7 +104,7 @@ export interface ParsedResult {
 type TokenizeFn = (input: string) => Token[];
 
 export class ExpressionParser {
-	private tokenizeFn: TokenizeFn = defaultTokenize;
+	private tokenizeFn: TokenizeFn = defaultTokenizer;
 	private tokens: Token[] = [];
 	public pos = 0;
 
@@ -457,7 +457,7 @@ export class ExpressionParser {
 	}
 }
 
-function defaultTokenize(input: string): Token[] {
+function defaultTokenizer(input: string): Token[] {
 	const tokens: Token[] = [];
 
 	let i = 0;
