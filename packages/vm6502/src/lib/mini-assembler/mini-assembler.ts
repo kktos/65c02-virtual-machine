@@ -17,7 +17,7 @@ const WORD_MODES = new Set(["ABS", "ABX", "ABY", "IND", "IAX"]);
 type AssemblerResult = { bytes: number[]; error?: string };
 type AssemblerOptions = {
 	parseExpression: (expr: string) => number;
-	parseExpressions: (expr: string) => number[];
+	parseExpressions: (expr: string) => (number | string)[];
 	defineSymbol: (name: string, value: number, isLocal?: boolean) => void;
 };
 
@@ -57,6 +57,12 @@ function assembleLine(
 	console.log(mnemonic, operandStr);
 
 	if (mnemonic.startsWith(".")) {
+		const compileString = (str: string) => {
+			for (let i = 0; i < str.length; i++) {
+				bytes.push(str.charCodeAt(i));
+			}
+		};
+
 		switch (mnemonic) {
 			case ".ORG":
 				pc = parseExpression(operandStr);
@@ -65,8 +71,12 @@ function assembleLine(
 			case ".DB": {
 				const res = parseExpressions(operandStr);
 				for (let i = 0; i < res.length; i++) {
-					if (res[i] > 0xff) return `".DB: byte $${toHex(res[i])} value out of range`;
-					bytes.push(res[i] & 0xff);
+					const val = res[i];
+					if (typeof val === "string") compileString(val);
+					else {
+						if (val > 0xff) return `".DB: byte $${toHex(val)} value out of range`;
+						bytes.push(val & 0xff);
+					}
 				}
 				return;
 			}
@@ -74,9 +84,20 @@ function assembleLine(
 			case ".DW": {
 				const res = parseExpressions(operandStr);
 				for (let i = 0; i < res.length; i++) {
-					if (res[i] > 0xffff) return `".DW: word $${toHex(res[i])} value out of range`;
-					bytes.push(res[i] & 0xff);
-					bytes.push((res[i] >> 8) & 0xff);
+					const val = res[i];
+					if (typeof val !== "number") return `".DW: word ${val} is not a number`;
+					if (val > 0xffff) return `".DW: word $${toHex(val)} value out of range`;
+					bytes.push(val & 0xff);
+					bytes.push((val >> 8) & 0xff);
+				}
+				return;
+			}
+			case ".STR": {
+				const res = parseExpressions(operandStr);
+				for (let strIdx = 0; strIdx < res.length; strIdx++) {
+					const val = res[strIdx];
+					if (typeof val !== "string") return `".STR: value ${val} is not a string`;
+					compileString(val);
 				}
 				return;
 			}

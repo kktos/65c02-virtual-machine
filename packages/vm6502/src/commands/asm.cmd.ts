@@ -32,7 +32,7 @@ export const asmCmd = defineCommand({
 			return res.value !== undefined ? (res.value as number) : NaN;
 		};
 
-		const parseExpressions = (expr: string): number[] => {
+		const parseExpressions = (expr: string): (number | string)[] => {
 			const result: number[] = [];
 			const parser = new ExpressionParser(expr, vm, miniAssemblerTokenizer);
 			parser.resolveSymbol = (label: string, namespace?: string) => {
