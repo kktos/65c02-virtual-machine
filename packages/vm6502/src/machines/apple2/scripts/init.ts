@@ -81,14 +81,13 @@ end
 
 routine test
 	asm $300 show
-		:loop
+	:id 	.equ 64+1
+
 			lda KBD
-			bpl :loop
-			rts
-		.ORG $600
-		:loop
-			lda KBD
-			bpl :loop
+			bmi :exit
+			clc
+			lda #:id
+		:exit
 			rts
 	.
 end

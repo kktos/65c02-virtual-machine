@@ -41,6 +41,16 @@ function assembleLine(pc: number, text: string, bytes: number[], options: Assemb
 	let cleanText = text.trim().replace(/\s+/g, " ");
 	if (!cleanText) return pc;
 
+	// Handle EQU directive (e.g., "LABEL EQU $10" or "LABEL: EQU $10")
+	const equMatch = cleanText.match(/^(:?[A-Z_][A-Z0-9_]*):?\s+(?:\.EQU|EQU)\s+(.+)$/i);
+	if (equMatch) {
+		const labelName = equMatch[1];
+		const valueExpr = equMatch[2];
+		const val = parseExpression(valueExpr);
+		defineSymbol(labelName, val, labelName.startsWith(":"));
+		return pc;
+	}
+
 	// Handle labels (e.g., "LABEL: LDA #$00" or "LABEL:")
 	const colonIdx = cleanText.indexOf(":");
 	if (colonIdx !== -1) {
