@@ -14,7 +14,7 @@ for (const [byteStr, info] of Object.entries(opcodeMap)) {
 const BYTE_MODES = new Set(["ZP", "ZPX", "ZPY", "IDX", "IDY", "ZPI"]);
 const WORD_MODES = new Set(["ABS", "ABX", "ABY", "IND", "IAX"]);
 
-type AssemblerResult = { pc: number; bytes?: number[] } | string | undefined;
+type AssemblerResult = number | string | undefined;
 
 type AssemblerOptions = {
 	parseExpression: (expr: string) => number;
@@ -25,13 +25,12 @@ type AssemblerOptions = {
 function assembleLine(
 	pc: number,
 	text: string,
+	bytes: number[],
 	{ parseExpression, parseExpressions, defineSymbol }: AssemblerOptions,
 ): AssemblerResult {
 	// Normalize spaces
 	let cleanText = text.trim().replace(/\s+/g, " ");
 	if (!cleanText) return;
-
-	const bytes: number[] = [];
 
 	// Handle labels (e.g., "LABEL: LDA #$00" or "LABEL:")
 	const colonIdx = cleanText.indexOf(":");
@@ -66,7 +65,7 @@ function assembleLine(
 		switch (mnemonic) {
 			case ".ORG":
 				const pc = parseExpression(operandStr);
-				return { pc };
+				return pc;
 			case ".BYTE":
 			case ".DB": {
 				const res = parseExpressions(operandStr);
@@ -213,15 +212,17 @@ function assembleLine(
 			}
 	}
 
-	return { pc: pc, bytes };
+	return pc;
 }
 
-export function assemble(pc: number, text: string, options: AssemblerOptions): AssemblerResult {
+export function assemble(pc: number, text: string, options: AssemblerOptions) {
 	let result: AssemblerResult | undefined;
+	const bytes: number[] = [];
 	const lines = text.split(/\r?\n/);
 	for (let i = 0; i < lines.length; i++) {
-		result = assembleLine(pc, lines[i], options);
+		result = assembleLine(pc, lines[i], bytes, options);
 		if (typeof result === "string") return result;
+		if (typeof result === "number") pc = result;
 	}
-	return result;
+	return { pc, bytes };
 }
