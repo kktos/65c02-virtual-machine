@@ -79,4 +79,14 @@ routine drawString @text @xPos @yPos
 	reg restore
 end
 
+routine test
+	asm $300 show
+		.word $600
+		:loop
+			lda KBD
+			bpl :loop
+			rts
+
+	.
+end
 `;

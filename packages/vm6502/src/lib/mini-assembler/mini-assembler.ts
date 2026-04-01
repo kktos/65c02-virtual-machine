@@ -1,4 +1,5 @@
-import { type AddressingMode, opcodeMap } from "./opcodes";
+import { toHex } from "../hex.utils";
+import { type AddressingMode, opcodeMap } from "../opcodes";
 
 // Generate reverse map: Mnemonic -> Mode -> Opcode
 const mnemonicMap = new Map<string, Map<AddressingMode, number>>();
@@ -16,14 +17,15 @@ const WORD_MODES = new Set(["ABS", "ABX", "ABY", "IND", "IAX"]);
 type AssemblerResult = { bytes: number[]; error?: string };
 type AssemblerOptions = {
 	parseExpression: (expr: string) => number;
-	defineSymbol: (name: string, value: number) => void;
+	parseExpressions: (expr: string) => number[];
+	defineSymbol: (name: string, value: number, isLocal?: boolean) => void;
 };
 
 function assembleLine(
 	pc: number,
 	text: string,
 	bytes: number[],
-	{ parseExpression, defineSymbol }: AssemblerOptions,
+	{ parseExpression, parseExpressions, defineSymbol }: AssemblerOptions,
 ): string | undefined {
 	// Normalize spaces
 	let cleanText = text.trim().replace(/\s+/g, " ");
@@ -32,28 +34,62 @@ function assembleLine(
 	// Handle labels (e.g., "LABEL: LDA #$00" or "LABEL:")
 	const colonIdx = cleanText.indexOf(":");
 	if (colonIdx !== -1) {
-		const potentialLabel = cleanText.substring(0, colonIdx).trim();
-		// A valid label should not contain internal spaces
-		if (potentialLabel && !potentialLabel.includes(" ")) {
-			defineSymbol(potentialLabel, pc);
-			cleanText = cleanText.substring(colonIdx + 1).trim();
-			if (!cleanText) return;
+		if (colonIdx === 0) {
+			const spaceIdx = cleanText.indexOf(" ");
+			const potentialLabel = cleanText.substring(0, spaceIdx > 0 ? spaceIdx : undefined).trim();
+			if (potentialLabel) defineSymbol(potentialLabel, pc, true);
+			cleanText = cleanText.substring(potentialLabel.length + 1).trim();
+		} else {
+			const potentialLabel = cleanText.substring(0, colonIdx);
+			// A valid label should not contain internal spaces
+			if (potentialLabel && !potentialLabel.includes(" ")) {
+				defineSymbol(potentialLabel, pc);
+				cleanText = cleanText.substring(colonIdx + 1).trim();
+			}
 		}
+		if (!cleanText) return;
 	}
 
 	const spaceIdx = cleanText.indexOf(" ");
 	let mnemonic = (spaceIdx === -1 ? cleanText : cleanText.substring(0, spaceIdx)).toUpperCase();
 	const operandStr = spaceIdx === -1 ? "" : cleanText.substring(spaceIdx + 1).trim();
 
+	console.log(mnemonic, operandStr);
+
+	if (mnemonic.startsWith(".")) {
+		switch (mnemonic) {
+			case ".ORG":
+				pc = parseExpression(operandStr);
+				return;
+			case ".BYTE":
+			case ".DB": {
+				const res = parseExpressions(operandStr);
+				for (let i = 0; i < res.length; i++) {
+					if (res[i] > 0xff) return `".DB: byte $${toHex(res[i])} value out of range`;
+					bytes.push(res[i] & 0xff);
+				}
+				return;
+			}
+			case ".WORD":
+			case ".DW": {
+				const res = parseExpressions(operandStr);
+				for (let i = 0; i < res.length; i++) {
+					if (res[i] > 0xffff) return `".DW: word $${toHex(res[i])} value out of range`;
+					bytes.push(res[i] & 0xff);
+					bytes.push((res[i] >> 8) & 0xff);
+				}
+				return;
+			}
+			default:
+				return `Unknown directive: ${mnemonic}`;
+		}
+	}
+
 	// Handle suffixes
 	let forceMode: "byte" | "word" | null = null;
-	if (mnemonic.endsWith(".B")) {
-		forceMode = "byte";
-		mnemonic = mnemonic.slice(0, -2);
-	} else if (mnemonic.endsWith(".W")) {
-		forceMode = "word";
-		mnemonic = mnemonic.slice(0, -2);
-	}
+	if (mnemonic.endsWith(".B")) forceMode = "byte";
+	else if (mnemonic.endsWith(".W")) forceMode = "word";
+	if (forceMode) mnemonic = mnemonic.slice(0, -2);
 
 	const modes = mnemonicMap.get(mnemonic);
 	if (!modes) return `Unknown mnemonic: ${mnemonic}`;
@@ -74,15 +110,19 @@ function assembleLine(
 		} else if (operandStr.startsWith("#")) {
 			mode = "IMM";
 			value = parseExpression(operandStr.substring(1));
-		} else if (operandStr.startsWith("(") && upperOp.endsWith(",X)")) {
-			mode = mnemonic === "JMP" ? "IAX" : "IDX";
-			value = parseExpression(operandStr.slice(1, -3));
-		} else if (operandStr.startsWith("(") && upperOp.endsWith("),Y")) {
-			mode = "IDY";
-			value = parseExpression(operandStr.slice(1, -3));
-		} else if (operandStr.startsWith("(") && operandStr.endsWith(")")) {
-			mode = mnemonic === "JMP" ? "IND" : "ZPI";
-			value = parseExpression(operandStr.slice(1, -1));
+		} else if (operandStr.startsWith("(")) {
+			if (upperOp.endsWith(",X)")) {
+				mode = mnemonic === "JMP" ? "IAX" : "IDX";
+				value = parseExpression(operandStr.slice(1, -3));
+			} else if (upperOp.endsWith("),Y")) {
+				mode = "IDY";
+				value = parseExpression(operandStr.slice(1, -3));
+			} else if (operandStr.endsWith(")")) {
+				mode = mnemonic === "JMP" ? "IND" : "ZPI";
+				value = parseExpression(operandStr.slice(1, -1));
+			} else {
+				return `Invalid operand format: ${mnemonic} ${operandStr}`;
+			}
 		} else if (upperOp.endsWith(",X")) {
 			value = parseExpression(operandStr.slice(0, -2));
 			if (forceMode === "byte") mode = "ZPX";
@@ -122,28 +162,36 @@ function assembleLine(
 		}
 	}
 
-	if (Number.isNaN(value)) return "Invalid operand value or symbol";
+	if (Number.isNaN(value)) return `Invalid operand value or symbol: ${mnemonic} ${operandStr}`;
 
 	const opcode = modes.get(mode);
 	if (!opcode) return `Mode ${mode} not supported for ${mnemonic}`;
 
 	bytes.push(opcode);
 
-	if (mode === "IMM") {
-		if (value > 0xff && value < -128) return "Immediate value out of range";
-		bytes.push(value & 0xff);
-	} else if (BYTE_MODES.has(mode)) {
-		if (value > 0xff) return "Zero page address out of range";
-		bytes.push(value & 0xff);
-	} else if (WORD_MODES.has(mode)) {
-		bytes.push(value & 0xff);
-		bytes.push((value >> 8) & 0xff);
-	} else if (mode === "REL") {
-		const offset = value - pc - 2;
-		if (offset < -128 || offset > 127) {
-			return `Branch target out of range (offset ${offset})`;
-		}
-		bytes.push(offset & 0xff);
+	switch (mode) {
+		case "IMM":
+			if (value > 0xff && value < -128) return "Immediate value out of range";
+			bytes.push(value & 0xff);
+			break;
+		case "REL":
+			const offset = value - pc - 2;
+			if (offset < -128 || offset > 127) {
+				return `Branch target out of range (offset ${offset})`;
+			}
+			bytes.push(offset & 0xff);
+			break;
+		default:
+			if (BYTE_MODES.has(mode)) {
+				if (value > 0xff) return "Zero page address out of range";
+				bytes.push(value & 0xff);
+				break;
+			}
+			if (WORD_MODES.has(mode)) {
+				bytes.push(value & 0xff);
+				bytes.push((value >> 8) & 0xff);
+				break;
+			}
 	}
 
 	return;
