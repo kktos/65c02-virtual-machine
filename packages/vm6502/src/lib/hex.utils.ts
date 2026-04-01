@@ -1,7 +1,7 @@
-export const formatAddress = (addr: number) => {
+export const formatAddress = (addr: number, sep = ":") => {
 	const bank = ((addr >> 16) & 0xff).toString(16).toUpperCase().padStart(2, "0");
 	const offset = (addr & 0xffff).toString(16).toUpperCase().padStart(4, "0");
-	return `$${bank}:${offset}`;
+	return `$${bank}${sep}${offset}`;
 };
 
 export function toHex(v: number | undefined, pad = 2) {

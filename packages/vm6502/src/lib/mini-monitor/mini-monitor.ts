@@ -1,9 +1,9 @@
-import { useMachine } from "@/composables/useMachine";
-import { disassemble, disassembleRange, formatDisassemblyAsText } from "./disassembler";
-import { toHex, hexDump } from "./hex.utils";
-import { ExpressionParser, monitorTokenizer, TokenType, type ParsedResult } from "./expressionParser/expressionParser";
+import { hexDump } from "../hex.utils";
+import { ExpressionParser, monitorTokenizer, TokenType, type ParsedResult } from "../expressionParser/expressionParser";
 import type { CommandOutput } from "@/types/command";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
+import { runDisassembly } from "./disassembly.cmd";
+import { runHexDump } from "./hexdump.cmd";
 
 export type MiniMonitorCommandRequest = {
 	type: string;
@@ -94,49 +94,4 @@ export async function minimonitor(input: string, vm: VirtualMachine): Promise<Mi
 		default:
 			return runHexDump(startAddr, endAddr, vm);
 	}
-}
-
-async function runDisassembly(start: number, end: number | undefined, vm: VirtualMachine) {
-	const { registers } = useMachine();
-	const readByte = (address: number, debug = true) => (debug ? vm.readDebug(address) : vm.read(address)) ?? 0;
-
-	let lines = [];
-	if (end !== undefined) {
-		lines = await disassembleRange({
-			readByte,
-			scope: vm.getScope(start),
-			fromAddress: start,
-			toAddress: end,
-			registers,
-		});
-	} else {
-		lines = await disassemble({
-			readByte,
-			scope: vm.getScope(start),
-			fromAddress: start,
-			lineCount: 32,
-			registers,
-		});
-	}
-
-	const output = formatDisassemblyAsText(lines, {
-		withOrg: false,
-		withAddr: true,
-		withBytes: true,
-		asMarkdown: true,
-	});
-	const lastLine = lines.at(-1)!;
-	return { content: output, endAddr: lastLine.addr + lastLine.bytes.split(" ").length };
-}
-
-export function runHexDump(start: number, end: number | undefined, vm: VirtualMachine): CommandOutput {
-	let output = "";
-	if (end === undefined) {
-		const byte = vm.read(start);
-		output = `${formatAddr(start)}: ${toHex(byte, 2)}`;
-	} else {
-		const bytes = vm.readDebugRange(start, end - start + 1);
-		output = hexDump(start, bytes, { formatAddr });
-	}
-	return { content: output, format: "markdown" };
 }

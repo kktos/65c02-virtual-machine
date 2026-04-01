@@ -1,5 +1,5 @@
 import { defineCommand } from "@/composables/useCommands";
-import { runHexDump } from "@/lib/mini-monitor";
+import { runHexDump } from "@/lib/mini-monitor/hexdump.cmd";
 import type { CommandContext } from "@/types/command";
 
 export const hexDumpCmd = defineCommand({
