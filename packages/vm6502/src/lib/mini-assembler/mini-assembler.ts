@@ -30,6 +30,7 @@ type AssemblerOptions = {
 	parseExpression: (expr: string) => number;
 	parseExpressions: (expr: string) => (number | string)[];
 	defineSymbol: (name: string, value: number, isLocal?: boolean) => void;
+	isPass1?: boolean;
 };
 
 function assembleLine(pc: number, text: string, bytes: number[], options: AssemblerOptions): AssemblerLineResult {
@@ -157,10 +158,15 @@ function assembleLine(pc: number, text: string, bytes: number[], options: Assemb
 			else if (forceMode === "word") mode = "ABX";
 			else mode = value <= 0xff ? "ZPX" : "ABX";
 
-			if (!modes.has(mode)) {
-				// Try alternative
-				if (mode === "ZPX" && modes.has("ABX")) mode = "ABX";
-				else if (mode === "ABX" && modes.has("ZPX") && value <= 0xff) mode = "ZPX";
+			// if (!modes.has(mode)) {
+			// 	// Try alternative
+			// 	if (mode === "ZPX" && modes.has("ABX")) mode = "ABX";
+			// 	else if (mode === "ABX" && modes.has("ZPX") && value <= 0xff) mode = "ZPX";
+			// }
+			if (!modes.has(mode) || Number.isNaN(value)) {
+				// If value is unknown (forward ref), default to Absolute if available
+				if (modes.has("ABX")) mode = "ABX";
+				else if (modes.has("ZPX")) mode = "ZPX";
 			}
 		} else if (upperOp.endsWith(",Y")) {
 			value = parseExpression(operandStr.slice(0, -2));
@@ -168,9 +174,13 @@ function assembleLine(pc: number, text: string, bytes: number[], options: Assemb
 			else if (forceMode === "word") mode = "ABY";
 			else mode = value <= 0xff ? "ZPY" : "ABY";
 
-			if (!modes.has(mode)) {
-				if (mode === "ZPY" && modes.has("ABY")) mode = "ABY";
-				else if (mode === "ABY" && modes.has("ZPY") && value <= 0xff) mode = "ZPY";
+			// if (!modes.has(mode)) {
+			// 	if (mode === "ZPY" && modes.has("ABY")) mode = "ABY";
+			// 	else if (mode === "ABY" && modes.has("ZPY") && value <= 0xff) mode = "ZPY";
+			// }
+			if (!modes.has(mode) || Number.isNaN(value)) {
+				if (modes.has("ABY")) mode = "ABY";
+				else if (modes.has("ZPY")) mode = "ZPY";
 			}
 		} else {
 			// ABS, ZP, REL
@@ -182,12 +192,28 @@ function assembleLine(pc: number, text: string, bytes: number[], options: Assemb
 				else if (forceMode === "word") mode = "ABS";
 				else mode = value <= 0xff ? "ZP" : "ABS";
 
-				if (!modes.has(mode)) {
-					if (mode === "ZP" && modes.has("ABS")) mode = "ABS";
-					else if (mode === "ABS" && modes.has("ZP") && value <= 0xff) mode = "ZP";
+				// if (!modes.has(mode)) {
+				// 	if (mode === "ZP" && modes.has("ABS")) mode = "ABS";
+				// 	else if (mode === "ABS" && modes.has("ZP") && value <= 0xff) mode = "ZP";
+				// }
+				if (!modes.has(mode) || Number.isNaN(value)) {
+					if (modes.has("ABS")) mode = "ABS";
+					else if (modes.has("ZP")) mode = "ZP";
 				}
 			}
 		}
+	}
+
+	// If we are in Pass 1 and the value is unknown, we still need to return the estimated PC
+	if (options.isPass1 && Number.isNaN(value)) {
+		const opcode = modes.get(mode);
+		if (!opcode) return `Mode ${mode} not supported for ${mnemonic}`;
+
+		let size = 1; // Opcode
+		if (mode === "IMM" || mode === "REL" || BYTE_MODES.has(mode)) size += 1;
+		else if (WORD_MODES.has(mode)) size += 2;
+
+		return pc + size;
 	}
 
 	if (Number.isNaN(value)) return `Invalid operand value or symbol: ${mnemonic} ${operandStr}`;
@@ -224,32 +250,39 @@ function assembleLine(pc: number, text: string, bytes: number[], options: Assemb
 }
 
 export function assemble(pc: number, text: string, options: AssemblerOptions): AssemblerOutput | string {
-	const segments: AssemblerSegment[] = [];
-	let currentSegment: AssemblerSegment = { address: pc, bytes: [] };
-	segments.push(currentSegment);
-
 	const lines = text.split(/\r?\n/);
+	const startPc = pc;
 
-	for (let i = 0; i < lines.length; i++) {
-		const bytesBefore = currentSegment.bytes.length;
-		const result = assembleLine(pc, lines[i], currentSegment.bytes, options);
-
-		if (typeof result === "string") return result;
-
-		const bytesAdded = currentSegment.bytes.length - bytesBefore;
-
-		// If the returned PC is not simply the previous PC plus bytes added,
-		// it means an .ORG directive jumped to a new location.
-		if (result !== pc + bytesAdded) {
-			if (currentSegment.bytes.length === 0) {
-				currentSegment.address = result;
-			} else {
-				currentSegment = { address: result, bytes: [] };
-				segments.push(currentSegment);
-			}
-		}
-		pc = result;
+	// --- PASS 1: Identify Labels ---
+	let pass1Pc = startPc;
+	for (const line of lines) {
+		// We use a dummy bytes array just to track length in Pass 1
+		const dummyBytes: number[] = [];
+		const result = assembleLine(pass1Pc, line, dummyBytes, { ...options, isPass1: true });
+		if (typeof result === "string") return `Pass 1: ${result}`;
+		pass1Pc = result;
 	}
 
-	return { segments, finalPc: pc };
+	// --- PASS 2: Actual Assembly ---
+	const segments: AssemblerSegment[] = [];
+	let currentSegment: AssemblerSegment = { address: startPc, bytes: [] };
+	segments.push(currentSegment);
+	let currentPc = startPc;
+
+	for (const line of lines) {
+		const bytesBefore = currentSegment.bytes.length;
+		const result = assembleLine(currentPc, line, currentSegment.bytes, { ...options, isPass1: false });
+
+		if (typeof result === "string") return `Pass 2: ${result}`;
+
+		const bytesAdded = currentSegment.bytes.length - bytesBefore;
+		if (result !== currentPc + bytesAdded) {
+			// Handle .ORG changes
+			currentSegment = { address: result, bytes: [] };
+			segments.push(currentSegment);
+		}
+		currentPc = result;
+	}
+
+	return { segments, finalPc: currentPc };
 }
