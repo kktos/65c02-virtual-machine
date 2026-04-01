@@ -1,9 +1,10 @@
 import { formatAddress, hexDump } from "../hex.utils";
-import { ExpressionParser, monitorTokenizer, TokenType, type ParsedResult } from "../expressionParser/expressionParser";
+import { ExpressionParser, TokenType, type ParsedResult } from "../expressionParser/expressionParser";
 import type { CommandOutput } from "@/types/command";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import { runDisassembly } from "./disassembly.cmd";
 import { runHexDump } from "./hexdump.cmd";
+import { monitorTokenizer } from "./tokenizer";
 
 export type MiniMonitorCommandRequest = {
 	type: string;
