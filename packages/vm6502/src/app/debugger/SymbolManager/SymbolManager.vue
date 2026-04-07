@@ -110,7 +110,14 @@ const emit = defineEmits<{
 const isCtrlPressed = useKeyModifier("Control");
 const shouldDisplayDisk = ref(false);
 
-const { removeManySymbols, getNamespaceList, addSymbolsFromText, generateTextFromSymbols, diskKey } = useSymbols();
+const {
+	removeManySymbols,
+	getNamespaceList,
+	addSymbolsFromText,
+	generateAsmSymFile,
+	generateLabelsCommand,
+	symbolDiskKey,
+} = useSymbols();
 const { downloadFile } = useFileDownload();
 
 const searchTerm = ref("");
@@ -162,11 +169,12 @@ const handleImportFile = async (event: Event) => {
 
 const handleExport = async () => {
 	const { loadDisk } = useDiskStorage();
-	const disk = await loadDisk(diskKey);
+	const disk = await loadDisk(symbolDiskKey.value);
 	if (!disk) return;
 	const name = disk.name.split(".").slice(0, -1).join(".") || disk.name;
 
-	const content = await generateTextFromSymbols();
+	// const content = await generateAsmSymFile();
+	const content = await generateLabelsCommand();
 	downloadFile(`${name}.sym`, "text/plain;charset=utf-8", content);
 };
 

@@ -50,12 +50,12 @@ const symbolsState = computed(() => ({
 }));
 
 const DB_NAME = "vm6502_metadata";
-let diskKey: string;
+let symbolDiskKey = ref("");
 let storeName = "";
 
 export function useSymbols() {
 	const setDiskKey = (newKey: string) => {
-		diskKey = newKey;
+		symbolDiskKey.value = newKey;
 		loadSymbolsFromDb();
 	};
 
@@ -64,7 +64,7 @@ export function useSymbols() {
 	};
 
 	const getDb = async () => {
-		if (!diskKey) throw new Error("No disk key provided");
+		if (!symbolDiskKey.value) throw new Error("No disk key provided");
 		if (!storeName) throw new Error("No store name provided");
 
 		// 1. Probe the current version
@@ -96,7 +96,7 @@ export function useSymbols() {
 	};
 
 	const loadSymbolsFromDb = async () => {
-		if (!diskKey) return;
+		if (!symbolDiskKey.value) return;
 		try {
 			const db = await getDb();
 			const tx = db.transaction(storeName as unknown as "symbols", "readonly");
@@ -104,14 +104,14 @@ export function useSymbols() {
 
 			const foundNamespaces = new Set<string>();
 			const newDiskDict: SymbolDict = {};
-			const diskSymbols = await index.getAll([diskKey]);
+			const diskSymbols = await index.getAll([symbolDiskKey.value]);
 			for (const sym of diskSymbols) {
 				if (!newDiskDict[sym.addr]) newDiskDict[sym.addr] = {};
 				newDiskDict[sym.addr]![sym.ns] = sym;
 				foundNamespaces.add(sym.ns);
 			}
 
-			const targetDict = diskKey === "*" ? systemDict : diskDict;
+			const targetDict = symbolDiskKey.value === "*" ? systemDict : diskDict;
 			targetDict.value = newDiskDict;
 
 			for (const ns of foundNamespaces) if (!activeNamespaces.value.has(ns)) activeNamespaces.value.set(ns, true);
@@ -123,7 +123,7 @@ export function useSymbols() {
 	const initSymbols = async (machineName: string, newSymbols?: SymbolDict) => {
 		storeName = `${machineName.replace(/ /g, "_").toLowerCase()}_symbols`;
 		activeNamespaces.value.clear();
-		diskKey = "*";
+		symbolDiskKey.value = "*";
 
 		if (!newSymbols) return;
 
@@ -138,7 +138,7 @@ export function useSymbols() {
 
 		console.log("Symbols: Creating system symbols in DB...");
 
-		const keys = await index.getAllKeys([diskKey]);
+		const keys = await index.getAllKeys([symbolDiskKey.value]);
 		await Promise.all(keys.map((key) => tx.store.delete(key)));
 
 		const promises: Promise<IDBValidKey>[] = [];
@@ -149,7 +149,7 @@ export function useSymbols() {
 				const scope = data.scope;
 				const addr = Number(addrStr);
 				const symbol = {
-					disk: diskKey,
+					disk: symbolDiskKey.value,
 					ns: namespace,
 					label: data.label,
 					addr: addr,
@@ -186,9 +186,9 @@ export function useSymbols() {
 			return db.getAllFromIndex(storeName as unknown as "symbols", "by-disk-label", rangeAll);
 		};
 
-		if (diskKey === "*") return getAllFromDisk("*");
+		if (symbolDiskKey.value === "*") return getAllFromDisk("*");
 
-		const [exact, wildcard] = await Promise.all([getAllFromDisk("*"), getAllFromDisk(diskKey)]);
+		const [exact, wildcard] = await Promise.all([getAllFromDisk("*"), getAllFromDisk(symbolDiskKey.value)]);
 		return exact.concat(wildcard);
 	};
 
@@ -256,7 +256,7 @@ export function useSymbols() {
 
 		const db = await getDb();
 		const symbol = {
-			disk: diskKey,
+			disk: symbolDiskKey.value,
 			ns: namespace,
 			label,
 			addr: address,
@@ -266,7 +266,7 @@ export function useSymbols() {
 		const id = await db.add(storeName as unknown as "symbols", symbol);
 
 		const newSym = { ...symbol, id: Number(id) };
-		const targetDict = diskKey === "*" ? systemDict : diskDict;
+		const targetDict = symbolDiskKey.value === "*" ? systemDict : diskDict;
 		if (!targetDict.value[address]) targetDict.value[address] = {};
 		targetDict.value[address][namespace] = newSym;
 
@@ -277,7 +277,7 @@ export function useSymbols() {
 	const addManySymbols = async (symbols: Omit<SymbolEntry, "id" | "disk" | "src">[]) => {
 		if (symbols.length === 0) return;
 
-		const targetDict = diskKey === "*" ? systemDict : diskDict;
+		const targetDict = symbolDiskKey.value === "*" ? systemDict : diskDict;
 		const newDict = { ...targetDict.value };
 		const modifiedAddrs = new Set<number>();
 		const newNamespaces = new Set<string>();
@@ -287,7 +287,7 @@ export function useSymbols() {
 		const store = tx.store;
 		const index = store.index("by-disk-ns-label");
 
-		const existing = await Promise.all(symbols.map((e) => index.get([diskKey, e.ns, e.label])));
+		const existing = await Promise.all(symbols.map((e) => index.get([symbolDiskKey.value, e.ns, e.label])));
 		await Promise.all(
 			symbols.map((entry, i) => {
 				if (!entry.label.match(/^[A-Za-z_][A-Za-z_0-9]*/))
@@ -298,7 +298,7 @@ export function useSymbols() {
 					throw new Error(`Invalid namespace name ${i} "${entry.ns}"`);
 
 				const symbol: SymbolEntry = {
-					disk: diskKey,
+					disk: symbolDiskKey.value,
 					ns: entry.ns,
 					label: entry.label,
 					addr: entry.addr,
@@ -456,7 +456,7 @@ export function useSymbols() {
 		}
 	};
 
-	const generateTextFromSymbols = (): string => {
+	const generateAsmSymFile = (): string => {
 		const groups = new Map<string, SymbolEntry[]>();
 
 		for (const addrMap of Object.values(diskDict.value)) {
@@ -505,6 +505,39 @@ export function useSymbols() {
 		return output;
 	};
 
+	const generateLabelsCommand = (): string => {
+		const groups = new Map<string, SymbolEntry[]>();
+
+		for (const addrMap of Object.values(diskDict.value)) {
+			for (const symbol of Object.values(addrMap)) {
+				const key = JSON.stringify({ ns: symbol.ns, scope: symbol.scope });
+				if (!groups.has(key)) groups.set(key, []);
+				groups.get(key)?.push(symbol);
+			}
+		}
+
+		let output = "";
+		const sortedKeys = Array.from(groups.keys()).sort((a, b) => {
+			const ka = JSON.parse(a);
+			const kb = JSON.parse(b);
+			if (ka.ns !== kb.ns) return ka.ns.localeCompare(kb.ns);
+			return ka.scope.localeCompare(kb.scope);
+		});
+
+		for (const key of sortedKeys) {
+			const { ns, scope } = JSON.parse(key);
+			const entries = groups.get(key)!;
+			entries.sort((a, b) => a.addr - b.addr);
+
+			const scopeSuffix = scope && scope !== "main" ? ` ${scope}` : "";
+			output += `LABELS ${ns}${scopeSuffix}\n`;
+			for (const sym of entries)
+				output += `  $${sym.addr.toString(16).toUpperCase().padStart(4, "0")} ${sym.label}\n`;
+			output += "END_LABELS\n\n";
+		}
+		return output.trim();
+	};
+
 	const addSymbolsFromText = async (text: string) => {
 		const db = await getDb();
 		const tx = db.transaction(storeName as unknown as "symbols", "readwrite");
@@ -540,7 +573,7 @@ export function useSymbols() {
 			];
 			if (symMatch) {
 				const symbol: SymbolEntry = {
-					disk: diskKey,
+					disk: symbolDiskKey.value,
 					ns: currentNamespace,
 					label: symMatch[1],
 					addr: parseInt(symMatch[2], 16),
@@ -550,7 +583,7 @@ export function useSymbols() {
 				promises.push(
 					tx.store.add(symbol).then((id) => {
 						const s = { ...symbol, id: Number(id) };
-						const targetDict = diskKey === "*" ? systemDict : diskDict;
+						const targetDict = symbolDiskKey.value === "*" ? systemDict : diskDict;
 						if (!targetDict.value[s.addr]) targetDict.value[s.addr] = {};
 						targetDict.value[s.addr]![s.ns] = s;
 					}),
@@ -668,9 +701,10 @@ export function useSymbols() {
 
 		setScopeSearchPath,
 		scopeSearchPath: readonly(scopeSearchPath),
+		generateLabelsCommand,
 
 		addSymbolsFromText,
-		generateTextFromSymbols,
+		generateAsmSymFile,
 
 		getLabelForAddress,
 		getLabelAtOrBefore,
@@ -691,6 +725,6 @@ export function useSymbols() {
 		findSymbolsDB,
 
 		symbolsState,
-		diskKey,
+		symbolDiskKey,
 	};
 }
