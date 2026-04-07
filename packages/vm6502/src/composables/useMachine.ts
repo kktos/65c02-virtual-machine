@@ -127,7 +127,7 @@ const loadMachine = async (newMachine?: MachineConfig) => {
 
 	{
 		const { executeCommand } = useCommands();
-		const { initSymbols, setDiskKey } = useSymbols();
+		const { initSymbols } = useSymbols();
 		await initSymbols(selectedMachine.value.name);
 
 		const initScript = selectedMachine.value.routines?.init;
@@ -136,8 +136,6 @@ const loadMachine = async (newMachine?: MachineConfig) => {
 			setRoutine("init", initScript);
 			await executeCommand("do init", newVm);
 		}
-
-		setDiskKey("*");
 	}
 
 	{
