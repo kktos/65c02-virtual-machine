@@ -137,7 +137,6 @@ export const COMMANDDEF_LIST = {
 	UNDEF: undefLabel,
 	REN: renLabel,
 	FIND: findLabelCmd,
-	HOOK: hook,
 	LABELS: labelsCmd,
 	SCOPEPATH: scopePathCmd,
 
@@ -163,6 +162,9 @@ export const COMMANDDEF_LIST = {
 		staticParams: { append: [3] },
 		group: "Viewers",
 	},
+
+	HOOK: hook,
+	ON: "HOOK",
 
 	BP: {
 		description: "Add execution breakpoint",

@@ -4,8 +4,12 @@ import { formatAddress } from "@/lib/hex.utils";
 import type { Breakpoint } from "@/types/breakpoint.interface";
 import type { CommandContext, ParamListItemIdentifier } from "@/types/command";
 
+const validTypes: Set<Breakpoint["type"]> = new Set(["pc", "read", "write", "access"]);
+
 export const hook = defineCommand({
-	description: "Set a command to execute when a breakpoint is hit. Usage: HOOK <type> <address> do <command>",
+	description:
+		"Set a command to execute when a breakpoint is hit.\n" +
+		"Usage: HOOK <\u200btype> <\u200baddress> do <\u200bcommand>",
 	paramDef: ["name", "address", "rest"],
 	group: "Breakpoints",
 	fn: ({ vm, params }: CommandContext) => {
@@ -15,9 +19,8 @@ export const hook = defineCommand({
 
 		if (!commandToExecute) throw new Error("Missing command to execute for HOOK.");
 
-		const validTypes: Breakpoint["type"][] = ["pc", "read", "write", "access"];
-		if (!validTypes.includes(type))
-			throw new Error(`Invalid hook type '${type}'. Must be one of: ${validTypes.join(", ")}.`);
+		if (!validTypes.has(type))
+			throw new Error(`Invalid hook type '${type}'. Must be one of: ${[...validTypes].join(", ")}.`);
 
 		const { addBreakpoint, removeBreakpoint } = useBreakpoints();
 

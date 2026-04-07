@@ -1,4 +1,6 @@
 import { useBreakpoints } from "@/composables/useBreakpoints";
+import { isParamListItemRange } from "@/composables/useCommands";
+import { formatAddress } from "@/lib/hex.utils";
 import type { CommandContext } from "@/types/command";
 
 export const execAddBP = (type: "pc" | "access" | "write" | "read") => {
@@ -7,7 +9,7 @@ export const execAddBP = (type: "pc" | "access" | "write" | "read") => {
 		let addr: number;
 		let endAddr: number | undefined;
 
-		if (typeof param === "object" && param !== null && "start" in param) {
+		if (isParamListItemRange(param)) {
 			addr = param.start;
 			endAddr = param.end;
 		} else if (typeof param === "number") {
@@ -19,7 +21,7 @@ export const execAddBP = (type: "pc" | "access" | "write" | "read") => {
 		const { addBreakpoint } = useBreakpoints();
 		addBreakpoint({ type, address: addr, endAddress: endAddr }, vm);
 
-		const rangeStr = endAddr ? `-$${endAddr.toString(16).toUpperCase()}` : "";
-		return `Breakpoint (${type}) added at $${addr.toString(16).toUpperCase()}${rangeStr}`;
+		const rangeStr = endAddr ? `-${formatAddress(endAddr)}` : "";
+		return `Breakpoint (${type}) added at ${formatAddress(addr)}${rangeStr}`;
 	};
 };
