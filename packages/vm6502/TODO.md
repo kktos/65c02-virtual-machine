@@ -1,5 +1,14 @@
 # TODO
 
+### 2026-04-01
+
+- need a cmd to desactivate a BP
+- let's have a BP on ACCESS HIRES that triggers Game Scan to identify the game that's running
+- need to be triggered once; hence the need to desactivate a BP
+- same apply for a HOOK (ON) -> OFF ?
+- ON PC = $300 do nop
+- ON ACCESS $C057 do "&identifyGame |> &applyPatch; run"
+
 ### 2026-03-31
 
 - REFACTO: registers in useMachine.... updated at everyframe in App.... Not sure it's the best way to do it
