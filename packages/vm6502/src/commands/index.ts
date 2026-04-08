@@ -7,6 +7,7 @@ import { font } from "./font.cmd";
 import { hideCmd } from "./hide.cmd";
 import { hook } from "./hook.cmd";
 import { labelsCmd } from "./labels.cmd";
+import { formatsCmd } from "./formats.cmd";
 import { listCmd } from "./list.cmd";
 import { logCmd } from "./log.cmd";
 import { gplCmd } from "./gpl.cmd";
@@ -138,6 +139,7 @@ export const COMMANDDEF_LIST = {
 	REN: renLabel,
 	FIND: findLabelCmd,
 	LABELS: labelsCmd,
+	FORMATS: formatsCmd,
 	SCOPEPATH: scopePathCmd,
 
 	M: setMemView,

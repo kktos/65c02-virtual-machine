@@ -5,7 +5,7 @@ import type { CommandContext, ParamListItemIdentifier } from "@/types/command";
 const { addManySymbols } = useSymbols();
 
 export const labelsCmd = defineCommand({
-	description: "Define multiple labels. Usage: LABELS <namespace> [<scope>] ... END",
+	description: "Define multiple labels. Usage: LABELS <\u200bnamespace> [<\u200bscope>] ... END",
 	paramDef: ["name", "name?"],
 	group: "Symbols",
 	fn: ({ params }: CommandContext) => {

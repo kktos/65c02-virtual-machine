@@ -110,14 +110,7 @@ const emit = defineEmits<{
 const isCtrlPressed = useKeyModifier("Control");
 const shouldDisplayDisk = ref(false);
 
-const {
-	removeManySymbols,
-	getNamespaceList,
-	addSymbolsFromText,
-	generateAsmSymFile,
-	generateLabelsCommand,
-	symbolDiskKey,
-} = useSymbols();
+const { removeManySymbols, getNamespaceList, addSymbolsFromText, generateLabelsCommand, symbolDiskKey } = useSymbols();
 const { downloadFile } = useFileDownload();
 
 const searchTerm = ref("");
