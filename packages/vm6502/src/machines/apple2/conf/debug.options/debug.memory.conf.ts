@@ -19,6 +19,18 @@ export const debugMemoryConfig: DebugGroup = {
 		],
 		[
 			{
+				id: "lcAux",
+				label: "LC Aux",
+				type: "select",
+				options: [
+					{ label: "Auto", value: "AUTO" },
+					{ label: "MAIN", value: "MAIN" },
+					{ label: "AUX", value: "AUX" },
+				],
+			},
+		],
+		[
+			{
 				id: "cxView",
 				label: "Cx ROM",
 				type: "select",
