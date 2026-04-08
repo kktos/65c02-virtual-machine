@@ -1,3 +1,4 @@
+import { toHex } from "@/lib/hex.utils";
 import { openDB, type DBSchema } from "idb";
 import { computed, ref } from "vue";
 
@@ -200,6 +201,47 @@ export function useFormatting() {
 		return id;
 	};
 
+	const addManyFormattings = async (formattings: Omit<DataBlock, "id" | "disk">[]) => {
+		if (formattings.length === 0) return;
+
+		const targetDict = diskKey.value === "*" ? systemRules : diskRules;
+		const newDict = { ...targetDict.value };
+		const modifiedAddrs = new Set<number>();
+		const newGroups = new Set<string>();
+
+		const db = await getDb();
+		const tx = db.transaction(storeName as unknown as "datablocks", "readwrite");
+		const store = tx.store;
+
+		const promises = formattings.map((entry) => {
+			const block: DataBlock = {
+				disk: diskKey.value,
+				group: entry.group,
+				address: entry.address,
+				type: entry.type,
+				length: entry.length,
+			};
+
+			return store.add(block).then((id) => {
+				const b = { ...block, id: Number(id) };
+				if (!modifiedAddrs.has(b.address)) {
+					newDict[b.address] = newDict[b.address] ? { ...newDict[b.address] } : {};
+					modifiedAddrs.add(b.address);
+				}
+				newDict[b.address]![b.group] = b;
+				newGroups.add(b.group);
+			});
+		});
+
+		await Promise.all(promises);
+		await tx.done;
+
+		targetDict.value = newDict;
+
+		for (const group of newGroups)
+			if (!activeFormattingGroups.value.has(group)) activeFormattingGroups.value.set(group, true);
+	};
+
 	const removeFormatting = async (address: number, group = "user") => {
 		const targetDict = diskKey.value === "*" ? systemRules : diskRules;
 		const rule = targetDict.value[address]?.[group];
@@ -386,6 +428,47 @@ export function useFormatting() {
 		return output;
 	};
 
+	const generateFormatsCommand = (targetDisk?: string): string => {
+		const groups = new Map<string, DataBlock[]>();
+		const source = (targetDisk ?? diskKey.value) === "*" ? systemRules.value : diskRules.value;
+
+		// Group all data blocks by their group name from selected source
+		for (const blocksAtAddress of Object.values(source)) {
+			for (const block of Object.values(blocksAtAddress)) {
+				if (!groups.has(block.group)) groups.set(block.group, []);
+				groups.get(block.group)!.push(block);
+			}
+		}
+
+		if (groups.size === 0) return "";
+
+		let output = "";
+		const sortedGroupNames = Array.from(groups.keys()).sort();
+
+		for (const groupName of sortedGroupNames) {
+			const blocks = groups.get(groupName)!;
+			blocks.sort((a, b) => a.address - b.address);
+
+			const groupSuffix = groupName !== "user" ? ` ${groupName}` : "";
+			output += `FORMATS${groupSuffix}\n`;
+
+			for (const block of blocks) {
+				let typeChar = "b";
+				let count = block.length;
+
+				if (block.type === "word") {
+					typeChar = "w";
+					count /= 2;
+				} else if (block.type === "string") typeChar = "s";
+
+				const addressHex = toHex(block.address, 4);
+				output += `  $${addressHex} ${typeChar} ${count}\n`;
+			}
+			output += "END_FORMATS\n\n";
+		}
+		return output.trim();
+	};
+
 	const getFormattingGroups = () => Array.from(activeFormattingGroups.value.entries());
 	const toggleFormattingGroup = (group: string) => {
 		const current = activeFormattingGroups.value.get(group);
@@ -399,6 +482,7 @@ export function useFormatting() {
 		activeFormattingGroups,
 
 		addFormatting,
+		addManyFormattings,
 		removeFormatting,
 		removeManyFormattings,
 		findFormattings,
@@ -407,6 +491,7 @@ export function useFormatting() {
 
 		addFormattingsFromText,
 		generateTextFromFormattings,
+		generateFormatsCommand,
 
 		getFormattingGroups,
 		toggleFormattingGroup,

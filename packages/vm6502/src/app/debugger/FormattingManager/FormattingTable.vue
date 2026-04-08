@@ -32,6 +32,15 @@
 						>
 							Group
 						</SortableTableHeader>
+						<SortableTableHeader
+							v-if="shouldDisplayDisk"
+							sort-key="disk"
+							:current-key="sortKey"
+							:direction="sortDirection"
+							@sort="handleSort('disk')"
+						>
+							Disk
+						</SortableTableHeader>
 						<TableHead class="w-[100px] text-gray-300 text-right">Actions</TableHead>
 					</TableRow>
 				</TableHeader>
@@ -87,6 +96,9 @@
 								>{{ getPreview(rule) }}</TableCell
 							>
 							<TableCell class="text-gray-200">{{ rule.group }}</TableCell>
+							<TableCell v-if="shouldDisplayDisk" class="truncate" :title="rule.disk">
+								{{ rule.disk }}
+							</TableCell>
 							<TableCell class="text-right">
 								<div class="flex items-center justify-end gap-1" @click.stop>
 									<button
@@ -154,6 +166,8 @@ import { useSettings } from "@/composables/useSettings";
 const props = defineProps<{
 	searchTerm: string;
 	selectedGroup: string;
+	selectedDisk: string;
+	shouldDisplayDisk: boolean;
 	itemsPerPage: number;
 }>();
 
@@ -177,7 +191,7 @@ const formatSymbol = (address: number) => {
 const selectedRules = ref(new Set<number>());
 const getRuleId = (rule: DataBlock) => rule.id as number;
 
-type SortKey = "address" | "group";
+type SortKey = "address" | "group" | "disk";
 const { sortKey, sortDirection, handleSort, resolveAndCompare } = useTableSort<SortKey>("address");
 
 const tableContainerRef = ref<HTMLElement | null>(null);
@@ -212,7 +226,7 @@ const beginAddRule = () => {
 	if (tableContainerRef.value) tableContainerRef.value.scrollTop = 0;
 };
 
-watch([() => props.searchTerm, () => props.selectedGroup], () => {
+watch([() => props.searchTerm, () => props.selectedGroup, () => props.selectedDisk], () => {
 	// Reset page and selection when filters change
 	selectedRules.value.clear();
 	currentPage.value = 1;
@@ -224,7 +238,7 @@ const gotoRule = (rule: { address: number }) => {
 };
 
 const filteredRules = computed(() => {
-	const rules = findFormattings(props.searchTerm, props.selectedGroup);
+	let rules = findFormattings(props.searchTerm, props.selectedGroup);
 	if (props.searchTerm) {
 		const addrList = findSymbols(props.searchTerm);
 		addrList.forEach((s) => {
@@ -232,6 +246,11 @@ const filteredRules = computed(() => {
 			if (r && !rules.includes(r)) rules.push(r);
 		});
 	}
+
+	if (props.selectedDisk) {
+		rules = rules.filter((r) => r.disk === props.selectedDisk);
+	}
+
 	return rules.sort((a, b) =>
 		resolveAndCompare(a, b, (item, key) => (key === "address" ? item.address : item.group || "")),
 	);

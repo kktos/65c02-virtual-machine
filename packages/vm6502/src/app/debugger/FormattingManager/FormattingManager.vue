@@ -34,6 +34,16 @@
 						{{ group }}
 					</option>
 				</select>
+				<select
+					v-if="shouldDisplayDisk"
+					v-model="selectedDisk"
+					class="h-10 w-[150px] rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-sm text-gray-200 focus:outline-none focus:ring-1 focus:ring-cyan-500"
+				>
+					<option value="">All Disks</option>
+					<option value="*">System (*)</option>
+					<option v-if="diskKey && diskKey !== '*'" :value="diskKey">{{ diskKey }}</option>
+				</select>
+
 				<input type="file" ref="importFileInput" class="hidden" accept=".sym,.txt" @change="handleImportFile" />
 				<ButtonGroup>
 					<Button
@@ -74,6 +84,8 @@
 				ref="formattingTableRef"
 				:search-term="searchTerm"
 				:selected-group="selectedGroup"
+				:selected-disk="selectedDisk"
+				:should-display-disk="shouldDisplayDisk"
 				:items-per-page="itemsPerPage"
 				class="flex-1 min-h-0"
 				@goto-address="handleGotoAddress"
@@ -93,17 +105,22 @@ import { useFormatting } from "@/composables/useDataFormattings";
 import { useDiskStorage } from "@/composables/useDiskStorage";
 import { useFileDownload } from "@/composables/useFileDownload";
 import FormattingTable from "@/app/debugger/FormattingManager/FormattingTable.vue";
+import { useKeyModifier } from "@vueuse/core";
 
 const emit = defineEmits<{
 	(e: "gotoAddress", address: number): void;
 }>();
 
-const { getFormattingGroups, generateTextFromFormattings, addFormattingsFromText, removeManyFormattings, diskKey } =
+const { getFormattingGroups, generateFormatsCommand, addFormattingsFromText, removeManyFormattings, diskKey } =
 	useFormatting();
 const { downloadFile } = useFileDownload();
 
+const isCtrlPressed = useKeyModifier("Control");
+const shouldDisplayDisk = ref(false);
+
 const searchTerm = ref("");
 const selectedGroup = ref("");
+const selectedDisk = ref("");
 const formattingTableRef = ref<InstanceType<typeof FormattingTable> | null>(null);
 const searchInput = ref<any>(null);
 const selectedCount = computed(() => formattingTableRef.value?.selectedRules.size ?? 0);
@@ -144,13 +161,20 @@ const handleImportFile = async (event: Event) => {
 };
 
 const handleExport = async () => {
-	const { loadDisk } = useDiskStorage();
-	const disk = await loadDisk(diskKey.value);
-	if (!disk) return;
-	const name = disk.name.split(".").slice(0, -1).join(".") || disk.name;
+	let name = "metadata";
 
-	const content = await generateTextFromFormattings();
-	downloadFile(`${name}.fmt`, "text/plain;charset=utf-8", content);
+	if (selectedDisk.value === "*") {
+		name = "system";
+	} else {
+		const { loadDisk } = useDiskStorage();
+		const disk = await loadDisk(diskKey.value);
+		if (disk) {
+			name = disk.name.split(".").slice(0, -1).join(".") || disk.name;
+		}
+	}
+
+	const content = await generateFormatsCommand(selectedDisk.value || undefined);
+	downloadFile(`${name}.fmt.script`, "text/plain;charset=utf-8", content);
 };
 
 const handleBulkDelete = async () => {
@@ -164,6 +188,7 @@ const handleBulkDelete = async () => {
 };
 
 const onOpen = () => {
+	shouldDisplayDisk.value = !!isCtrlPressed.value;
 	nextTick(() => {
 		const el = searchInput.value?.$el ?? searchInput.value;
 		el?.focus?.();
