@@ -406,7 +406,7 @@ const memorySearchProvider: SearchProvider = (query) => {
 	if (targetBytes.length === 0) return [];
 
 	// Use the VM's search method for efficiency and to handle memory banking correctly.
-	const searchResults = vm.value.search(new Uint8Array(targetBytes), 0, totalMemory - 1, is7bit);
+	const searchResults = vm.value.search(targetBytes, 0, totalMemory - 1, is7bit);
 
 	if (!searchResults) return [];
 
