@@ -1,5 +1,9 @@
 # TODO
 
+### 2026-04-08
+
+- the BPs should be saved for an image/machine and reset when a new machine/image is selected
+
 ### 2026-04-01
 
 - need a cmd to desactivate a BP
