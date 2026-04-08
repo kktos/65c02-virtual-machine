@@ -3,7 +3,7 @@
 		:id="id"
 		:class="[
 			'p-4 rounded-lg shadow-xl h-full flex flex-col transition-all duration-200',
-			isActive ? 'bg-gray-800 ring-1 ring-cyan-500' : 'bg-gray-800/20',
+			isActive ? 'bg-gray-800 ring-1 ring-cyan-500' : 'bg-gray-800',
 		]"
 		ref="scrollContainer"
 	>
@@ -16,18 +16,18 @@
 					:placeholder="placeholder"
 					title='Enter address, symbol, start with " for text search (e.g. "HELLO), or hex bytes (e.g. A9 00)'
 				/>
-				<div class="flex items-center space-x-2 pl-2 border-l border-gray-700">
-					<input
-						type="checkbox"
-						id="live-update"
-						v-model="isLive"
-						class="rounded bg-gray-700 border-gray-600 text-cyan-500 focus:ring-cyan-500 h-3 w-3"
-					/>
-					<label
-						for="live-update"
-						class="text-xs cursor-pointer select-none text-gray-400 hover:text-gray-200"
-						>Live Update</label
+				<div class="flex items-center pl-2 border-l border-gray-700">
+					<Button
+						variant="ghost"
+						size="icon"
+						class="h-6 w-6 text-gray-400 hover:text-cyan-300"
+						:class="{ 'text-cyan-300': isLive }"
+						@click="isLive = !isLive"
+						:title="isLive ? 'Disable Live Update' : 'Enable Live Update'"
 					>
+						<Eye v-if="isLive" class="h-4 w-4" />
+						<EyeOff v-else class="h-4 w-4" />
+					</Button>
 				</div>
 			</div>
 
@@ -40,8 +40,7 @@
 					:key="badge.id"
 					class="flex items-center px-2 py-0.5 rounded bg-cyan-900/40 border border-cyan-700/50 text-[10px] text-cyan-200 font-medium shadow-sm"
 				>
-					<span class="uppercase tracking-wider">{{ badge.label }}</span>
-					<span v-if="badge.value" class="ml-1 text-cyan-100 font-bold">: {{ badge.value }}</span>
+					<span v-if="badge.value" class="text-cyan-100 font-bold">{{ badge.value }}</span>
 				</div>
 			</div>
 
@@ -259,7 +258,7 @@
 </template>
 
 <script lang="ts" setup>
-import { Split, X } from "lucide-vue-next";
+import { Split, X, Eye, EyeOff } from "lucide-vue-next";
 import { computed, inject, nextTick, onMounted, onUnmounted, type Ref, ref, watch } from "vue";
 import MemoryAsciiLine from "./MemoryAsciiLine.vue";
 import MemoryHexLine from "./MemoryHexLine.vue";
