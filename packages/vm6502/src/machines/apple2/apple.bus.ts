@@ -49,7 +49,7 @@ import { Speaker } from "./speaker";
 const DEFAULT_TEXT_COLORS = 0xf2;
 
 const MEM_SCOPES = ["main", "aux", "io", "int_rom", "slot_rom", "rom", "lc_bank1", "lc_bank2"];
-type MemScopeOverride = { lcView: "BANK2" | "BANK1" | "ROM" | "AUTO"; cxView: "INT" | "SLOT" };
+type MemScopeOverride = { lcView: "BANK2" | "BANK1" | "ROM" | "AUTO"; lcAux: "MAIN" | "AUX"; cxView: "INT" | "SLOT" };
 type MemScopeOverrideValues = MemScopeOverride[keyof MemScopeOverride];
 
 type SearchTask = {
@@ -577,20 +577,27 @@ export class AppleBus implements IBus {
 		const bank = address >> 16;
 		const addr16 = address & 0xffff;
 		const lcView = typeof overrides === "object" ? overrides?.lcView : overrides;
+		const lcAux = typeof overrides === "object" ? overrides?.lcAux : "AUTO";
 		if (addr16 >= 0xd000) {
+			const offset = addr16 - 0xd000;
 			switch (lcView) {
 				case "ROM":
-					return this.rom[addr16 - 0xd000] ?? 0;
+					return this.rom[offset] ?? 0;
 				case "BANK2":
-					if (addr16 < 0xe000)
-						return (bank ? this.auxbank2[addr16 - 0xd000] : this.bank2[addr16 - 0xd000]) ?? 0;
-					else return this.memory[RAM_OFFSET + address] ?? 0;
+					if (addr16 < 0xe000) {
+						let sourceArray: Uint8Array;
+						if (bank || lcAux === "AUX") sourceArray = this.auxbank2;
+						else if (lcAux === "MAIN") sourceArray = this.bank2;
+						else sourceArray = this.altZp ? this.auxbank2 : this.bank2;
+						return sourceArray[offset] ?? 0;
+					} else return this.memory[RAM_OFFSET + address] ?? 0;
 				case "BANK1":
 					return this.memory[RAM_OFFSET + address] ?? 0;
 			}
-			if (!this.lcReadRam) return this.rom[addr16 - 0xd000] ?? 0;
-			if (this.lcBank2 && addr16 < 0xe000)
-				return (bank ? this.auxbank2[addr16 - 0xd000] : this.bank2[addr16 - 0xd000]) ?? 0;
+			if (!this.lcReadRam) return this.rom[offset] ?? 0;
+			if (this.lcBank2 && addr16 < 0xe000) {
+				return (bank ? this.auxbank2[offset] : this.bank2[offset]) ?? 0;
+			}
 			return this.memory[RAM_OFFSET + address] ?? 0;
 		}
 
@@ -625,8 +632,9 @@ export class AppleBus implements IBus {
 		const result = new Uint8Array(length);
 		let resultOffset = 0;
 		let currentAddress = address;
-
+		const bank = address >> 16;
 		const lcView = typeof overrides === "object" ? overrides?.lcView : overrides;
+		const lcAux = typeof overrides === "object" ? overrides?.lcAux : "AUTO";
 		const isLcBank2 = lcView && lcView !== "AUTO" ? lcView === "BANK2" : this.lcBank2;
 		const readLcRom = lcView && lcView !== "AUTO" ? lcView === "ROM" : !this.lcReadRam;
 
@@ -664,13 +672,25 @@ export class AppleBus implements IBus {
 				} else {
 					if (isLcBank2 && addr16 < 0xe000) {
 						isSimple = true;
-						sourceArray = currentAddress >> 16 ? this.auxbank2 : this.bank2;
+						if (bank === 0) {
+							switch (lcAux) {
+								case "AUX":
+									sourceArray = this.auxbank2;
+									break;
+								case "MAIN":
+									sourceArray = this.bank2;
+									break;
+								default:
+									sourceArray = this.altZp ? this.auxbank2 : this.bank2;
+							}
+						} else sourceArray = this.auxbank2;
 						sourceOffset = -0xd000;
 					} else {
 						// Bank 1 RAM
 						isSimple = true;
 						sourceArray = this.memory;
 						sourceOffset = RAM_OFFSET + (currentAddress & 0xff0000);
+						if (lcAux === "AUX" || (lcAux === "AUTO" && this.altZp)) sourceOffset += 0x10000;
 					}
 				}
 			}
