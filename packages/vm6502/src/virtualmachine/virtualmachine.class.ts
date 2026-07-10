@@ -1,7 +1,7 @@
 import { ref } from "vue";
 import type { Dict } from "@/types/dict.type";
 import type { MachineConfig } from "@/types/machine.interface";
-import type { IBus, MachineStateSpec } from "@/types/bus.interface";
+import type { IBus } from "@/types/bus.interface";
 import {
 	FLAG_B_MASK,
 	FLAG_C_MASK,
@@ -616,7 +616,7 @@ export class VirtualMachine {
 		return this.machineConfig.debug?.options ?? [];
 	}
 
-	public getMachineStateSpecs(): MachineStateSpec[] {
+	public getMachineStateSpecs() {
 		return this.bus?.getMachineStateSpecs ? this.bus.getMachineStateSpecs() : [];
 	}
 
