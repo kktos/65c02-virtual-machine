@@ -46,7 +46,7 @@ const vm = inject<Ref<VirtualMachine>>("vm");
 
 interface Props {
 	registers: EmulatorRegisters;
-	virtualRegisters?: RegisterDescriptor[];
+	virtualRegisters?: readonly RegisterDescriptor[];
 }
 const props = defineProps<Props>();
 

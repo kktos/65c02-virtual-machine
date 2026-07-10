@@ -34,7 +34,6 @@ export function runHypercall(readByte: (address: number) => number, pc: number) 
 				addr: address,
 				opc: "!!LOG_STRING",
 				bytes: "",
-				comments: [{ kind: "inline", text: `String @ $${toHex(strAddr, 4)}`, source: "debugger" }],
 				cycles: 7,
 				opr: "",
 				oprn: 0,
@@ -42,6 +41,10 @@ export function runHypercall(readByte: (address: number) => number, pc: number) 
 				src: "",
 				faddr: "",
 				mode: "IMP",
+				// comments: [{ kind: "inline", text: `String @ $${toHex(strAddr, 4)}`, source: "debugger" }],
+				info: `String @ $${toHex(strAddr, 4)}`,
+				blockComment: "",
+				comment: "",
 			};
 			break;
 		}
@@ -52,7 +55,6 @@ export function runHypercall(readByte: (address: number) => number, pc: number) 
 				addr: address,
 				opc: "!!LOG_REGS",
 				bytes: "",
-				comments: [],
 				cycles: 7,
 				opr: "",
 				oprn: 0,
@@ -60,6 +62,10 @@ export function runHypercall(readByte: (address: number) => number, pc: number) 
 				src: "",
 				faddr: "",
 				mode: "IMP",
+				// comments: [],
+				info: "",
+				blockComment: "",
+				comment: "",
 			};
 			break;
 		}
@@ -72,13 +78,16 @@ export function runHypercall(readByte: (address: number) => number, pc: number) 
 				addr: address,
 				opc: "!!ADD_REGION",
 				bytes: "",
-				comments: [
-					{
-						kind: "inline",
-						text: `Start: $${toHex(start, 4)}, Size: $${toHex(size, 4)}`,
-						source: "debugger",
-					},
-				],
+				// comments: [
+				// 	{
+				// 		kind: "inline",
+				// 		text: `Start: $${toHex(start, 4)}, Size: $${toHex(size, 4)}`,
+				// 		source: "debugger",
+				// 	},
+				// ],
+				info: `Start: $${toHex(start, 4)}, Size: $${toHex(size, 4)}`,
+				blockComment: "",
+				comment: "",
 				cycles: 7,
 				opr: "",
 				oprn: 0,
@@ -103,7 +112,10 @@ export function runHypercall(readByte: (address: number) => number, pc: number) 
 				addr: address,
 				opc: "!!REMOVE_REGIONS",
 				bytes: "",
-				comments: [{ kind: "inline", text: `Count: ${count} (${names.join(", ")})`, source: "debugger" }],
+				// comments: [{ kind: "inline", text: `Count: ${count} (${names.join(", ")})`, source: "debugger" }],
+				info: `Count: ${count} (${names.join(", ")})`,
+				blockComment: "",
+				comment: "",
 				cycles: 7,
 				opr: "",
 				oprn: 0,

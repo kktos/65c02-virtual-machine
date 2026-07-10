@@ -167,7 +167,7 @@ export class TextRenderer {
 				if (destX < 0 || destX >= this.targetWidth) continue;
 
 				const pixel = src32[srcRowOffset + srcX] ?? 0;
-				let colorIndex: number;
+				let colorIndex: number | undefined;
 
 				if (useThresholding) {
 					const r = pixel & 0xff;

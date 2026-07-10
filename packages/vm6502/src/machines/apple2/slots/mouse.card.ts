@@ -28,8 +28,8 @@ export class MouseCard implements ISlotCard {
 	private y = 0;
 	private lastButton0 = false;
 	private button0 = false;
-	private lastButton1 = false;
-	private button1 = false;
+	// private lastButton1 = false;
+	// private button1 = false;
 
 	// Clamping
 	private minX = 0;
@@ -306,10 +306,10 @@ export class MouseCard implements ISlotCard {
 
 	// --- Public Interface for Host ---
 
-	public setMouse(x: number, y: number, button0: boolean, button1: boolean) {
+	public setMouse(x: number, y: number, button0: boolean, _button1: boolean) {
 		this.x = Math.max(this.minX, Math.min(this.maxX, x));
 		this.y = Math.max(this.minY, Math.min(this.maxY, y));
 		this.button0 = button0;
-		this.button1 = button1;
+		// this.button1 = button1;
 	}
 }
