@@ -284,7 +284,7 @@ const isLoading = ref(false);
 const urlError = ref<string | null>(null);
 const loggingEnabled = ref(false);
 
-const activeDiskKey = ref<IDBValidKey | null>(null);
+const activeDiskKey: Ref = ref<IDBValidKey | null>(null);
 
 const editingId = ref<IDBValidKey | null>(null);
 const editingName = ref("");
