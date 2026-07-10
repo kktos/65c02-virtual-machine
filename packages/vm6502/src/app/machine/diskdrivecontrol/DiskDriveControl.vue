@@ -275,7 +275,7 @@ const { saveDisk, saveUrlDisk, loadDisk, getAllDisks, deleteDisk, renameDisk } =
 const diskConfig = computed(() => vm?.value?.machineConfig?.disk);
 const fileName = ref("");
 const fileSize = ref(0);
-const savedDisks = ref<StoredDisk[]>([]);
+const savedDisks: Ref<StoredDisk[]> = ref([]);
 const isLibraryOpen = ref(false);
 const isLogSheetOpen = ref(false);
 
@@ -284,9 +284,9 @@ const isLoading = ref(false);
 const urlError = ref<string | null>(null);
 const loggingEnabled = ref(false);
 
-const activeDiskKey: Ref = ref<IDBValidKey | null>(null);
+const activeDiskKey: Ref<IDBValidKey | null> = ref(null);
 
-const editingId = ref<IDBValidKey | null>(null);
+const editingId: Ref<IDBValidKey | null> = ref(null);
 const editingName = ref("");
 const renameInputRef = ref<HTMLInputElement | null>(null);
 
