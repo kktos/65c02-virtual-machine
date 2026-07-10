@@ -1,6 +1,6 @@
 export class AY38910 {
 	private regs = new Uint8Array(16);
-	private sampleRate = 44100;
+	// private sampleRate = 44100;
 	private clock = 1020484; // ~1.02 MHz
 	private cyclesPerSample = 0;
 	private accumulatedCycles = 0;
@@ -10,7 +10,7 @@ export class AY38910 {
 	private countB = 0;
 	private countC = 0;
 	private countN = 0;
-	private countE = 0;
+	// private countE = 0;
 
 	private outA = false;
 	private outB = false;
@@ -20,15 +20,15 @@ export class AY38910 {
 	private rng = 1; // Noise LFSR
 
 	// Envelope
-	private envVol = 0;
-	private envStep = 0; // 0-15 or 15-0
-	private envHold = false;
-	private envAlt = false;
-	private envAttack = false;
-	private envContinue = false;
+	// private envVol = 0;
+	// private envStep = 0; // 0-15 or 15-0
+	// private envHold = false;
+	// private envAlt = false;
+	// private envAttack = false;
+	// private envContinue = false;
 
 	constructor(sampleRate = 44100) {
-		this.sampleRate = sampleRate;
+		// this.sampleRate = sampleRate;
 		this.cyclesPerSample = this.clock / sampleRate;
 	}
 
@@ -38,8 +38,8 @@ export class AY38910 {
 
 		if (reg === 13) {
 			// Reset Envelope
-			this.countE = 0;
-			this.envStep = 0;
+			// this.countE = 0;
+			// this.envStep = 0;
 			// Decode shape... (Simplified for now)
 		}
 	}
