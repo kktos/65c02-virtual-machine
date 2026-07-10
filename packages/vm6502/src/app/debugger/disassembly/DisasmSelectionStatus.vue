@@ -100,11 +100,11 @@ import { useFormatting } from "@/composables/useDataFormattings";
 import { useComments } from "@/composables/useComments";
 import { useSymbols } from "@/composables/useSymbols";
 import { useGemini } from "@/composables/useGemini";
-import { generateLabels } from "@/lib/disassembler";
-import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
-import { inject, type Ref } from "vue";
+// import { generateLabels } from "@/lib/disassembler";
+// import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
+// import { inject, type Ref } from "vue";
 
-const vm = inject<Ref<VirtualMachine>>("vm");
+// const vm = inject<Ref<VirtualMachine>>("vm");
 
 const { clearSelection, startSelectionAddr: start, endSelectionAddr: end } = useDisasmSelection();
 const { addFormatting, removeFormatting } = useFormatting();
@@ -133,14 +133,14 @@ const setDataRegion = (type: "byte" | "word" | "string" | "code") => {
 	else addFormatting(start.value, type, end.value - start.value + 1);
 };
 
-const readByte = (address: number, debug = true) => {
-	return (debug ? vm?.value.readDebug(address) : vm?.value.read(address)) ?? 0;
-};
+// const readByte = (address: number, debug = true) => {
+// 	return (debug ? vm?.value.readDebug(address) : vm?.value.read(address)) ?? 0;
+// };
 
-const handleGenerateLabels = async () => {
-	if (start.value === null || end.value === null || !vm?.value) return;
-	const scope = vm.value.getScope(start.value);
-	await generateLabels(start.value, scope, end.value, { read: readByte, getScope: vm.value.getScope });
-	clearSelection();
-};
+// const handleGenerateLabels = async () => {
+// 	if (start.value === null || end.value === null || !vm?.value) return;
+// 	const scope = vm.value.getScope(start.value);
+// 	await generateLabels(start.value, scope, end.value, { read: readByte, getScope: vm.value.getScope });
+// 	clearSelection();
+// };
 </script>
