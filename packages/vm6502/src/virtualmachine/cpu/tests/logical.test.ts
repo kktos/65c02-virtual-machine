@@ -1,57 +1,29 @@
-// c:\devwork\65c02-virtual-machine\packages\vm6502\src\cpu\tests\logical.test.ts
-
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { IBus } from "../../../types/bus.interface";
-import { initCPU, stepInstruction } from "../cpu.65c02";
-import { setRunning } from "../cpu.6502";
-import { FLAG_N_MASK, FLAG_Z_MASK, REG_A_OFFSET, REG_PC_OFFSET, REG_STATUS_OFFSET } from "../shared-memory";
+import { beforeEach, describe, expect, it } from "vitest";
+import { setupCpuTest, stepInstruction, REG_A_OFFSET, REG_PC_OFFSET, REG_STATUS_OFFSET, FLAG_N_MASK, FLAG_Z_MASK } from "./cpu-test-helpers";
+import type { CpuTestContext } from "./cpu-test-helpers";
 
 describe("CPU 65C02 - Logical Instructions (AND, ORA, EOR)", () => {
-	let bus: IBus;
-	let memory: Uint8Array;
-	let registers: ArrayBuffer;
-	let registersView: DataView;
+	let ctx: CpuTestContext;
 
 	beforeEach(() => {
-		memory = new Uint8Array(0x3ff);
-
-		// Mock Bus
-		bus = {
-			read: vi.fn((address: number) => memory[address] ?? 0),
-			write: vi.fn((address: number, value: number) => {
-				memory[address] = value;
-			}),
-		};
-
-		// Initialize Registers
-		registers = new ArrayBuffer(64);
-		registersView = new DataView(registers);
-
-		// Mock self for worker environment
-		vi.stubGlobal("self", { postMessage: vi.fn() });
-
-		// Initialize CPU
-		initCPU(bus, registersView);
-
-		// Ensure CPU is in a state to execute
-		setRunning(false);
+		ctx = setupCpuTest();
 	});
 
 	const executeLogical = (opcode: number, initialA: number, operand: number, initialFlags: number) => {
 		const pc = 0x0000;
-		registersView.setUint16(REG_PC_OFFSET, pc, true);
-		registersView.setUint8(REG_A_OFFSET, initialA);
-		registersView.setUint8(REG_STATUS_OFFSET, initialFlags);
+		ctx.registersView.setUint16(REG_PC_OFFSET, pc, true);
+		ctx.registersView.setUint8(REG_A_OFFSET, initialA);
+		ctx.registersView.setUint8(REG_STATUS_OFFSET, initialFlags);
 
 		// Write Opcode and Operand to memory
-		memory[pc] = opcode;
-		memory[pc + 1] = operand;
+		ctx.memory[pc] = opcode;
+		ctx.memory[pc + 1] = operand;
 
 		stepInstruction();
 
 		return {
-			a: registersView.getUint8(REG_A_OFFSET),
-			status: registersView.getUint8(REG_STATUS_OFFSET),
+			a: ctx.registersView.getUint8(REG_A_OFFSET),
+			status: ctx.registersView.getUint8(REG_STATUS_OFFSET),
 		};
 	};
 

@@ -47,10 +47,13 @@ describe("CPU 65C02 - Step Out Instruction", () => {
 		vi.stubGlobal("performance", { now: () => 0 });
 
 		// Mock requestAnimationFrame for the vblrun loop
-		vi.stubGlobal("requestAnimationFrame", vi.fn((cb: () => void) => {
-			// Don't actually call the callback to avoid infinite loop
-			return 0;
-		}));
+		vi.stubGlobal(
+			"requestAnimationFrame",
+			vi.fn((_cb: () => void) => {
+				// Don't actually call the callback to avoid infinite loop
+				return 0;
+			}),
+		);
 
 		// Mock setTimeout to prevent infinite loop in run()
 		vi.stubGlobal("setTimeout", vi.fn());
