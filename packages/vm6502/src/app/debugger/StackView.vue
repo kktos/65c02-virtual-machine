@@ -89,6 +89,7 @@ import type { EmulatorRegisters } from "@/types/emulatorstate.interface";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import DebuggerPanelTitle from "./DebuggerPanelTitle.vue";
 import { formatAddress, toHex } from "@/lib/hex.utils";
+import { useAddressHistory } from "@/composables/useAddressHistory.ts";
 
 const stackBase = 0x0100;
 
@@ -106,7 +107,8 @@ const editingAddress = ref<number | null>(null);
 const editingValue = ref("");
 const containerHeight = ref(0);
 
-const { jumpToAddress, setActiveTab } = useDebuggerNav();
+const { setActiveTab } = useDebuggerNav();
+const { jumpToAddress } = useAddressHistory("disassembly");
 
 const handleJump = (address: number) => {
 	jumpToAddress(address);
