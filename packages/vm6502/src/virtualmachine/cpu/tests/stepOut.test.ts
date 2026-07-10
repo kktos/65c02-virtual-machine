@@ -2,7 +2,7 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { IBus } from "../../../types/bus.interface";
-import { initCPU, setRunning, stepOutInstruction } from "../cpu.65c02";
+import { initCPU, setClockSpeed, setRunning, stepOutInstruction } from "../cpu.65c02";
 import { REG_PC_OFFSET, REG_SP_OFFSET } from "../shared-memory";
 
 describe("CPU 65C02 - Step Out Instruction", () => {
@@ -21,18 +21,45 @@ describe("CPU 65C02 - Step Out Instruction", () => {
 			write: vi.fn((address: number, value: number) => {
 				memory[address] = value;
 			}),
+			reset: vi.fn(),
+			tick: vi.fn(),
+			load: vi.fn(),
+			registerTickHandler: vi.fn(),
+			unregisterTickHandler: vi.fn(),
+			search: vi.fn(() => []),
+			ioWrite: vi.fn(),
+			getBank: vi.fn(() => 0),
 		};
 
 		// Initialize Registers
 		registers = new ArrayBuffer(64);
 		registersView = new DataView(registers);
 
+		// Create memory view and stack metadata view
+		const memoryView = memory;
+		const stackMetadataView = new Uint8Array(256);
+
 		// Mock self for worker environment
 		postMessageSpy = vi.fn();
 		vi.stubGlobal("self", { postMessage: postMessageSpy });
 
+		// Mock performance.now for the run loop timing
+		vi.stubGlobal("performance", { now: () => 0 });
+
+		// Mock requestAnimationFrame for the vblrun loop
+		vi.stubGlobal("requestAnimationFrame", vi.fn((cb: () => void) => {
+			// Don't actually call the callback to avoid infinite loop
+			return 0;
+		}));
+
+		// Mock setTimeout to prevent infinite loop in run()
+		vi.stubGlobal("setTimeout", vi.fn());
+
 		// Initialize CPU
-		initCPU(bus, registersView);
+		initCPU(bus, registersView, null, memoryView, stackMetadataView);
+
+		// Set clock speed to 0 to use cyclesPerTimeslice instead of time-based calculation
+		setClockSpeed(0);
 
 		// Ensure CPU is stopped
 		setRunning(false);
