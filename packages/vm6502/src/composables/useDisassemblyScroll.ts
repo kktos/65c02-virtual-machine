@@ -36,7 +36,7 @@ export function useDisassemblyScroll(
 	const findPreviousInstructionAddress = async (startAddr: number) => {
 		if (startAddr <= 0) return 0;
 		const scope = vm.value.getScope(startAddr);
-		const lines = await disassemble(readByte, scope, startAddr, 1, undefined, 1);
+		const lines = await disassemble({ readByte, scope, fromAddress: startAddr - 1, lineCount: 2 });
 		return lines[0]?.addr ?? Math.max(0, startAddr - 1);
 	};
 
