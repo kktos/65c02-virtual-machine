@@ -132,9 +132,9 @@ const vm = inject<Ref<VirtualMachine>>("vm");
 
 const { saveBinary, loadBinary, getAllBinaries, deleteBinary } = useBinaryStorage();
 const isLibraryOpen = ref(false);
-const savedBinaries = ref<{ key: IDBValidKey; name: string; size: number }[]>([]);
+const savedBinaries: Ref<{ key: IDBValidKey; name: string; size: number }[]> = ref([]);
 
-const editingKey = ref<IDBValidKey | null>(null);
+const editingKey: Ref<IDBValidKey | null> = ref(null);
 const editingName = ref("");
 const editInput = ref<HTMLInputElement | null>(null);
 
