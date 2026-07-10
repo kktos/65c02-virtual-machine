@@ -217,15 +217,13 @@ watch(
 );
 
 watch(floatingWindowRef, (fw) => {
-	if (fw) {
-		watch(
-			fw.isOpen,
-			(open) => {
-				isTornOff.value = open;
-			},
-			{ immediate: true },
-		);
-	}
+	watch(
+		() => fw?.isOpen,
+		(open) => {
+			isTornOff.value = open ?? false;
+		},
+		{ immediate: true },
+	);
 });
 
 defineExpose({
