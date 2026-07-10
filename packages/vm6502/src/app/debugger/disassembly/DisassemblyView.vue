@@ -90,7 +90,7 @@ import { useSettings } from "@/composables/useSettings";
 import { useGemini } from "@/composables/useGemini";
 import { useSymbols } from "@/composables/useSymbols";
 import { useNotes } from "@/composables/useNotes";
-import { disassemble, disassembleRange, formatDisassemblyAsText } from "@/lib/disassembler";
+import { disassemble } from "@/lib/disassembler";
 import type { DisassemblyLine } from "@/types/disassemblyline.interface";
 import type { EmulatorRegisters } from "@/types/emulatorstate.interface";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
@@ -128,7 +128,7 @@ const { setMemoryViewAddress, setActiveTab } = useDebuggerNav();
 const { addJumpHistory, historyNavigationEvent, clearHistory } = useAddressHistory("disassembly");
 const { settings } = useSettings();
 const { formattingState } = useFormatting();
-const { explanation: explanationText, isLoading: isExplainLoading, explainCode } = useGemini();
+const { explanation: explanationText, isLoading: isExplainLoading } = useGemini();
 const { symbolsState } = useSymbols();
 const { addNote } = useNotes();
 const { comments } = useComments();
@@ -405,25 +405,25 @@ const saveExplanationAsNote = () => {
 	clearSelection();
 };
 
-const handleExplain = async () => {
-	let codeBlock = "";
+// const handleExplain = async () => {
+// 	let codeBlock = "";
 
-	if (hasSelection.value) {
-		const start = selectionStart.value!;
-		const end = selectionEnd.value!;
-		const lines = await disassembleRange({
-			readByte,
-			scope: vm!.value.getScope(start),
-			fromAddress: start,
-			toAddress: end,
-			registers,
-			lowercase: settings.disassembly.lowercase,
-		});
-		codeBlock = formatDisassemblyAsText(lines);
-	} else {
-		codeBlock = formatDisassemblyAsText(disassembly.value);
-	}
+// 	if (hasSelection.value) {
+// 		const start = selectionStart.value!;
+// 		const end = selectionEnd.value!;
+// 		const lines = await disassembleRange({
+// 			readByte,
+// 			scope: vm!.value.getScope(start),
+// 			fromAddress: start,
+// 			toAddress: end,
+// 			registers,
+// 			lowercase: settings.disassembly.lowercase,
+// 		});
+// 		codeBlock = formatDisassemblyAsText(lines);
+// 	} else {
+// 		codeBlock = formatDisassemblyAsText(disassembly.value);
+// 	}
 
-	await explainCode(codeBlock);
-};
+// 	await explainCode(codeBlock);
+// };
 </script>

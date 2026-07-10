@@ -1,6 +1,6 @@
 import { useSymbols } from "@/composables/useSymbols";
 import type { CommandContext, CommandResult, ResultOnLinePayload } from "@/types/command";
-import { defineCommand, isParamListItemIdentifier } from "@/composables/useCommands";
+import { defineCommand } from "@/composables/useCommands";
 import { ExpressionParser, TokenType } from "@/lib/expressionParser/expressionParser";
 import { miniAssemblerTokenizer } from "@/lib/mini-assembler/tokenizer";
 import { assemble } from "@/lib/mini-assembler/mini-assembler";
@@ -11,13 +11,13 @@ export const asmCmd = defineCommand({
 	description: "Start mini-assembler at `address`. if `show` is specified, displays the assembled bytes.",
 	paramDef: ["address", "name?"],
 	group: "Assembler",
-	fn: ({ vm, params, isPiped }: CommandContext): CommandResult => {
+	fn: ({ vm, params }: CommandContext): CommandResult => {
 		let currentAddr = (params[0] as number) & 0xffff;
-		let showBytes =
-			!isPiped &&
-			params.length > 1 &&
-			isParamListItemIdentifier(params[1]) &&
-			"SHOW".startsWith(params[1].text.toUpperCase());
+		// let showBytes =
+		// 	!isPiped &&
+		// 	params.length > 1 &&
+		// 	isParamListItemIdentifier(params[1]) &&
+		// 	"SHOW".startsWith(params[1].text.toUpperCase());
 
 		const localSymbols = new Map<string, number>();
 

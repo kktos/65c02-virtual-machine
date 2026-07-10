@@ -73,7 +73,7 @@ const handleClick = (event: MouseEvent) => {
 	}, 200);
 };
 
-const handleContextMenu = (event: MouseEvent) => {
+const handleContextMenu = (_event: MouseEvent) => {
 	emit("showXRef", props.line.addr, props.line.label || "");
 };
 
