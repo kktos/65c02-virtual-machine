@@ -1,183 +1,228 @@
-import { describe, expect, test } from "vitest";
-import { REG_A_OFFSET, REG_PC_OFFSET, REG_STATUS_OFFSET } from "../shared-memory";
-import { getFlag, N, setupCpu, Z } from "./testUtils";
-import { executeInstruction } from "../cpu.65c02";
+import { beforeEach, describe, expect, it } from "vitest";
+import { setupCpuTest, stepInstruction, REG_A_OFFSET, REG_PC_OFFSET, REG_STATUS_OFFSET, REG_X_OFFSET, REG_Y_OFFSET, FLAG_N_MASK, FLAG_Z_MASK } from "./cpu-test-helpers";
+import type { CpuTestContext } from "./cpu-test-helpers";
 
-describe("CPU - LDA (Load Accumulator)", () => {
-	// --- Immediate ---
-	test("0xA9: LDA #$42 should load 0x42 into A", () => {
-		const { bus, registersView } = setupCpu({ a: 0x00, status: Z });
-		bus.load(0x0600, [0xa9, 0x42]); // LDA #$42
+describe("CPU 65C02 - LDA Instruction", () => {
+	let ctx: CpuTestContext;
 
-		const cycles = executeInstruction();
-
-		expect(registersView.getUint8(REG_A_OFFSET)).toBe(0x42);
-		expect(getFlag(registersView.getUint8(REG_STATUS_OFFSET), Z)).toBe(false);
-		expect(getFlag(registersView.getUint8(REG_STATUS_OFFSET), N)).toBe(false);
-		expect(cycles).toBe(2);
-		expect(registersView.getUint16(REG_PC_OFFSET, true)).toBe(0x0602);
+	beforeEach(() => {
+		ctx = setupCpuTest();
 	});
 
-	test("0xA9: LDA #$00 should load 0x00 into A and set Z flag", () => {
-		const { bus, registersView } = setupCpu({ a: 0x42, status: 0 });
-		bus.load(0x0600, [0xa9, 0x00]); // LDA #$00
+	describe("Immediate Addressing (0xA9)", () => {
+		it("should load immediate value into A", () => {
+			ctx.registersView.setUint8(REG_A_OFFSET, 0x00);
+			ctx.registersView.setUint8(REG_STATUS_OFFSET, FLAG_Z_MASK);
 
-		const cycles = executeInstruction();
+			// LDA #$42
+			ctx.memory[0x0000] = 0xa9;
+			ctx.memory[0x0001] = 0x42;
+			ctx.registersView.setUint16(REG_PC_OFFSET, 0x0000, true);
 
-		expect(registersView.getUint8(REG_A_OFFSET)).toBe(0x00);
-		expect(getFlag(registersView.getUint8(REG_STATUS_OFFSET), Z)).toBe(true);
-		expect(getFlag(registersView.getUint8(REG_STATUS_OFFSET), N)).toBe(false);
-		expect(cycles).toBe(2);
+			stepInstruction();
+
+			expect(ctx.registersView.getUint8(REG_A_OFFSET)).toBe(0x42);
+			expect(ctx.registersView.getUint8(REG_STATUS_OFFSET) & FLAG_Z_MASK).toBe(0);
+			expect(ctx.registersView.getUint8(REG_STATUS_OFFSET) & FLAG_N_MASK).toBe(0);
+		});
+
+		it("should set Zero flag when loading 0x00", () => {
+			ctx.registersView.setUint8(REG_A_OFFSET, 0x42);
+			ctx.registersView.setUint8(REG_STATUS_OFFSET, 0);
+
+			// LDA #$00
+			ctx.memory[0x0000] = 0xa9;
+			ctx.memory[0x0001] = 0x00;
+			ctx.registersView.setUint16(REG_PC_OFFSET, 0x0000, true);
+
+			stepInstruction();
+
+			expect(ctx.registersView.getUint8(REG_A_OFFSET)).toBe(0x00);
+			expect(ctx.registersView.getUint8(REG_STATUS_OFFSET) & FLAG_Z_MASK).toBe(FLAG_Z_MASK);
+			expect(ctx.registersView.getUint8(REG_STATUS_OFFSET) & FLAG_N_MASK).toBe(0);
+		});
+
+		it("should set Negative flag when loading 0x80", () => {
+			ctx.registersView.setUint8(REG_A_OFFSET, 0x42);
+			ctx.registersView.setUint8(REG_STATUS_OFFSET, 0);
+
+			// LDA #$80
+			ctx.memory[0x0000] = 0xa9;
+			ctx.memory[0x0001] = 0x80;
+			ctx.registersView.setUint16(REG_PC_OFFSET, 0x0000, true);
+
+			stepInstruction();
+
+			expect(ctx.registersView.getUint8(REG_A_OFFSET)).toBe(0x80);
+			expect(ctx.registersView.getUint8(REG_STATUS_OFFSET) & FLAG_Z_MASK).toBe(0);
+			expect(ctx.registersView.getUint8(REG_STATUS_OFFSET) & FLAG_N_MASK).toBe(FLAG_N_MASK);
+		});
 	});
 
-	test("0xA9: LDA #$80 should load 0x80 into A and set N flag", () => {
-		const { bus, registersView } = setupCpu({ a: 0x42, status: 0 });
-		bus.load(0x0600, [0xa9, 0x80]); // LDA #$80
+	describe("Zero Page Addressing (0xA5)", () => {
+		it("should load value from zero page address", () => {
+			// LDA $10
+			ctx.memory[0x0000] = 0xa5;
+			ctx.memory[0x0001] = 0x10;
+			ctx.memory[0x0010] = 0xab;
+			ctx.registersView.setUint16(REG_PC_OFFSET, 0x0000, true);
 
-		const cycles = executeInstruction();
+			stepInstruction();
 
-		expect(registersView.getUint8(REG_A_OFFSET)).toBe(0x80);
-		expect(getFlag(registersView.getUint8(REG_STATUS_OFFSET), Z)).toBe(false);
-		expect(getFlag(registersView.getUint8(REG_STATUS_OFFSET), N)).toBe(true);
-		expect(cycles).toBe(2);
+			expect(ctx.registersView.getUint8(REG_A_OFFSET)).toBe(0xab);
+		});
 	});
 
-	// --- Zero Page ---
-	test("0xA5: LDA $10 should load value from address $0010", () => {
-		const { bus, registersView } = setupCpu();
-		bus.load(0x0600, [0xa5, 0x10]); // LDA $10
-		bus.write(0x0010, 0xab);
+	describe("Zero Page, X Addressing (0xB5)", () => {
+		it("should load value from zero page address indexed with X", () => {
+			ctx.registersView.setUint8(REG_X_OFFSET, 0x05);
 
-		const cycles = executeInstruction();
+			// LDA $10,X (effective address: $0010 + $05 = $0015)
+			ctx.memory[0x0000] = 0xb5;
+			ctx.memory[0x0001] = 0x10;
+			ctx.memory[0x0015] = 0xcd;
+			ctx.registersView.setUint16(REG_PC_OFFSET, 0x0000, true);
 
-		expect(registersView.getUint8(REG_A_OFFSET)).toBe(0xab);
-		expect(cycles).toBe(3);
-		expect(registersView.getUint16(REG_PC_OFFSET, true)).toBe(0x0602);
+			stepInstruction();
+
+			expect(ctx.registersView.getUint8(REG_A_OFFSET)).toBe(0xcd);
+		});
 	});
 
-	// --- Zero Page, X ---
-	test("0xB5: LDA $10,X should load value from address $0010 + X", () => {
-		const { bus, registersView } = setupCpu({ x: 0x05 });
-		bus.load(0x0600, [0xb5, 0x10]); // LDA $10,X
-		bus.write(0x0015, 0xcd);
+	describe("Absolute Addressing (0xAD)", () => {
+		it("should load value from absolute address", () => {
+			// LDA $1234
+			ctx.memory[0x0000] = 0xad;
+			ctx.memory[0x0001] = 0x34;
+			ctx.memory[0x0002] = 0x12;
+			ctx.memory[0x1234] = 0xef;
+			ctx.registersView.setUint16(REG_PC_OFFSET, 0x0000, true);
 
-		const cycles = executeInstruction();
+			stepInstruction();
 
-		expect(registersView.getUint8(REG_A_OFFSET)).toBe(0xcd);
-		expect(cycles).toBe(4);
-		expect(registersView.getUint16(REG_PC_OFFSET, true)).toBe(0x0602);
+			expect(ctx.registersView.getUint8(REG_A_OFFSET)).toBe(0xef);
+		});
 	});
 
-	// --- Absolute ---
-	test("0xAD: LDA $1234 should load value from address $1234", () => {
-		const { bus, registersView } = setupCpu();
-		bus.load(0x0600, [0xad, 0x34, 0x12]); // LDA $1234
-		bus.write(0x1234, 0xef);
+	describe("Absolute, X Addressing (0xBD)", () => {
+		it("should load value from absolute address indexed with X (no page cross)", () => {
+			ctx.registersView.setUint8(REG_X_OFFSET, 0x10);
 
-		const cycles = executeInstruction();
+			// LDA $1234,X (effective address: $1234 + $10 = $1244)
+			ctx.memory[0x0000] = 0xbd;
+			ctx.memory[0x0001] = 0x34;
+			ctx.memory[0x0002] = 0x12;
+			ctx.memory[0x1244] = 0xfa;
+			ctx.registersView.setUint16(REG_PC_OFFSET, 0x0000, true);
 
-		expect(registersView.getUint8(REG_A_OFFSET)).toBe(0xef);
-		expect(cycles).toBe(4);
-		expect(registersView.getUint16(REG_PC_OFFSET, true)).toBe(0x0603);
+			stepInstruction();
+
+			expect(ctx.registersView.getUint8(REG_A_OFFSET)).toBe(0xfa);
+		});
+
+		it("should load value from absolute address indexed with X (with page cross)", () => {
+			ctx.registersView.setUint8(REG_X_OFFSET, 0x01);
+
+			// LDA $12FF,X (effective address: $12FF + $01 = $1300)
+			ctx.memory[0x0000] = 0xbd;
+			ctx.memory[0x0001] = 0xff;
+			ctx.memory[0x0002] = 0x12;
+			ctx.memory[0x1300] = 0xfb;
+			ctx.registersView.setUint16(REG_PC_OFFSET, 0x0000, true);
+
+			stepInstruction();
+
+			expect(ctx.registersView.getUint8(REG_A_OFFSET)).toBe(0xfb);
+		});
 	});
 
-	// --- Absolute, X ---
-	test("0xBD: LDA $1234,X (no page cross) should take 4 cycles", () => {
-		const { bus, registersView } = setupCpu({ x: 0x10 });
-		bus.load(0x0600, [0xbd, 0x34, 0x12]); // LDA $1234,X
-		bus.write(0x1244, 0xfa);
+	describe("Absolute, Y Addressing (0xB9)", () => {
+		it("should load value from absolute address indexed with Y (no page cross)", () => {
+			ctx.registersView.setUint8(REG_Y_OFFSET, 0x10);
 
-		const cycles = executeInstruction();
+			// LDA $1234,Y (effective address: $1234 + $10 = $1244)
+			ctx.memory[0x0000] = 0xb9;
+			ctx.memory[0x0001] = 0x34;
+			ctx.memory[0x0002] = 0x12;
+			ctx.memory[0x1244] = 0xfc;
+			ctx.registersView.setUint16(REG_PC_OFFSET, 0x0000, true);
 
-		expect(registersView.getUint8(REG_A_OFFSET)).toBe(0xfa);
-		expect(cycles).toBe(4);
-		expect(registersView.getUint16(REG_PC_OFFSET, true)).toBe(0x0603);
+			stepInstruction();
+
+			expect(ctx.registersView.getUint8(REG_A_OFFSET)).toBe(0xfc);
+		});
+
+		it("should load value from absolute address indexed with Y (with page cross)", () => {
+			ctx.registersView.setUint8(REG_Y_OFFSET, 0x01);
+
+			// LDA $12FF,Y (effective address: $12FF + $01 = $1300)
+			ctx.memory[0x0000] = 0xb9;
+			ctx.memory[0x0001] = 0xff;
+			ctx.memory[0x0002] = 0x12;
+			ctx.memory[0x1300] = 0xfd;
+			ctx.registersView.setUint16(REG_PC_OFFSET, 0x0000, true);
+
+			stepInstruction();
+
+			expect(ctx.registersView.getUint8(REG_A_OFFSET)).toBe(0xfd);
+		});
 	});
 
-	test("0xBD: LDA $12FF,X (with page cross) should take 5 cycles", () => {
-		const { bus, registersView } = setupCpu({ x: 0x01 });
-		bus.load(0x0600, [0xbd, 0xff, 0x12]); // LDA $12FF,X
-		bus.write(0x1300, 0xfb);
+	describe("(Indirect, X) Addressing (0xA1)", () => {
+		it("should load value from indirect address indexed with X", () => {
+			ctx.registersView.setUint8(REG_X_OFFSET, 0x04);
 
-		const cycles = executeInstruction();
+			// LDA ($10,X) - pointer at $0014 -> $4050
+			ctx.memory[0x0000] = 0xa1;
+			ctx.memory[0x0001] = 0x10;
+			// Pointer at $0014
+			ctx.memory[0x0014] = 0x50;
+			ctx.memory[0x0015] = 0x40;
+			// Value at $4050
+			ctx.memory[0x4050] = 0xde;
+			ctx.registersView.setUint16(REG_PC_OFFSET, 0x0000, true);
 
-		expect(registersView.getUint8(REG_A_OFFSET)).toBe(0xfb);
-		expect(cycles).toBe(5);
-		expect(registersView.getUint16(REG_PC_OFFSET, true)).toBe(0x0603);
+			stepInstruction();
+
+			expect(ctx.registersView.getUint8(REG_A_OFFSET)).toBe(0xde);
+		});
 	});
 
-	// --- Absolute, Y ---
-	test("0xB9: LDA $1234,Y (no page cross) should take 4 cycles", () => {
-		const { bus, registersView } = setupCpu({ y: 0x10 });
-		bus.load(0x0600, [0xb9, 0x34, 0x12]); // LDA $1234,Y
-		bus.write(0x1244, 0xfc);
+	describe("(Indirect), Y Addressing (0xB1)", () => {
+		it("should load value from indirect address indexed with Y (no page cross)", () => {
+			ctx.registersView.setUint8(REG_Y_OFFSET, 0x10);
 
-		const cycles = executeInstruction();
+			// LDA ($20),Y - pointer at $0020 -> $5040, effective: $5040 + $10 = $5050
+			ctx.memory[0x0000] = 0xb1;
+			ctx.memory[0x0001] = 0x20;
+			// Pointer at $0020
+			ctx.memory[0x0020] = 0x40;
+			ctx.memory[0x0021] = 0x50;
+			// Value at $5050
+			ctx.memory[0x5050] = 0xbe;
+			ctx.registersView.setUint16(REG_PC_OFFSET, 0x0000, true);
 
-		expect(registersView.getUint8(REG_A_OFFSET)).toBe(0xfc);
-		expect(cycles).toBe(4);
-		expect(registersView.getUint16(REG_PC_OFFSET, true)).toBe(0x0603);
-	});
+			stepInstruction();
 
-	test("0xB9: LDA $12FF,Y (with page cross) should take 5 cycles", () => {
-		const { bus, registersView } = setupCpu({ y: 0x01 });
-		bus.load(0x0600, [0xb9, 0xff, 0x12]); // LDA $12FF,Y
-		bus.write(0x1300, 0xfd);
+			expect(ctx.registersView.getUint8(REG_A_OFFSET)).toBe(0xbe);
+		});
 
-		const cycles = executeInstruction();
+		it("should load value from indirect address indexed with Y (with page cross)", () => {
+			ctx.registersView.setUint8(REG_Y_OFFSET, 0x10);
 
-		expect(registersView.getUint8(REG_A_OFFSET)).toBe(0xfd);
-		expect(cycles).toBe(5);
-		expect(registersView.getUint16(REG_PC_OFFSET, true)).toBe(0x0603);
-	});
+			// LDA ($20),Y - pointer at $0020 -> $50F0, effective: $50F0 + $10 = $5100
+			ctx.memory[0x0000] = 0xb1;
+			ctx.memory[0x0001] = 0x20;
+			// Pointer at $0020
+			ctx.memory[0x0020] = 0xf0;
+			ctx.memory[0x0021] = 0x50;
+			// Value at $5100
+			ctx.memory[0x5100] = 0xbf;
+			ctx.registersView.setUint16(REG_PC_OFFSET, 0x0000, true);
 
-	// --- (Indirect, X) ---
-	test("0xA1: LDA ($10,X) should load value from pointer", () => {
-		const { bus, registersView } = setupCpu({ x: 0x04 });
-		bus.load(0x0600, [0xa1, 0x10]); // LDA ($10,X)
-		// Pointer at $0014 -> $4050
-		bus.write(0x0014, 0x50);
-		bus.write(0x0015, 0x40);
-		// Value at $4050
-		bus.write(0x4050, 0xde);
+			stepInstruction();
 
-		const cycles = executeInstruction();
-
-		expect(registersView.getUint8(REG_A_OFFSET)).toBe(0xde);
-		expect(cycles).toBe(6);
-		expect(registersView.getUint16(REG_PC_OFFSET, true)).toBe(0x0602);
-	});
-
-	// --- (Indirect), Y ---
-	test("0xB1: LDA ($20),Y (no page cross) should take 5 cycles", () => {
-		const { bus, registersView } = setupCpu({ y: 0x10 });
-		bus.load(0x0600, [0xb1, 0x20]); // LDA ($20),Y
-		// Pointer at $0020 -> $5040
-		bus.write(0x0020, 0x40);
-		bus.write(0x0021, 0x50);
-		// Value at $5040 + Y ($10) = $5050
-		bus.write(0x5050, 0xbe);
-
-		const cycles = executeInstruction();
-
-		expect(registersView.getUint8(REG_A_OFFSET)).toBe(0xbe);
-		expect(cycles).toBe(5);
-		expect(registersView.getUint16(REG_PC_OFFSET, true)).toBe(0x0602);
-	});
-
-	test("0xB1: LDA ($20),Y (with page cross) should take 6 cycles", () => {
-		const { bus, registersView } = setupCpu({ y: 0x10 });
-		bus.load(0x0600, [0xb1, 0x20]); // LDA ($20),Y
-		// Pointer at $0020 -> $50F0
-		bus.write(0x0020, 0xf0);
-		bus.write(0x0021, 0x50);
-		// Value at $50F0 + Y ($10) = $5100
-		bus.write(0x5100, 0xbf);
-
-		const cycles = executeInstruction();
-
-		expect(registersView.getUint8(REG_A_OFFSET)).toBe(0xbf);
-		expect(cycles).toBe(6);
-		expect(registersView.getUint16(REG_PC_OFFSET, true)).toBe(0x0602);
+			expect(ctx.registersView.getUint8(REG_A_OFFSET)).toBe(0xbf);
+		});
 	});
 });

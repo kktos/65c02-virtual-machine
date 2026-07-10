@@ -1,7 +1,22 @@
 import type { IBus } from "../../../types/bus.interface";
-import { initCPU, stepInstruction } from "../cpu.65c02";
+import { initCPU, stepInstruction, executeInstruction } from "../cpu.65c02";
 import { setRunning } from "../cpu.6502";
 import { vi } from "vitest";
+import {
+	FLAG_B_MASK,
+	FLAG_C_MASK,
+	FLAG_D_MASK,
+	FLAG_I_MASK,
+	FLAG_N_MASK,
+	FLAG_V_MASK,
+	FLAG_Z_MASK,
+	REG_A_OFFSET,
+	REG_PC_OFFSET,
+	REG_SP_OFFSET,
+	REG_STATUS_OFFSET,
+	REG_X_OFFSET,
+	REG_Y_OFFSET,
+} from "../shared-memory";
 
 /**
  * Memory size for CPU tests (64KB)
@@ -74,9 +89,10 @@ export const setupCpuTest = (): CpuTestContext => {
 	return { bus, memory, registers, registersView, stackMeta };
 };
 
-/**
- * Re-exports commonly used flag masks for convenience
- */
+// Export stepInstruction and executeInstruction that were imported from cpu.65c02
+export { stepInstruction, executeInstruction };
+
+// Re-export all the register offsets and flag masks for convenience
 export {
 	FLAG_B_MASK,
 	FLAG_C_MASK,
@@ -91,7 +107,22 @@ export {
 	REG_STATUS_OFFSET,
 	REG_X_OFFSET,
 	REG_Y_OFFSET,
-} from "../shared-memory";
+};
 
-// Export stepInstruction that was imported from cpu.65c02
-export { stepInstruction };
+/**
+ * Re-export flag masks as convenient constants for test assertions
+ */
+export const C = FLAG_C_MASK;
+export const Z = FLAG_Z_MASK;
+export const I = FLAG_I_MASK;
+export const D = FLAG_D_MASK;
+export const B = FLAG_B_MASK;
+export const V = FLAG_V_MASK;
+export const N = FLAG_N_MASK;
+
+/**
+ * Helper to check if a specific flag is set in the status register.
+ */
+export const getFlag = (status: number, flagMask: number): boolean => {
+	return (status & flagMask) !== 0;
+};
