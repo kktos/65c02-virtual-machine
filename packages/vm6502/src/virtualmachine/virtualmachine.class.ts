@@ -30,6 +30,25 @@ import type { Breakpoint } from "../types/breakpoint.interface";
 import { executeHypercallCmd, HYPERCALL_COMMANDS } from "./hypercall";
 import type { EmulatorRegisters } from "@/types/emulatorstate.interface";
 
+// Log system types
+export interface LogFilter {
+	kind: string;
+	name?: string;
+}
+
+export interface LogMessage {
+	kind: string;
+	name?: string;
+	text: string;
+	data?: unknown;
+	color?: string;
+}
+
+interface LogSubscription {
+	filter?: LogFilter;
+	callback: (log: LogMessage) => void;
+}
+
 const MACHINES_BASE_PATH = "../machines";
 const busModules = import.meta.glob("../machines/*/*.bus.ts");
 const cssModules = import.meta.glob("../machines/**/*.css");
@@ -64,7 +83,7 @@ export class VirtualMachine {
 	public onmessage?: (event: MessageEvent) => void;
 	public onStateChange?: (state: Dict) => void;
 	public onTraceReceived?: (history: { type: string; source: number; target: number }[]) => void;
-	private logListeners: ((log: Dict) => void)[] = [];
+	private logListeners: LogSubscription[] = [];
 
 	public isTraceEnabled = false;
 	public traceOverflow = ref(false);
@@ -98,7 +117,7 @@ export class VirtualMachine {
 		});
 
 		this.worker.onmessage = (event) => {
-			const { command, colors, type, history, buffer, payload, address, kind } = event.data;
+			const { command, colors, type, history, buffer, address, kind, name, text, data, color } = event.data;
 
 			switch (type) {
 				case "audio":
@@ -111,7 +130,7 @@ export class VirtualMachine {
 					this.handleTraceReceived(history);
 					break;
 				case "log":
-					this.emitLog({ kind, ...payload });
+					this.emitLog({ kind, name, text, data, color });
 					break;
 				case "isRunning":
 					this._isRunning = event.data.isRunning;
@@ -632,17 +651,38 @@ export class VirtualMachine {
 		console.log("VM: Worker terminated.");
 	}
 
-	public onLog(listener: (log: Dict) => void) {
-		this.logListeners.push(listener);
+	public onLog(filterOrCallback: LogFilter | ((log: LogMessage) => void), callback?: (log: LogMessage) => void) {
+		if (typeof filterOrCallback === "function") {
+			// Backward compatible: onLog(callback)
+			this.logListeners.push({ callback: filterOrCallback });
+		} else {
+			// New: onLog(filter, callback)
+			if (!filterOrCallback.kind) {
+				throw new Error("Log filter must specify a kind");
+			}
+			this.logListeners.push({ filter: filterOrCallback, callback: callback! });
+		}
 	}
 
-	public removeLogListener(listener: (log: Dict) => void) {
-		this.logListeners = this.logListeners.filter((l) => l !== listener);
+	public removeLogListener(listener: (log: LogMessage) => void) {
+		this.logListeners = this.logListeners.filter((l) => l.callback !== listener);
 	}
 
-	public emitLog(log: Dict) {
-		this.logListeners.forEach((listener) => {
-			listener(log);
+	public emitLog(log: LogMessage) {
+		// Logs must have kind
+		if (!log.kind) return;
+
+		this.logListeners.forEach(({ filter, callback }) => {
+			// No filter = receive all (backward compatible)
+			if (!filter) {
+				callback(log);
+				return;
+			}
+			// Must match kind
+			if (log.kind !== filter.kind) return;
+			// If name specified in filter, must match
+			if (filter.name && log.name !== filter.name) return;
+			callback(log);
 		});
 	}
 }

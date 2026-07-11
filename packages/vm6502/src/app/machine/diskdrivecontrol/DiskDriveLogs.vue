@@ -16,11 +16,11 @@
 			<ScrollArea class="mt-4 flex-1 min-h-0 bg-black rounded border border-gray-800 p-2 font-mono text-xs">
 				<div v-if="logs.length === 0" class="text-gray-600 italic text-center py-4">No logs yet...</div>
 				<div v-for="(log, i) in logs" :key="i" class="mb-1">
-					<span class="text-green-500">[{{ log.type }}]</span>
+					<span class="text-green-500">[{{ log.data.type }}]</span>
 					<span class="text-gray-400"> Blk:</span>
-					<span class="text-yellow-500">{{ log.block }}</span>
+					<span class="text-yellow-500">{{ log.data.block }}</span>
 					<span class="text-gray-400"> Addr:</span>
-					<span class="text-cyan-500">${{ log.address.toString(16).padStart(4, "0") }}</span>
+					<span class="text-cyan-500">${{ log.data.address.toString(16).padStart(4, "0") }}</span>
 				</div>
 			</ScrollArea>
 
@@ -44,13 +44,17 @@ import { computed, inject, nextTick, onUnmounted, type Ref, ref, watch } from "v
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useDiskMapDrawing } from "@/composables/useDiskMapDrawing";
-import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
+import type { VirtualMachine, LogMessage } from "@/virtualmachine/virtualmachine.class";
 
 type DiskLog = {
 	kind: "disk";
-	type: string;
-	block: number;
-	address: number;
+	name: string;
+	text: string;
+	data: {
+		type: string;
+		block: number;
+		address: number;
+	};
 };
 
 const props = defineProps<{
@@ -67,7 +71,7 @@ const mapCanvas = ref<HTMLCanvasElement | null>(null);
 const { drawMap } = useDiskMapDrawing();
 
 const totalBlocks = computed(() => Math.ceil(props.fileSize / 512));
-const uniqueBlocks = computed(() => new Set(logs.value.map((l) => l.block)).size);
+const uniqueBlocks = computed(() => new Set(logs.value.map((l) => l.data.block)).size);
 
 watch(
 	() => props.loggingEnabled,
@@ -80,13 +84,22 @@ watch(
 watch(
 	[logs, () => props.fileSize, () => props.open],
 	() => {
-		if (props.open) nextTick(() => drawMap(mapCanvas.value, props.fileSize, logs.value));
+		if (props.open)
+			nextTick(() =>
+				drawMap(
+					mapCanvas.value,
+					props.fileSize,
+					logs.value.map((l) => ({ block: l.data.block })),
+				),
+			);
 	},
 	{ deep: true },
 );
 
-const handleLog = (log: { kind: string }) => {
-	if (props.loggingEnabled && log.kind === "disk") logs.value.push(log as DiskLog);
+const handleLog = (log: LogMessage) => {
+	if (props.loggingEnabled) {
+		logs.value.push(log as DiskLog);
+	}
 };
 
 watch(
@@ -94,7 +107,7 @@ watch(
 	(newVm, oldVm) => {
 		if (oldVm) oldVm.removeLogListener(handleLog);
 		if (newVm) {
-			newVm.onLog(handleLog);
+			newVm.onLog({ kind: "disk" }, handleLog);
 			newVm.setDebugOverrides("bus", { slot: 5, smartPortLogging: props.loggingEnabled });
 		}
 	},

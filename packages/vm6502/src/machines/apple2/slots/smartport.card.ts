@@ -345,15 +345,13 @@ export class SmartPortCard implements ISlotCard {
 		const block = (blkHi << 8) | blkLo;
 
 		if (this.loggingEnabled) {
+			const addressHex = bufferAddr.toString(16).toUpperCase().padStart(4, "0");
 			postMessage({
 				type: "log",
 				kind: "disk",
 				name: "SP51",
-				payload: {
-					type: "READ",
-					block,
-					address: bufferAddr,
-				},
+				text: `READ block=${block} address=$${addressHex}`,
+				data: { type: "READ", block, address: bufferAddr }
 			});
 		}
 

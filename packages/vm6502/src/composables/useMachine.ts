@@ -86,15 +86,15 @@ const setupVmListeners = (targetVm: VirtualMachine) => {
 		}
 	};
 
-	targetVm.onLog((payload) => {
-		if (!payload.message) return;
+	// targetVm.onLog((payload) => {
+	// 	if (!payload.message) return;
 
-		// logs.value.push(payload.message);
-		// if (logs.value.length > 500) logs.value.shift();
-		// nextTick(() => {
-		// 	if (logEndRef.value) logEndRef.value.scrollIntoView({ behavior: "smooth" });
-		// });
-	});
+	// 	// logs.value.push(payload.message);
+	// 	// if (logs.value.length > 500) logs.value.shift();
+	// 	// nextTick(() => {
+	// 	// 	if (logEndRef.value) logEndRef.value.scrollIntoView({ behavior: "smooth" });
+	// 	// });
+	// });
 };
 
 const loadMachine = async (newMachine?: MachineConfig) => {
