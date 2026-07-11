@@ -1,4 +1,4 @@
 {
 	"files": [],
-	"references": [{ "path": "./packages/vm6502/tsconfig.json" }]
+	"references": [{ "path": "./packages/65c02-virtual-machine" }, { "path": "./packages/vm6502/tsconfig.json" }]
 }

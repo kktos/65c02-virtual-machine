@@ -1,8 +1,10 @@
 {
 	"private": true,
 	"scripts": {
-		"dev:vue-app": "pnpm --filter vue-app dev",
-		"build:vue-app": "pnpm --filter vue-app build",
+		"dev": "pnpm --filter vm6502 dev",
+		"dev:legacy": "pnpm --filter 65c02-virtual-machine dev",
+		"build": "pnpm --filter vm6502 build",
+		"build:legacy": "pnpm --filter 65c02-virtual-machine build",
 		"test": "vitest"
 	},
 	"devDependencies": {
@@ -11,5 +13,5 @@
 		"oxlint-tsgolint": "^0.19.0",
 		"vitest": "^4.1.2"
 	},
-	"packageManager": "pnpm@10.33.0"
+	"packageManager": "pnpm@11.11.0"
 }
