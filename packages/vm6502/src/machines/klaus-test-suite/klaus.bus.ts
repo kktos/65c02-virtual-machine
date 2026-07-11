@@ -17,7 +17,22 @@ export class Bus implements IBus {
 		this.memory[address] = value & 0xff;
 	}
 
-	load(address: number, data: Uint8Array, _bank?: number, _tag?: string): void {
+	load(address: number, data: Uint8Array, _bank?: number, _tag?: string) {
 		this.memory.set(data, address);
+	}
+
+	ioWrite(_address: number, _value: number, _worker: Worker) {}
+	reset() {}
+	tick(_deltaCycles: number) {}
+	registerTickHandler(_handler: (cycles: number) => void) {}
+	unregisterTickHandler(_handler: (cycles: number) => void) {}
+	search(
+		_pattern: (number | null)[],
+		_startAddress: number,
+		_endAddress: number,
+		_is7Bit: boolean,
+		_candidates?: number[][],
+	) {
+		return [];
 	}
 }
