@@ -14,7 +14,7 @@ export class VIA6522 {
 	private t1c = 0; // Timer 1 Counter
 	private t1l = 0; // Timer 1 Latch
 	private t1Active = false;
-	private t1Pb7 = false; // PB7 output enabled
+	// private t1Pb7 = false; // PB7 output enabled
 
 	private t2c = 0; // Timer 2 Counter
 	private t2l = 0; // Timer 2 Latch
