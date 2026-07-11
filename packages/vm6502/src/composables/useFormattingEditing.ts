@@ -12,7 +12,7 @@ const validationErrors = ref({
 	length: "",
 });
 
-const { addFormatting, removeFormatting } = useFormatting();
+const { addFormatting, removeFormatting, diskKey } = useFormatting();
 
 export function useFormattingEditing() {
 	const vm = inject<Ref<VirtualMachine>>("vm");
@@ -73,6 +73,7 @@ export function useFormattingEditing() {
 			length: 1,
 			group: "user",
 			isNew: true,
+			disk: diskKey.value,
 		};
 	};
 
