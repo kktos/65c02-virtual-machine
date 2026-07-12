@@ -1,6 +1,7 @@
 import { useMemoryMap } from "@/composables/useMemoryMap";
 import { REG_A_OFFSET, REG_SP_OFFSET, REG_STATUS_OFFSET, REG_X_OFFSET, REG_Y_OFFSET } from "./cpu/shared-memory";
 import type { VirtualMachine } from "./virtualmachine.class";
+import { logBus } from "./logbus.class";
 
 export const HYPERCALL_COMMANDS = new Set([0x01, 0x02, 0x03, 0x04]);
 
@@ -14,7 +15,8 @@ export function executeHypercallCmd(vm: VirtualMachine, cmd: number, pc: number,
 			const { message, argsConsumed } = readFormattedString(vm, stringAddr, pc + 4);
 
 			// Log the message
-			vm.emitLog({ kind: "HYPER", message });
+			logBus.emit("hyper", message);
+			// vm.emitLog({ kind: "HYPER", message });
 
 			// Advance PC past the BRK and its arguments (BRK, CMD, ADDR_LO, ADDR_HI)
 			offsetPC = 4 + argsConsumed;
@@ -30,7 +32,8 @@ export function executeHypercallCmd(vm: VirtualMachine, cmd: number, pc: number,
 			const P = vm.sharedRegisters.getUint8(REG_STATUS_OFFSET);
 
 			const message = `A:${A.toString(16).padStart(2, "0")} X:${X.toString(16).padStart(2, "0")} Y:${Y.toString(16).padStart(2, "0")} P:${P.toString(16).padStart(2, "0")} SP:${SP.toString(16).padStart(2, "0")}`;
-			vm.emitLog({ kind: "HYPER", message });
+			logBus.emit("hyper", message);
+			// vm.emitLog({ kind: "HYPER", message });
 
 			// Advance PC past BRK and command byte
 			offsetPC = 2;
