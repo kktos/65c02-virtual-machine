@@ -8,6 +8,7 @@ import { defineConfig } from "vite";
 
 // https://vite.dev/config/
 export default defineConfig({
+	base: './',
 	assetsInclude: ["**/*.woff", "**/*.woff2", "**/*.ttf", "**/*.otf"],
 	plugins: [
 		vue({

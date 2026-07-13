@@ -1,0 +1,10 @@
+{
+	"desktop": {
+		"errorReporting": {
+			"url": "file://deno.errors"
+		}
+	},
+	"imports": {
+		"@std/http": "jsr:@std/http@^1.1.2"
+	}
+}
