@@ -2,7 +2,7 @@
 	<ScrollArea ref="scrollAreaComponentRef" class="p-2" type="always">
 		<div class="flex flex-col h-full">
 			<div class="mt-auto" @click="handleCommandClick">
-				<div v-for="log in logs" :key="log.id" :class="getLogClass(log)">
+				<div v-for="log in logs" :key="log.id" :class="getLogClass(log)" :style="{ color: log.color }">
 					<div
 						v-if="log.format === 'markdown'"
 						class="markdown-preview"

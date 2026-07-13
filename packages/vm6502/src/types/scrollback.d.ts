@@ -3,4 +3,5 @@ export interface LogEntry {
 	text: string;
 	type: "input" | "output" | "error";
 	format?: "text" | "markdown";
+	color?: string;
 }

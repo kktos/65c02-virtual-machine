@@ -95,7 +95,6 @@
 <script setup lang="ts">
 import { useCmdConsole } from "@/composables/useCmdConsole";
 import { useCommands } from "@/composables/useCommands";
-import { useScrollback } from "@/composables/useScrollback";
 import ScrollbackView from "@/components/ScrollbackView.vue";
 import { useMachine } from "@/composables/useMachine";
 import { useConsoleSettings } from "@/composables/useConsoleSettings";
@@ -104,6 +103,7 @@ import { FileCode2, ZoomOut, ZoomIn, Trash2, Loader2, TriangleAlert, Terminal } 
 import { useEventBus } from "@vueuse/core";
 import FloatingWindow from "@/components/FloatingWindow.vue";
 import { useFloatingWindows } from "@/composables/useFloatingWindows";
+import { useScrollbackBuffer } from "@/composables/useScrollbackBuffer";
 
 const { fontSize, fontFamily, fontColor, loadSettings, increaseFontSize, decreaseFontSize } = useConsoleSettings();
 
@@ -114,7 +114,7 @@ const historyIndex = ref(-1);
 const defaultWidth = ref(200);
 const defaultY = ref(0);
 
-const { logs, print, printError, clear } = useScrollback();
+const { logs, print, printError, clear } = useScrollbackBuffer();
 const windowRef = ref<InstanceType<typeof FloatingWindow> | null>(null);
 const { isConsoleVisible, hideConsole, BUS_KEY } = useCmdConsole();
 const {

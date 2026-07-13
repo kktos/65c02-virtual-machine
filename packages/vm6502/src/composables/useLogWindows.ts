@@ -1,14 +1,10 @@
 import { reactive } from "vue";
-
-export interface LogLine {
-	text: string;
-	color?: string;
-}
+import type { LogEntry } from "@/types/scrollback";
+import { createScrollbackBuffer, type ScrollbackBuffer } from "./useScrollbackBuffer";
 
 export interface LogWindow {
 	id: string;
 	name: string;
-	lines: LogLine[];
 	isVisible: boolean;
 	position: { x: number; y: number };
 	size: { width: number; height: number };
@@ -16,6 +12,7 @@ export interface LogWindow {
 }
 
 const logWindows = reactive<Map<string, LogWindow>>(new Map());
+const buffers = new Map<string, ScrollbackBuffer>();
 
 function bringToFront(window: LogWindow) {
 	const maxZ = Array.from(logWindows.values()).reduce((max, w) => Math.max(max, w.zIndex), 99);
@@ -30,13 +27,13 @@ const open = (name: string): LogWindow => {
 		window = reactive({
 			id: name,
 			name,
-			lines: [],
 			isVisible: true,
 			position: { x: Math.random() * 200 + 50, y: Math.random() * 200 + 50 },
 			size: { width: 400, height: 200 },
 			zIndex: 0, // will be set by bringToFront
 		});
 		logWindows.set(name, window);
+		buffers.set(name, createScrollbackBuffer());
 	}
 	bringToFront(window);
 	return window;
@@ -50,9 +47,9 @@ const close = (name: string) => {
 };
 
 const clear = (name: string) => {
-	const window = logWindows.get(name);
-	if (window) {
-		window.lines.length = 0;
+	const buffer = buffers.get(name);
+	if (buffer) {
+		buffer.clear();
 	}
 };
 
@@ -61,9 +58,9 @@ const trace = (name: string, text: string, color?: string) => {
 	if (!window || !window.isVisible) {
 		window = open(name);
 	}
-	window.lines.push({ text, color });
-	if (window.lines.length > 500) {
-		window.lines.splice(0, window.lines.length - 500);
+	const buffer = buffers.get(name);
+	if (buffer) {
+		buffer.print(text, "output", "text", color);
 	}
 };
 
@@ -74,6 +71,14 @@ const setActive = (name: string) => {
 	}
 };
 
+/**
+ * Get the log entries for a window (for use with ScrollbackView)
+ */
+const getLines = (name: string): readonly LogEntry[] => {
+	const buffer = buffers.get(name);
+	return buffer?.logs.value ?? [];
+};
+
 export function useLogWindows() {
 	return {
 		logWindows,
@@ -82,5 +87,6 @@ export function useLogWindows() {
 		clear,
 		trace,
 		setActive,
+		getLines,
 	};
 }

@@ -1,11 +1,6 @@
 import { ref } from "vue";
 import { useEventBus } from "@vueuse/core";
 
-export type LogEntry = {
-	text: string;
-	color?: string;
-};
-
 const EVENTBUS_KEY = "cmd-console-clear";
 const isConsoleVisible = ref(false);
 const consoleBus = useEventBus<string>(EVENTBUS_KEY);

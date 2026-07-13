@@ -11,12 +11,12 @@
 		@close="closeWindow"
 		@mousedown="onMouseDown"
 	>
-		<ScrollbackView :logs="windowState.lines" class="h-full text-green-400 font-mono text-xs" />
+		<ScrollbackView :logs="lines" class="h-full" />
 	</FloatingWindow>
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted } from "vue";
+import { ref, watch, onMounted, computed } from "vue";
 import type { LogWindow as LogWindowType } from "@/composables/useLogWindows";
 import { useLogWindows } from "@/composables/useLogWindows";
 import FloatingWindow from "@/components/FloatingWindow.vue";
@@ -26,8 +26,10 @@ const props = defineProps<{
 	windowState: LogWindowType;
 }>();
 
-const { close, setActive } = useLogWindows();
+const { close, setActive, getLines } = useLogWindows();
 const windowRef = ref<InstanceType<typeof FloatingWindow> | null>(null);
+
+const lines = computed(() => getLines(props.windowState.id));
 
 const closeWindow = () => {
 	close(props.windowState.id);
