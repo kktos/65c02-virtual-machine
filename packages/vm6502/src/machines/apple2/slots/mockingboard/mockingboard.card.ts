@@ -17,7 +17,6 @@ export class MockingboardCard implements ISlotCard {
 		_bus: IBus,
 		public slot: number,
 	) {
-		this.slot = slot;
 		this.ay1 = new AY38910();
 		this.ay2 = new AY38910();
 

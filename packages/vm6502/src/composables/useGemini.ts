@@ -105,10 +105,10 @@ export function useGemini() {
 			return null;
 		}
 
-		const systemPrompt = EXPLAIN_CODE_SYSTEM_PROMPT.replaceAll(
-			"%%DISK%%",
-			lastLoadedDisk.value?.name ?? "",
-		).replaceAll("%%MACHINE%%", selectedMachine.value.name);
+		const systemPrompt = EXPLAIN_CODE_SYSTEM_PROMPT.replaceAll("%%DISK%%", lastLoadedDisk.value?.name ?? "").replaceAll(
+			"%%MACHINE%%",
+			selectedMachine.value.name,
+		);
 
 		isLoading.value = true;
 		if (updatePanel) explanation.value = null;

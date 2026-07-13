@@ -1891,8 +1891,7 @@ export function executeInstruction(): number {
 			}
 			case 0xde: {
 				// DEC Absolute,X
-				const addr =
-					(bus.read(pc, true) | (bus.read(pc + 1, true) << 8)) + registersView.getUint8(REG_X_OFFSET);
+				const addr = (bus.read(pc, true) | (bus.read(pc + 1, true) << 8)) + registersView.getUint8(REG_X_OFFSET);
 				pc += 2;
 				const value = bus.read(addr);
 				const result = (value - 1) & 0xff;
@@ -1937,8 +1936,7 @@ export function executeInstruction(): number {
 			}
 			case 0xfe: {
 				// INC Absolute,X
-				const addr =
-					(bus.read(pc, true) | (bus.read(pc + 1, true) << 8)) + registersView.getUint8(REG_X_OFFSET);
+				const addr = (bus.read(pc, true) | (bus.read(pc + 1, true) << 8)) + registersView.getUint8(REG_X_OFFSET);
 				pc += 2;
 				const value = bus.read(addr);
 				const result = (value + 1) & 0xff;

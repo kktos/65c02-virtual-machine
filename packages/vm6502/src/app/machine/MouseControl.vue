@@ -1,8 +1,5 @@
 <template>
-	<div
-		v-if="hasMouse"
-		class="flex items-center space-x-3 bg-gray-800 p-2 rounded-lg shadow-md border border-gray-700"
-	>
+	<div v-if="hasMouse" class="flex items-center space-x-3 bg-gray-800 p-2 rounded-lg shadow-md border border-gray-700">
 		<button
 			ref="trigger"
 			@click="toggleLock"

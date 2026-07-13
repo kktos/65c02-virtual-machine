@@ -290,12 +290,9 @@ export function useSymbols() {
 		const existing = await Promise.all(symbols.map((e) => index.get([symbolDiskKey.value, e.ns, e.label])));
 		await Promise.all(
 			symbols.map((entry, i) => {
-				if (!entry.label.match(/^[A-Za-z_][A-Za-z_0-9]*/))
-					throw new Error(`Invalid label name ${i} "${entry.label}"`);
-				if (!entry.scope.match(/^[A-Za-z_][A-Za-z_0-9]*/))
-					throw new Error(`Invalid scope name ${i} "${entry.scope}"`);
-				if (!entry.ns.match(/^[A-Za-z_][A-Za-z_0-9]*/))
-					throw new Error(`Invalid namespace name ${i} "${entry.ns}"`);
+				if (!entry.label.match(/^[A-Za-z_][A-Za-z_0-9]*/)) throw new Error(`Invalid label name ${i} "${entry.label}"`);
+				if (!entry.scope.match(/^[A-Za-z_][A-Za-z_0-9]*/)) throw new Error(`Invalid scope name ${i} "${entry.scope}"`);
+				if (!entry.ns.match(/^[A-Za-z_][A-Za-z_0-9]*/)) throw new Error(`Invalid namespace name ${i} "${entry.ns}"`);
 
 				const symbol: SymbolEntry = {
 					disk: symbolDiskKey.value,
@@ -531,8 +528,7 @@ export function useSymbols() {
 
 			const scopeSuffix = scope && scope !== "main" ? ` ${scope}` : "";
 			output += `LABELS ${ns}${scopeSuffix}\n`;
-			for (const sym of entries)
-				output += `  $${sym.addr.toString(16).toUpperCase().padStart(4, "0")} ${sym.label}\n`;
+			for (const sym of entries) output += `  $${sym.addr.toString(16).toUpperCase().padStart(4, "0")} ${sym.label}\n`;
 			output += "END_LABELS\n\n";
 		}
 		return output.trim();

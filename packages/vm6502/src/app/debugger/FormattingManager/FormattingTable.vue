@@ -90,11 +90,9 @@
 							</TableCell>
 							<TableCell class="text-gray-200">{{ rule.type }}</TableCell>
 							<TableCell class="text-gray-400">{{ rule.length }}</TableCell>
-							<TableCell
-								class="font-mono text-xs text-gray-400 truncate max-w-[150px]"
-								:title="getPreview(rule)"
-								>{{ getPreview(rule) }}</TableCell
-							>
+							<TableCell class="font-mono text-xs text-gray-400 truncate max-w-[150px]" :title="getPreview(rule)">{{
+								getPreview(rule)
+							}}</TableCell>
 							<TableCell class="text-gray-200">{{ rule.group }}</TableCell>
 							<TableCell v-if="shouldDisplayDisk" class="truncate" :title="rule.disk">
 								{{ rule.disk }}
@@ -114,9 +112,7 @@
 					</template>
 
 					<TableRow v-if="filteredRules.length === 0 && !editingRule">
-						<TableCell colspan="7" class="text-center text-gray-500 py-8"
-							>No formatting rules found.</TableCell
-						>
+						<TableCell colspan="7" class="text-center text-gray-500 py-8">No formatting rules found.</TableCell>
 					</TableRow>
 				</TableBody>
 			</Table>
@@ -134,9 +130,7 @@
 				>
 					<ChevronLeft class="h-4 w-4" />
 				</button>
-				<span class="text-sm text-gray-400 min-w-[80px] text-center">
-					Page {{ currentPage }} of {{ totalPages }}
-				</span>
+				<span class="text-sm text-gray-400 min-w-[80px] text-center"> Page {{ currentPage }} of {{ totalPages }} </span>
 				<button
 					class="h-8 w-8 flex items-center justify-center rounded-lg hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
 					:disabled="currentPage === totalPages"

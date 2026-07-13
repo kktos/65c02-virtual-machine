@@ -151,7 +151,7 @@ export class AppleBus implements IBus {
 	public slotRoms: Uint8Array;
 
 	// Slot System
-	public slots: (ISlotCard | null)[] = new Array(8).fill(null);
+	public slots: (ISlotCard | null)[] = (Array.from({ length: 8 }) as (ISlotCard | null)[]).fill(null);
 	private activeExpansionSlot = 0;
 
 	// Language Card State
@@ -702,8 +702,7 @@ export class AppleBus implements IBus {
 				result.set(chunk, resultOffset);
 			} else {
 				// Fallback for complex regions (I/O, slots)
-				for (let i = 0; i < chunkLength; i++)
-					result[resultOffset + i] = this.readDebug(currentAddress + i, overrides);
+				for (let i = 0; i < chunkLength; i++) result[resultOffset + i] = this.readDebug(currentAddress + i, overrides);
 			}
 
 			// 3. Advance to the next block

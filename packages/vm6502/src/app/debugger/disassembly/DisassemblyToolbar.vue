@@ -7,9 +7,7 @@
 				@click="$emit('syncToPc')"
 				:class="[
 					'p-1 rounded transition-colors',
-					isFollowingPc
-						? 'text-cyan-400 bg-cyan-400/10'
-						: 'text-gray-500 hover:text-gray-300 hover:bg-gray-700',
+					isFollowingPc ? 'text-cyan-400 bg-cyan-400/10' : 'text-gray-500 hover:text-gray-300 hover:bg-gray-700',
 				]"
 				title="Sync with PC"
 			>
@@ -65,7 +63,7 @@ const props = defineProps<{
 	isFollowingPc: boolean;
 	hasDisassembly: boolean;
 	availableScopes: string[];
-	isMaximized: Boolean;
+	isMaximized: boolean;
 	hasSelection: boolean;
 	isSettingsOpen?: boolean;
 }>();

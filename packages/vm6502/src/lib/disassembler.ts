@@ -697,9 +697,7 @@ export async function generateLabels(
 			const currentScope = vm.getScope(target);
 			if (labelPrefix !== null && !getLabelForAddress(target, [currentScope])) {
 				const label =
-					labelPrefix === "L"
-						? `L${toHex(target, 4)}`
-						: `${labelPrefix}${toHex(target, target > 0xff ? 4 : 2)}`;
+					labelPrefix === "L" ? `L${toHex(target, 4)}` : `${labelPrefix}${toHex(target, target > 0xff ? 4 : 2)}`;
 				symbolsToAdd.push({
 					addr: target,
 					label,

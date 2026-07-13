@@ -359,8 +359,7 @@ export function useFormatting() {
 			const headerMatch = line.match(headerRegex);
 			if (headerMatch) {
 				currentGroup = headerMatch[1] ? headerMatch[1].trim() : "user";
-				if (!activeFormattingGroups.value.has(currentGroup))
-					activeFormattingGroups.value.set(currentGroup, true);
+				if (!activeFormattingGroups.value.has(currentGroup)) activeFormattingGroups.value.set(currentGroup, true);
 				continue;
 			}
 

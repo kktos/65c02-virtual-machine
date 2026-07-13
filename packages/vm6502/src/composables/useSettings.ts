@@ -92,20 +92,20 @@ const loadSettings = (): DebuggerSettings => {
 					...parsed.disassembly,
 					scopeColors: {
 						...defaultSettings.disassembly.scopeColors,
-						...(parsed.disassembly?.scopeColors || {}),
+						...parsed.disassembly?.scopeColors,
 					},
 					syntax: {
 						...defaultSettings.disassembly.syntax,
-						...(parsed.disassembly?.syntax || {}),
+						...parsed.disassembly?.syntax,
 					},
 					gemini: {
 						...defaultSettings.disassembly.gemini,
-						...(parsed.disassembly?.gemini || {}),
+						...parsed.disassembly?.gemini,
 					},
 				},
 				floatingWindows: {
 					...defaultSettings.floatingWindows,
-					...(parsed.floatingWindows || {}),
+					...parsed.floatingWindows,
 				},
 			};
 		}

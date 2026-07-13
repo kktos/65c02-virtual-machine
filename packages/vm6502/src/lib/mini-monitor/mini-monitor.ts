@@ -36,8 +36,7 @@ export async function minimonitor(input: string, vm: VirtualMachine): Promise<Mi
 	const lhs = parser.parse();
 
 	// If the expression evaluates to a string (e.g. hex(pc)), return it directly.
-	if (lhs.type === TokenType.STRING && typeof lhs.value === "string")
-		return { content: lhs.value, format: "markdown" };
+	if (lhs.type === TokenType.STRING && typeof lhs.value === "string") return { content: lhs.value, format: "markdown" };
 
 	let startAddr = resolveAddress(lhs);
 	let endAddr: number | undefined;
@@ -62,14 +61,12 @@ export async function minimonitor(input: string, vm: VirtualMachine): Promise<Mi
 			if (token.type === TokenType.STRING) {
 				const str = String(token.value);
 				const isHighAscii = token.raw.startsWith('"');
-				for (let i = 0; i < str.length; i++)
-					vm.writeDebug(currentAddr++, str.charCodeAt(i) | (isHighAscii ? 0x80 : 0));
+				for (let i = 0; i < str.length; i++) vm.writeDebug(currentAddr++, str.charCodeAt(i) | (isHighAscii ? 0x80 : 0));
 			} else {
 				// Number or Hex Identifier
 				let val: number;
 				if (typeof token.value === "number") val = token.value;
-				else if (token.type === TokenType.IDENTIFIER && /^[0-9A-F]+$/i.test(token.raw))
-					val = parseInt(token.raw, 16);
+				else if (token.type === TokenType.IDENTIFIER && /^[0-9A-F]+$/i.test(token.raw)) val = parseInt(token.raw, 16);
 				else throw new Error(`Invalid value: ${token.raw}`);
 
 				// Determine width: > 255 -> 2 bytes, else 1 byte (Little Endian)

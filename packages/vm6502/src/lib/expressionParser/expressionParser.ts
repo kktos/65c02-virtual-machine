@@ -357,8 +357,7 @@ export class ExpressionParser {
 			throw new Error(`Operator ${token.text} cannot be applied to strings or mixed types.`);
 		}
 
-		if (typeof left.value !== "number")
-			throw new Error(`Left-hand side of operator ${token.text} must be a number.`);
+		if (typeof left.value !== "number") throw new Error(`Left-hand side of operator ${token.text} must be a number.`);
 		if (typeof rightRes.value !== "number")
 			throw new Error(`Right-hand side of operator ${token.text} must be a number.`);
 
@@ -511,8 +510,7 @@ function defaultTokenizer(input: string): Token[] {
 				}
 				i++;
 			}
-			if (i >= input.length || input[i] !== quote)
-				throw new Error(`Unterminated string literal starting at ${start}`);
+			if (i >= input.length || input[i] !== quote) throw new Error(`Unterminated string literal starting at ${start}`);
 			i++; // consume closing quote
 			tokens.push({ type: TokenType.STRING, value: 0, text: str, start, end: i });
 			continue;

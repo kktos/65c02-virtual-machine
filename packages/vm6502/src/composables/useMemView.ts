@@ -22,8 +22,7 @@ const loadLayout = () => {
 			if (Array.isArray(loaded) && loaded.length > 0) viewers.value = loaded;
 			const maxId = loaded.reduce((max, v) => Math.max(max, v.id), 0);
 			nextId.value = maxId + 1;
-			if (!viewers.value.some((v) => v.id === activeViewerId.value))
-				activeViewerId.value = viewers.value[0]?.id ?? 0;
+			if (!viewers.value.some((v) => v.id === activeViewerId.value)) activeViewerId.value = viewers.value[0]?.id ?? 0;
 		} catch (e) {
 			console.error("Failed to load memory viewers layout", e);
 		}

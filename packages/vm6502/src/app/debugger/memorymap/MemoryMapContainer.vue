@@ -49,9 +49,7 @@
 							class="w-3 h-3 absolute top-0.5 right-0.5 text-white/70"
 						/>
 						<Lock v-if="!region.removable" class="w-3 h-3 absolute top-0.5 left-0.5 text-white/70" />
-						<span
-							class="text-xs text-white font-bold text-center mix-blend-difference whitespace-nowrap px-2"
-						>
+						<span class="text-xs text-white font-bold text-center mix-blend-difference whitespace-nowrap px-2">
 							{{ region.name }}
 						</span>
 					</div>
@@ -70,10 +68,7 @@
 						class="flex items-center justify-between text-sm p-2 bg-gray-900/50 rounded"
 					>
 						<div class="flex items-center space-x-3">
-							<div
-								class="w-4 h-4 rounded-sm border border-white/10"
-								:style="{ backgroundColor: region.color }"
-							></div>
+							<div class="w-4 h-4 rounded-sm border border-white/10" :style="{ backgroundColor: region.color }"></div>
 							<span class="font-mono text-gray-200">{{ region.name }}</span>
 							<span class="text-gray-400">{{ formatRange(region) }}</span>
 						</div>

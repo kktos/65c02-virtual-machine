@@ -231,9 +231,7 @@ const handleHistoryDown = () => {
 	if (historyIndex.value >= 0) {
 		historyIndex.value--;
 		inputText.value = (
-			historyIndex.value === -1
-				? tempInput
-				: commandHistory.value[commandHistory.value.length - 1 - historyIndex.value]
+			historyIndex.value === -1 ? tempInput : commandHistory.value[commandHistory.value.length - 1 - historyIndex.value]
 		) as string;
 	}
 };

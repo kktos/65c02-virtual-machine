@@ -18,10 +18,7 @@
 			<ResizablePanel :default-size="15" class="flex flex-col">
 				<div class="flex-grow overflow-y-auto">
 					<ul v-if="routineNames.length > 0 || isCreating">
-						<li
-							v-if="isCreating"
-							class="px-3 py-2 text-xs cursor-pointer hover:bg-gray-700 flex items-center h-8"
-						>
+						<li v-if="isCreating" class="px-3 py-2 text-xs cursor-pointer hover:bg-gray-700 flex items-center h-8">
 							<input
 								ref="createInputRef"
 								v-model="renamingInput"

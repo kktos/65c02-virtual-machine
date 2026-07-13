@@ -18,11 +18,7 @@
 			@mouseenter="onMouseEnter(byteOffsetInLine)"
 			:class="[
 				'w-[1.2ch] text-center tabular-nums text-xs p-0 font-bold cursor-text select-none',
-				getAsciiClass(
-					lineData[byteOffsetInLine],
-					isHighlighted(byteOffsetInLine),
-					isCellSelected(byteOffsetInLine),
-				),
+				getAsciiClass(lineData[byteOffsetInLine], isHighlighted(byteOffsetInLine), isCellSelected(byteOffsetInLine)),
 				getBreakpointClass(byteOffsetInLine),
 				isCellSelected(byteOffsetInLine) ? '' : getDataBlockClass(byteOffsetInLine),
 			]"

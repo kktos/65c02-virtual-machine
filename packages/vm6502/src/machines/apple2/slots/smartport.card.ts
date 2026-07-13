@@ -20,8 +20,6 @@ export class SmartPortCard implements ISlotCard {
 		public slot: number,
 		private rom: Uint8Array,
 	) {
-		this.slot = slot;
-		this.rom = rom;
 		this.initRom();
 	}
 

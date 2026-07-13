@@ -47,9 +47,7 @@
 			<Button
 				@click="toggleBreakOnBrk"
 				size="sm"
-				:class="[
-					breakOnBrk ? 'bg-yellow-600 hover:bg-yellow-500 text-white' : 'hover:bg-gray-600 text-gray-300',
-				]"
+				:class="[breakOnBrk ? 'bg-yellow-600 hover:bg-yellow-500 text-white' : 'hover:bg-gray-600 text-gray-300']"
 				title="Pause on BRK instruction"
 			>
 				<Octagon class="mr-2 h-4 w-4" />
@@ -62,9 +60,7 @@
 				@click="toggleTrace"
 				class="relative"
 				size="sm"
-				:class="[
-					traceEnabled ? 'bg-purple-600 hover:bg-purple-500 text-white' : 'hover:bg-gray-600 text-gray-300',
-				]"
+				:class="[traceEnabled ? 'bg-purple-600 hover:bg-purple-500 text-white' : 'hover:bg-gray-600 text-gray-300']"
 				title="Enable execution tracing (JSR/JMP)"
 			>
 				<span
@@ -78,9 +74,7 @@
 		</ButtonGroup>
 
 		<ButtonGroup>
-			<Button @click="vm?.reset" size="sm" class="hover:bg-gray-600" title="Reset the CPU and memory"
-				>Reset</Button
-			>
+			<Button @click="vm?.reset" size="sm" class="hover:bg-gray-600" title="Reset the CPU and memory">Reset</Button>
 		</ButtonGroup>
 
 		<MemoryMap />

@@ -20,10 +20,7 @@
 		<div class="overflow-auto">
 			<div :style="{ display: 'grid', gridTemplateColumns }">
 				<!-- ── Header ───────────────────────────────────────────────── -->
-				<div
-					class="col-span-full grid sticky top-0 z-[5] border-b border-gray-700"
-					:style="{ gridTemplateColumns }"
-				>
+				<div class="col-span-full grid sticky top-0 z-[5] border-b border-gray-700" :style="{ gridTemplateColumns }">
 					<div />
 					<div
 						v-for="col in columns"
@@ -69,10 +66,7 @@
 								@click.stop="onToggleBreakpoint(row.line.addr)"
 								class="w-full h-full flex items-center justify-center cursor-pointer group"
 							>
-								<span
-									class="w-2 h-2 rounded-full transition-colors"
-									:class="getBreakpointClass(row.line.addr)"
-								></span>
+								<span class="w-2 h-2 rounded-full transition-colors" :class="getBreakpointClass(row.line.addr)"></span>
 							</button>
 						</div>
 

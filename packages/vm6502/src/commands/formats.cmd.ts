@@ -25,8 +25,7 @@ export const formatsCmd = defineCommand({
 
 				const addrStr = parts[0].replace(/^(0x|\$)/, "");
 				const address = parseInt(addrStr, 16);
-				if (Number.isNaN(address))
-					return { error: `FORMATS: Invalid address "${parts[0]}" on line ${lineIndex}` };
+				if (Number.isNaN(address)) return { error: `FORMATS: Invalid address "${parts[0]}" on line ${lineIndex}` };
 
 				const typeChar = parts[1].toLowerCase();
 				let type: DataType;

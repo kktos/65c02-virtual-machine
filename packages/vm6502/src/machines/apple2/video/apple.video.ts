@@ -50,7 +50,8 @@ const baseurl = import.meta.url.match(/http:\/\/[^/]+/)?.[0];
 function loadFont(name: string) {
 	const fontUrl = new URL(`${baseurl}/fonts/${name}.ttf`).href;
 	const font = new FontFace(name, `url(${fontUrl})`);
-	font.load()
+	font
+		.load()
 		.then((loaded) => {
 			self.fonts.add(loaded);
 			console.log("AppleVideo: Loaded font", loaded.family);

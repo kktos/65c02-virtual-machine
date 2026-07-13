@@ -35,11 +35,7 @@
 
 		<ResizablePanel>
 			<ResizablePanelGroup direction="vertical" auto-save-id="debuggerPanelLayout">
-				<ResizablePanel
-					:default-size="41"
-					class="grid grid-rows-[auto_1fr] gap-2 p-2"
-					@resize="dbgTopPanelResize"
-				>
+				<ResizablePanel :default-size="41" class="grid grid-rows-[auto_1fr] gap-2 p-2" @resize="dbgTopPanelResize">
 					<div class="flex items-center justify-start">
 						<DebuggerControls :isRunning="isRunning" />
 					</div>

@@ -80,7 +80,7 @@ export function useSymbolEditing() {
 		if (symbol.isNew) {
 			try {
 				await addSymbol(address, label, namespace, scope);
-			} catch (e) {
+			} catch (_e) {
 				validationErrors.value.label = "Duplicate label.";
 				hasErrors = true;
 			}

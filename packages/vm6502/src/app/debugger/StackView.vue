@@ -40,11 +40,7 @@
 								<div class="flex items-center">
 									<input
 										type="text"
-										:value="
-											isEditing && editingAddress === item.address
-												? editingValue
-												: toHex(item.value ?? 0)
-										"
+										:value="isEditing && editingAddress === item.address ? editingValue : toHex(item.value ?? 0)"
 										@focus="startEdit(item.address, item.value, $event)"
 										@blur="cancelEdit"
 										@input="handleInput(item.address, $event)"

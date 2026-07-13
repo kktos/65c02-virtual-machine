@@ -54,8 +54,7 @@ export function miniAssemblerTokenizer(input: string): Token[] {
 				}
 				i++;
 			}
-			if (i >= input.length || input[i] !== quote)
-				throw new Error(`Unterminated string literal starting at ${start}`);
+			if (i >= input.length || input[i] !== quote) throw new Error(`Unterminated string literal starting at ${start}`);
 			i++; // consume closing quote
 			tokens.push({ type: TokenType.STRING, value: 0, text: str, start, end: i });
 			continue;

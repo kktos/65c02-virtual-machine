@@ -1,5 +1,15 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { setupCpuTest, stepInstruction, REG_A_OFFSET, REG_PC_OFFSET, REG_STATUS_OFFSET, REG_X_OFFSET, REG_Y_OFFSET, FLAG_N_MASK, FLAG_Z_MASK } from "./cpu-test-helpers";
+import {
+	setupCpuTest,
+	stepInstruction,
+	REG_A_OFFSET,
+	REG_PC_OFFSET,
+	REG_STATUS_OFFSET,
+	REG_X_OFFSET,
+	REG_Y_OFFSET,
+	FLAG_N_MASK,
+	FLAG_Z_MASK,
+} from "./cpu-test-helpers";
 import type { CpuTestContext } from "./cpu-test-helpers";
 
 describe("CPU 65C02 - LDA Instruction", () => {

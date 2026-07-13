@@ -23,8 +23,7 @@ export function useDisassemblyScroll(
 		return Math.max(
 			1,
 			Math.floor(
-				(containerHeight.value - TABLE_HEADER_HEIGHT - PANEL_TITLE_HEIGHT - PANEL_TITLE_MB_HEIGHT) /
-					TABLE_ROW_HEIGHT,
+				(containerHeight.value - TABLE_HEADER_HEIGHT - PANEL_TITLE_HEIGHT - PANEL_TITLE_MB_HEIGHT) / TABLE_ROW_HEIGHT,
 			),
 		);
 	});
@@ -42,10 +41,7 @@ export function useDisassemblyScroll(
 
 	const scrollUp = async (lines = 1) => {
 		if (isFollowingPc.value) {
-			pivotIndex.value = Math.min(
-				visibleRowCount.value > 0 ? visibleRowCount.value - 1 : 0,
-				pivotIndex.value + lines,
-			);
+			pivotIndex.value = Math.min(visibleRowCount.value > 0 ? visibleRowCount.value - 1 : 0, pivotIndex.value + lines);
 		} else {
 			let newStartAddress = disassemblyStartAddress.value;
 			for (let i = 0; i < lines; i++) {

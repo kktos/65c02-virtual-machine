@@ -11,9 +11,7 @@
 		<!-- </div> -->
 		<ScrollArea class="flex-1 min-h-0 w-full" type="always">
 			<ul class="space-y-2 text-sm text-gray-300 p-2 bg-gray-900 rounded-md min-h-full">
-				<li v-if="breakpoints.length === 0" class="text-gray-500 italic p-2 text-center">
-					No active breakpoints.
-				</li>
+				<li v-if="breakpoints.length === 0" class="text-gray-500 italic p-2 text-center">No active breakpoints.</li>
 				<li
 					v-for="(bp, index) in breakpoints"
 					:key="bp.address + bp.type + index"
@@ -42,10 +40,7 @@
 					</div>
 					<span
 						v-else
-						:class="[
-							'flex items-center justify-center w-15 text-xs font-bold text-white',
-							getTypeStyles(bp.type).bg,
-						]"
+						:class="['flex items-center justify-center w-15 text-xs font-bold text-white', getTypeStyles(bp.type).bg]"
 						:title="bp.command ? `Hook on ${bp.type}` : bp.type"
 						@click="startEditing(bp, 'type')"
 					>
@@ -64,10 +59,7 @@
 								class="form-checkbox h-4 w-4 text-cyan-600 transition duration-150 ease-in-out bg-gray-700 border-gray-500 rounded focus:ring-offset-gray-900 cursor-pointer focus:ring-cyan-500"
 								title="Enable/Disable Breakpoint"
 							/>
-							<div
-								v-if="editingBpKey === getBreakpointKey(bp) && editingField === 'address'"
-								class="flex items-center"
-							>
+							<div v-if="editingBpKey === getBreakpointKey(bp) && editingField === 'address'" class="flex items-center">
 								<input
 									ref="editInput"
 									v-model="editValue"
@@ -92,10 +84,7 @@
 								class="flex items-baseline gap-1 text-xs text-cyan-300 flex-1 min-w-0"
 							>
 								<span class="font-semibold text-cyan-500">RUNS:</span>
-								<div
-									v-if="editingBpKey === getBreakpointKey(bp) && editingField === 'command'"
-									class="flex-1"
-								>
+								<div v-if="editingBpKey === getBreakpointKey(bp) && editingField === 'command'" class="flex-1">
 									<input
 										ref="editInput"
 										v-model="editValue"

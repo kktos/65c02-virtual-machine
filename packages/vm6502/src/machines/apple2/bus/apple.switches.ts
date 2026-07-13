@@ -7,8 +7,8 @@ import * as SoftSwitches from "./softswitches.consts";
 const PADDLE_TIMEOUT_MULTIPLIER = 11.18;
 
 export function installSoftSwitches(bus: AppleBus) {
-	const readHandlers: Array<() => number> = new Array(256);
-	const writeHandlers: Array<(val: number) => void> = new Array(256);
+	const readHandlers: Array<() => number> = Array.from({ length: 256 });
+	const writeHandlers: Array<(val: number) => void> = Array.from({ length: 256 });
 
 	// Initialize with default no-op/error handlers
 	readHandlers.fill(() => 0);

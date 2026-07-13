@@ -61,9 +61,7 @@
 							</div>
 							<span class="font-mono text-gray-400">$</span>
 							<span class="font-mono font-medium">{{ formatAddress(addr) }}</span>
-							<span class="text-gray-500 truncate ml-auto max-w-[80px]">{{
-								getLabelForAddress(addr)
-							}}</span>
+							<span class="text-gray-500 truncate ml-auto max-w-[80px]">{{ getLabelForAddress(addr) }}</span>
 						</button>
 					</div>
 					<div v-else class="text-center text-xs text-gray-500 py-4">History is empty.</div>

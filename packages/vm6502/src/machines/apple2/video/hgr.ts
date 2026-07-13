@@ -193,8 +193,7 @@ export class HGRRenderer {
 					// This dot is in a mono segment. Render it as a single mono pixel.
 					const mainVal = this.ram[lineBase + col] ?? 0;
 					const bitInCol = dot % 14;
-					const isSet =
-						bitInCol < 7 ? (auxVal & (1 << bitInCol)) !== 0 : (mainVal & (1 << (bitInCol - 7))) !== 0;
+					const isSet = bitInCol < 7 ? (auxVal & (1 << bitInCol)) !== 0 : (mainVal & (1 << (bitInCol - 7))) !== 0;
 
 					const startX = Math.floor(this.destOffsetX + dot * monoPixelWidth);
 					const endX = Math.floor(this.destOffsetX + (dot + 1) * monoPixelWidth);
@@ -226,8 +225,7 @@ export class HGRRenderer {
 						// The group is on a boundary. Render as a single mono dot and continue.
 						const mainVal = this.ram[lineBase + col] ?? 0;
 						const bitInCol = dot % 14;
-						const isSet =
-							bitInCol < 7 ? (auxVal & (1 << bitInCol)) !== 0 : (mainVal & (1 << (bitInCol - 7))) !== 0;
+						const isSet = bitInCol < 7 ? (auxVal & (1 << bitInCol)) !== 0 : (mainVal & (1 << (bitInCol - 7))) !== 0;
 
 						const startX = Math.floor(this.destOffsetX + dot * monoPixelWidth);
 						const endX = Math.floor(this.destOffsetX + (dot + 1) * monoPixelWidth);

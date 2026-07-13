@@ -5,9 +5,7 @@
 				class="bg-black/80 border border-gray-600 shadow-2xl min-w-[200px] max-h-[350px] flex flex-col overflow-hidden"
 			>
 				<div class="overflow-y-auto p-0.5 font-mono text-[0.68rem]">
-					<div v-if="references.length === 0" class="p-4 text-gray-500 italic text-center">
-						No references found.
-					</div>
+					<div v-if="references.length === 0" class="p-4 text-gray-500 italic text-center">No references found.</div>
 					<div
 						v-for="ref in references"
 						:key="ref.address"

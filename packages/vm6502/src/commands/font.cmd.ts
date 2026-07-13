@@ -10,8 +10,7 @@ export const font = defineCommand({
 	paramDef: ["rest"],
 	group: "Console",
 	fn: ({ params }: CommandContext) => {
-		if (params.length === 0)
-			return `Font: '${fontFamily.value}', Size: ${fontSize.value}px, Color: ${fontColor.value}`;
+		if (params.length === 0) return `Font: '${fontFamily.value}', Size: ${fontSize.value}px, Color: ${fontColor.value}`;
 
 		for (const arg of params) {
 			if (typeof arg === "number") {

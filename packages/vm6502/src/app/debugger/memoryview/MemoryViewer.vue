@@ -98,9 +98,7 @@
 										v-model="highBitEnabled"
 										class="rounded bg-gray-700 border-gray-600 text-cyan-500 focus:ring-cyan-500 h-3 w-3"
 									/>
-									<label
-										for="highBit"
-										class="text-[10px] text-gray-400 cursor-pointer select-none font-normal"
+									<label for="highBit" class="text-[10px] text-gray-400 cursor-pointer select-none font-normal"
 										>High Bit</label
 									>
 								</div>
@@ -121,12 +119,7 @@
 						<td v-for="byteIndex in bytesPerLine" :key="byteIndex" class="p-0">
 							<MemoryHexLine
 								:line-index="lineIndex"
-								:line-data="
-									currentMemorySlice.subarray(
-										(lineIndex - 1) * bytesPerLine,
-										lineIndex * bytesPerLine,
-									)
-								"
+								:line-data="currentMemorySlice.subarray((lineIndex - 1) * bytesPerLine, lineIndex * bytesPerLine)"
 								:line-start-address="startAddress + (lineIndex - 1) * bytesPerLine"
 								:bytes-per-line="bytesPerLine"
 								:byte-offset-in-line="byteIndex - 1"
@@ -153,12 +146,7 @@
 							<template v-for="byteIndex in bytesPerLine" :key="byteIndex">
 								<MemoryAsciiLine
 									:line-index="lineIndex"
-									:line-data="
-										currentMemorySlice.subarray(
-											(lineIndex - 1) * bytesPerLine,
-											lineIndex * bytesPerLine,
-										)
-									"
+									:line-data="currentMemorySlice.subarray((lineIndex - 1) * bytesPerLine, lineIndex * bytesPerLine)"
 									:line-start-address="startAddress + (lineIndex - 1) * bytesPerLine"
 									:bytes-per-line="bytesPerLine"
 									:byte-offset-in-line="byteIndex - 1"
@@ -199,10 +187,7 @@
 			:key="`${contextMenu.x}-${contextMenu.y}`"
 		>
 			<PopoverTrigger as-child>
-				<div
-					class="fixed w-0 h-0 invisible"
-					:style="{ top: contextMenu.y + 'px', left: contextMenu.x + 'px' }"
-				></div>
+				<div class="fixed w-0 h-0 invisible" :style="{ top: contextMenu.y + 'px', left: contextMenu.x + 'px' }"></div>
 			</PopoverTrigger>
 			<PopoverContent
 				class="w-48 p-1 bg-gray-800 border-gray-700 text-gray-200 text-xs"
@@ -219,16 +204,10 @@
 				>
 					Disassemble Here
 				</button>
-				<button
-					@click="openAddSymbol"
-					class="w-full text-left px-2 py-1.5 hover:bg-gray-700 rounded flex items-center"
-				>
+				<button @click="openAddSymbol" class="w-full text-left px-2 py-1.5 hover:bg-gray-700 rounded flex items-center">
 					Add/Edit Label
 				</button>
-				<button
-					@click="addBp('read')"
-					class="w-full text-left px-2 py-1.5 hover:bg-gray-700 rounded flex items-center"
-				>
+				<button @click="addBp('read')" class="w-full text-left px-2 py-1.5 hover:bg-gray-700 rounded flex items-center">
 					Break on Read
 				</button>
 				<button

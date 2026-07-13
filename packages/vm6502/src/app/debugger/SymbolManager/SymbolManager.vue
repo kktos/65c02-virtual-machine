@@ -68,11 +68,7 @@
 				>
 					<Trash2 class="h-4 w-4" />
 				</Button>
-				<Button
-					@click="beginAddSymbol"
-					size="icon"
-					class="h-10 bg-blue-600 hover:bg-blue-500 text-white shrink-0"
-				>
+				<Button @click="beginAddSymbol" size="icon" class="h-10 bg-blue-600 hover:bg-blue-500 text-white shrink-0">
 					<PlusCircle class="h-4 w-4" />
 				</Button>
 			</div>

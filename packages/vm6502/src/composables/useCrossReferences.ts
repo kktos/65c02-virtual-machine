@@ -269,8 +269,7 @@ export function useCrossReferences() {
 			if (filter === "ALL" || filter === "ACCESS") candidates.push(...ACCESS_OPS);
 
 			if (candidates.length > 0) {
-				const matches =
-					vm.search([null, targetLo, targetHi], searchStart, searchEnd, false, [candidates]) || [];
+				const matches = vm.search([null, targetLo, targetHi], searchStart, searchEnd, false, [candidates]) || [];
 				matches.forEach((m) => {
 					const opcode = read(m.address);
 					const mnemonic = ABS_OPCODES[opcode];

@@ -59,10 +59,7 @@
 				</TableHeader>
 				<TableBody>
 					<!-- New Symbol Row (Add Mode) -->
-					<SymbolEditRow
-						v-if="editingSymbol && editingSymbol.isNew"
-						:should-display-disk="shouldDisplayDisk"
-					/>
+					<SymbolEditRow v-if="editingSymbol && editingSymbol.isNew" :should-display-disk="shouldDisplayDisk" />
 
 					<!-- Symbol Rows -->
 					<template v-for="symbol in paginatedSymbols" :key="`${symbol.addr}-${symbol.ns}-${symbol.disk}`">
@@ -111,17 +108,11 @@
 									<button
 										@click="toggleSymbolBreakpoint(symbol)"
 										class="p-1 hover:bg-gray-600 rounded"
-										:title="
-											isBreakpointActive(symbol.addr) ? 'Remove Breakpoint' : 'Add Breakpoint'
-										"
+										:title="isBreakpointActive(symbol.addr) ? 'Remove Breakpoint' : 'Add Breakpoint'"
 									>
 										<OctagonPause
 											class="h-4 w-4"
-											:class="
-												isBreakpointActive(symbol.addr)
-													? 'fill-red-500 text-red-500'
-													: 'text-gray-400'
-											"
+											:class="isBreakpointActive(symbol.addr) ? 'fill-red-500 text-red-500' : 'text-gray-400'"
 										/>
 									</button>
 									<button
@@ -157,9 +148,7 @@
 				>
 					<ChevronLeft class="h-4 w-4" />
 				</button>
-				<span class="text-sm text-gray-400 min-w-[80px] text-center">
-					Page {{ currentPage }} of {{ totalPages }}
-				</span>
+				<span class="text-sm text-gray-400 min-w-[80px] text-center"> Page {{ currentPage }} of {{ totalPages }} </span>
 				<button
 					class="h-8 w-8 flex items-center justify-center rounded-lg hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
 					:disabled="currentPage === totalPages"

@@ -47,9 +47,7 @@ export function useNotes() {
 
 		if (storeExists) return openDB<MetadataDB>(DB_NAME);
 		else {
-			console.log(
-				`${DB_NAME}v${currentVersion} ${storeName} does not exist. Creating in v${currentVersion + 1}...`,
-			);
+			console.log(`${DB_NAME}v${currentVersion} ${storeName} does not exist. Creating in v${currentVersion + 1}...`);
 		}
 
 		const db = await openDB<MetadataDB>(DB_NAME, currentVersion + 1, {

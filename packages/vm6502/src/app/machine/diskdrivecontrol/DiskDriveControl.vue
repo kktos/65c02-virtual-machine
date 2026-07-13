@@ -64,11 +64,7 @@
 									<div v-else class="font-medium truncate text-sm text-gray-200" :title="disk.name">
 										{{ disk.name }}
 									</div>
-									<div
-										v-if="disk.type === 'url'"
-										class="text-[10px] text-gray-500 truncate"
-										:title="disk.path"
-									>
+									<div v-if="disk.type === 'url'" class="text-[10px] text-gray-500 truncate" :title="disk.path">
 										{{ disk.path }}
 									</div>
 									<div v-else class="text-[10px] text-gray-500 flex items-center gap-1">
@@ -109,12 +105,7 @@
 									viewBox="0 0 24 24"
 									stroke="currentColor"
 								>
-									<path
-										stroke-linecap="round"
-										stroke-linejoin="round"
-										stroke-width="2"
-										d="M6 18L18 6M6 6l12 12"
-									/>
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
 								</svg>
 							</button>
 						</div>
@@ -158,14 +149,7 @@
 										fill="none"
 										viewBox="0 0 24 24"
 									>
-										<circle
-											class="opacity-25"
-											cx="12"
-											cy="12"
-											r="10"
-											stroke="currentColor"
-											stroke-width="4"
-										></circle>
+										<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
 										<path
 											class="opacity-75"
 											fill="currentColor"
@@ -198,12 +182,7 @@
 								class="flex items-center justify-center px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded border border-gray-600 cursor-pointer transition-colors w-full"
 							>
 								<span class="mr-2">Upload New Disk</span>
-								<input
-									type="file"
-									accept=".po,.2mg,.dsk,.hdv"
-									@change="handleFileSelect"
-									class="hidden"
-								/>
+								<input type="file" accept=".po,.2mg,.dsk,.hdv" @change="handleFileSelect" class="hidden" />
 								<Upload class="h-5 w-5 text-cyan-400" />
 							</label>
 						</TabsContent>
@@ -235,9 +214,7 @@
 		<DiskDriveLogs v-model:open="isLogSheetOpen" :logging-enabled="loggingEnabled" :file-size="fileSize" />
 
 		<div class="flex flex-col overflow-hidden min-w-[8rem]">
-			<span class="text-[10px] uppercase text-gray-400 font-bold tracking-wider">{{
-				diskConfig?.name || "Disk"
-			}}</span>
+			<span class="text-[10px] uppercase text-gray-400 font-bold tracking-wider">{{ diskConfig?.name || "Disk" }}</span>
 			<div
 				class="text-xs font-mono truncate text-gray-300 cursor-help"
 				:title="fileName ? `Size: ${formatSize(fileSize)}` : 'No disk inserted'"

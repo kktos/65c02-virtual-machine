@@ -18,9 +18,7 @@
 			<SheetHeader class="shrink-0">
 				<SheetTitle class="text-gray-100">Binary Library</SheetTitle>
 				<SheetDescription class="text-gray-400">
-					Load a binary file into memory at address ${{
-						address.toString(16).toUpperCase().padStart(4, "0")
-					}}.
+					Load a binary file into memory at address ${{ address.toString(16).toUpperCase().padStart(4, "0") }}.
 				</SheetDescription>
 			</SheetHeader>
 
@@ -50,18 +48,10 @@
 								/>
 							</div>
 							<div class="flex space-x-2 shrink-0">
-								<button
-									@click="saveRename"
-									class="p-1.5 text-green-400 hover:bg-gray-700 rounded"
-									title="Save"
-								>
+								<button @click="saveRename" class="p-1.5 text-green-400 hover:bg-gray-700 rounded" title="Save">
 									<Check class="h-5 w-5" />
 								</button>
-								<button
-									@click="cancelEditing"
-									class="p-1.5 text-red-400 hover:bg-gray-700 rounded"
-									title="Cancel"
-								>
+								<button @click="cancelEditing" class="p-1.5 text-red-400 hover:bg-gray-700 rounded" title="Cancel">
 									<X class="h-5 w-5" />
 								</button>
 							</div>
@@ -81,11 +71,7 @@
 								>
 									<FileDown class="h-5 w-5" />
 								</button>
-								<button
-									@click="startEditing(bin)"
-									class="p-1.5 text-blue-400 hover:bg-gray-700 rounded"
-									title="Rename"
-								>
+								<button @click="startEditing(bin)" class="p-1.5 text-blue-400 hover:bg-gray-700 rounded" title="Rename">
 									<Pencil class="h-5 w-5" />
 								</button>
 								<button
@@ -162,8 +148,7 @@ const handleLoadBinary = async (key: IDBValidKey) => {
 	const bin = await loadBinary(key);
 	if (bin && vm?.value) {
 		const data = new Uint8Array(bin.data);
-		for (let i = 0; i < data.length; i++)
-			vm.value.writeDebug(props.address + i, data[i]!, props.debugOverrides || {});
+		for (let i = 0; i < data.length; i++) vm.value.writeDebug(props.address + i, data[i]!, props.debugOverrides || {});
 		isLibraryOpen.value = false;
 	}
 };
