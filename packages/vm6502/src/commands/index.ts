@@ -48,11 +48,12 @@ import { disasmViewCmd } from "./disasmView.cmd";
 import { commentCmd } from "./comment.cmd";
 import { regsCmd } from "./regs.cmd";
 
-function d(g: string, d: string, p?: string[]) {
+function d(g: string, d: string, p?: string[], ph?: string) {
 	return {
 		description: d,
 		group: g,
 		paramDef: p,
+		paramHelp: ph,
 		fn: () => "",
 	};
 }
@@ -63,10 +64,12 @@ export const COMMANDDEF_LIST = {
 	WHILE: d("Scripting", "Loop: WHILE `expression` [DO] `command`", ["number"]),
 	BREAK: d("Scripting", "Exit the innermost WHILE loop"),
 	RETURN: d("Scripting", "Exit the current routine with an optional value", ["rest"]),
-	DO: d("Scripting", "Execute a defined routine.\ndo <\u200broutinename> [args...]\n&<\u200broutinename> [args...]", [
-		"name",
-		"rest",
-	]),
+	DO: d(
+		"Scripting",
+		"Execute a defined routine.\ndo <\u200broutinename> [args...]\n&<\u200broutinename> [args...]",
+		["name", "rest"],
+		"routinename [args...] ",
+	),
 	"&": "DO",
 
 	"`addr`": d("Monitor", "Displays byte at `addr`"),
@@ -112,6 +115,7 @@ export const COMMANDDEF_LIST = {
 			"Usage: db $2000 8 x2 ; $2000: bytes[8] $2008: bytes[8]\n" +
 			"Usage: db $2000:$2010 8 ; $2000: bytes[8], bytes[8],\n",
 		paramDef: ["address|range", "word", "name?"],
+		paramHelp: "address|range count [times]",
 		fn: defDataFn,
 		staticParams: { prepend: ["byte"] },
 		group: "Memory",
@@ -246,6 +250,7 @@ export const COMMANDDEF_LIST = {
 		description:
 			"Prints evaluated expressions to the console. Args can be strings, numbers, or expressions (e.g. A, X+1, mem[PC]).",
 		paramDef: ["rest"],
+		paramHelp: "expression1 [expression2 ...]",
 		fn: printCmdFn,
 		staticParams: { prepend: ["text"] },
 		group: "Console",
@@ -293,7 +298,12 @@ for (const [k, v] of Object.entries(COMMANDDEF_LIST)) {
 	}
 	try {
 		const allParams = (v as CommandDef).paramDef ?? [];
-		COMMAND_LIST[k] = { ...v, paramDef: parseParamList(allParams), params: allParams };
+		const source = v as CommandDef;
+		COMMAND_LIST[k] = {
+			...source,
+			paramDef: parseParamList(allParams),
+			params: allParams,
+		};
 	} catch (e) {
 		throw new Error(`Parsing parameters for command '${k}' failed: ${e}`);
 	}

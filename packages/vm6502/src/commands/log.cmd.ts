@@ -6,6 +6,7 @@ export const logCmd = defineCommand({
 	description:
 		"Interact with log windows. Usage: log <name> [open|close|clear] | <args...>. Args can be strings, numbers, or expressions (e.g. A, X+1, mem[PC]).",
 	paramDef: ["name", "name?", "rest"],
+	paramHelp: "name [command] [args...]",
 	group: "Logging",
 	fn: ({ params }: CommandContext) => {
 		const { open, close, trace, clear } = useLogWindows();

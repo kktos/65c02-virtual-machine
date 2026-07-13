@@ -12,6 +12,7 @@ export const cmdHelp = defineCommand({
 		"Can search for a command (HELP search).\n" +
 		"Can be filtered by group name (HELP --group cons).",
 	paramDef: ["name?|string?"],
+	paramHelp: "[command] | --group <group>",
 	options: [{ name: "group" }] as const,
 	group: "Console",
 	fn: ({ params, opts }) => {
@@ -22,9 +23,7 @@ export const cmdHelp = defineCommand({
 		let cmdFilter: string | undefined;
 		let output = "";
 
-		const parm = (
-			isParamListItemIdentifier(params[0]) ? params[0].text : ((params[0] ?? "") as string)
-		).toUpperCase();
+		const parm = (isParamListItemIdentifier(params[0]) ? params[0].text : ((params[0] ?? "") as string)).toUpperCase();
 
 		if (opts.group) {
 			groupFilter = parm;
@@ -55,14 +54,12 @@ export const cmdHelp = defineCommand({
 			});
 
 		let sortedGroupNames = Object.keys(groups).sort();
-		if (groupFilter)
-			sortedGroupNames = sortedGroupNames.filter((name) => name.toUpperCase().startsWith(groupFilter));
+		if (groupFilter) sortedGroupNames = sortedGroupNames.filter((name) => name.toUpperCase().startsWith(groupFilter));
 
 		for (const groupName of sortedGroupNames) {
 			let commandsInGroup = groups[groupName]!;
 			commandsInGroup.sort((a, b) => a.key.localeCompare(b.key));
-			if (cmdFilter)
-				commandsInGroup = commandsInGroup.filter((cmd) => cmd.key.toUpperCase().startsWith(cmdFilter));
+			if (cmdFilter) commandsInGroup = commandsInGroup.filter((cmd) => cmd.key.toUpperCase().startsWith(cmdFilter));
 
 			if (commandsInGroup.length === 0) continue;
 
@@ -70,10 +67,15 @@ export const cmdHelp = defineCommand({
 			const commandHelp = commandsInGroup
 				.map(({ key, cmd, aliases }) => {
 					const allNames = [key, ...aliases].sort().join(", ");
-					const params = ("params" in cmd ? cmd.params : cmd.paramDef) as string[];
-					const allParams = params?.map((p) => `${p.replaceAll("|", "\\|")}`).join(" ") || "";
+					// Use paramHelp if available, otherwise fall back to parsed params
+					const paramDisplay =
+						"paramHelp" in cmd && cmd.paramHelp
+							? cmd.paramHelp
+							: (("params" in cmd ? cmd.params : cmd.paramDef) as string[])
+									?.map((p) => `${p.replaceAll("|", "\\|")}`)
+									.join(" ") || "";
 					const description = cmd.description?.replaceAll("|", "\\|").replace(/\n/g, "<br/>") || "";
-					return `| ${allNames} | ${allParams} | ${description} |`;
+					return `| ${allNames} | ${paramDisplay} | ${description} |`;
 				})
 				.join("\n");
 			output += commandHelp;

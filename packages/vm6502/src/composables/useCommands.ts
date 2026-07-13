@@ -71,6 +71,7 @@ export function defineCommand<O extends readonly OptionItemDef[]>(def: {
 	description: string;
 	group: string;
 	paramDef?: string[];
+	paramHelp?: string;
 	options?: O;
 	fn: (context: CommandContext<O>) => Promise<CommandResult> | CommandResult;
 	closeOnSuccess?: boolean;
@@ -264,7 +265,7 @@ export async function executeSubQueue(
 						continue;
 					}
 
-					const isInsideRoutine = subQueue.length > 0 && subQueue.some((i) => i.type === "marker");
+					const isInsideRoutine = subQueue.some((i) => i.type === "marker");
 					if (isInsideRoutine) {
 						let foundTerminator = false;
 						let lineIndex = 0;
@@ -297,9 +298,7 @@ export async function executeSubQueue(
 					if (!isLastInChain) throw new Error("Cannot pipe from a multi-line command request.");
 
 					if (subQueue.length > 0)
-						throw new Error(
-							"Commands that start multi-line mode cannot be combined with other commands using ';'.",
-						);
+						throw new Error("Commands that start multi-line mode cannot be combined with other commands using ';'.");
 					multiLineSession.value = {
 						__isMultiLineRequest: true,
 						prompt: request.prompt,
