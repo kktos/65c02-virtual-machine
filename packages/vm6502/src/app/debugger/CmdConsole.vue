@@ -76,7 +76,7 @@
 						@keydown.down.prevent="handleHistoryDown"
 						@keydown.escape.prevent="handleEscape"
 						class="flex-1 bg-transparent border-none outline-none placeholder-gray-700 text-xs disabled:text-gray-500"
-						:style="{ color: fontColor, fontFamily: fontFamily }"
+						:style="{ color: fontColor, fontFamily: fontFamily, caretShape: 'block' }"
 						spellcheck="false"
 						autocomplete="off"
 					/>
@@ -231,7 +231,9 @@ const handleHistoryDown = () => {
 	if (historyIndex.value >= 0) {
 		historyIndex.value--;
 		inputText.value = (
-			historyIndex.value === -1 ? tempInput : commandHistory.value[commandHistory.value.length - 1 - historyIndex.value]
+			historyIndex.value === -1
+				? tempInput
+				: commandHistory.value[commandHistory.value.length - 1 - historyIndex.value]
 		) as string;
 	}
 };
