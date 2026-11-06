@@ -1,89 +1,79 @@
 <template>
-	<div class="flex items-center space-x-4 bg-gray-800 p-2 rounded-lg shadow-md border border-gray-700">
-		<div class="flex flex-col">
-			<span class="text-[10px] uppercase text-gray-400 font-bold tracking-wider">Clock Speed</span>
-			<div class="flex items-center space-x-2">
-				<span class="font-mono text-base font-bold text-cyan-400 tabular-nums min-w-[5rem]">
-					{{ speedMhz.toFixed(2) }} <span class="text-sm text-cyan-600">MHz</span>
+	<Popover v-model:open="open">
+		<PopoverTrigger as-child>
+			<button
+				class="flex items-center gap-1.5 h-8 px-2 shrink-0 rounded-md bg-gray-900 border border-gray-700 hover:border-gray-500 transition-colors"
+				title="Clock Speed"
+			>
+				<span class="font-mono text-sm font-bold text-cyan-400 tabular-nums whitespace-nowrap">
+					<span class="inline-block min-w-[5ch] text-right">{{ speedMhz.toFixed(2) }}</span>
+					<span class="text-xs text-cyan-600"> MHz</span>
 				</span>
-				<div v-if="isManual" class="flex items-center space-x-1">
-					<input
-						type="number"
-						v-model.number="targetSpeed"
-						@change="updateSpeed"
-						class="w-20 bg-gray-700 text-gray-200 text-xs rounded border border-gray-600 focus:ring-1 focus:ring-cyan-500 outline-none px-1 py-0.5"
-						step="0.1"
-						min="0"
-					/>
-					<button @click="switchToPresets" class="text-gray-400 hover:text-cyan-400" title="Switch to presets">
-						<svg
-							xmlns="http://www.w3.org/2000/svg"
-							class="h-4 w-4"
-							fill="none"
-							viewBox="0 0 24 24"
-							stroke="currentColor"
-						>
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
-						</svg>
-					</button>
-				</div>
-				<select
-					v-else
-					:value="targetSpeed"
-					@change="onSelectChange"
-					class="bg-gray-700 text-gray-200 text-xs rounded border border-gray-600 focus:ring-1 focus:ring-cyan-500 outline-none px-1 py-0.5"
+				<ChevronDown class="h-3 w-3 text-gray-400" />
+			</button>
+		</PopoverTrigger>
+		<PopoverContent align="end" class="w-52 p-2 bg-gray-800 border-gray-700 text-gray-100">
+			<div class="px-1 mb-1 text-[10px] uppercase text-gray-400 font-bold tracking-wider">Clock Speed</div>
+			<div class="flex flex-col">
+				<button
+					v-for="speed in speeds"
+					:key="speed.value"
+					@click="selectPreset(speed.value)"
+					class="flex items-center gap-2 px-2 py-1 rounded text-left text-xs text-gray-300 hover:bg-gray-700 hover:text-yellow-300"
 				>
-					<option v-for="speed in speeds" :key="speed.value" :value="speed.value">
-						{{ speed.label }}
-					</option>
-					<option value="custom">Custom...</option>
-				</select>
+					<Check class="h-3.5 w-3.5" :class="targetSpeed === speed.value ? 'opacity-100' : 'opacity-0'" />
+					{{ speed.label }}
+				</button>
 			</div>
-		</div>
-	</div>
+			<label class="flex items-center gap-2 mt-1 pt-2 px-1 border-t border-gray-700 text-xs text-gray-400">
+				Custom
+				<input
+					type="number"
+					:value="targetSpeed"
+					@change="onCustomChange"
+					@keyup.enter="open = false"
+					class="w-20 bg-gray-700 text-gray-200 text-xs rounded border border-gray-600 focus:ring-1 focus:ring-cyan-500 outline-none px-1 py-0.5"
+					step="0.1"
+					min="0"
+				/>
+				MHz
+			</label>
+		</PopoverContent>
+	</Popover>
 </template>
 
 <script lang="ts" setup>
+import { Check, ChevronDown } from "lucide-vue-next";
 import { computed, inject, onMounted, type Ref, ref, watch } from "vue";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useEmulatorSpeed } from "@/composables/useEmulatorSpeed";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 
 const vm = inject<Ref<VirtualMachine>>("vm");
 const subscribeToUiUpdates = inject<(callback: () => void) => void>("subscribeToUiUpdates");
 
+const open = ref(false);
 const speedMhz = ref(0);
 const { targetSpeed } = useEmulatorSpeed();
-const isManual = ref(false);
 
 const speeds = computed(() => vm?.value?.machineConfig.speeds);
 
 const updateSpeed = () => vm?.value.setSpeed(targetSpeed.value);
 
-const onSelectChange = (event: Event) => {
-	const val = (event.target as HTMLSelectElement).value;
-	if (val === "custom") {
-		isManual.value = true;
-	} else {
-		targetSpeed.value = Number(val);
-	}
+const selectPreset = (value: number) => {
+	targetSpeed.value = value;
+	open.value = false;
 };
 
-const switchToPresets = () => {
-	isManual.value = false;
-	const currentIsPreset = speeds.value?.some((s) => s.value === targetSpeed.value);
-	if (!currentIsPreset && speeds.value?.length) {
-		targetSpeed.value = speeds.value[0]!.value;
-	}
+const onCustomChange = (event: Event) => {
+	const value = Number((event.target as HTMLInputElement).value);
+	if (Number.isFinite(value) && value >= 0) targetSpeed.value = value;
 };
 
 watch(
 	[targetSpeed, speeds],
-	([newSpeed, newSpeeds]) => {
-		if (newSpeeds && newSpeeds.length > 0) {
-			const isPreset = newSpeeds.some((s) => s.value === newSpeed);
-			if (!isPreset) isManual.value = true;
-			updateSpeed();
-		}
+	([, newSpeeds]) => {
+		if (newSpeeds && newSpeeds.length > 0) updateSpeed();
 	},
 	{ immediate: true },
 );

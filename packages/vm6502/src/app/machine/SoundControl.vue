@@ -1,14 +1,8 @@
 <template>
-	<div class="flex items-center space-x-3 bg-gray-800 p-2 rounded-lg shadow-md border border-gray-700">
-		<button
-			@click="toggleSound"
-			class="group flex items-center justify-center w-10 h-10 bg-gray-700 hover:bg-gray-600 rounded border border-gray-600 transition-colors shrink-0"
-			:title="isEnabled ? 'Mute Sound' : 'Enable Sound'"
-		>
-			<Volume2 v-if="isEnabled" class="h-5 w-5 text-green-400 group-hover:text-green-300" />
-			<VolumeX v-else class="h-5 w-5 text-red-400 group-hover:text-red-300" />
-		</button>
-	</div>
+	<button @click="toggleSound" class="toolbar-btn group" :title="isEnabled ? 'Mute Sound' : 'Enable Sound'">
+		<Volume2 v-if="isEnabled" class="h-4 w-4 text-green-400 group-hover:text-green-300" />
+		<VolumeX v-else class="h-4 w-4 text-red-400 group-hover:text-red-300" />
+	</button>
 </template>
 
 <script lang="ts" setup>

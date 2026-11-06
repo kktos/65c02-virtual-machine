@@ -1,13 +1,14 @@
 <template>
-	<div class="flex items-center space-x-3 bg-gray-800 p-2 rounded-lg shadow-md border border-gray-700">
+	<div class="flex items-center">
 		<Dialog v-model:open="showMapping">
 			<DialogTrigger as-child>
 				<button
-					class="group flex items-center justify-center w-10 h-10 bg-gray-700 hover:bg-gray-600 rounded border border-gray-600 transition-colors shrink-0"
-					:class="{ 'bg-blue-700 border-blue-500': showMapping }"
+					class="toolbar-btn group"
+					:class="{ 'bg-blue-700 hover:bg-blue-600': showMapping }"
+					:title="hasGamepad ? 'Input Mapping' : 'Input Mapping (no gamepad detected)'"
 				>
-					<Gamepad2 v-if="hasGamepad" class="h-5 w-5 text-green-400 group-hover:text-green-300" />
-					<Gamepad2 v-else class="h-5 w-5 text-red-400 group-hover:text-red-300" />
+					<Gamepad2 v-if="hasGamepad" class="h-4 w-4 text-green-400 group-hover:text-green-300" />
+					<Gamepad2 v-else class="h-4 w-4 text-red-400 group-hover:text-red-300" />
 				</button>
 			</DialogTrigger>
 			<DialogContent class="sm:max-w-[425px] bg-gray-900 border-gray-700 text-gray-100">

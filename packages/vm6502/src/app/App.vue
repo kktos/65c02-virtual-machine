@@ -11,21 +11,25 @@
 		<ResizablePanel
 			class="flex flex-col bg-white bg-[conic-gradient(#000_0_25%,#333_0_50%,#000_0_75%,#333_0_100%)] [background-size:1rem_1rem] relative"
 		>
-			<div class="flex items-center justify-between pr-2 bg-gray-900">
+			<!-- Toolbar: its width drives the @container breakpoints used inside the controls -->
+			<div class="@container flex flex-wrap items-center gap-1 p-1 bg-gray-800 border-b border-gray-700">
 				<MachineSelector
+					class="flex-1 basis-0 min-w-17"
 					:machines="availableMachines"
 					:selected-machine="selectedMachine"
 					@machine-selected="handleMachineSelected"
 					@power-cycle="handlePowerCycle"
 				/>
-				<div class="flex items-center space-x-2">
+				<div class="hidden @[26rem]:block w-px h-6 mx-1 bg-gray-700"></div>
+				<div class="flex items-center gap-0.5">
 					<VideoControl />
 					<SoundControl />
 					<GamepadControl v-if="hasGamepad" />
 					<MouseControl v-if="hasMouse" />
 					<DiskDriveControl v-if="hasDisk" />
-					<SpeedControl />
 				</div>
+				<div class="hidden @[26rem]:block w-px h-6 mx-1 bg-gray-700"></div>
+				<SpeedControl />
 			</div>
 			<canvas ref="videoCanvas" class="border" style="image-rendering: pixelated"></canvas>
 			<CmdConsole />
