@@ -40,9 +40,9 @@
 						<DebuggerControls :isRunning="isRunning" />
 					</div>
 
-					<div class="grid grid-cols-[300px_300px_1fr] gap-4 min-h-0">
+					<div class="grid grid-cols-[minmax(13rem,300px)_300px_1fr] gap-4 min-h-0">
 						<!-- Registers and Flags stacked vertically in the first column -->
-						<div class="grid grid-rows-[1fr_auto] gap-2">
+						<div class="grid grid-rows-[1fr_auto] gap-2 min-w-0">
 							<RegistersView :registers="registers" :virtual-registers="virtualRegisters" />
 							<StatusFlagsView :registers="registers" />
 						</div>

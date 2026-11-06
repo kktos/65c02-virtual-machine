@@ -1,21 +1,21 @@
 <template>
 	<div class="p-4 bg-gray-800 rounded-lg shadow-lg">
 		<DebuggerPanelTitle title="Registers" />
-		<div class="grid grid-cols-3 gap-x-4 gap-y-2 font-mono text-sm text-gray-300">
+		<div class="grid grid-cols-[repeat(auto-fill,minmax(5rem,1fr))] gap-x-2 gap-y-2 font-mono text-sm text-gray-300">
 			<div
 				v-for="reg in allRegisters"
 				:key="reg.key"
-				class="flex items-center border focus-within:border-gray-500 border-transparent"
+				class="flex items-center min-w-0 border focus-within:border-gray-500 border-transparent"
 			>
 				<div
-					class="flex items-center overflow-hidden font-mono text-sm tabular-nums border border-gray-700"
+					class="flex items-center w-full min-w-0 overflow-hidden font-mono text-sm tabular-nums border border-gray-700"
 					:class="[
 						reg.write ? 'bg-gray-900' : 'bg-gray-850',
 						reg.isVirtual ? 'border-indigo-500/40' : 'border-gray-700',
 					]"
 				>
 					<span
-						class="px-2 py-0.5 font-bold text-gray-200 select-none border-r border-black/40"
+						class="shrink-0 px-2 py-0.5 font-bold text-gray-200 select-none border-r border-black/40"
 						:class="reg.isVirtual ? 'bg-indigo-700/40 text-indigo-200' : 'bg-gray-700'"
 					>
 						{{ reg.label }}
@@ -26,6 +26,7 @@
 						@keyup.enter="onRegisterUpdate($event, reg)"
 						@blur="onRegisterUpdate($event, reg)"
 						:disabled="!reg.write"
+						:style="{ minWidth: `${reg.size * 2 + 0.5}ch` }"
 						class="w-full bg-transparent text-center py-0.5 text-indigo-300 outline-none focus:bg-black/20 disabled:opacity-60"
 						:aria-label="`Register ${reg.label}`"
 					/>
