@@ -1,11 +1,11 @@
 <template>
 	<button
 		@click="toggleWindow"
-		class="group flex items-center justify-center w-10 h-10 bg-gray-700 hover:bg-gray-600 rounded-lg border border-gray-600 transition-colors shrink-0"
-		:class="{ 'bg-gray-600 border-cyan-500/50': memoryMapWindow?.isOpen }"
+		class="toolbar-btn group"
+		:class="{ 'bg-gray-700 ring-1 ring-cyan-500/50': memoryMapWindow?.isOpen }"
 		title="Memory Map"
 	>
-		<MapIcon class="h-5 w-5 text-cyan-400 group-hover:text-cyan-300" />
+		<MapIcon class="h-4 w-4 text-cyan-400 group-hover:text-cyan-300" />
 	</button>
 
 	<FloatingWindow

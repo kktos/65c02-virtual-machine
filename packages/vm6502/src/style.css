@@ -124,5 +124,10 @@
 
 /* Compact icon button used by the emulator toolbar controls */
 @utility toolbar-btn {
-	@apply relative flex items-center justify-center w-8 h-8 shrink-0 rounded-md transition-colors hover:bg-gray-700;
+	@apply relative flex items-center justify-center gap-1.5 min-w-8 h-8 shrink-0 rounded-md text-xs font-medium text-gray-300 transition-colors hover:bg-gray-700 outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/60 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent;
+}
+
+/* Vertical divider between toolbar groups */
+@utility toolbar-sep {
+	@apply w-px h-6 mx-1 shrink-0 bg-gray-700;
 }
