@@ -121,3 +121,8 @@
 		@apply bg-background text-foreground;
 	}
 }
+
+/* Compact icon button used by the emulator toolbar controls */
+@utility toolbar-btn {
+	@apply relative flex items-center justify-center w-8 h-8 shrink-0 rounded-md transition-colors hover:bg-gray-700;
+}

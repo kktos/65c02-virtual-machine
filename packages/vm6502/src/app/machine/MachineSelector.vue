@@ -1,12 +1,12 @@
 <template>
-	<div class="flex items-center space-x-3 bg-gray-800 p-2 rounded-lg shadow-md border border-gray-700">
+	<div class="flex items-center gap-0.5 min-w-0">
 		<Popover v-model:open="open">
 			<PopoverTrigger as-child>
 				<button
-					class="group flex items-center justify-center w-10 h-10 bg-gray-700 hover:bg-gray-600 rounded border border-gray-600 transition-colors shrink-0"
-					title="Select Machine"
+					class="toolbar-btn group bg-gray-700 hover:bg-gray-600"
+					:title="`Select Machine (${selectedMachine.name})`"
 				>
-					<Cpu class="h-5 w-5 text-cyan-400 group-hover:text-cyan-300" />
+					<Cpu class="h-4 w-4 text-cyan-400 group-hover:text-cyan-300" />
 				</button>
 			</PopoverTrigger>
 			<PopoverContent class="w-[220px] p-0 bg-gray-800 border-gray-700" align="start">
@@ -28,17 +28,13 @@
 				</Command>
 			</PopoverContent>
 		</Popover>
-		<div class="flex flex-col overflow-hidden min-w-[8rem]">
-			<span class="text-[10px] uppercase text-gray-400 font-bold tracking-wider">Machine</span>
-			<div class="text-xs font-mono truncate text-gray-300" :title="selectedMachine.name">
+		<div class="hidden @[26rem]:flex flex-col min-w-0 px-1.5 leading-tight">
+			<span class="hidden @[48rem]:block text-[10px] uppercase text-gray-400 font-bold tracking-wider">Machine</span>
+			<span class="text-xs font-mono truncate text-gray-300" :title="selectedMachine.name">
 				{{ selectedMachine.name }}
-			</div>
+			</span>
 		</div>
-		<button
-			@click="$emit('power-cycle')"
-			class="group flex items-center justify-center w-8 h-8 bg-gray-700 hover:bg-red-900/30 rounded border border-gray-600 transition-colors shrink-0 ml-auto"
-			title="Hard Power Cycle"
-		>
+		<button @click="$emit('power-cycle')" class="toolbar-btn group hover:bg-red-900/30" title="Hard Power Cycle">
 			<Power class="h-4 w-4 text-red-400 group-hover:text-red-300" />
 		</button>
 	</div>
