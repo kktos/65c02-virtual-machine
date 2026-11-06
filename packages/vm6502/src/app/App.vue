@@ -20,7 +20,7 @@
 					@machine-selected="handleMachineSelected"
 					@power-cycle="handlePowerCycle"
 				/>
-				<div class="hidden @[26rem]:block w-px h-6 mx-1 bg-gray-700"></div>
+				<div class="hidden @[26rem]:block toolbar-sep"></div>
 				<div class="flex items-center gap-0.5">
 					<VideoControl />
 					<SoundControl />
@@ -28,7 +28,7 @@
 					<MouseControl v-if="hasMouse" />
 					<DiskDriveControl v-if="hasDisk" />
 				</div>
-				<div class="hidden @[26rem]:block w-px h-6 mx-1 bg-gray-700"></div>
+				<div class="hidden @[26rem]:block toolbar-sep"></div>
 				<SpeedControl />
 			</div>
 			<canvas ref="videoCanvas" class="border" style="image-rendering: pixelated"></canvas>
@@ -40,9 +40,7 @@
 		<ResizablePanel>
 			<ResizablePanelGroup direction="vertical" auto-save-id="debuggerPanelLayout">
 				<ResizablePanel :default-size="41" class="grid grid-rows-[auto_1fr] gap-2 p-2" @resize="dbgTopPanelResize">
-					<div class="flex items-center justify-start">
-						<DebuggerControls :isRunning="isRunning" />
-					</div>
+					<DebuggerControls :isRunning="isRunning" />
 
 					<div class="grid grid-cols-[300px_300px_1fr] gap-4 min-h-0">
 						<!-- Registers and Flags stacked vertically in the first column -->

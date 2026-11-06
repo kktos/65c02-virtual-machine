@@ -1,145 +1,99 @@
 <template>
-	<div
-		class="flex justify-start items-center space-x-2 bg-gray-800 p-2 rounded-xl shadow-inner border border-gray-700 shrink-0"
-	>
-		<ButtonGroup>
-			<Button
-				@click="toggle"
-				size="sm"
-				:class="[isRunning ? 'bg-red-600 hover:bg-red-500' : 'bg-green-600 hover:bg-green-500']"
-			>
-				<Pause v-if="isRunning" class="h-4 w-4" />
-				<Play v-else class="h-4 w-4" />
-			</Button>
+	<div class="flex flex-wrap items-center gap-1 p-1 bg-gray-800 rounded-lg border border-gray-700">
+		<!-- Execution -->
+		<button
+			@click="toggle"
+			class="toolbar-btn text-white"
+			:class="isRunning ? 'bg-red-600 hover:bg-red-500' : 'bg-green-600 hover:bg-green-500'"
+			:title="isRunning ? 'Pause' : 'Run'"
+		>
+			<Pause v-if="isRunning" class="h-4 w-4" />
+			<Play v-else class="h-4 w-4" />
+		</button>
+		<button @click="vm?.stepOver" :disabled="isRunning" class="toolbar-btn" title="Step Over (F10)">
+			<RedoDot class="h-4 w-4" />
+		</button>
+		<button @click="vm?.step" :disabled="isRunning" class="toolbar-btn" title="Step Into (F11)">
+			<ArrowDownToDot class="h-4 w-4" />
+		</button>
+		<button @click="vm?.stepOut" :disabled="isRunning" class="toolbar-btn" title="Step Out (Shift+F11)">
+			<ArrowUpFromDot class="h-4 w-4" />
+		</button>
+		<button @click="vm?.reset" class="toolbar-btn group hover:bg-red-900/30" title="Reset the CPU and memory">
+			<RotateCcw class="h-4 w-4 text-red-400 group-hover:text-red-300" />
+		</button>
 
-			<Button
-				@click="vm?.stepOver"
-				size="sm"
-				:disabled="isRunning"
-				class="hover:bg-gray-600 disabled:opacity-50"
-				title="Step Over (F10)"
-			>
-				<RedoDot class="h-4 w-4" />
-			</Button>
+		<div class="toolbar-sep"></div>
 
-			<Button
-				@click="vm?.step"
-				size="sm"
-				:disabled="isRunning"
-				class="hover:bg-gray-600 disabled:opacity-50"
-				title="Step Into (F11)"
-			>
-				<ArrowDownToDot class="h-4 w-4" />
-			</Button>
+		<!-- Toggles -->
+		<button
+			@click="toggleBreakOnBrk"
+			class="toolbar-btn px-2"
+			:class="{ 'bg-yellow-600 hover:bg-yellow-500 text-white': breakOnBrk }"
+			:aria-pressed="breakOnBrk"
+			title="Pause on BRK instruction"
+		>
+			<Octagon class="h-4 w-4" />
+			BRK
+		</button>
+		<button
+			@click="toggleTrace"
+			class="toolbar-btn px-2"
+			:class="{ 'bg-purple-600 hover:bg-purple-500 text-white': traceEnabled }"
+			:aria-pressed="traceEnabled"
+			:title="vm?.traceOverflow?.value ? 'Execution tracing (JSR/JMP) — buffer overflow' : 'Enable execution tracing (JSR/JMP)'"
+		>
+			<span
+				v-if="vm?.traceOverflow?.value"
+				class="absolute top-1 right-1 w-1.5 h-1.5 bg-orange-400 rounded-full animate-pulse shadow-[0_0_4px_rgba(251,146,60,0.6)]"
+			></span>
+			<ScrollText class="h-4 w-4" />
+			Trace
+		</button>
 
-			<Button
-				@click="vm?.stepOut"
-				:disabled="isRunning"
-				size="sm"
-				class="hover:bg-gray-600 disabled:opacity-50"
-				title="Step Out (shift-F11)"
-			>
-				<ArrowUpFromDot class="h-4 w-4" />
-			</Button>
-		</ButtonGroup>
+		<div class="toolbar-sep"></div>
 
-		<ButtonGroup>
-			<Button
-				@click="toggleBreakOnBrk"
-				size="sm"
-				:class="[breakOnBrk ? 'bg-yellow-600 hover:bg-yellow-500 text-white' : 'hover:bg-gray-600 text-gray-300']"
-				title="Pause on BRK instruction"
-			>
-				<Octagon class="mr-2 h-4 w-4" />
-				BRK
-			</Button>
-		</ButtonGroup>
-
-		<ButtonGroup>
-			<Button
-				@click="toggleTrace"
-				class="relative"
-				size="sm"
-				:class="[traceEnabled ? 'bg-purple-600 hover:bg-purple-500 text-white' : 'hover:bg-gray-600 text-gray-300']"
-				title="Enable execution tracing (JSR/JMP)"
-			>
-				<span
-					v-if="vm?.traceOverflow?.value"
-					class="absolute top-1 right-1 w-2 h-2 bg-orange-400 rounded-full animate-pulse shadow-[0_0_4px_rgba(251,146,60,0.6)]"
-					title="Trace buffer overflow"
-				></span>
-				<ScrollText class="mr-2 h-4 w-4" />
-				Trace
-			</Button>
-		</ButtonGroup>
-
-		<ButtonGroup>
-			<Button @click="vm?.reset" size="sm" class="hover:bg-gray-600" title="Reset the CPU and memory">Reset</Button>
-		</ButtonGroup>
-
+		<!-- Tools -->
 		<MemoryMap />
-
 		<button
 			@click="vm?.refreshVideo"
 			:disabled="isRunning"
-			class="group relative flex items-center justify-center w-10 h-10 bg-gray-700 hover:bg-gray-600 rounded-lg border border-gray-600 transition-colors shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+			class="toolbar-btn group"
 			title="Force a video refresh (useful when paused)"
 		>
-			<RefreshCw class="h-2.5 w-2.5 -mt-1 text-cyan-400 group-hover:text-cyan-300" />
-			<Monitor class="absolute h-6 w-6 text-gray-400 group-hover:text-cyan-300" />
+			<Monitor class="h-4 w-4 text-gray-400 group-hover:text-cyan-300" />
+			<RefreshCw class="absolute h-2 w-2 -mt-1 text-cyan-400 group-hover:text-cyan-300" />
 		</button>
-
-		<ButtonGroup>
-			<Button
-				class="p-2 hover:bg-gray-700 rounded text-gray-300 hover:text-white transition-colors"
-				title="Paste from Clipboard"
-				@click="pasteFromClipboard"
-			>
-				<!-- Clipboard Icon -->
-				<svg
-					xmlns="http://www.w3.org/2000/svg"
-					width="18"
-					height="18"
-					viewBox="0 0 24 24"
-					fill="none"
-					stroke="currentColor"
-					stroke-width="2"
-					stroke-linecap="round"
-					stroke-linejoin="round"
-				>
-					<path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
-					<rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect>
-				</svg>
-			</Button>
-
-			<Button
-				class="p-2 hover:bg-gray-700 rounded text-gray-300 hover:text-white transition-colors"
-				title="Open Command Interface (Ctrl+Shift+D)"
-				@click="toggleCommandInterface"
-			>
-				<Terminal class="h-4 w-4" />
-			</Button>
-		</ButtonGroup>
+		<button @click="pasteFromClipboard" class="toolbar-btn" title="Paste from Clipboard">
+			<ClipboardPaste class="h-4 w-4" />
+		</button>
+		<button
+			@click="toggleCommandInterface"
+			class="toolbar-btn"
+			:class="{ 'bg-gray-700 text-cyan-300': isConsoleVisible }"
+			title="Open Command Interface (Ctrl+Shift+D)"
+		>
+			<Terminal class="h-4 w-4" />
+		</button>
 	</div>
 </template>
-
 <script lang="ts" setup>
 import {
 	ArrowDownToDot,
 	ArrowUpFromDot,
+	ClipboardPaste,
 	Monitor,
 	Octagon,
 	Pause,
 	Play,
 	RedoDot,
 	RefreshCw,
+	RotateCcw,
 	ScrollText,
 	Terminal,
 } from "lucide-vue-next";
 import { inject, type Ref, ref } from "vue";
 import MemoryMap from "@/app/debugger/memorymap/MemoryMap.vue";
-import { Button } from "@/components/ui/button";
-import { ButtonGroup } from "@/components/ui/button-group";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import { useCmdConsole } from "@/composables/useCmdConsole";
 
