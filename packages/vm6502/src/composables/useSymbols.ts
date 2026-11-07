@@ -1,8 +1,9 @@
-import { computed, readonly, ref } from "vue";
-import { openDB, type DBSchema } from "idb";
+import { computed, readonly, ref, type Ref } from "vue";
 import { toHex } from "@/lib/hex.utils";
+import { createMetadataSync } from "@/lib/metadataStore";
 
 export type SymbolEntry = {
+	/** In-memory identity, assigned at load time; it is not persisted */
 	id?: number;
 	disk: string;
 	label: string;
@@ -12,6 +13,8 @@ export type SymbolEntry = {
 	addr: number;
 };
 export type SymbolDict = Record<number, Record<string, SymbolEntry>>;
+/** What is persisted: the disk is implied by the storage key */
+export type StoredSymbol = Omit<SymbolEntry, "id" | "disk">;
 
 export type SearchSuggestion = {
 	label: string;
@@ -22,20 +25,8 @@ export type SearchSuggestion = {
 };
 export type SearchProvider = (query: string) => Promise<SearchSuggestion[]> | SearchSuggestion[];
 
-interface MetadataDB extends DBSchema {
-	symbols: {
-		key: number;
-		value: SymbolEntry;
-		indexes: {
-			"by-ns": string;
-			"by-disk-ns-label": [string, string, string];
-			"by-disk-label": [string, string];
-			"by-disk": [string];
-			"by-addr": [number];
-			"by-addr-scope": [number, string];
-		};
-	};
-}
+const SYSTEM_DISK = "*";
+const NAME_RE = /^[A-Za-z_][A-Za-z_0-9]*/;
 
 // Shared state for active namespaces across components
 const activeNamespaces = ref<Map<string, boolean>>(new Map());
@@ -49,147 +40,172 @@ const symbolsState = computed(() => ({
 	// scopeSearchPath: scopeSearchPath.value,
 }));
 
-const DB_NAME = "vm6502_metadata";
-let symbolDiskKey = ref("");
-let storeName = "";
+const symbolDiskKey = ref("");
+const store = createMetadataSync("symbols");
+let nextId = 1;
+
+const dictFor = (disk: string) => (disk === SYSTEM_DISK ? systemDict : diskDict);
+
+const registerNamespace = (ns: string) => {
+	if (!activeNamespaces.value.has(ns)) activeNamespaces.value.set(ns, true);
+};
+
+const makeEntry = (disk: string, s: StoredSymbol, id = nextId++): SymbolEntry => ({
+	id,
+	disk,
+	ns: s.ns,
+	label: s.label,
+	addr: s.addr,
+	scope: s.scope || "main",
+	src: s.src ?? "",
+});
+
+function* allEntries(dict: SymbolDict) {
+	for (const byNs of Object.values(dict)) if (byNs) yield* Object.values(byNs);
+}
+
+/** Saves the whole symbol list of a disk; the snapshot is taken synchronously, as plain objects */
+const persist = (disk: string) =>
+	store.save<StoredSymbol>(
+		disk,
+		Array.from(allEntries(dictFor(disk).value), ({ ns, label, addr, scope, src }) => ({
+			ns,
+			label,
+			addr,
+			scope,
+			src,
+		})),
+	);
+
+const loadDisk = async (disk: string) => {
+	const items = await store.load<StoredSymbol>(disk);
+	const dict: SymbolDict = {};
+	for (const s of items ?? []) {
+		(dict[s.addr] ??= {})[s.ns] = makeEntry(disk, s);
+		registerNamespace(s.ns);
+	}
+	dictFor(disk).value = dict;
+	return items;
+};
+
+const findById = (id: number) => {
+	for (const dict of [systemDict.value, diskDict.value]) for (const s of allEntries(dict)) if (s.id === id) return s;
+	return undefined;
+};
+
+const findByLabel = (dict: SymbolDict, ns: string, label: string) => {
+	for (const s of allEntries(dict)) if (s.ns === ns && s.label === label) return s;
+	return undefined;
+};
+
+const removeEntry = (dict: Ref<SymbolDict>, s: SymbolEntry) => {
+	const byNs = dict.value[s.addr];
+	if (!byNs || byNs[s.ns]?.id !== s.id) return;
+	delete byNs[s.ns];
+	if (Object.keys(byNs).length === 0) delete dict.value[s.addr];
+};
+
+const assertName = (what: string, value: string, re = NAME_RE) => {
+	if (!re.test(value)) throw new Error(`Invalid ${what} name "${value}"`);
+};
+
+/**
+ * Parses both symbol text formats:
+ * - LABELS scripts, as written by the Symbol Manager export:
+ *     LABELS <ns> [<scope>] / $ADDR label / END_LABELS
+ * - legacy .sym files:
+ *     NS [scope=x]: / LABEL: number = $ADDR ;source
+ */
+export const parseSymbolsText = (text: string): StoredSymbol[] => {
+	const symbols: StoredSymbol[] = [];
+	let ns = "user";
+	let scope = "main";
+	let inLabelsBlock = false;
+
+	for (const rawLine of text.split(/\r?\n/)) {
+		const line = rawLine.trim();
+		if (!line) continue;
+
+		const labelsHeader = line.match(/^LABELS\s+(\S+)(?:\s+(\S+))?$/i);
+		if (labelsHeader) {
+			ns = labelsHeader[1]!;
+			scope = labelsHeader[2] ?? "main";
+			inLabelsBlock = true;
+			continue;
+		}
+		if (/^END_LABELS$/i.test(line)) {
+			inLabelsBlock = false;
+			continue;
+		}
+		if (inLabelsBlock) {
+			const m = line.match(/^(?:\$|0x)?([0-9A-Fa-f]+)\s+(\S+)/);
+			if (m) symbols.push({ ns, scope, label: m[2]!, addr: parseInt(m[1]!, 16), src: "" });
+			continue;
+		}
+
+		// Legacy .sym: namespace header in column 0: NAMESPACE: or 'NAMESPACE': or NAMESPACE [scope=x]:
+		const nsMatch = rawLine.match(/^(['"]?)([\w%]+)\1(?:\s*\[(.*)\])?:\s*$/);
+		if (nsMatch) {
+			ns = nsMatch[2]!;
+			scope = nsMatch[3]?.match(/SCOPE=([^\]\s]+)/i)?.[1] ?? "main";
+			continue;
+		}
+		// Legacy .sym: symbol line, indented:   LABEL: number = $HEX ;source
+		const symMatch = rawLine.match(/^\s+(\w+):\s+number\s+=\s+\$([0-9A-Fa-f]+)\s*(?:;(.*))?$/);
+		if (symMatch)
+			symbols.push({
+				ns,
+				scope,
+				label: symMatch[1]!,
+				addr: parseInt(symMatch[2]!, 16),
+				src: symMatch[3]?.trim() ?? "",
+			});
+	}
+	return symbols;
+};
 
 export function useSymbols() {
 	const setDiskKey = (newKey: string) => {
 		symbolDiskKey.value = newKey;
-		loadSymbolsFromDb();
+		return store.enqueue(() => loadDisk(newKey)).then(() => undefined);
 	};
+
+	/** Reloads the system symbols and the current disk's symbols from storage */
+	const reloadSymbols = () =>
+		store.enqueue(async () => {
+			await loadDisk(SYSTEM_DISK);
+			if (symbolDiskKey.value !== SYSTEM_DISK) await loadDisk(symbolDiskKey.value);
+		});
 
 	const setScopeSearchPath = (path: string[]) => {
 		scopeSearchPath.value = path;
 	};
 
-	const getDb = async () => {
-		if (!symbolDiskKey.value) throw new Error("No disk key provided");
-		if (!storeName) throw new Error("No store name provided");
-
-		// 1. Probe the current version
-		const probeDb = await openDB(DB_NAME);
-		const currentVersion = probeDb.version;
-		const storeExists = probeDb.objectStoreNames.contains(storeName);
-		probeDb.close();
-
-		if (storeExists) return openDB<MetadataDB>(DB_NAME);
-
-		const db = await openDB<MetadataDB>(DB_NAME, currentVersion + 1, {
-			upgrade(db) {
-				const store = db.createObjectStore(storeName as unknown as "symbols", {
-					keyPath: "id",
-					autoIncrement: true,
-				});
-				store.createIndex("by-ns", "namespace");
-				store.createIndex("by-disk-ns-label", ["disk", "ns", "label"], { unique: true });
-				store.createIndex("by-disk-label", ["disk", "label"]);
-				store.createIndex("by-disk", ["disk"]);
-				store.createIndex("by-addr", ["addr"]);
-				store.createIndex("by-addr-scope", ["addr", "scope"]);
-			},
-			blocking(_currentVersion, _blockedVersion, event) {
-				console.error(`------Db ${DB_NAME} ${storeName} blocking`, event);
-			},
-		});
-		return db;
-	};
-
-	const loadSymbolsFromDb = async () => {
-		if (!symbolDiskKey.value) return;
-		try {
-			const db = await getDb();
-			const tx = db.transaction(storeName as unknown as "symbols", "readonly");
-			const index = tx.store.index("by-disk");
-
-			const foundNamespaces = new Set<string>();
-			const newDiskDict: SymbolDict = {};
-			const diskSymbols = await index.getAll([symbolDiskKey.value]);
-			for (const sym of diskSymbols) {
-				if (!newDiskDict[sym.addr]) newDiskDict[sym.addr] = {};
-				newDiskDict[sym.addr]![sym.ns] = sym;
-				foundNamespaces.add(sym.ns);
-			}
-
-			const targetDict = symbolDiskKey.value === "*" ? systemDict : diskDict;
-			targetDict.value = newDiskDict;
-
-			for (const ns of foundNamespaces) if (!activeNamespaces.value.has(ns)) activeNamespaces.value.set(ns, true);
-		} catch (e) {
-			console.error("Failed to load symbols", e);
-		}
-	};
-
 	const initSymbols = async (machineName: string, newSymbols?: SymbolDict) => {
-		storeName = `${machineName.replace(/ /g, "_").toLowerCase()}_symbols`;
+		store.setMachine(machineName);
 		activeNamespaces.value.clear();
-		symbolDiskKey.value = "*";
+		symbolDiskKey.value = SYSTEM_DISK;
+		diskDict.value = {};
 
-		if (!newSymbols) return;
-
-		const db = await getDb();
-		const tx = db.transaction(storeName as unknown as "symbols", "readwrite");
-		const index = tx.store.index("by-disk");
-		const count = await index.count();
-		if (count) {
-			console.log(`Symbols: Found ${count} System symbols in DB.`);
-			return;
-		}
-
-		console.log("Symbols: Creating system symbols in DB...");
-
-		const keys = await index.getAllKeys([symbolDiskKey.value]);
-		await Promise.all(keys.map((key) => tx.store.delete(key)));
-
-		const promises: Promise<IDBValidKey>[] = [];
-		const newDict: SymbolDict = {};
-
-		for (const [addrStr, namespaces] of Object.entries(newSymbols)) {
-			for (const [namespace, data] of Object.entries(namespaces)) {
-				const scope = data.scope;
-				const addr = Number(addrStr);
-				const symbol = {
-					disk: symbolDiskKey.value,
-					ns: namespace,
-					label: data.label,
-					addr: addr,
-					src: data.src,
-					scope,
-				};
-				promises.push(
-					tx.store.add(symbol).then((id) => {
-						const s = { ...symbol, id: Number(id) };
-						if (!newDict[addr]) newDict[addr] = {};
-						newDict[addr][namespace] = s;
-						return id;
-					}),
-				);
-				if (!activeNamespaces.value.has(namespace)) activeNamespaces.value.set(namespace, true);
+		await store.enqueue(async () => {
+			const stored = await loadDisk(SYSTEM_DISK);
+			if (stored || !newSymbols) {
+				console.log(`Symbols: Found ${stored?.length ?? 0} System symbols.`);
+				return;
 			}
-		}
-		await Promise.all(promises);
-		await tx.done;
-		systemDict.value = newDict;
-	};
 
-	const findSymbolsDB = async (query: string, namespace: string) => {
-		const db = await getDb();
-		const label = query.toUpperCase();
-		const ns = namespace.toUpperCase();
-
-		const getAllFromDisk = async (disk: string) => {
-			if (ns != "") {
-				const rangeAll = IDBKeyRange.bound([disk, ns, label], [disk, ns, label + "\uffff"]);
-				return db.getAllFromIndex(storeName as unknown as "symbols", "by-disk-ns-label", rangeAll);
+			console.log("Symbols: Creating system symbols...");
+			const dict: SymbolDict = {};
+			for (const [addrStr, namespaces] of Object.entries(newSymbols)) {
+				for (const [ns, data] of Object.entries(namespaces)) {
+					const addr = Number(addrStr);
+					(dict[addr] ??= {})[ns] = makeEntry(SYSTEM_DISK, { ...data, ns, addr });
+					registerNamespace(ns);
+				}
 			}
-			const rangeAll = IDBKeyRange.bound([disk, label], [disk, label + "\uffff"]);
-			return db.getAllFromIndex(storeName as unknown as "symbols", "by-disk-label", rangeAll);
-		};
-
-		if (symbolDiskKey.value === "*") return getAllFromDisk("*");
-
-		const [exact, wildcard] = await Promise.all([getAllFromDisk("*"), getAllFromDisk(symbolDiskKey.value)]);
-		return exact.concat(wildcard);
+			systemDict.value = dict;
+			await persist(SYSTEM_DISK);
+		});
 	};
 
 	const findSymbols = (query: string, namespace = "") => {
@@ -250,207 +266,142 @@ export function useSymbols() {
 	};
 
 	const addSymbol = async (address: number, label: string, namespace = "user", scope = "main") => {
-		if (!label.match(/^[A-Za-z_][A-Za-z_0-9]*/)) throw new Error(`Invalid label name "${label}"`);
-		if (!namespace.match(/^[A-Za-z_][A-Za-z_0-9]*/)) throw new Error(`Invalid namespace name "${namespace}"`);
-		if (!scope.match(/^[A-Za-z_][A-Za-z_0-9]*/)) throw new Error(`Invalid scope name "${scope}"`);
+		assertName("label", label);
+		assertName("namespace", namespace);
+		assertName("scope", scope);
 
-		const db = await getDb();
-		const symbol = {
-			disk: symbolDiskKey.value,
-			ns: namespace,
-			label,
-			addr: address,
-			src: "",
-			scope,
+		await store.ready();
+		const disk = symbolDiskKey.value;
+		const dict = dictFor(disk);
+
+		const existing = findByLabel(dict.value, namespace, label);
+		if (existing && existing.addr !== address)
+			throw new Error(
+				`Label "${label}" already exists in namespace "${namespace}" at $${toHex(existing.addr, 4)}`,
+			);
+
+		const entry = makeEntry(disk, { ns: namespace, label, addr: address, scope, src: "" });
+		if (!dict.value[address]) dict.value[address] = {};
+		dict.value[address]![namespace] = entry;
+		registerNamespace(namespace);
+
+		await persist(disk);
+		return entry.id!;
+	};
+
+	/**
+	 * Adds or replaces symbols on the current disk, in one write.
+	 * There is one symbol per (address, namespace), and a label is unique within its namespace:
+	 * redefining an existing label moves it to the new address.
+	 */
+	const upsertMany = async (items: StoredSymbol[]) => {
+		if (items.length === 0) return;
+
+		await store.ready();
+		const disk = symbolDiskKey.value;
+		const target = dictFor(disk);
+
+		// Copy-on-write, so the reactive dict is replaced once instead of triggering on every symbol
+		const dict: SymbolDict = { ...target.value };
+		const copied = new Set<number>();
+		const slot = (addr: number) => {
+			if (!copied.has(addr)) {
+				dict[addr] = { ...dict[addr] };
+				copied.add(addr);
+			}
+			return dict[addr]!;
 		};
-		const id = await db.add(storeName as unknown as "symbols", symbol);
+		const labelKey = (s: StoredSymbol) => `${s.ns}\0${s.label}`;
+		const byLabel = new Map<string, SymbolEntry>();
+		for (const s of allEntries(dict)) byLabel.set(labelKey(s), s);
 
-		const newSym = { ...symbol, id: Number(id) };
-		const targetDict = symbolDiskKey.value === "*" ? systemDict : diskDict;
-		if (!targetDict.value[address]) targetDict.value[address] = {};
-		targetDict.value[address][namespace] = newSym;
+		for (const item of items) {
+			const previous = byLabel.get(labelKey(item));
+			if (previous && previous.addr !== item.addr && slot(previous.addr)[previous.ns]?.id === previous.id)
+				delete slot(previous.addr)[previous.ns];
 
-		if (!activeNamespaces.value.has(namespace)) activeNamespaces.value.set(namespace, true);
-		return id;
+			const atAddr = slot(item.addr);
+			const replaced = atAddr[item.ns];
+			if (replaced) byLabel.delete(labelKey(replaced));
+
+			const entry = makeEntry(disk, item);
+			atAddr[item.ns] = entry;
+			byLabel.set(labelKey(entry), entry);
+			registerNamespace(item.ns);
+		}
+		for (const addr of copied) if (Object.keys(dict[addr]!).length === 0) delete dict[addr];
+
+		target.value = dict;
+		await persist(disk);
 	};
 
 	const addManySymbols = async (symbols: Omit<SymbolEntry, "id" | "disk" | "src">[]) => {
-		if (symbols.length === 0) return;
-
-		const targetDict = symbolDiskKey.value === "*" ? systemDict : diskDict;
-		const newDict = { ...targetDict.value };
-		const modifiedAddrs = new Set<number>();
-		const newNamespaces = new Set<string>();
-
-		const db = await getDb();
-		const tx = db.transaction(storeName as unknown as "symbols", "readwrite");
-		const store = tx.store;
-		const index = store.index("by-disk-ns-label");
-
-		const existing = await Promise.all(symbols.map((e) => index.get([symbolDiskKey.value, e.ns, e.label])));
-		await Promise.all(
-			symbols.map((entry, i) => {
-				if (!entry.label.match(/^[A-Za-z_][A-Za-z_0-9]*/)) throw new Error(`Invalid label name ${i} "${entry.label}"`);
-				if (!entry.scope.match(/^[A-Za-z_][A-Za-z_0-9]*/)) throw new Error(`Invalid scope name ${i} "${entry.scope}"`);
-				if (!entry.ns.match(/^[A-Za-z_][A-Za-z_0-9]*/)) throw new Error(`Invalid namespace name ${i} "${entry.ns}"`);
-
-				const symbol: SymbolEntry = {
-					disk: symbolDiskKey.value,
-					ns: entry.ns,
-					label: entry.label,
-					addr: entry.addr,
-					src: "",
-					scope: entry.scope,
-				};
-				let p: Promise<number>;
-				if (existing[i]) p = store.put({ ...symbol, id: existing[i]!.id });
-				else p = store.add(symbol);
-				p.then((id) => {
-					const s = { ...symbol, id: Number(id) };
-					if (!modifiedAddrs.has(s.addr)) {
-						newDict[s.addr] = newDict[s.addr] ? { ...newDict[s.addr] } : {};
-						modifiedAddrs.add(s.addr);
-					}
-					newDict[s.addr]![s.ns] = s;
-					newNamespaces.add(s.ns);
-				});
-				return p;
-			}),
-		);
-
-		await tx.done;
-
-		targetDict.value = newDict;
-
-		for (const ns of newNamespaces) if (!activeNamespaces.value.has(ns)) activeNamespaces.value.set(ns, true);
+		symbols.forEach((entry, i) => {
+			if (!NAME_RE.test(entry.label)) throw new Error(`Invalid label name ${i} "${entry.label}"`);
+			if (!NAME_RE.test(entry.scope)) throw new Error(`Invalid scope name ${i} "${entry.scope}"`);
+			if (!NAME_RE.test(entry.ns)) throw new Error(`Invalid namespace name ${i} "${entry.ns}"`);
+		});
+		await upsertMany(symbols.map((s) => ({ ...s, src: "" })));
 	};
 
 	const updateSymbol = async (id: number, address: number, label: string, namespace: string, scope: string) => {
-		if (!label.match(/^:?[A-Za-z_][A-Za-z_0-9]*/)) throw new Error(`Invalid label name "${label}"`);
-		if (!namespace.match(/^[A-Za-z_][A-Za-z_0-9]*/)) throw new Error(`Invalid namespace name "${namespace}"`);
-		if (!scope.match(/^[A-Za-z_][A-Za-z_0-9]*/)) throw new Error(`Invalid scope name "${scope}"`);
+		assertName("label", label, /^:?[A-Za-z_][A-Za-z_0-9]*/);
+		assertName("namespace", namespace);
+		assertName("scope", scope);
 
-		const db = await getDb();
-		const tx = db.transaction(storeName as unknown as "symbols", "readwrite");
-		const store = tx.store;
+		await store.ready();
+		const current = findById(id);
+		if (!current) return;
 
-		const record = await store.get(id);
-		if (!record) return;
+		const disk = current.disk;
+		const dict = dictFor(disk);
 
-		const oldAddr = record.addr;
-		const oldNs = record.ns;
+		const clash = findByLabel(dict.value, namespace, label);
+		if (clash && clash.id !== id && clash.addr !== address)
+			throw new Error(`Label "${label}" already exists in namespace "${namespace}" at $${toHex(clash.addr, 4)}`);
 
-		record.label = label;
-		record.addr = address;
-		record.ns = namespace;
-		record.scope = scope;
+		removeEntry(dict, current);
+		if (!dict.value[address]) dict.value[address] = {};
+		dict.value[address]![namespace] = makeEntry(
+			disk,
+			{ ns: namespace, label, addr: address, scope, src: current.src },
+			id,
+		);
+		registerNamespace(namespace);
 
-		await store.put(record);
-		await tx.done;
-
-		const targetDict = record.disk === "*" ? systemDict : diskDict;
-
-		// Update Memory
-		if (targetDict.value[oldAddr]?.[oldNs]) {
-			delete targetDict.value[oldAddr][oldNs];
-			if (Object.keys(targetDict.value[oldAddr]).length === 0) delete targetDict.value[oldAddr];
-		}
-		if (!targetDict.value[address]) targetDict.value[address] = {};
-		targetDict.value[address][namespace] = record;
-
-		if (!activeNamespaces.value.has(namespace)) activeNamespaces.value.set(namespace, true);
+		await persist(disk);
 	};
 
 	const removeSymbol = async (id: number) => {
-		const db = await getDb();
-		const record = await db.get(storeName as unknown as "symbols", id);
-		if (!record) return;
+		await store.ready();
+		const current = findById(id);
+		if (!current) return;
 
-		await db.delete(storeName as unknown as "symbols", id);
-
-		const targetDict = record.disk === "*" ? systemDict : diskDict;
-		// Update Memory
-		const entry = targetDict.value[record.addr];
-		if (entry && entry[record.ns]) {
-			delete entry[record.ns];
-			if (Object.keys(entry).length === 0) delete targetDict.value[record.addr];
-		}
+		removeEntry(dictFor(current.disk), current);
+		await persist(current.disk);
 	};
 
 	const removeManySymbols = async (ids: Set<number>) => {
 		if (ids.size === 0) return;
 
-		const db = await getDb();
-		const tx = db.transaction(storeName as unknown as "symbols", "readwrite");
-		const store = tx.store;
-
-		// Fetch all records first to operate on them in memory
-		const recordsToDelete = (await Promise.all(Array.from(ids).map((id) => store.get(id)))).filter(
-			(r): r is SymbolEntry => r !== undefined,
-		);
-
-		if (recordsToDelete.length === 0) {
-			await tx.done;
-			return;
+		await store.ready();
+		const touchedDisks = new Set<string>();
+		for (const target of [systemDict, diskDict]) {
+			const dict: SymbolDict = {};
+			let changed = false;
+			for (const [addr, byNs] of Object.entries(target.value)) {
+				const kept: Record<string, SymbolEntry> = {};
+				for (const [ns, s] of Object.entries(byNs)) {
+					if (s.id !== undefined && ids.has(s.id)) {
+						changed = true;
+						touchedDisks.add(s.disk);
+					} else kept[ns] = s;
+				}
+				if (Object.keys(kept).length) dict[Number(addr)] = kept;
+			}
+			if (changed) target.value = dict;
 		}
-
-		// Batch delete from DB in parallel
-		const deletePromises = recordsToDelete.map((r) => store.delete(r.id!));
-		await Promise.all(deletePromises);
-		await tx.done;
-
-		// Group records by disk to process dicts separately
-		const systemRecords = recordsToDelete.filter((r) => r.disk === "*");
-		const diskRecords = recordsToDelete.filter((r) => r.disk !== "*");
-
-		// Update systemDict atomically
-		if (systemRecords.length > 0) {
-			const newSystemDict = { ...systemDict.value };
-			const modifiedAddrs = new Set<number>();
-
-			for (const record of systemRecords) {
-				if (newSystemDict[record.addr]) {
-					// Ensure we only copy the inner object once per address
-					if (!modifiedAddrs.has(record.addr)) {
-						newSystemDict[record.addr] = { ...newSystemDict[record.addr] };
-						modifiedAddrs.add(record.addr);
-					}
-					delete newSystemDict[record.addr]![record.ns];
-				}
-			}
-
-			// Clean up empty address entries after all deletions for that address are done
-			for (const addr of modifiedAddrs) {
-				if (Object.keys(newSystemDict[addr]!).length === 0) {
-					delete newSystemDict[addr];
-				}
-			}
-			systemDict.value = newSystemDict;
-		}
-
-		// Update diskDict atomically
-		if (diskRecords.length > 0) {
-			const newDiskDict = { ...diskDict.value };
-			const modifiedAddrs = new Set<number>();
-
-			for (const record of diskRecords) {
-				if (newDiskDict[record.addr]) {
-					if (!modifiedAddrs.has(record.addr)) {
-						newDiskDict[record.addr] = { ...newDiskDict[record.addr] };
-						modifiedAddrs.add(record.addr);
-					}
-					delete newDiskDict[record.addr]![record.ns];
-				}
-			}
-
-			// Clean up empty address entries
-			for (const addr of modifiedAddrs) {
-				if (Object.keys(newDiskDict[addr]!).length === 0) {
-					delete newDiskDict[addr];
-				}
-			}
-			diskDict.value = newDiskDict;
-		}
+		await Promise.all(Array.from(touchedDisks, persist));
 	};
 
 	const generateAsmSymFile = (): string => {
@@ -528,67 +479,15 @@ export function useSymbols() {
 
 			const scopeSuffix = scope && scope !== "main" ? ` ${scope}` : "";
 			output += `LABELS ${ns}${scopeSuffix}\n`;
-			for (const sym of entries) output += `  $${sym.addr.toString(16).toUpperCase().padStart(4, "0")} ${sym.label}\n`;
+			for (const sym of entries)
+				output += `  $${sym.addr.toString(16).toUpperCase().padStart(4, "0")} ${sym.label}\n`;
 			output += "END_LABELS\n\n";
 		}
 		return output.trim();
 	};
 
-	const addSymbolsFromText = async (text: string) => {
-		const db = await getDb();
-		const tx = db.transaction(storeName as unknown as "symbols", "readwrite");
-		const lines = text.split(/\r?\n/);
-
-		let currentNamespace = "user";
-		let currentScope = "main";
-
-		const promises: Promise<void>[] = [];
-
-		for (const line of lines) {
-			// Parse Namespace Line (Column 0)
-			// Matches: NAMESPACE: or 'NAMESPACE': or NAMESPACE [METADATA]:
-			const nsMatch = line.match(/^(['"]?)([\w%]+)\1(?:\s*\[(.*)\])?:\s*$/) as [unknown, string, string, string];
-			if (nsMatch) {
-				currentNamespace = nsMatch[2];
-				currentScope = "main"; // Reset scope for new namespace
-				if (nsMatch[3]) {
-					const scopeMatch = nsMatch[3].match(/SCOPE=([^\]\s]+)/) as [unknown, string];
-					if (scopeMatch) currentScope = scopeMatch[1];
-				}
-				if (!activeNamespaces.value.has(currentNamespace)) activeNamespaces.value.set(currentNamespace, true);
-				continue;
-			}
-
-			// Parse Symbol Line (Column 2+)
-			// Matches:   LABEL: number = $HEX ;source
-			const symMatch = line.match(/^\s+([\w]+):\s+number\s+=\s+\$([0-9A-Fa-f]+)\s*(?:;(.*))?$/) as [
-				unknown,
-				string,
-				string,
-				string,
-			];
-			if (symMatch) {
-				const symbol: SymbolEntry = {
-					disk: symbolDiskKey.value,
-					ns: currentNamespace,
-					label: symMatch[1],
-					addr: parseInt(symMatch[2], 16),
-					src: symMatch[3] ? symMatch[3].trim() : "",
-					scope: currentScope,
-				};
-				promises.push(
-					tx.store.add(symbol).then((id) => {
-						const s = { ...symbol, id: Number(id) };
-						const targetDict = symbolDiskKey.value === "*" ? systemDict : diskDict;
-						if (!targetDict.value[s.addr]) targetDict.value[s.addr] = {};
-						targetDict.value[s.addr]![s.ns] = s;
-					}),
-				);
-			}
-		}
-		await Promise.all(promises);
-		await tx.done;
-	};
+	/** Imports a LABELS script (as exported) or a legacy .sym file into the current disk */
+	const addSymbolsFromText = (text: string) => upsertMany(parseSymbolsText(text));
 
 	const getSymbolForAddress = (address: number, scopeOrPath?: string | string[]) => {
 		let finalPath: string[];
@@ -693,6 +592,7 @@ export function useSymbols() {
 
 	return {
 		initSymbols,
+		reloadSymbols,
 		setDiskKey,
 
 		setScopeSearchPath,
@@ -718,7 +618,6 @@ export function useSymbols() {
 		updateSymbol,
 		getSymbolsInRange,
 		findSymbols,
-		findSymbolsDB,
 
 		symbolsState,
 		symbolDiskKey,

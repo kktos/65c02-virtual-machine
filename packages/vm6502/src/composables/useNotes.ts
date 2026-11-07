@@ -1,7 +1,8 @@
 import { computed, ref } from "vue";
-import { openDB, type DBSchema } from "idb";
+import { createMetadataSync } from "@/lib/metadataStore";
 
 export type NoteEntry = {
+	/** In-memory identity, assigned at load time; it is not persisted */
 	id?: number;
 	disk: string;
 	addr: number;
@@ -9,142 +10,99 @@ export type NoteEntry = {
 	note: string;
 };
 export type NoteDict = Record<string, NoteEntry>; // Key is "scope:addr"
+/** What is persisted: the disk is implied by the storage key */
+export type StoredNote = Omit<NoteEntry, "id" | "disk">;
 
-interface MetadataDB extends DBSchema {
-	notes: {
-		key: number;
-		value: NoteEntry;
-		indexes: {
-			"by-disk": string;
-			"by-disk-addr-scope": [string, number, string];
-		};
-	};
-}
+const SYSTEM_DISK = "*";
 
 // Shared state
 const systemDict = ref<NoteDict>({});
 const diskDict = ref<NoteDict>({});
 
-const DB_NAME = "vm6502_metadata";
-let diskKey = ref("");
-let storeName = "";
+const diskKey = ref("");
+const store = createMetadataSync("notes");
+let nextId = 1;
+
+const dictFor = (disk: string) => (disk === SYSTEM_DISK ? systemDict : diskDict);
+const noteKey = (scope: string, addr: number) => `${scope}:${addr}`;
+
+const makeNote = (disk: string, n: StoredNote, id = nextId++): NoteEntry => ({
+	id,
+	disk,
+	addr: n.addr,
+	scope: n.scope,
+	note: n.note,
+});
+
+/** Saves the whole note list of a disk; the snapshot is taken synchronously, as plain objects */
+const persist = (disk: string) =>
+	store.save<StoredNote>(
+		disk,
+		Object.values(dictFor(disk).value).map(({ addr, scope, note }) => ({ addr, scope, note })),
+	);
+
+const loadDisk = async (disk: string) => {
+	const items = await store.load<StoredNote>(disk);
+	const dict: NoteDict = {};
+	for (const n of items ?? []) dict[noteKey(n.scope, n.addr)] = makeNote(disk, n);
+	dictFor(disk).value = dict;
+};
+
+const findById = (id: number) =>
+	Object.values(systemDict.value).find((n) => n.id === id) ?? Object.values(diskDict.value).find((n) => n.id === id);
 
 export function useNotes() {
 	const setDiskKey = async (newKey: string) => {
 		diskKey.value = newKey;
-		await loadNotesFromDb();
-		console.log("Notes::setDiskKey", diskKey.value);
+		await store.enqueue(() => loadDisk(newKey));
 	};
 
-	const getDb = async () => {
-		if (!storeName) throw new Error("No store name provided");
-
-		// 1. Probe the current version
-		const probeDb = await openDB(DB_NAME);
-		const currentVersion = probeDb.version;
-		const storeExists = probeDb.objectStoreNames.contains(storeName);
-		probeDb.close();
-
-		if (storeExists) return openDB<MetadataDB>(DB_NAME);
-		else {
-			console.log(`${DB_NAME}v${currentVersion} ${storeName} does not exist. Creating in v${currentVersion + 1}...`);
-		}
-
-		const db = await openDB<MetadataDB>(DB_NAME, currentVersion + 1, {
-			upgrade(db) {
-				if (!db.objectStoreNames.contains(storeName as any)) {
-					const store = db.createObjectStore(storeName as unknown as "notes", {
-						keyPath: "id",
-						autoIncrement: true,
-					});
-					store.createIndex("by-disk", "disk");
-					store.createIndex("by-disk-addr-scope", ["disk", "addr", "scope"], { unique: true });
-				}
-			},
-			blocking(_currentVersion, _blockedVersion, event) {
-				(event.target as IDBDatabase).close();
-			},
+	/** Reloads the system notes and the current disk's notes from storage */
+	const reloadNotes = () =>
+		store.enqueue(async () => {
+			await loadDisk(SYSTEM_DISK);
+			if (diskKey.value !== SYSTEM_DISK) await loadDisk(diskKey.value);
 		});
-		return db;
-	};
-
-	const loadNotesFromDb = async () => {
-		if (!diskKey.value) return;
-		try {
-			const db = await getDb();
-			const tx = db.transaction(storeName as unknown as "notes", "readonly");
-			const index = tx.store.index("by-disk");
-
-			const newDict: NoteDict = {};
-			const diskNotes = await index.getAll(diskKey.value);
-			for (const note of diskNotes) {
-				const key = `${note.scope}:${note.addr}`;
-				newDict[key] = note;
-			}
-
-			if (diskKey.value === "*") systemDict.value = newDict;
-			else diskDict.value = newDict;
-		} catch (e) {
-			console.error("Failed to load notes", e);
-		}
-	};
 
 	const initNotes = async (machineName: string) => {
-		storeName = `${machineName.replace(/ /g, "_").toLowerCase()}_notes`;
-		diskKey.value = "*";
-		await loadNotesFromDb(); // load system notes
-		// diskKey.value = "";
+		store.setMachine(machineName);
+		diskKey.value = SYSTEM_DISK;
 		diskDict.value = {};
+		await store.enqueue(() => loadDisk(SYSTEM_DISK));
 	};
 
 	const addNote = async (address: number, scope: string, note: string) => {
 		if (!diskKey.value) throw new Error("Cannot add note without a disk key.");
 
-		const db = await getDb();
-		const entry: Omit<NoteEntry, "id"> = {
-			disk: diskKey.value,
-			addr: address,
-			scope,
-			note,
-		};
-		const id = await db.add(storeName as unknown as "notes", entry as NoteEntry);
+		await store.ready();
+		const disk = diskKey.value;
+		const entry = makeNote(disk, { addr: address, scope, note });
+		dictFor(disk).value[noteKey(scope, address)] = entry;
 
-		const newNote: NoteEntry = { ...entry, id: Number(id) };
-		const key = `${scope}:${address}`;
-
-		const targetDict = diskKey.value === "*" ? systemDict : diskDict;
-		targetDict.value[key] = newNote;
-
-		return newNote;
+		await persist(disk);
+		return entry;
 	};
 
 	const updateNote = async (id: number, note: string) => {
-		const db = await getDb();
-		const record = await db.get(storeName as unknown as "notes", id);
-		if (!record) return;
+		await store.ready();
+		const current = findById(id);
+		if (!current) return;
 
-		record.note = note;
-		await db.put(storeName as unknown as "notes", record);
-
-		const key = `${record.scope}:${record.addr}`;
-		const targetDict = record.disk === "*" ? systemDict : diskDict;
-		targetDict.value[key] = record;
+		dictFor(current.disk).value[noteKey(current.scope, current.addr)] = { ...current, note };
+		await persist(current.disk);
 	};
 
 	const removeNote = async (id: number) => {
-		const db = await getDb();
-		const record = await db.get(storeName as unknown as "notes", id);
-		if (!record) return;
+		await store.ready();
+		const current = findById(id);
+		if (!current) return;
 
-		await db.delete(storeName as unknown as "notes", id);
-
-		const key = `${record.scope}:${record.addr}`;
-		const targetDict = record.disk === "*" ? systemDict : diskDict;
-		delete targetDict.value[key];
+		delete dictFor(current.disk).value[noteKey(current.scope, current.addr)];
+		await persist(current.disk);
 	};
 
 	const getNoteEntry = (address: number, scope: string): NoteEntry | undefined => {
-		const key = `${scope}:${address}`;
+		const key = noteKey(scope, address);
 		return diskDict.value[key] ?? systemDict.value[key];
 	};
 
@@ -159,6 +117,7 @@ export function useNotes() {
 
 	return {
 		initNotes,
+		reloadNotes,
 		setDiskKey,
 		notes,
 		getNoteEntry,
