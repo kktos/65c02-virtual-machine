@@ -138,11 +138,12 @@ export class SmartPortCard implements ISlotCard {
 		write(0x0a);
 		write(0xc0 + this.slot);
 
-		// BCS Error (RTS)
+		// BCS BootError ($Cn50)
+		const BOOT_ERROR = 0x50;
 		write(0xb0);
-		write(0x03);
+		write(BOOT_ERROR - (addr + 1));
 
-		// LDX #$42 (ProDOS ZP Param Lo)
+		// LDX #$n0 (slot * 16, expected by the boot sector)
 		write(0xa2);
 		write(this.slot * 0x10);
 
@@ -150,8 +151,32 @@ export class SmartPortCard implements ISlotCard {
 		write(0x4c);
 		write(0x01);
 		write(0x08);
-		// RTS (Error return)
-		write(0x60);
+
+		// --- Boot error ($Cn50) ---
+		// The autostart ROM enters with JMP ($0000), not JSR: there is nothing to return to.
+		// Like real boot ROMs: if called by the slot scan ($00/$01 = $Cn00), resume it at SLOOP ($FABA),
+		// which tries the next slots and ends in BASIC; otherwise (PR#n, CnnnG) cold-start BASIC.
+		addr = BOOT_ERROR;
+		// LDA $00 / BNE Basic
+		write(0xa5);
+		write(0x00);
+		write(0xd0);
+		write(0x09);
+		// LDA $01 / CMP #$Cn / BNE Basic
+		write(0xa5);
+		write(0x01);
+		write(0xc9);
+		write(0xc0 + this.slot);
+		write(0xd0);
+		write(0x03);
+		// JMP $FABA (SLOOP: continue the slot scan)
+		write(0x4c);
+		write(0xba);
+		write(0xfa);
+		// Basic: JMP $E000 (BASIC cold start)
+		write(0x4c);
+		write(0x00);
+		write(0xe0);
 	}
 
 	setRegisters(view: DataView) {
