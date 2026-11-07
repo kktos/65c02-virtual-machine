@@ -132,9 +132,10 @@ const loadMachine = async (newMachine?: MachineConfig) => {
 
 		const initScript = selectedMachine.value.routines?.init;
 		if (initScript) {
-			const { setRoutine } = useRoutines();
-			setRoutine("init", initScript);
-			await executeCommand("do init", newVm);
+			const { setRoutine, runMachineScript } = useRoutines();
+			// The init script and the routines it defines are part of the machine sources: read-only
+			setRoutine("init", initScript, [], { readonly: true });
+			await runMachineScript(() => executeCommand("do init", newVm));
 		}
 	}
 
