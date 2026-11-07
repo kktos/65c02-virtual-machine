@@ -11,7 +11,7 @@ import { openDB, type DBSchema, type IDBPDatabase } from "idb";
 export const METADATA_DB_NAME = "vm6502_metadata_v2";
 const STORE = "metadata";
 
-export type MetadataKind = "symbols" | "formats" | "notes";
+export type MetadataKind = "symbols" | "formats" | "notes" | "routines";
 export type MetadataKey = [machine: string, kind: MetadataKind, disk: string];
 
 type StoredRecord = { version: 1; items: unknown[] };
