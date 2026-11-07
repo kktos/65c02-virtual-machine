@@ -192,7 +192,12 @@ const loadState = () => {
 		try {
 			const state = JSON.parse(saved);
 			if (state.position) position.value = state.position;
-			if (state.size) size.value = state.size;
+			// Never restore a size below the window's minimum (a too-small saved size clips the content)
+			if (state.size)
+				size.value = {
+					width: Math.max(config.value.minWidth, state.size.width),
+					height: Math.max(config.value.minHeight, state.size.height),
+				};
 			if (typeof state.isOpen === "boolean") isOpen.value = state.isOpen;
 		} catch (e) {
 			console.error("Failed to load floating window state", e);
