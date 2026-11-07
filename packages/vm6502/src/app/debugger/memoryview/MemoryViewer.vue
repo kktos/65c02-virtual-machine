@@ -284,7 +284,7 @@ import { useMachine } from "@/composables/useMachine";
 import MemorySelectionStatus from "./MemorySelectionStatus.vue";
 
 const vm = inject<Ref<VirtualMachine>>("vm");
-const { addFormatting, getFormat } = useFormatting();
+const { addFormatting, updateFormatting, getFormat } = useFormatting();
 const { isRunning } = useMachine();
 
 const props = defineProps<{
@@ -629,9 +629,14 @@ const cancelSelection = () => {
 	selectionHead.value = null;
 };
 
-const formatAs = (type: "byte" | "string") => {
-	if (!selectedRange.value) return;
-	addFormatting(selectedRange.value.start, type, selectedRange.value.size);
+const formatAs = async (type: "byte" | "string") => {
+	const range = selectedRange.value;
+	if (!range) return;
+
+	// The selection is exactly an existing formatting: change its type instead of adding another rule
+	const format = getFormat(range.start);
+	if (format?.id !== undefined && format.length === range.size) await updateFormatting(format.id, { type });
+	else await addFormatting(range.start, type, range.size);
 	cancelSelection();
 };
 
