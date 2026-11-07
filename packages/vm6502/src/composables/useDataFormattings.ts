@@ -312,6 +312,23 @@ export function useFormatting() {
 		return search(diskRules.value) ?? search(systemRules.value);
 	};
 
+	/**
+	 * Rule of an active group containing the address (not only starting at it).
+	 * Disk rules win over system ones, as in getFormat; among overlapping rules, the one starting closest before wins.
+	 */
+	const getFormatCovering = (address: number) => {
+		for (const dict of [diskRules.value, systemRules.value]) {
+			let best: DataBlock | undefined;
+			for (const block of allBlocks(dict)) {
+				if (!activeFormattingGroups.value.get(block.group)) continue;
+				if (block.address > address || block.address + Math.max(block.length, 1) <= address) continue;
+				if (!best || block.address > best.address) best = block;
+			}
+			if (best) return best;
+		}
+		return undefined;
+	};
+
 	/** Imports a FORMATS script (as exported) or a legacy '%% DATA' file into the current disk */
 	const addFormattingsFromText = (text: string) => addManyFormattings(parseFormattingsText(text));
 
@@ -412,6 +429,7 @@ export function useFormatting() {
 		findFormattings,
 
 		getFormat,
+		getFormatCovering,
 
 		addFormattingsFromText,
 		generateTextFromFormattings,

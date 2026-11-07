@@ -168,6 +168,27 @@ describe("formattings and notes storage", () => {
 		expect(await app.store.loadMetadata(MACHINE_KEY, "formats", "*")).toBeUndefined();
 	});
 
+	it("finds the rule containing an address, not only the one starting at it", async () => {
+		const app = await loadApp();
+		await app.formats.initFormats(MACHINE);
+		await app.formats.addFormatting(0x2000, "string", 16, "user");
+		await app.formats.addFormatting(0x2004, "byte", 2, "user"); // nested in the string
+		await app.formats.addFormatting(0x3000, "word", 4, "tables");
+		await app.formats.setDiskKey("game.dsk");
+		await app.formats.addFormatting(0x200c, "byte", 1, "game");
+
+		const at = (address: number) => app.formats.getFormatCovering(address)?.address;
+		expect(at(0x2000)).toBe(0x2000);
+		expect(at(0x200f)).toBe(0x2000); // last byte of the string
+		expect(at(0x2010)).toBeUndefined(); // just after it
+		expect(at(0x2005)).toBe(0x2004); // the rule starting closest before wins
+		expect(at(0x200c)).toBe(0x200c); // disk rules win over system ones
+		expect(at(0x3003)).toBe(0x3000); // word lengths are in bytes
+
+		app.formats.toggleFormattingGroup("tables");
+		expect(at(0x3001)).toBeUndefined(); // inactive groups are ignored
+	});
+
 	it("seeds the system formats only when none were stored", async () => {
 		const seed = {
 			0x2000: { rom: { disk: "*", address: 0x2000, type: "byte" as const, length: 2, group: "rom" } },
