@@ -9,22 +9,21 @@ export const defDataFn: Command["fn"] = async ({ params }: CommandContext) => {
 	const type = params[0] as string;
 	if (!TYPES.has(type)) throw new Error("Invalid data type.");
 
-	let start: number;
-	let end: number;
-	if (isParamListItemRange(params[1])) {
-		start = params[1].start;
-		end = params[1].end;
-	} else {
-		start = params[1] as number;
-		end = start;
-	}
+	const where = params[1];
+	const isRange = isParamListItemRange(where);
 	const length = params[2] as number;
 	const timesStr = isParamListItemIdentifier(params[3]) ? params[3].text : "";
-	let times = 1;
+	const times = timesStr ? parseInt(timesStr.slice(1)) : 1;
+	if (isRange && times > 1) throw new Error("Times cannot be used with range.");
 
-	if (timesStr) {
-		times = parseInt(timesStr.slice(1));
-		if (times > 1 && start !== end) throw new Error("Times cannot be used with range.");
+	let start: number;
+	let end: number;
+	if (isParamListItemRange(where)) {
+		start = where.start;
+		end = where.end;
+	} else {
+		// A single address covers `times` regions of `length`, e.g. "da $FF0A 9" is one string of 9
+		start = where as number;
 		end = start + times * length - 1;
 	}
 
@@ -34,6 +33,8 @@ export const defDataFn: Command["fn"] = async ({ params }: CommandContext) => {
 		const len = Math.min(length, end - i + 1);
 		await addFormatting(i, type as DataType, len);
 	}
-	if (start !== end) return `Data regions set for ${formatAddress(start)}:${formatAddress(end)}: ${type}[${length}]`;
-	else return `Data region set for ${formatAddress(start)}: ${type}[${length}]`;
+	const regions = Math.ceil((end - start + 1) / length);
+	if (regions > 1)
+		return `${regions} data regions set for ${formatAddress(start)}:${formatAddress(end)}: ${type}[${length}]`;
+	return `Data region set for ${formatAddress(start)}: ${type}[${length}]`;
 };

@@ -65,8 +65,6 @@
 			/>
 		</Teleport>
 	</div>
-	<SymbolManager @goto-address="gotoAddress" />
-	<FormattingManager @goto-address="gotoAddress" />
 	<ExplanationDrawer
 		v-model:open="isExplanationOpen"
 		:explanation="explanationText"
@@ -79,8 +77,6 @@
 import { computed, inject, type Ref, ref, watch } from "vue";
 import DisassemblyToolbar from "@/app/debugger/disassembly/DisassemblyToolbar.vue";
 import DisassemblySettingsPanel from "@/app/debugger/disassembly/settings/DisassemblySettingsPanel.vue";
-import FormattingManager from "@/app/debugger/FormattingManager/FormattingManager.vue";
-import SymbolManager from "@/app/debugger/SymbolManager/SymbolManager.vue";
 import ExplanationDrawer from "@/app/debugger/disassembly/ExplanationDrawer.vue";
 import { useDebuggerNav } from "@/composables/useDebuggerNav";
 import { useDisassembly } from "@/composables/useDisassembly";
@@ -123,7 +119,7 @@ watch(isMaximized, (isMax) => {
 	if (isMax) window.dispatchEvent(new Event("resize"));
 });
 
-const { jumpEvent } = useDisassembly();
+const { jumpEvent, takeUnapplied, isNewVm } = useDisassembly();
 const { setMemoryViewAddress, setActiveTab } = useDebuggerNav();
 const { addJumpHistory, historyNavigationEvent, clearHistory } = useAddressHistory("disassembly");
 const { settings } = useSettings();
@@ -144,13 +140,17 @@ watch(
 	() => vm?.value,
 	async (newVm) => {
 		if (!newVm) return;
+		const machineLoaded = isNewVm(newVm);
 		await newVm.ready;
 		availableScopes.value = newVm.getScopes(); // This now returns namespaces due to parsing change
 		for (const scope of availableScopes.value) {
 			if (!settings.disassembly.scopeColors[scope]) settings.disassembly.scopeColors[scope] = getRandomColor();
 		}
-		isFollowingPc.value = true;
-		clearHistory();
+		// Only on machine load: on a remount (e.g. back from the memory viewer tab), keep any pending jump
+		if (machineLoaded) {
+			isFollowingPc.value = true;
+			clearHistory();
+		}
 	},
 	{ immediate: true },
 );
@@ -247,12 +247,6 @@ const getEffectiveAddress = (line: DisassemblyLine): number | null => {
 	}
 };
 
-watch(historyNavigationEvent, (event) => {
-	if (!event) return;
-	isFollowingPc.value = false;
-	disassemblyStartAddress.value = event.address;
-});
-
 const busState = computed(() => vm?.value?.busState ?? {});
 
 const fullPcAddress = computed(() => {
@@ -277,6 +271,17 @@ const gotoAddress = (addr: number) => {
 	disassemblyStartAddress.value = addr;
 	isFollowingPc.value = false;
 };
+
+// immediate: a navigation requested while this view was not mounted is applied on mount
+watch(
+	historyNavigationEvent,
+	(event) => {
+		if (!takeUnapplied(event)) return;
+		isFollowingPc.value = false;
+		disassemblyStartAddress.value = event!.address;
+	},
+	{ immediate: true },
+);
 
 const syncToPc = () => {
 	isFollowingPc.value = !isFollowingPc.value;
@@ -379,9 +384,13 @@ watch(
 );
 
 // Watch for external jump requests (e.g. from TraceView)
-watch(jumpEvent, (event) => {
-	if (event) gotoAddress(event.address);
-});
+watch(
+	jumpEvent,
+	(event) => {
+		if (takeUnapplied(event)) gotoAddress(event!.address);
+	},
+	{ immediate: true },
+);
 
 const isExplanationOpen = ref(false);
 
