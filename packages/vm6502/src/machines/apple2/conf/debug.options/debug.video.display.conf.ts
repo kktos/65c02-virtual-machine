@@ -24,8 +24,15 @@ export const debugVideoDisplayConf: DebugGroup = {
 		],
 		[
 			{
+				id: "debugInfoLabel",
+				label: "Debug Info",
+				type: "label",
+			},
+		],
+		[
+			{
 				id: "wannaShowDebug",
-				label: "Show Debug Info",
+				label: "Show",
 				type: "boolean",
 				savable: true,
 			},
@@ -33,7 +40,7 @@ export const debugVideoDisplayConf: DebugGroup = {
 		[
 			{
 				id: "dbgTextFgColor",
-				label: "Debug Info FG",
+				label: "FG",
 				type: "color",
 				defaultValue: -1,
 				savable: true,
@@ -41,7 +48,7 @@ export const debugVideoDisplayConf: DebugGroup = {
 			},
 			{
 				id: "dbgTextBgColor",
-				label: "Debug Info BG",
+				label: "BG",
 				type: "color",
 				defaultValue: -1,
 				savable: true,

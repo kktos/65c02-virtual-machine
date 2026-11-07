@@ -8,7 +8,7 @@
 			</template>
 			<template #extra-content>
 				<div class="flex flex-col space-y-1 mt-2">
-					<span class="text-[10px] uppercase text-gray-500 font-bold tracking-wider">Capture</span>
+					<span class="text-[10px] uppercase text-cyan-400 font-bold tracking-wider">Capture</span>
 					<button
 						@click="saveSnapshot"
 						class="flex items-center space-x-2 w-full bg-gray-900 text-xs text-gray-300 border border-gray-600 rounded px-2 py-1 hover:bg-gray-800 transition-colors"
