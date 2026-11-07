@@ -349,12 +349,41 @@ function reportError(message: string) {
 	error.value = message;
 }
 
+export type CommandReport = { ok: boolean; output: CommandOutput[]; error?: string };
+export type RunCommandOptions = {
+	/**
+	 * The caller is not the console (MCP…): refuse to run while the console is in multi-line mode
+	 * (the lines would go into the user's session), and don't leave a multi-line session open.
+	 */
+	standalone?: boolean;
+};
+
+// Commands run one at a time, in call order, whoever the caller is (console, breakpoint command,
+// init, MCP): a call made while another one runs waits for its turn instead of being dropped.
+let queueTail: Promise<unknown> = Promise.resolve();
+
+function runCommand(cmdInput: string, vm: VirtualMachine | null, opts: RunCommandOptions = {}): Promise<CommandReport> {
+	const run = queueTail.then(() => runNow(cmdInput, vm, opts));
+	queueTail = run.catch(() => undefined);
+	return run;
+}
+
 async function executeCommand(cmdInput: string, vm: VirtualMachine | null) {
+	return (await runCommand(cmdInput, vm)).ok;
+}
+
+async function runNow(cmdInput: string, vm: VirtualMachine | null, opts: RunCommandOptions): Promise<CommandReport> {
 	if (!vm) {
 		reportError("Virtual Machine not initialized.");
-		return false;
+		return { ok: false, output: [], error: error.value };
 	}
-	if (isLoading.value) return false;
+	const userSession = multiLineSession.value;
+	if (opts.standalone && userSession)
+		return {
+			ok: false,
+			output: [],
+			error: `The console is in multi-line mode (finish it with '${userSession.terminator}' first)`,
+		};
 
 	isLoading.value = true;
 	progress.value = 0;
@@ -383,10 +412,20 @@ async function executeCommand(cmdInput: string, vm: VirtualMachine | null) {
 			if (commandHistory.value.length > HISTORY_MAX_SIZE)
 				commandHistory.value.splice(0, commandHistory.value.length - HISTORY_MAX_SIZE);
 		}
-		return !error.value;
+
+		const openSession = multiLineSession.value;
+		if (opts.standalone && openSession) {
+			multiLineSession.value = null;
+			return {
+				ok: false,
+				output: [...success.value],
+				error: `Multi-line command not terminated: send its lines and '${openSession.terminator}' in the same call`,
+			};
+		}
+		return { ok: !error.value, output: [...success.value], error: error.value || undefined };
 	} catch (e: any) {
 		reportError(e.message || "Execution failed");
-		return false;
+		return { ok: false, output: [...success.value], error: error.value };
 	} finally {
 		isLoading.value = false;
 	}
@@ -401,6 +440,7 @@ export function useCommands() {
 		isLoading,
 		progress,
 		executeCommand,
+		runCommand,
 		commandHistory,
 		shouldClose,
 		isMultiLine,
