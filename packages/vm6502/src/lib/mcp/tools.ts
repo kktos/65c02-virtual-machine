@@ -175,6 +175,9 @@ export const MCP_TOOLS: McpTool[] = [
 			"Run a line in the emulator's debugger console and return its output. " +
 			"The full command language is available (`help` lists commands, `help <name>` details one): " +
 			"disassembly, hexdump, labels, comments, breakpoints, hooks, routines, search, xref, etc. " +
+			"Several lines can be sent at once (newline-separated); multi-line commands (`asm`, `routine`…) " +
+			"must include their lines and terminator in the same call. " +
+			"Waits for its turn if another command is running. " +
 			"Note: `run` returns immediately; use run_until to wait for the machine to stop.",
 		inputSchema: {
 			type: "object",
@@ -183,11 +186,10 @@ export const MCP_TOOLS: McpTool[] = [
 		},
 		async execute(input) {
 			const vm = await getVm();
-			const { executeCommand, success, error, isLoading } = useCommands();
-			if (isLoading.value) throw new Error("The console is busy with another command");
-			const ok = await executeCommand(toStr(input.command, "command"), vm);
-			if (!ok) throw new Error(error.value || "Command failed");
-			return success.value.map((o) => o.content).join("\n") || "(no output)";
+			// Queued behind any command already running (user's console, breakpoint command…).
+			const report = await useCommands().runCommand(toStr(input.command, "command"), vm, { standalone: true });
+			if (!report.ok) throw new Error(report.error || "Command failed");
+			return report.output.map((o) => o.content).join("\n") || "(no output)";
 		},
 	},
 	{

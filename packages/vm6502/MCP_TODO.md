@@ -69,7 +69,10 @@ Next:
 - [ ] text screen decoder lives in the bridge; move it to the machine (e.g. `bus.getTextScreen()`)
 - [ ] booting the //e from reset stops on BRK at $0003 (A=$2F X=$42) — check whether that's
       expected with no bootable disk
-- [ ] `exec_command` fails if the user's console is busy; maybe queue instead
+- [x] `exec_command` failed if the user's console was busy. Commands are now queued (`runCommand` in
+      `useCommands`): every caller (console, breakpoint commands, init, MCP) waits for its turn and gets
+      its own output. MCP refuses while the user's console is in multi-line mode, and closes a
+      multi-line session it opened without its terminator.
 - [x] `exec_command("bogus")` returned `$00/000B: 00` instead of an error: unknown commands fall
       through to the mini-monitor, whose hex tokenizer read `bogus` as `$B` + `ogus` and hex-dumped $B.
       The monitor now throws `Unknown command: …` for any word other than `G` / `L`, a register or a label.
