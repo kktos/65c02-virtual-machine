@@ -70,8 +70,9 @@ Next:
 - [ ] booting the //e from reset stops on BRK at $0003 (A=$2F X=$42) — check whether that's
       expected with no bootable disk
 - [ ] `exec_command` fails if the user's console is busy; maybe queue instead
-- [ ] `exec_command("bogus")` returns `$00/000B: 00` instead of an error (console treats unknown
-      words as something else) — confusing for an agent
+- [x] `exec_command("bogus")` returned `$00/000B: 00` instead of an error: unknown commands fall
+      through to the mini-monitor, whose hex tokenizer read `bogus` as `$B` + `ogus` and hex-dumped $B.
+      The monitor now throws `Unknown command: …` for any word other than `G` / `L`, a register or a label.
 - [ ] WebMCP: try it for real (enable the flag), check how long-running `run_until` behaves
 - [ ] mark tools that change state (`write_memory`, …) with `consequentialHint` for WebMCP
 
