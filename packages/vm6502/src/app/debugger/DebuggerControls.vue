@@ -1,5 +1,6 @@
 <template>
-	<div class="flex flex-wrap items-center gap-1 p-1 bg-gray-800 rounded-lg border border-gray-700">
+	<!-- Same frame as the machine toolbar (App.vue) so both bars line up edge to edge -->
+	<div class="flex flex-wrap items-center gap-1 p-1 bg-gray-800 border-b border-gray-700">
 		<!-- Execution -->
 		<button
 			@click="toggle"

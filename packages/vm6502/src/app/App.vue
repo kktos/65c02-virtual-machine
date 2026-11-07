@@ -39,7 +39,7 @@
 
 		<ResizablePanel>
 			<ResizablePanelGroup direction="vertical" auto-save-id="debuggerPanelLayout">
-				<ResizablePanel :default-size="41" class="grid grid-rows-[auto_1fr] gap-2 p-2" @resize="dbgTopPanelResize">
+				<ResizablePanel :default-size="41" class="grid grid-rows-[auto_1fr]" @resize="dbgTopPanelResize">
 					<DebuggerControls :isRunning="isRunning" />
 
 					<!--
@@ -47,7 +47,7 @@
 						- narrow: CPU strip (registers + flags) across the top, Stack | Tabs below
 						- wide (>= 54rem): 3 columns, CPU stacked vertically | Stack | Tabs
 					-->
-					<div class="@container min-h-0">
+					<div class="@container min-h-0 p-2">
 						<div
 							class="grid h-full gap-2 grid-cols-[16rem_minmax(0,1fr)] grid-rows-[auto_minmax(0,1fr)] [grid-template-areas:'cpu_cpu'_'stack_tabs'] @[54rem]:grid-cols-[minmax(13rem,300px)_16rem_minmax(0,1fr)] @[54rem]:grid-rows-[minmax(0,1fr)] @[54rem]:[grid-template-areas:'cpu_stack_tabs']"
 						>
