@@ -161,6 +161,11 @@ describe("formattings and notes storage", () => {
 		await app.formats.setDiskKey("game.dsk");
 		expect(app.formats.getFormat(0xff0a)).toMatchObject({ type: "byte", length: 9, group: "rom" });
 		expect(await app.store.loadMetadata(MACHINE_KEY, "formats", "game.dsk")).toBeUndefined();
+
+		// Removing it by id works from the disk too, and is persisted on the system disk
+		await app.formats.removeManyFormattings(new Set([app.formats.getFormat(0xff0a)!.id!]));
+		expect(app.formats.getFormat(0xff0a)).toBeUndefined();
+		expect(await app.store.loadMetadata(MACHINE_KEY, "formats", "*")).toBeUndefined();
 	});
 
 	it("seeds the system formats only when none were stored", async () => {

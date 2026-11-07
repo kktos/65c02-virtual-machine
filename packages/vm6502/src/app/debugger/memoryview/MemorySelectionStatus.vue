@@ -30,6 +30,15 @@
 				@click="$emit('format', 'string')"
 				>String</Button
 			>
+			<Button
+				size="sm"
+				variant="ghost"
+				class="h-6 px-2 text-xs border-gray-600 text-gray-300 hover:bg-gray-700 hover:text-red-300 disabled:opacity-40"
+				:disabled="!formatType"
+				:title="formatType ? 'Remove this formatting' : 'The selection is not a formatting'"
+				@click="$emit('format', 'none')"
+				>None</Button
+			>
 		</div>
 		<div class="flex-1 flex justify-end">
 			<Button
@@ -61,7 +70,8 @@ defineProps<{
 const currentTypeClass = "bg-indigo-800 text-indigo-100 hover:bg-indigo-700 hover:text-indigo-50";
 
 defineEmits<{
-	(e: "format", type: "byte" | "string"): void;
+	/** "none" removes the formatting the selection matches */
+	(e: "format", type: "byte" | "string" | "none"): void;
 	(e: "cancel-selection"): void;
 }>();
 </script>
