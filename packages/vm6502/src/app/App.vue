@@ -39,50 +39,53 @@
 
 		<ResizablePanel>
 			<ResizablePanelGroup direction="vertical" auto-save-id="debuggerPanelLayout">
-				<ResizablePanel :default-size="41" class="grid grid-rows-[auto_1fr] gap-2 p-2" @resize="dbgTopPanelResize">
+				<ResizablePanel :default-size="41" class="grid grid-rows-[auto_1fr]" @resize="dbgTopPanelResize">
 					<DebuggerControls :isRunning="isRunning" />
 
-					<div class="grid grid-cols-[minmax(13rem,300px)_300px_1fr] gap-4 min-h-0">
-						<!-- Registers and Flags stacked vertically in the first column -->
-						<div class="grid grid-rows-[1fr_auto] gap-2 min-w-0">
-							<RegistersView :registers="registers" :virtual-registers="virtualRegisters" />
-							<StatusFlagsView :registers="registers" />
+					<!--
+						The panel width drives the layout (container query):
+						- narrow: CPU strip (registers + flags) across the top, Stack | Tabs below
+						- wide (>= 54rem): 3 columns, CPU stacked vertically | Stack | Tabs
+					-->
+					<div class="@container min-h-0 p-2">
+						<div
+							class="grid h-full gap-2 grid-cols-[16rem_minmax(0,1fr)] grid-rows-[auto_minmax(0,1fr)] [grid-template-areas:'cpu_cpu'_'stack_tabs'] @[54rem]:grid-cols-[minmax(13rem,300px)_16rem_minmax(0,1fr)] @[54rem]:grid-rows-[minmax(0,1fr)] @[54rem]:[grid-template-areas:'cpu_stack_tabs']"
+						>
+							<!-- Registers and flags: side by side (wrapping) when narrow, stacked when wide -->
+							<div class="[grid-area:cpu] flex flex-wrap gap-2 min-w-0 @[54rem]:flex-col @[54rem]:flex-nowrap">
+								<RegistersView
+									class="flex-[1_1_15rem] min-w-0 @[54rem]:flex-none"
+									:registers="registers"
+									:virtual-registers="virtualRegisters"
+								/>
+								<StatusFlagsView class="shrink-0" :registers="registers" />
+							</div>
+
+							<StackView class="[grid-area:stack] min-h-0" :registers="registers" />
+
+							<Tabs default-value="breakpoints" class="[grid-area:tabs] h-full flex flex-col min-h-0 min-w-0">
+								<TabsList class="bg-gray-900/80 p-1 shrink-0 max-w-full justify-start overflow-x-auto">
+									<TabsTrigger
+										value="stack_trace"
+										class="data-[state=active]:bg-gray-700 data-[state=active]:text-cyan-300 text-gray-400"
+									>
+										Stack Trace
+									</TabsTrigger>
+									<TabsTrigger
+										value="breakpoints"
+										class="data-[state=active]:bg-gray-700 data-[state=active]:text-cyan-300 text-gray-400"
+									>
+										Breakpoints
+									</TabsTrigger>
+								</TabsList>
+								<TabsContent value="breakpoints" class="flex-1 min-h-0">
+									<BreakpointsList />
+								</TabsContent>
+								<TabsContent value="stack_trace" class="flex-1 min-h-0">
+									<TraceView />
+								</TabsContent>
+							</Tabs>
 						</div>
-
-						<StackView :registers="registers" />
-
-						<!-- Stack View takes the remaining space -->
-						<Tabs default-value="breakpoints" class="h-full flex flex-col min-h-0">
-							<TabsList class="bg-gray-900/80 p-1 shrink-0">
-								<TabsTrigger
-									value="stack_trace"
-									class="data-[state=active]:bg-gray-700 data-[state=active]:text-cyan-300 text-gray-400"
-								>
-									Stack Trace
-								</TabsTrigger>
-								<TabsTrigger
-									value="breakpoints"
-									class="data-[state=active]:bg-gray-700 data-[state=active]:text-cyan-300 text-gray-400"
-								>
-									Breakpoints
-								</TabsTrigger>
-								<TabsTrigger
-									value="state"
-									class="data-[state=active]:bg-gray-700 data-[state=active]:text-cyan-300 text-gray-400"
-								>
-									Machine State
-								</TabsTrigger>
-							</TabsList>
-							<TabsContent value="breakpoints" class="flex-1 min-h-0">
-								<BreakpointsList />
-							</TabsContent>
-							<TabsContent value="stack_trace" class="flex-1 min-h-0">
-								<TraceView />
-							</TabsContent>
-							<TabsContent value="state" class="flex-1 min-h-0">
-								<MachineStateView />
-							</TabsContent>
-						</Tabs>
 					</div>
 				</ResizablePanel>
 
@@ -136,7 +139,6 @@ import {
 import BreakpointsList from "./debugger/BreakpointsList.vue";
 import DebuggerControls from "./debugger/DebuggerControls.vue";
 import DisassemblyView from "./debugger/disassembly/DisassemblyView.vue";
-import MachineStateView from "./debugger/MachineStateView.vue";
 import MultiMemoryViewer from "./debugger/memoryview/MultiMemoryViewer.vue";
 import RegistersView from "./debugger/RegistersView.vue";
 import StackView from "./debugger/StackView.vue";

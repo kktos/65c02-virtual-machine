@@ -1,6 +1,6 @@
 <template>
 	<div class="p-1 bg-gray-800 rounded-lg shadow-xl flex flex-col h-full overflow-hidden">
-		<div class="overflow-y-auto pr-2">
+		<div class="overflow-y-auto overflow-x-hidden min-h-0 pr-2">
 			<div class="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-1 text-xs">
 				<div
 					v-for="group in groupedSpecs"
@@ -12,7 +12,7 @@
 					</h3>
 					<div class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 items-center">
 						<template v-for="(spec, index) in group.specs" :key="index">
-							<div v-if="Array.isArray(spec)" class="col-span-2 flex items-center gap-4">
+							<div v-if="Array.isArray(spec)" class="col-span-2 flex flex-wrap items-center gap-x-4 gap-y-1">
 								<div v-for="subSpec in spec" :key="subSpec.id" class="flex items-center gap-3">
 									<div v-if="subSpec.type === 'led'" class="flex items-center">
 										<span

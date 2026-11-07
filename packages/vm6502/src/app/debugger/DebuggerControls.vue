@@ -1,5 +1,6 @@
 <template>
-	<div class="flex flex-wrap items-center gap-1 p-1 bg-gray-800 rounded-lg border border-gray-700">
+	<!-- Same frame as the machine toolbar (App.vue) so both bars line up edge to edge -->
+	<div class="flex flex-wrap items-center gap-1 p-1 bg-gray-800 border-b border-gray-700">
 		<!-- Execution -->
 		<button
 			@click="toggle"
@@ -55,6 +56,7 @@
 
 		<!-- Tools -->
 		<MemoryMap />
+		<MachineState />
 		<button
 			@click="vm?.refreshVideo"
 			:disabled="isRunning"
@@ -94,6 +96,7 @@ import {
 } from "lucide-vue-next";
 import { inject, type Ref, ref } from "vue";
 import MemoryMap from "@/app/debugger/memorymap/MemoryMap.vue";
+import MachineState from "@/app/debugger/MachineState.vue";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import { useCmdConsole } from "@/composables/useCmdConsole";
 
