@@ -13,7 +13,7 @@
 			class="absolute bottom-0 left-0 right-0 z-20 max-h-[60%] bg-black/60 backdrop-blur-xs flex flex-col bg-[#0e0e0e] border-l border-[#2a2a2a] font-mono text-xs select-none"
 		>
 			<!-- Header -->
-			<div class="flex items-center justify-between px-3 py-2 border-b border-[#2a2a2a] shrink-0">
+			<div class="flex items-center justify-between px-3 py-2 bg-white/20 border-t-2 border-t-[#4afa8a] border-b border-[#2a2a2a] shrink-0">
 				<div class="tracking-widest uppercase text-xs font-bold flex items-center gap-1">
 					<Settings2 class="w-4 h-4" /> Settings
 				</div>
