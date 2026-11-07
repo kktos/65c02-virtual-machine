@@ -1,11 +1,21 @@
 import { getFontRow } from "./arcade.font";
 
+const GLYPH_SIZE = 8;
+
 export class DebugText {
+	// Each font pixel is drawn as a scale x scale block. The Apple renderers draw every
+	// Apple pixel as a 2x2 block, so scale 2 keeps the debug text on the same pixel grid
+	// and lets it survive the non-integer canvas stretch like the rest of the picture.
 	constructor(
 		private buffer: Uint8Array,
 		private width: number,
 		private height: number,
+		private scale = 2,
 	) {}
+
+	public get charSize() {
+		return GLYPH_SIZE * this.scale;
+	}
 
 	public resize(width: number, height: number) {
 		this.width = width;
@@ -31,10 +41,11 @@ export class DebugText {
 	}
 
 	public drawChar(x: number, y: number, charCode: number, color: number) {
-		for (let row = 0; row < 8; row++) {
+		const s = this.scale;
+		for (let row = 0; row < GLYPH_SIZE; row++) {
 			const pixels = getFontRow(charCode, row);
-			for (let col = 0; col < 8; col++) {
-				if ((pixels >> (7 - col)) & 1) this.drawPixel(x + col, y + row, color);
+			for (let col = 0; col < GLYPH_SIZE; col++) {
+				if ((pixels >> (7 - col)) & 1) this.drawRect(x + col * s, y + row * s, s, s, color);
 			}
 		}
 	}
@@ -43,14 +54,16 @@ export class DebugText {
 		let curX = x;
 		for (let i = 0; i < text.length; i++) {
 			this.drawChar(curX, y, text.charCodeAt(i), color);
-			curX += 8;
+			curX += this.charSize;
 		}
 	}
 
 	public drawCenteredString(y: number, text: string, color: number, backgroundColor?: number) {
-		const textWidth = text.length * 8;
+		const textWidth = text.length * this.charSize;
 		const x = Math.floor((this.width - textWidth) / 2);
-		if (backgroundColor !== undefined) this.drawRect(x - 2, y - 2, textWidth + 4, 11, backgroundColor);
+		const pad = this.scale;
+		if (backgroundColor !== undefined)
+			this.drawRect(x - pad, y - pad, textWidth + pad * 2, this.charSize + pad * 2, backgroundColor);
 		this.drawString(x, y, text, color);
 	}
 }
