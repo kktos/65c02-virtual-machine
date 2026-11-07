@@ -18,7 +18,10 @@
 			<ResizablePanel :default-size="15" class="flex flex-col">
 				<div class="flex-grow overflow-y-auto">
 					<ul v-if="routineNames.length > 0 || isCreating">
-						<li v-if="isCreating" class="px-3 py-2 text-xs cursor-pointer hover:bg-gray-700 flex items-center h-8">
+						<li
+							v-if="isCreating"
+							class="px-3 py-2 text-xs cursor-pointer hover:bg-gray-700 flex items-center h-8"
+						>
 							<input
 								ref="createInputRef"
 								v-model="renamingInput"
@@ -47,7 +50,16 @@
 								@click.stop
 								class="w-full bg-gray-800 text-white px-1 border border-cyan-500 outline-none rounded h-6"
 							/>
-							<span v-else class="truncate w-full">{{ name }}</span>
+							<template v-else>
+								<span class="truncate w-full">{{ name }}</span>
+								<span
+									v-if="isRoutineReadonly(name)"
+									class="shrink-0 text-amber-400"
+									title="Read-only: part of the machine sources"
+								>
+									<Lock class="w-3 h-3" />
+								</span>
+							</template>
 						</li>
 					</ul>
 					<div v-else class="px-3 py-2 text-xs text-gray-500 italic">No routines defined.</div>
@@ -62,10 +74,18 @@
 						<Plus class="w-4 h-4" />
 					</button>
 					<button
-						@click="deleteSelectedRoutine"
-						class="p-1 text-gray-400 hover:text-red-400 hover:bg-gray-700 rounded"
-						title="Delete Routine"
+						@click="duplicateSelectedRoutine"
+						class="p-1 text-gray-400 hover:text-white hover:bg-gray-700 rounded disabled:opacity-40 disabled:pointer-events-none"
+						title="Duplicate Routine (editable copy)"
 						:disabled="!selectedRoutineName"
+					>
+						<Copy class="w-4 h-4" />
+					</button>
+					<button
+						@click="deleteSelectedRoutine"
+						class="p-1 text-gray-400 hover:text-red-400 hover:bg-gray-700 rounded disabled:opacity-40 disabled:pointer-events-none"
+						:title="selectedIsReadonly ? 'Read-only routines cannot be deleted' : 'Delete Routine'"
+						:disabled="!selectedRoutineName || selectedIsReadonly"
 					>
 						<Trash2 class="w-4 h-4" />
 					</button>
@@ -80,16 +100,26 @@
 						<span class="text-xs text-gray-500 font-mono select-none">ARGS:</span>
 						<input
 							v-model="editableArgs"
+							:readonly="selectedIsReadonly"
 							class="flex-grow bg-transparent text-yellow-200 text-xs font-mono outline-none placeholder-gray-700"
 							placeholder="e.g. @addr @val"
 						/>
+						<span
+							v-if="selectedIsReadonly"
+							class="flex items-center gap-1 shrink-0 text-[10px] font-bold tracking-wider text-amber-400 select-none"
+							title="Part of the machine sources: changes would be lost at the next restart"
+						>
+							<Lock class="w-3 h-3" />
+							READ-ONLY
+						</span>
 					</div>
 					<div class="flex-grow min-h-0 overflow-hidden">
 						<Codemirror
 							v-model="editableContent"
 							:placeholder="`Editing routine '${selectedRoutineName}'...`"
 							:extensions="extensions"
-							:autofocus="true"
+							:autofocus="!selectedIsReadonly"
+							:disabled="selectedIsReadonly"
 							:indent-with-tab="true"
 							:tab-size="2"
 							class="h-full text-xs"
@@ -110,19 +140,20 @@ import { ref, watch, computed, nextTick } from "vue";
 import { Codemirror } from "vue-codemirror";
 import { vsCodeDark } from "@fsegurai/codemirror-theme-vscode-dark";
 import { useRoutines } from "@/composables/useRoutines";
-import { FileCode2, Plus, Trash2 } from "lucide-vue-next";
+import { Copy, FileCode2, Lock, Plus, Trash2 } from "lucide-vue-next";
 import FloatingWindow from "@/components/FloatingWindow.vue";
 import { shellRoutine } from "@/lib/codemirror/routine";
 import ResizableHandle from "../../components/ui/resizable/ResizableHandle.vue";
 import ResizablePanel from "../../components/ui/resizable/ResizablePanel.vue";
 import ResizablePanelGroup from "../../components/ui/resizable/ResizablePanelGroup.vue";
 
-const { getRoutineNames, getRoutine, setRoutine, deleteRoutine, routineExists } = useRoutines();
+const { getRoutineNames, getRoutine, setRoutine, deleteRoutine, routineExists, isRoutineReadonly } = useRoutines();
 
 const routineNames = computed(() => getRoutineNames().sort());
 const selectedRoutineName = ref<string | null>(null);
 const editableContent = ref("");
 const editableArgs = ref("");
+const selectedIsReadonly = computed(() => !!selectedRoutineName.value && isRoutineReadonly(selectedRoutineName.value));
 
 const extensions = [shellRoutine(), vsCodeDark];
 
@@ -160,13 +191,27 @@ const finishCreation = () => {
 	isCreating.value = false;
 };
 
+/** Editable copy of the selected routine (the way to customise a read-only one), ready to be renamed */
+const duplicateSelectedRoutine = () => {
+	const source = selectedRoutineName.value;
+	const routine = source ? getRoutine(source) : undefined;
+	if (!source || !routine) return;
+
+	let name = `${source}_copy`;
+	for (let i = 2; routineExists(name); i++) name = `${source}_copy${i}`;
+
+	setRoutine(name, [...routine.lines], [...routine.args], { readonly: false });
+	selectRoutine(name);
+	startRenaming(name);
+};
+
 const cancelCreation = () => {
 	isCreating.value = false;
 	renamingInput.value = "";
 };
 
 const deleteSelectedRoutine = () => {
-	if (selectedRoutineName.value) {
+	if (selectedRoutineName.value && !selectedIsReadonly.value) {
 		if (confirm(`Delete routine '${selectedRoutineName.value}'?`)) {
 			deleteRoutine(selectedRoutineName.value);
 			selectedRoutineName.value = null;
@@ -177,6 +222,7 @@ const deleteSelectedRoutine = () => {
 };
 
 const startRenaming = (name: string) => {
+	if (isRoutineReadonly(name)) return;
 	cancelCreation();
 	renamingRoutineName.value = name;
 	renamingInput.value = name;
@@ -216,7 +262,7 @@ let debounceTimer: number | null = null;
 watch([editableContent, editableArgs], () => {
 	if (debounceTimer) clearTimeout(debounceTimer);
 	debounceTimer = window.setTimeout(() => {
-		if (selectedRoutineName.value) {
+		if (selectedRoutineName.value && !selectedIsReadonly.value) {
 			const lines = editableContent.value.split("\n");
 			const args = editableArgs.value
 				.trim()
