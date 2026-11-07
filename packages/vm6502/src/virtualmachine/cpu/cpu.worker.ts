@@ -102,7 +102,7 @@ self.onmessage = async (event: MessageEvent) => {
 			setRunning(true);
 			break;
 		case "pause":
-			setRunning(false);
+			setRunning(false, { reason: "pause" });
 			break;
 		case "step":
 			stepInstruction();

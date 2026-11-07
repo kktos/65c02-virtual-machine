@@ -1,4 +1,5 @@
 import type { Video } from "@/types/video.interface";
+import type { StopInfo } from "@/types/stopinfo.interface";
 import {
 	addBreakpoint,
 	BP_PC,
@@ -120,10 +121,11 @@ export function initCPU(
 	resetCPU();
 }
 
-export function setRunning(running: boolean) {
+/** `stop` (why it stopped) is only meaningful when `running` is false. */
+export function setRunning(running: boolean, stop?: StopInfo) {
 	isRunning = running;
 	if (!isRunning) stepOutTargetSP = null;
-	self.postMessage({ type: "isRunning", isRunning: running });
+	self.postMessage({ type: "isRunning", isRunning: running, stop: running ? undefined : stop });
 	if (isRunning) {
 		lastPerfTime = performance.now();
 		cyclesSinceLastPerf = 0;
@@ -244,7 +246,7 @@ export function resetCPU() {
 	registersView.setUint16(REG_PC_OFFSET, (hi << 8) | lo, true);
 
 	// Stop execution
-	setRunning(false);
+	setRunning(false, { reason: "reset" });
 
 	if (stepBPAddress !== null) cleanStepBP();
 }
@@ -432,14 +434,18 @@ export function executeInstruction(): number {
 
 		// Potential hit, do detailed check
 		if (bankedBreakpoints.get(physicalPC)! & BP_PC) {
-			setRunning(false);
-
 			let type = "pc";
 			// Check if this is our step-over target
 			if (stepBPAddress !== null && physicalPC === stepBPAddress) {
 				type = "step";
 				cleanStepBP();
 			}
+			setRunning(
+				false,
+				type === "step"
+					? { reason: "step", address: physicalPC }
+					: { reason: "breakpoint", breakpointType: type, address: physicalPC },
+			);
 
 			video?.tick();
 			bus?.syncState?.();
@@ -463,9 +469,9 @@ export function executeInstruction(): number {
 				// BRK
 				if (isHyperCallActive || (breakOnBrk && isRunning)) {
 					const wasRunning = isRunning;
-					setRunning(false);
 					pc--; // Point back to the BRK instruction so the user sees it
 					const bank = bus.getBank?.(pc) ?? 0;
+					setRunning(false, { reason: "brk", address: (bank << 16) | pc });
 					self.postMessage({ type: "break", address: (bank << 16) | pc, wasRunning });
 					cycles = 0;
 					break;
@@ -1073,9 +1079,9 @@ export function executeInstruction(): number {
 				cycles = 6;
 
 				if (shouldStop) {
-					setRunning(false);
 					const bank = bus.getBank?.(pc) ?? 0;
 					const physicalPC = (bank << 16) | pc;
+					setRunning(false, { reason: "step", address: physicalPC });
 					self.postMessage({ type: "breakpointHit", breakpointType: "step", address: physicalPC });
 				}
 				break;
@@ -2014,9 +2020,9 @@ export function executeInstruction(): number {
 				cycles = 6;
 
 				if (shouldStop) {
-					setRunning(false);
 					const bank = bus.getBank?.(pc) ?? 0;
 					const physicalPC = (bank << 16) | pc;
+					setRunning(false, { reason: "step", address: physicalPC });
 					self.postMessage({ type: "breakpointHit", breakpointType: "step", address: physicalPC });
 				}
 				break;
@@ -2603,13 +2609,13 @@ export function executeInstruction(): number {
 					opcode: opcode,
 				});
 
-				setRunning(false); // Stop on unimplemented opcode
+				setRunning(false, { reason: "error", address: errorAddress, message: errorMessage }); // Stop on unimplemented opcode
 				break;
 			}
 		}
 	} catch (error) {
 		if (error instanceof BreakpointError) {
-			setRunning(false);
+			setRunning(false, { reason: "breakpoint", breakpointType: error.type, address: error.address });
 			pc = startPC;
 			self.postMessage({
 				type: "breakpointHit",

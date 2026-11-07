@@ -63,8 +63,11 @@ Next:
 
 ## Follow-ups noticed
 
-- [ ] `run_until` should report *why* it stopped (BRK / breakpoint id / pause) — needs the reason
-      from the worker message, not just `isRunning`
+- [x] `run_until` reports *why* it stopped. The worker sends a `StopInfo` (`src/types/stopinfo.interface.ts`)
+      in the `isRunning: false` message; the VM keeps it as `vm.lastStop` (BRK + hypercall byte → `hypercall`).
+      `run_until` returns `reached_address` / `breakpoint` (type + address) / `brk` / `step` / `error` /
+      `pause` / `reset`, keeps waiting through hypercalls; `get_registers` adds `last_stop`.
+- [ ] a breakpoint whose command resumes the machine still ends `run_until` (it reports that breakpoint)
 - [ ] `run_until` `cycles` limit (needs worker support)
 - [ ] text screen decoder lives in the bridge; move it to the machine (e.g. `bus.getTextScreen()`)
 - [ ] booting the //e from reset stops on BRK at $0003 (A=$2F X=$42) — check whether that's
