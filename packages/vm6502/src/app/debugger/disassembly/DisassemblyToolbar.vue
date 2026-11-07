@@ -1,8 +1,10 @@
 <template>
-	<div class="grid grid-cols-[auto_1fr_auto] justify-between items-center mb-2 shrink-0 gap-4">
+	<div
+		class="grid grid-cols-[auto_1fr_auto] justify-between items-center gap-2 p-1 shrink-0 bg-gray-800 border-b border-gray-700"
+	>
 		<AddressNavigator name="disassembly" @goto="(addr) => $emit('gotoAddress', addr)" />
 
-		<div class="flex space-x-2 mx-4" ref="toolbarRef">
+		<div class="flex space-x-2 mx-2" ref="toolbarRef">
 			<button
 				@click="$emit('syncToPc')"
 				:class="[

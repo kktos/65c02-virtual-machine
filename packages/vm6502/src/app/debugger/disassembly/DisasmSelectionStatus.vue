@@ -1,5 +1,5 @@
 <template>
-	<div class="flex items-center gap-4 shrink-0 mt-3 p-2 bg-gray-900 rounded-md border border-gray-700">
+	<div class="flex items-center gap-4 shrink-0 px-2 py-1 bg-gray-800 border-t border-gray-700">
 		<div class="flex items-center gap-2 text-xs font-mono">
 			<span class="text-cyan-300">{{ formatAddress(start ?? 0) }} - {{ formatAddress(end ?? 0) }}</span>
 		</div>

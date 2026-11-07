@@ -1,42 +1,31 @@
 <template>
-	<div class="relative h-full w-full" :id="id">
-		<div class="absolute top-0.5 right-2 z-20">
-			<button
-				@click="toggleMode"
-				class="px-2 py-0.5 text-xs rounded-md bg-gray-700 hover:bg-gray-600 text-gray-300 transition-colors"
-				title="Toggle between tabbed and split view"
-			>
-				{{ displayMode === "tabs" ? "Split" : "Tabs" }}
-			</button>
-		</div>
-
-		<div v-if="displayMode === 'tabs'" class="h-full">
-			<Tabs default-value="tab1" class="h-full flex flex-col">
-				<TabsList class="bg-gray-900/80 p-1 shrink-0">
-					<TabsTrigger
-						value="tab1"
-						class="data-[state=active]:bg-gray-700 data-[state=active]:text-cyan-300 text-gray-400"
-					>
+	<div class="h-full w-full flex flex-col" :id="id">
+		<Tabs v-if="displayMode === 'tabs'" default-value="tab1" class="flex-1 min-h-0 gap-0">
+			<!-- Tab strip flush with the panel, same frame as the debugger toolbar -->
+			<div class="flex items-center gap-1 p-1 bg-gray-800 border-b border-gray-700 shrink-0">
+				<TabsList class="h-7 p-0 gap-0.5 bg-transparent">
+					<TabsTrigger value="tab1" :class="triggerClass">
 						<slot name="tab1-title"></slot>
 					</TabsTrigger>
-					<TabsTrigger
-						value="tab2"
-						class="data-[state=active]:bg-gray-700 data-[state=active]:text-cyan-300 text-gray-400"
-					>
+					<TabsTrigger value="tab2" :class="triggerClass">
 						<slot name="tab2-title"></slot>
 					</TabsTrigger>
 				</TabsList>
-				<TabsContent value="tab1" class="flex-grow min-h-0">
-					<slot name="tab1-content"></slot>
-				</TabsContent>
-				<TabsContent value="tab2" class="flex-grow min-h-0">
-					<slot name="tab2-content"></slot>
-				</TabsContent>
-			</Tabs>
-		</div>
+				<button @click="toggleMode" :class="toggleClass" title="Show both views side by side">Split</button>
+			</div>
+			<TabsContent value="tab1" class="min-h-0">
+				<slot name="tab1-content"></slot>
+			</TabsContent>
+			<TabsContent value="tab2" class="min-h-0">
+				<slot name="tab2-content"></slot>
+			</TabsContent>
+		</Tabs>
 
-		<div v-else class="h-full pt-2">
-			<ResizablePanelGroup direction="horizontal" :auto-save-id="id">
+		<template v-else>
+			<div class="flex items-center gap-1 p-1 bg-gray-800 border-b border-gray-700 shrink-0">
+				<button @click="toggleMode" :class="toggleClass" title="Show one view at a time, as tabs">Tabs</button>
+			</div>
+			<ResizablePanelGroup direction="horizontal" :auto-save-id="id" class="flex-1 min-h-0">
 				<ResizablePanel>
 					<slot name="tab1-content"></slot>
 				</ResizablePanel>
@@ -45,7 +34,7 @@
 					<slot name="tab2-content"></slot>
 				</ResizablePanel>
 			</ResizablePanelGroup>
-		</div>
+		</template>
 	</div>
 </template>
 
@@ -57,6 +46,10 @@ import ResizablePanel from "./ui/resizable/ResizablePanel.vue";
 import ResizablePanelGroup from "./ui/resizable/ResizablePanelGroup.vue";
 
 const props = defineProps<{ id: string }>();
+
+const triggerClass =
+	"flex-none h-full px-2.5 py-0 text-xs text-gray-400 hover:text-gray-200 data-[state=active]:bg-gray-700 data-[state=active]:text-cyan-300";
+const toggleClass = "ml-auto h-7 px-2 text-xs rounded-md bg-gray-700 hover:bg-gray-600 text-gray-300 transition-colors";
 
 const displayMode = ref<"tabs" | "split">("tabs");
 
