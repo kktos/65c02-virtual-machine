@@ -4,7 +4,7 @@
 		id="formatting_manager"
 		:options="{
 			defaultWidth: 900,
-			defaultHeight: 60,
+			defaultHeight: 600,
 			minWidth: 480,
 			minHeight: 400,
 			contentScrollable: false,
