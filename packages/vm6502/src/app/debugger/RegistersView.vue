@@ -1,5 +1,5 @@
 <template>
-	<div class="p-4 bg-gray-800 rounded-lg shadow-lg">
+	<div class="p-3 bg-gray-800 rounded-lg shadow-lg">
 		<DebuggerPanelTitle title="Registers" />
 		<div class="grid grid-cols-[repeat(auto-fill,minmax(5rem,1fr))] gap-x-2 gap-y-2 font-mono text-sm text-gray-300">
 			<div

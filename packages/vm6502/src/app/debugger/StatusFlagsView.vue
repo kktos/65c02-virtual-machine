@@ -1,5 +1,5 @@
 <template>
-	<div class="p-4 bg-gray-800 rounded-lg shadow-xl">
+	<div class="p-3 bg-gray-800 rounded-lg shadow-xl">
 		<DebuggerPanelTitle title="Status Flags" />
 		<div class="flex flex-wrap justify-center gap-x-2 gap-y-1">
 			<div v-for="(group, idx) in flagGroups" :key="idx" class="flex gap-1">

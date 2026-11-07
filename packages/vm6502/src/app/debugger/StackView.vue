@@ -1,5 +1,5 @@
 <template>
-	<div class="p-4 bg-gray-800 rounded-lg shadow-xl flex flex-col h-full">
+	<div class="p-3 bg-gray-800 rounded-lg shadow-xl flex flex-col h-full">
 		<DebuggerPanelTitle title="Stack" />
 		<div ref="scrollContainer" class="flex flex-col h-full">
 			<!-- <DebuggerPanelTitle title="Stack ($0100 - $01FF)" /> -->
