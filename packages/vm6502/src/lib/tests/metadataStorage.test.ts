@@ -145,6 +145,29 @@ describe("formattings and notes storage", () => {
 		expect(app.notes.getNoteEntry(0x2000, "main")?.note).toBe("lookup table");
 	});
 
+	it("changes a rule's type in place, on its own disk and group", async () => {
+		let app = await loadApp();
+		await app.formats.initFormats(MACHINE);
+		await app.formats.addFormatting(0xff0a, "string", 9, "rom"); // system rule
+		await app.formats.setDiskKey("game.dsk");
+
+		const rule = app.formats.getFormat(0xff0a)!;
+		await app.formats.updateFormatting(rule.id!, { type: "byte" });
+		expect(app.formats.getFormat(0xff0a)).toMatchObject({ type: "byte", length: 9, group: "rom", disk: "*" });
+		expect(app.formats.findFormattings("FF0A")).toHaveLength(1);
+
+		app = await loadApp();
+		await app.formats.initFormats(MACHINE);
+		await app.formats.setDiskKey("game.dsk");
+		expect(app.formats.getFormat(0xff0a)).toMatchObject({ type: "byte", length: 9, group: "rom" });
+		expect(await app.store.loadMetadata(MACHINE_KEY, "formats", "game.dsk")).toBeUndefined();
+
+		// Removing it by id works from the disk too, and is persisted on the system disk
+		await app.formats.removeManyFormattings(new Set([app.formats.getFormat(0xff0a)!.id!]));
+		expect(app.formats.getFormat(0xff0a)).toBeUndefined();
+		expect(await app.store.loadMetadata(MACHINE_KEY, "formats", "*")).toBeUndefined();
+	});
+
 	it("seeds the system formats only when none were stored", async () => {
 		const seed = {
 			0x2000: { rom: { disk: "*", address: 0x2000, type: "byte" as const, length: 2, group: "rom" } },

@@ -260,6 +260,16 @@ export function useFormatting() {
 		return true;
 	};
 
+	/** Changes a rule in place: it stays on its disk, in its group, at its address */
+	const updateFormatting = async (id: number, changes: Partial<Pick<DataBlock, "type" | "length">>) => {
+		await store.ready();
+		const current = [...allBlocks(systemRules.value), ...allBlocks(diskRules.value)].find((b) => b.id === id);
+		if (!current) return;
+
+		rulesFor(current.disk).value[current.address]![current.group] = { ...current, ...changes };
+		await persist(current.disk);
+	};
+
 	const removeFormatting = async (address: number, group = "user") => {
 		await store.ready();
 		const disk = diskKey.value;
@@ -396,6 +406,7 @@ export function useFormatting() {
 
 		addFormatting,
 		addManyFormattings,
+		updateFormatting,
 		removeFormatting,
 		removeManyFormattings,
 		findFormattings,
