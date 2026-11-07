@@ -1,6 +1,10 @@
 <template>
 	<!-- Same frame as the machine toolbar (App.vue) so both bars line up edge to edge -->
-	<div class="flex flex-wrap items-center gap-1 p-1 bg-gray-800 border-b border-gray-700">
+	<!-- @container: the BRK / Trace text labels are dropped (icons + tooltips remain) when the toolbar is narrow -->
+	<div
+		ref="toolbarRoot"
+		class="@container flex flex-wrap items-center gap-1 p-1 bg-gray-800 border-b border-gray-700"
+	>
 		<!-- Execution -->
 		<button
 			@click="toggle"
@@ -35,7 +39,7 @@
 			title="Pause on BRK instruction"
 		>
 			<Octagon class="h-4 w-4" />
-			BRK
+			<span class="hidden @[35rem]:inline">BRK</span>
 		</button>
 		<button
 			@click="toggleTrace"
@@ -49,12 +53,13 @@
 				class="absolute top-1 right-1 w-1.5 h-1.5 bg-orange-400 rounded-full animate-pulse shadow-[0_0_4px_rgba(251,146,60,0.6)]"
 			></span>
 			<ScrollText class="h-4 w-4" />
-			Trace
+			<span class="hidden @[35rem]:inline">Trace</span>
 		</button>
 
 		<div class="toolbar-sep"></div>
 
 		<!-- Tools -->
+		<BreakpointsDrawer :top="toolbarBottom" />
 		<MemoryMap />
 		<MachineState />
 		<button
@@ -95,6 +100,8 @@ import {
 	Terminal,
 } from "lucide-vue-next";
 import { inject, type Ref, ref } from "vue";
+import { useElementBounding } from "@vueuse/core";
+import BreakpointsDrawer from "@/app/debugger/BreakpointsDrawer.vue";
 import MemoryMap from "@/app/debugger/memorymap/MemoryMap.vue";
 import MachineState from "@/app/debugger/MachineState.vue";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
@@ -106,6 +113,10 @@ interface Props {
 	isRunning: boolean;
 }
 const { isRunning } = defineProps<Props>();
+
+// The breakpoints drawer opens right below this toolbar (its height varies when it wraps)
+const toolbarRoot = ref<HTMLElement | null>(null);
+const { bottom: toolbarBottom } = useElementBounding(toolbarRoot);
 
 const toggle = () => {
 	if (isRunning) vm?.value.pause();

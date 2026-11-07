@@ -1,8 +1,11 @@
 <template>
-	<div class="p-4 bg-gray-800 rounded-lg shadow-xl h-full flex flex-col">
-		<div class="flex justify-between items-center mb-3 border-b border-gray-700/50 pb-2 shrink-0">
-			<h2 class="text-sm font-semibold text-cyan-400 uppercase tracking-wider">Execution Trace</h2>
-			<div class="flex space-x-2">
+	<!-- Same frame and title style as the Stack panel next to it -->
+	<div class="p-2 bg-gray-800 rounded-lg shadow-xl h-full flex flex-col">
+		<div class="flex justify-between items-center -mt-1 mb-0.5 shrink-0">
+			<h2 class="text-[0.65rem] leading-none font-semibold text-cyan-400 uppercase tracking-wider">
+				Execution Trace
+			</h2>
+			<div class="flex space-x-1">
 				<Popover>
 					<PopoverTrigger as-child>
 						<button
@@ -62,7 +65,7 @@
 			</div>
 		</div>
 
-		<div class="flex-grow overflow-y-auto font-mono text-xs bg-gray-900 p-2 rounded-md">
+		<div class="flex-grow min-h-0 overflow-y-auto font-mono text-xs bg-gray-900 p-1.5 rounded-md">
 			<table class="text-left border-collapse w-full">
 				<thead class="sticky top-0 bg-gray-900">
 					<tr class="text-gray-500 border-b border-gray-700">
