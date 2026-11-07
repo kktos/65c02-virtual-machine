@@ -1,3 +1,11 @@
+/** A rectangle of the video buffer, in buffer pixels */
+export interface VideoViewRect {
+	x: number;
+	y: number;
+	width: number;
+	height: number;
+}
+
 export class VideoOutput {
 	private canvas: HTMLCanvasElement;
 	private gl: WebGL2RenderingContext;
@@ -6,12 +14,23 @@ export class VideoOutput {
 	private height: number;
 	private imageTexture: WebGLTexture | null = null;
 	private paletteTexture: WebGLTexture | null = null;
+	private uvRectLocation: WebGLUniformLocation | null = null;
+
+	// Only this part of the buffer is displayed (lets a machine crop its border)
+	private viewRect: VideoViewRect;
+
+	// Integer scaling: the canvas backing store matches the element's size in device pixels and
+	// the frame is drawn into a centered viewport that is a whole multiple of the buffer size,
+	// so every source pixel becomes an identical k x k block of screen pixels.
+	private integerScaling = false;
+	private resizeObserver: ResizeObserver | null = null;
 
 	constructor(canvas: HTMLCanvasElement, videoBuffer: Uint8Array, width: number, height: number) {
 		this.canvas = canvas;
 		this.videoBuffer = videoBuffer;
 		this.width = width;
 		this.height = height;
+		this.viewRect = { x: 0, y: 0, width, height };
 		this.canvas.width = this.width;
 		this.canvas.height = this.height;
 
@@ -45,10 +64,11 @@ export class VideoOutput {
 		const vsSource = `#version 300 es
         in vec2 a_position;
         in vec2 a_texCoord;
+        uniform vec4 u_uvRect; // visible part of the buffer: offset (xy) and size (zw), in UV units
         out vec2 v_texCoord;
         void main() {
             gl_Position = vec4(a_position, 0.0, 1.0);
-            v_texCoord = a_texCoord;
+            v_texCoord = u_uvRect.xy + a_texCoord * u_uvRect.zw;
         }`;
 
 		// Fragment Shader
@@ -97,6 +117,8 @@ export class VideoOutput {
 		// Uniforms
 		gl.uniform1i(gl.getUniformLocation(program, "u_image"), 0);
 		gl.uniform1i(gl.getUniformLocation(program, "u_palette"), 1);
+		this.uvRectLocation = gl.getUniformLocation(program, "u_uvRect");
+		this.applyViewRect();
 
 		// Texture
 		this.imageTexture = gl.createTexture();
@@ -132,9 +154,100 @@ export class VideoOutput {
 		gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 256, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, palette);
 	}
 
+	public setIntegerScaling(enabled: boolean) {
+		if (enabled === this.integerScaling) return;
+		this.integerScaling = enabled;
+
+		if (enabled) {
+			// Size containment keeps the (now large) backing store from feeding back into layout:
+			// the element keeps the box it had in fit mode.
+			this.canvas.style.contain = "size";
+			this.canvas.style.objectFit = "fill";
+			this.resizeObserver = new ResizeObserver((entries) => this.onResize(entries));
+			try {
+				this.resizeObserver.observe(this.canvas, { box: "device-pixel-content-box" });
+			} catch {
+				this.resizeObserver.observe(this.canvas);
+			}
+			return;
+		}
+
+		this.resizeObserver?.disconnect();
+		this.resizeObserver = null;
+		this.canvas.style.contain = "";
+		this.canvas.style.objectFit = "contain";
+		this.canvas.width = this.viewRect.width;
+		this.canvas.height = this.viewRect.height;
+	}
+
+	public setViewRect(rect: VideoViewRect) {
+		// Keep it inside the buffer, at least one pixel
+		const x = Math.min(Math.max(0, Math.round(rect.x)), this.width - 1);
+		const y = Math.min(Math.max(0, Math.round(rect.y)), this.height - 1);
+		const width = Math.min(Math.max(1, Math.round(rect.width)), this.width - x);
+		const height = Math.min(Math.max(1, Math.round(rect.height)), this.height - y);
+		this.viewRect = { x, y, width, height };
+		this.applyViewRect();
+		// In fit mode the backing store is the visible size, so object-fit keeps its aspect ratio
+		if (!this.integerScaling) {
+			this.canvas.width = width;
+			this.canvas.height = height;
+		}
+	}
+
+	private applyViewRect() {
+		const { x, y, width, height } = this.viewRect;
+		this.gl.uniform4f(
+			this.uvRectLocation,
+			x / this.width,
+			y / this.height,
+			width / this.width,
+			height / this.height,
+		);
+	}
+
+	private onResize(entries: ResizeObserverEntry[]) {
+		const entry = entries[0];
+		if (!entry) return;
+		// Canvas content box in device pixels (exact when the browser reports it, else rounded)
+		const devSize = entry.devicePixelContentBoxSize?.[0];
+		const dpr = window.devicePixelRatio || 1;
+		const width = devSize ? devSize.inlineSize : Math.round(entry.contentRect.width * dpr);
+		const height = devSize ? devSize.blockSize : Math.round(entry.contentRect.height * dpr);
+		// Setting width/height clears the drawing buffer; the next animation frame redraws it
+		if (width > 0 && height > 0) {
+			this.canvas.width = width;
+			this.canvas.height = height;
+		}
+	}
+
+	private setViewport() {
+		const gl = this.gl;
+		const bufW = gl.drawingBufferWidth;
+		const bufH = gl.drawingBufferHeight;
+
+		if (!this.integerScaling) {
+			gl.viewport(0, 0, bufW, bufH);
+			return;
+		}
+
+		// Whole multiple when it fits; a box smaller than the buffer can't be scaled by an
+		// integer, so fall back to the fractional fit there.
+		const { width: viewW, height: viewH } = this.viewRect;
+		const fit = Math.min(bufW / viewW, bufH / viewH);
+		const scale = fit >= 1 ? Math.floor(fit) : fit;
+		const w = Math.round(viewW * scale);
+		const h = Math.round(viewH * scale);
+
+		gl.viewport(0, 0, bufW, bufH);
+		gl.clearColor(0, 0, 0, 0);
+		gl.clear(gl.COLOR_BUFFER_BIT);
+		gl.viewport(Math.floor((bufW - w) / 2), Math.floor((bufH - h) / 2), w, h);
+	}
+
 	public render() {
 		const gl = this.gl;
-		gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
+		this.setViewport();
 		gl.activeTexture(gl.TEXTURE0);
 		gl.bindTexture(gl.TEXTURE_2D, this.imageTexture);
 		gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, this.width, this.height, gl.RED, gl.UNSIGNED_BYTE, this.videoBuffer);
@@ -167,6 +280,11 @@ export class VideoOutput {
 				);
 			}
 		}
+	}
+
+	public destroy() {
+		this.resizeObserver?.disconnect();
+		this.resizeObserver = null;
 	}
 
 	public setPalette(colors: Uint8Array) {

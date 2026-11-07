@@ -8,7 +8,7 @@ import {
 } from "@/virtualmachine/cpu/shared-memory";
 import type { AppleBus } from "../apple.bus";
 import { RAM_OFFSET } from "../memory.consts";
-import { DHGRPaletteRGB, IIgsPaletteRGB } from "./constants";
+import { DHGRPaletteRGB, IIgsPaletteRGB, NATIVE_VIEW_HEIGHT, NATIVE_VIEW_WIDTH } from "./constants";
 import { DebugText } from "./debug/debug.text";
 import { LowGrRenderer } from "./gr";
 import { HGR_COLORS, HGRRenderer } from "./hgr";
@@ -27,6 +27,9 @@ const APPLE_DBLRES_MASK = 0b0000_0001;
 const APPLE_VIDEO7_REG_MASK = 0b0000_0110; // bits 1,2
 const APPLE_VIDEO7_REG_SHIFT = 1;
 
+// Space above and below the text in the debug bar (buffer pixels; a multiple of 2 keeps it on the Apple pixel grid)
+const DEBUG_BAR_PADDING = 2;
+
 interface AppleVideoOverrides {
 	videoMode?: "AUTO" | "TEXT" | "HGR";
 	videoPage?: "AUTO" | "PAGE1" | "PAGE2";
@@ -44,14 +47,23 @@ interface AppleVideoOverrides {
 	wannaShowDebug?: boolean;
 	dbgTextFgColor?: number;
 	dbgTextBgColor?: number;
+	borderWidth?: number;
+	borderHeight?: number;
+}
+
+/** The part of the video buffer that is shown, in buffer pixels */
+export interface ViewRect {
+	x: number;
+	y: number;
+	width: number;
+	height: number;
 }
 
 const baseurl = import.meta.url.match(/http:\/\/[^/]+/)?.[0];
 function loadFont(name: string) {
 	const fontUrl = new URL(`${baseurl}/fonts/${name}.ttf`).href;
 	const font = new FontFace(name, `url(${fontUrl})`);
-	font
-		.load()
+	font.load()
 		.then((loaded) => {
 			self.fonts.add(loaded);
 			console.log("AppleVideo: Loaded font", loaded.family);
@@ -91,6 +103,14 @@ export class AppleVideo implements Video {
 	private debugText: DebugText;
 	private wannaShowDebug = false;
 
+	// Visible part of the buffer. The Apple picture is centered in the buffer, and the border options
+	// can only shrink the border, so this is the picture plus the chosen border on each side.
+	private viewRect: ViewRect = { x: 0, y: 0, width: 0, height: 0 };
+
+	private get debugBarHeight() {
+		return this.debugText.charSize + DEBUG_BAR_PADDING * 2;
+	}
+
 	private tester: VideoTester | undefined;
 
 	private borderOverrideColorIdx = 0;
@@ -122,6 +142,7 @@ export class AppleVideo implements Video {
 
 		this.targetWidth = width;
 		this.targetHeight = height;
+		this.viewRect = { x: 0, y: 0, width: width, height: height };
 		this.defaultWidth = width;
 		this.defaultHeight = height;
 
@@ -203,12 +224,37 @@ export class AppleVideo implements Video {
 		// this.hgrRenderer.resize(newWidth, newHeight);
 
 		this.updateRenderers();
+		this.updateViewRect();
 
 		if (this.overrides.runTest && this.tester) {
 			console.log("runTest", this.overrides.runTest);
 			this.tester.run(this.overrides.runTest);
 			return;
 		}
+	}
+
+	private updateViewRect() {
+		const maxBorderX = Math.max(0, Math.floor((this.targetWidth - NATIVE_VIEW_WIDTH) / 2));
+		const maxBorderY = Math.max(0, Math.floor((this.targetHeight - NATIVE_VIEW_HEIGHT) / 2));
+		// The inputs don't enforce min/max when typing, so clamp here; unset means the full border
+		const clamp = (value: number | undefined, max: number) =>
+			value === undefined || !Number.isFinite(value) ? max : Math.min(max, Math.max(0, Math.round(value)));
+		const borderX = clamp(this.overrides.borderWidth, maxBorderX);
+		const borderY = clamp(this.overrides.borderHeight, maxBorderY);
+
+		const rect: ViewRect = {
+			x: maxBorderX - borderX,
+			y: maxBorderY - borderY,
+			width: this.targetWidth - (maxBorderX - borderX) * 2,
+			height: this.targetHeight - (maxBorderY - borderY) * 2,
+		};
+		const prev = this.viewRect;
+		if (rect.x === prev.x && rect.y === prev.y && rect.width === prev.width && rect.height === prev.height) return;
+
+		this.viewRect = rect;
+		// The debug bar follows the top of the view: repaint the border over where it used to be
+		this.borderOverrideColorLatch = true;
+		this.parent.postMessage({ command: "setViewRect", rect });
 	}
 
 	private updateRenderers() {
@@ -244,12 +290,12 @@ export class AppleVideo implements Video {
 			this.borderColorIdx = borderIdx;
 		}
 
+		// The debug bar is drawn after the picture on every tick, so the border can be painted in full
 		if (newBorderColor >= 0) {
-			const top = this.overrides.wannaShowDebug ? 12 : 0;
-			this.debugText.drawRect(0, top, this.targetWidth, 48, newBorderColor);
+			this.debugText.drawRect(0, 0, this.targetWidth, 48, newBorderColor);
 			this.debugText.drawRect(0, this.targetHeight - 48, this.targetWidth, 48, newBorderColor);
-			this.debugText.drawRect(0, top, 40, this.targetHeight, newBorderColor);
-			this.debugText.drawRect(this.targetWidth - 40, top, 40, this.targetHeight, newBorderColor);
+			this.debugText.drawRect(0, 0, 40, this.targetHeight, newBorderColor);
+			this.debugText.drawRect(this.targetWidth - 40, 0, 40, this.targetHeight, newBorderColor);
 			// this.buffer.fill(newBorderColor);
 		}
 
@@ -278,30 +324,33 @@ export class AppleVideo implements Video {
 			this.overrides.mouseChars === "ON" ||
 			(this.overrides.mouseChars === "OFF" ? false : (stateByte2 & APPLE_ALTCHAR_MASK) !== 0);
 
-		if (this.overrides.wannaShowDebug) {
-			this.debugText.drawRect(0, 0, this.targetWidth, 11, this.overrides.dbgTextBgColor ?? 15);
-			const debugStr = `${isText ? "TEXT" : isHgr ? " HGR" : "  GR"} ${is80Col ? "80" : "40"} ${isMixed ? "MIXED" : " FULL"} ${isPage2 ? "P2" : "P1"} ${isDblRes ? "DBL" : ""}`;
-			this.debugText.drawCenteredString(2, debugStr, this.overrides.dbgTextFgColor ?? 0);
-		}
-
 		if (isText) {
 			if (is80Col) this.renderText80(0, bgIdx, fgIdx, isAltCharset);
 			else this.renderText40(0, isPage2, bgIdx, fgIdx, isAltCharset);
-			return;
-		}
-
-		if (isHgr) {
-			this.hgrRenderer.render(isMixed, isPage2, isDblRes && is80Col, this.overrides.isMonochrome, video7Register);
+		} else {
+			if (isHgr)
+				this.hgrRenderer.render(
+					isMixed,
+					isPage2,
+					isDblRes && is80Col,
+					this.overrides.isMonochrome,
+					video7Register,
+				);
+			else this.lowGrRenderer.render(isMixed, isPage2, isDblRes);
 			if (isMixed) {
 				if (is80Col) this.renderText80(20, bgIdx, fgIdx, isAltCharset);
 				else this.renderText40(20, isPage2, bgIdx, fgIdx, isAltCharset);
 			}
-			return;
 		}
-		this.lowGrRenderer.render(isMixed, isPage2, isDblRes);
-		if (isMixed) {
-			if (is80Col) this.renderText80(20, bgIdx, fgIdx, isAltCharset);
-			else this.renderText40(20, isPage2, bgIdx, fgIdx, isAltCharset);
+
+		// Drawn last, at the top of the visible area: with a thin border it sits over the picture
+		if (this.overrides.wannaShowDebug) {
+			const top = this.viewRect.y;
+			const dbgBg = this.overrides.dbgTextBgColor ?? -1;
+			const dbgFg = this.overrides.dbgTextFgColor ?? -1;
+			this.debugText.drawRect(0, top, this.targetWidth, this.debugBarHeight, dbgBg >= 0 ? dbgBg : 15);
+			const debugStr = `${isText ? "TEXT" : isHgr ? " HGR" : "  GR"} ${is80Col ? "80" : "40"} ${isMixed ? "MIXED" : " FULL"} ${isPage2 ? "P2" : "P1"} ${isDblRes ? "DBL" : ""}`;
+			this.debugText.drawCenteredString(top + DEBUG_BAR_PADDING, debugStr, dbgFg >= 0 ? dbgFg : 0);
 		}
 
 		// if ((globalThis as any).DEBUG_VIDEO) this.handleDebugVideo();

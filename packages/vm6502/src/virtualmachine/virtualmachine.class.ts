@@ -23,7 +23,7 @@ import {
 	REG_Y_OFFSET,
 	STACK_METADATA_OFFSET,
 } from "@/virtualmachine/cpu/shared-memory";
-import { VideoOutput } from "@/virtualmachine/video/video.output";
+import { VideoOutput, type VideoViewRect } from "@/virtualmachine/video/video.output";
 import { useMemoryMap } from "../composables/useMemoryMap";
 import { parseHexData } from "../lib/array.utils";
 import type { Breakpoint } from "../types/breakpoint.interface";
@@ -50,6 +50,9 @@ export class VirtualMachine {
 	public videoMemory?: Uint8Array;
 	private videoOutput?: VideoOutput;
 	private pendingPalette: Uint8Array | null = null;
+	// The video options can arrive before the canvas is attached; kept here and applied in initVideo
+	private integerScaling = false;
+	private pendingViewRect: VideoViewRect | null = null;
 	public busState: Dict = {};
 	private isRendering = false;
 	private _isRunning = false;
@@ -134,6 +137,9 @@ export class VirtualMachine {
 					if (command === "setPalette") {
 						if (this.videoOutput) this.videoOutput.setPalette(colors);
 						else this.pendingPalette = colors;
+					} else if (command === "setViewRect") {
+						if (this.videoOutput) this.videoOutput.setViewRect(event.data.rect);
+						else this.pendingViewRect = event.data.rect;
 					} else {
 						this.onmessage?.(event);
 					}
@@ -264,6 +270,11 @@ export class VirtualMachine {
 			this.videoOutput.setPalette(this.pendingPalette);
 			this.pendingPalette = null;
 		}
+		if (this.pendingViewRect) {
+			this.videoOutput.setViewRect(this.pendingViewRect);
+			this.pendingViewRect = null;
+		}
+		this.videoOutput.setIntegerScaling(this.integerScaling);
 
 		this.isRendering = true;
 		this.renderFrame();
@@ -590,6 +601,11 @@ export class VirtualMachine {
 	}
 
 	public setDebugOverrides(category: string, overrides: Dict) {
+		// Integer scaling is a display concern handled on the main thread, not by the machine's renderer
+		if (category === "video") {
+			this.integerScaling = !!overrides.integerScaling;
+			this.videoOutput?.setIntegerScaling(this.integerScaling);
+		}
 		this.worker.postMessage({
 			command: "setDebugOverrides",
 			category,
@@ -623,6 +639,7 @@ export class VirtualMachine {
 
 	public terminate() {
 		this.isRendering = false;
+		this.videoOutput?.destroy();
 		this.worker.terminate();
 		window.removeEventListener("keydown", this.keyHandler);
 		window.removeEventListener("keyup", this.keyUpHandler);

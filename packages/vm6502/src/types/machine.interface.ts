@@ -4,7 +4,8 @@ import type { SymbolDict } from "@/composables/useSymbols";
 export interface DebugOption {
 	id: string;
 	label: string;
-	type: "boolean" | "select" | "number" | "color";
+	/** "label" is a sub-heading inside a group: only its label is shown, it holds no value */
+	type: "boolean" | "select" | "number" | "color" | "label";
 	options?: { label: string; value: string | number; color?: string }[];
 	min?: number;
 	max?: number;
