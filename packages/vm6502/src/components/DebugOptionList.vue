@@ -7,7 +7,7 @@
 			class="border-b border-gray-700/50 last:border-0"
 		>
 			<AccordionTrigger
-				class="py-2 text-[10px] font-bold text-gray-500 uppercase tracking-wider hover:no-underline hover:text-gray-300"
+				class="-mx-2 px-2 py-1.5 bg-white/5 text-[10px] font-bold text-cyan-400 uppercase tracking-wider hover:no-underline hover:bg-white/10 hover:text-cyan-300"
 			>
 				{{ group.label }}
 			</AccordionTrigger>
@@ -15,11 +15,13 @@
 				<div class="space-y-3">
 					<div v-for="(row, rIdx) in group.rows" :key="rIdx" class="flex items-center gap-4 min-h-[24px]">
 						<template v-for="opt in row" :key="opt.id">
+							<!-- Sub-heading: a rule after the text marks the start of a group, with more space above than below -->
 							<div
 								v-if="opt.type === 'label'"
-								class="flex-1 -mb-1.5 text-[11px] font-semibold text-gray-400 select-none"
+								class="flex-1 flex items-center gap-2 pt-2 -mb-1.5 text-[10px] font-semibold text-gray-300 uppercase tracking-wider select-none"
 							>
-								{{ opt.label }}
+								<span>{{ opt.label }}</span>
+								<span class="flex-1 h-px bg-gray-600" aria-hidden="true"></span>
 							</div>
 							<div
 								v-else
