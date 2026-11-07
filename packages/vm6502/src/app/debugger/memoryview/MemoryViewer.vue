@@ -2,7 +2,7 @@
 	<div
 		:id="id"
 		:class="[
-			'h-full flex flex-col bg-gray-900 transition-all duration-200',
+			'relative h-full flex flex-col bg-gray-900 transition-all duration-200',
 			isActive ? 'ring-1 ring-inset ring-cyan-500' : '',
 		]"
 	>
@@ -44,13 +44,18 @@
 				</div>
 			</div>
 
-			<!-- Debug Options -->
-			<DebugOptionsPopover
-				ref="debugOptionsPopover"
-				category="memory"
-				align="end"
-				:class="activeDebugBadges.length > 0 ? '' : 'ml-auto'"
-			/>
+			<!-- Settings -->
+			<Button
+				ref="settingsBtn"
+				variant="ghost"
+				size="icon"
+				class="h-6 w-6 text-gray-400 hover:text-cyan-300"
+				:class="[activeDebugBadges.length > 0 ? '' : 'ml-auto', { 'text-cyan-300 bg-gray-700': isSettingsOpen }]"
+				@click="isSettingsOpen = !isSettingsOpen"
+				title="Memory View Options"
+			>
+				<Settings2 class="h-4 w-4" />
+			</Button>
 
 			<div class="flex items-center space-x-1 ml-2 border-l border-gray-700 pl-2">
 				<Button
@@ -91,22 +96,7 @@
 							{{ "+" + (i - 1).toString(16).toUpperCase() }}
 						</th>
 						<th class="py-1 text-left w-auto pl-4">
-							<div class="flex items-center justify-between pr-2">
-								<span>ASCII</span>
-								<div class="flex items-center space-x-1" title="Set High Bit (bit 7) for ASCII input">
-									<input
-										type="checkbox"
-										id="highBit"
-										v-model="highBitEnabled"
-										class="rounded bg-gray-700 border-gray-600 text-cyan-500 focus:ring-cyan-500 h-3 w-3"
-									/>
-									<label
-										for="highBit"
-										class="text-[10px] text-gray-400 cursor-pointer select-none font-normal"
-										>High Bit</label
-									>
-								</div>
-							</div>
+							ASCII
 						</th>
 					</tr>
 				</thead>
@@ -249,6 +239,16 @@
 			</PopoverContent>
 		</Popover>
 
+		<MemorySettingsPanel
+			:is-open="isSettingsOpen"
+			:debug-options="debugOptions"
+			v-model:overrides="debugOverrides"
+			v-model:high-bit="highBitEnabled"
+			:ignore-ref="settingsBtnEl"
+			@close="isSettingsOpen = false"
+			@reset="resetSettings"
+		/>
+
 		<AddSymbolPopover
 			:is-open="symbolPopover.isOpen"
 			@update:is-open="(val) => (symbolPopover.isOpen = val)"
@@ -261,13 +261,12 @@
 </template>
 
 <script lang="ts" setup>
-import { Split, X, Eye, EyeOff } from "lucide-vue-next";
+import { Split, X, Eye, EyeOff, Settings2 } from "lucide-vue-next";
 import { computed, inject, nextTick, onMounted, onUnmounted, type Ref, ref, watch } from "vue";
 import MemoryAsciiLine from "./MemoryAsciiLine.vue";
 import MemoryHexLine from "./MemoryHexLine.vue";
 import AddressNavigator from "@/app/debugger/AddressNavigator.vue";
 import AddSymbolPopover from "@/components/AddSymbolPopover.vue";
-import DebugOptionsPopover from "@/components/DebugOptionsPopover.vue";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import type { SearchProvider, SearchSuggestion } from "@/composables/useSymbols";
@@ -277,11 +276,12 @@ import { useDisassembly } from "@/composables/useDisassembly";
 import { useFormatting } from "@/composables/useDataFormattings";
 import { onKeyStroke, useThrottleFn } from "@vueuse/core";
 import { formatAddress } from "@/lib/hex.utils";
-import type { DebugGroup } from "@/types/machine.interface";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import BinaryLoader from "./BinaryLoader.vue";
 import { useMachine } from "@/composables/useMachine";
 import MemorySelectionStatus from "./MemorySelectionStatus.vue";
+import MemorySettingsPanel from "./MemorySettingsPanel.vue";
+import { useDebugOptions } from "@/composables/useDebugOptions";
 
 const vm = inject<Ref<VirtualMachine>>("vm");
 const { addFormatting, updateFormatting, removeManyFormattings, getFormatCovering } = useFormatting();
@@ -320,8 +320,10 @@ const visibleRowCount = computed(() => {
 	if (containerHeight.value === 0) return 10; // Default before mounted
 	return Math.max(1, Math.floor((containerHeight.value - HEADER_HEIGHT_ESTIMATE) / ROW_HEIGHT_ESTIMATE));
 });
-const debugOptionsPopover = ref<InstanceType<typeof DebugOptionsPopover> | null>(null);
-const debugOverrides = computed(() => debugOptionsPopover.value?.debugOverrides || {});
+const { debugOptions, debugOverrides, defaults: debugDefaults, resetOptions } = useDebugOptions("memory");
+const isSettingsOpen = ref(false);
+const settingsBtn = ref<InstanceType<typeof Button> | null>(null);
+const settingsBtnEl = computed(() => (settingsBtn.value?.$el as HTMLElement | undefined) ?? null);
 
 const isLive = ref(false);
 let pollInterval: number | undefined;
@@ -369,6 +371,11 @@ watch(
 );
 
 const highBitEnabled = ref(false);
+
+const resetSettings = () => {
+	resetOptions();
+	highBitEnabled.value = false;
+};
 
 const memorySearchProvider: SearchProvider = (query) => {
 	if (!vm?.value) return [];
@@ -497,40 +504,23 @@ const addBp = (type: "read" | "write" | "access") => {
 	closeContextMenu();
 };
 
+/** One badge per memory option the user moved away from its default */
 const activeDebugBadges = computed(() => {
-	if (!debugOptionsPopover.value || !vm?.value) return [];
-
-	const options = (debugOptionsPopover.value.debugOptions as DebugGroup[]) || [];
-	const overrides = (debugOptionsPopover.value.debugOverrides as Record<string, unknown>) || {};
 	const badges: { id: string; label: string; value?: string }[] = [];
 
-	for (const group of options) {
+	for (const group of debugOptions.value) {
 		for (const row of group.rows) {
 			for (const opt of row) {
-				const val = overrides[opt.id];
+				const val = debugOverrides.value[opt.id];
+				if (val === undefined || val === debugDefaults.value[opt.id]) continue;
 
-				// Determine default value
-				let defaultVal = opt.defaultValue;
-				if (defaultVal === undefined) {
-					if (opt.type === "select" && opt.options?.length) {
-						defaultVal = opt.options[0]?.value;
-					} else if (opt.type === "boolean") {
-						defaultVal = false;
-					}
-				}
-
-				if (val !== undefined && val !== defaultVal) {
-					if (opt.type === "boolean") {
-						if (val === true) {
-							badges.push({ id: opt.id, label: opt.label });
-						}
-					} else if (opt.type === "select") {
-						const selectedOption = opt.options?.find((o) => o.value === val);
-						const displayValue = selectedOption ? selectedOption.label : String(val);
-						badges.push({ id: opt.id, label: opt.label, value: displayValue });
-					} else if (opt.type === "number") {
-						badges.push({ id: opt.id, label: opt.label, value: String(val) });
-					}
+				if (opt.type === "boolean") {
+					if (val === true) badges.push({ id: opt.id, label: opt.label });
+				} else if (opt.type === "select") {
+					const selectedOption = opt.options?.find((o) => o.value === val);
+					badges.push({ id: opt.id, label: opt.label, value: selectedOption?.label ?? String(val) });
+				} else if (opt.type === "number") {
+					badges.push({ id: opt.id, label: opt.label, value: String(val) });
 				}
 			}
 		}
