@@ -96,7 +96,7 @@ import DebugOptionList from "@/components/DebugOptionList.vue";
 import FloatingWindow from "@/components/FloatingWindow.vue";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import type { DebugGroup } from "@/types/machine.interface";
+import { useDebugOptions } from "@/composables/useDebugOptions";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 
 const props = withDefaults(
@@ -115,42 +115,11 @@ const props = withDefaults(
 
 const slots = useSlots();
 const vm = inject<Ref<VirtualMachine>>("vm");
-const debugOptions = ref<DebugGroup[]>([]);
-const debugOverrides = ref<Record<string, unknown>>({});
+const { debugOptions, debugOverrides, saveOptions } = useDebugOptions(props.category);
 
 const isPopoverOpen = ref(false);
 const floatingWindowRef = ref<InstanceType<typeof FloatingWindow> | null>(null);
 const isTornOff = ref(false);
-
-const STORAGE_KEY = computed(() => `debug-options-${props.category}`);
-
-const saveOptions = () => {
-	const savableOptions: string[] = [];
-	for (const group of debugOptions.value) {
-		for (const row of group.rows) {
-			for (const opt of row) {
-				if (opt.savable) savableOptions.push(opt.id);
-			}
-		}
-	}
-	const valuesToSave: Record<string, unknown> = {};
-	for (const id of savableOptions) {
-		if (debugOverrides.value[id] !== undefined) valuesToSave[id] = debugOverrides.value[id];
-	}
-	localStorage.setItem(STORAGE_KEY.value, JSON.stringify(valuesToSave));
-};
-
-const loadOptions = () => {
-	const saved = localStorage.getItem(STORAGE_KEY.value);
-	if (saved) {
-		try {
-			const savedValues = JSON.parse(saved);
-			debugOverrides.value = { ...debugOverrides.value, ...savedValues };
-		} catch (e) {
-			console.error(`Failed to load ${props.category} options`, e);
-		}
-	}
-};
 
 const tearOff = (event: MouseEvent) => {
 	let rect: DOMRect | undefined;
@@ -171,38 +140,6 @@ const tearOff = (event: MouseEvent) => {
 };
 
 const hasOptions = computed(() => debugOptions.value.length > 0 || !!slots["extra-content"]);
-
-watch(
-	() => vm?.value,
-	async (newVm) => {
-		if (newVm) {
-			await newVm.ready;
-			debugOptions.value = newVm.getDebugOptions().filter((grp) => grp.category === props.category);
-
-			const defaults: Record<string, unknown> = {};
-			debugOptions.value.forEach((grp) => {
-				grp.rows.forEach((row) => {
-					row.forEach((opt) => {
-						if (opt.defaultValue !== undefined) {
-							defaults[opt.id] = opt.defaultValue;
-						} else if (opt.type === "select" && opt.options?.length) {
-							defaults[opt.id] = opt.options[0]?.value;
-						} else if (opt.type === "boolean") {
-							defaults[opt.id] = false;
-						} else if (opt.type === "number") {
-							defaults[opt.id] = undefined;
-						}
-					});
-				});
-			});
-			debugOverrides.value = defaults;
-
-			// Load saved options on top of defaults
-			loadOptions();
-		}
-	},
-	{ immediate: true },
-);
 
 watch(
 	debugOverrides,
