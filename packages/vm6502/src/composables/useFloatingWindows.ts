@@ -51,7 +51,11 @@ export function useFloatingWindows() {
 		return globalZIndex.value;
 	};
 
+	// Transient overlays (popovers…) are portalled to <body>; they must sit above every floating window.
+	const overlayZIndex = computed(() => globalZIndex.value + 1);
+
 	return {
+		overlayZIndex,
 		register,
 		unregister,
 		open,
