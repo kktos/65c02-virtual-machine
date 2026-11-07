@@ -16,6 +16,8 @@
 				size="sm"
 				variant="ghost"
 				class="h-6 px-2 text-xs border-gray-600 text-gray-300 hover:bg-gray-700 hover:text-gray-200"
+				:class="formatType === 'byte' && currentTypeClass"
+				:aria-pressed="formatType === 'byte'"
 				@click="$emit('format', 'byte')"
 				>Byte</Button
 			>
@@ -23,6 +25,8 @@
 				size="sm"
 				variant="ghost"
 				class="h-6 px-2 text-xs border-gray-600 text-gray-300 hover:bg-gray-700 hover:text-gray-200"
+				:class="formatType === 'string' && currentTypeClass"
+				:aria-pressed="formatType === 'string'"
 				@click="$emit('format', 'string')"
 				>String</Button
 			>
@@ -44,11 +48,17 @@
 <script lang="ts" setup>
 import { X } from "lucide-vue-next";
 import { Button } from "@/components/ui/button";
+import type { DataType } from "@/composables/useDataFormattings";
 import { formatAddress } from "@/lib/hex.utils";
 
 defineProps<{
 	selectedRange: { start: number; end: number; size: number } | null;
+	/** Type of the formatting covering exactly the selection, if any */
+	formatType?: DataType | null;
 }>();
+
+/** Same indigo as the formatted bytes in the memory view */
+const currentTypeClass = "bg-indigo-800 text-indigo-100 hover:bg-indigo-700 hover:text-indigo-50";
 
 defineEmits<{
 	(e: "format", type: "byte" | "string"): void;
