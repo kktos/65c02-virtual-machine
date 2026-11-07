@@ -34,7 +34,7 @@
 					@keyup.enter="open = false"
 					class="w-20 bg-gray-700 text-gray-200 text-xs rounded border border-gray-600 focus:ring-1 focus:ring-cyan-500 outline-none px-1 py-0.5"
 					step="0.1"
-					min="0"
+					min="0.1"
 				/>
 				MHz
 			</label>
@@ -66,8 +66,13 @@ const selectPreset = (value: number) => {
 };
 
 const onCustomChange = (event: Event) => {
-	const value = Number((event.target as HTMLInputElement).value);
-	if (Number.isFinite(value) && value >= 0) targetSpeed.value = value;
+	const input = event.target as HTMLInputElement;
+	const raw = input.value.trim();
+	const value = Number(raw);
+	// Number("") is 0, and a speed of 0 makes the 65C02 core run unthrottled; only accept a real positive speed.
+	if (raw !== "" && Number.isFinite(value) && value > 0) targetSpeed.value = value;
+	// The input is one-way bound, so put a rejected entry back to the current speed.
+	else input.value = String(targetSpeed.value);
 };
 
 watch(
