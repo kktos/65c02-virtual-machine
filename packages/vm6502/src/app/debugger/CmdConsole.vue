@@ -186,10 +186,8 @@ const handleEnter = async () => {
 
 	print(prompt.value + currentInput, "input");
 
-	if (!(await executeCommand(currentInput, vm.value))) {
-		printError(error.value);
-		error.value = "";
-	}
+	// Errors are printed by executeCommand itself.
+	if (!(await executeCommand(currentInput, vm.value))) error.value = "";
 	if (shouldClose.value) hideConsole();
 
 	// Only reset history tracking if we are NOT in a multi-line session
@@ -202,11 +200,9 @@ const handleEnter = async () => {
 };
 
 const handleLinkCommand = async (command: string) => {
-	if (!(await executeCommand(command, vm.value))) {
-		print(`${prompt.value} ${command}`, "input");
-		printError(error.value);
-		error.value = "";
-	}
+	// Echo first: errors are printed by executeCommand itself, during execution.
+	print(`${prompt.value} ${command}`, "input");
+	if (!(await executeCommand(command, vm.value))) error.value = "";
 	// Don't clear user's current input, just focus for the next command
 	nextTick(() => inputRef.value?.focus());
 };

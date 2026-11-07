@@ -50,10 +50,10 @@ export async function minimonitor(input: string, vm: VirtualMachine): Promise<Mi
 	}
 
 	startAddr = startAddr ?? lastAddress;
-	lastAddress = (endAddr ?? startAddr) + 1;
 
 	// Handle explicit commands
 	if (parser.match(TokenType.COLON)) {
+		lastAddress = (endAddr ?? startAddr) + 1;
 		// Write Mode: <addr>: <val> <val> ...
 		let currentAddr = startAddr;
 		while (!parser.eof()) {
@@ -83,9 +83,21 @@ export async function minimonitor(input: string, vm: VirtualMachine): Promise<Mi
 		return { content: output, format: "markdown" };
 	}
 
-	let tok = parser.eof() ? { type: lhs.type, text: lhs.raw } : parser.peek();
+	// Command letter: either trailing (`300L`, `fc58G`) or alone (`L`, `G`).
+	// Anything else (unknown word, leftover tokens) is an error, otherwise unknown commands
+	// would silently hexdump (e.g. `bogus` -> `$B` + `ogus`).
 	let cmd: string | undefined;
-	if (tok.type === TokenType.IDENTIFIER) cmd = tok.text.toUpperCase();
+	if (!parser.eof()) {
+		const tok = parser.consume();
+		if (tok.type === TokenType.IDENTIFIER) cmd = tok.text.toUpperCase();
+		if ((cmd !== "G" && cmd !== "L") || !parser.eof()) throw new Error(`Unknown command: ${input.trim()}`);
+	} else if (lhs.type === TokenType.IDENTIFIER) {
+		const word = lhs.raw.toUpperCase();
+		if (word === "G" || word === "L") cmd = word;
+		else if (typeof lhs.value !== "number") throw new Error(`Unknown command: ${input.trim()}`);
+	}
+	lastAddress = (endAddr ?? startAddr) + 1;
+
 	switch (cmd) {
 		case "G":
 			return { type: "JSR", address: startAddr };

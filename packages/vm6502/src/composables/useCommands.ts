@@ -343,9 +343,15 @@ async function processLine(cmdInput: string, vm: VirtualMachine): Promise<Comman
 	return executeSubQueue(commandQueue, cmdParser, false, vm);
 }
 
+// Errors are printed here, once, whoever the caller is (console, breakpoint command, init, MCP).
+function reportError(message: string) {
+	useCmdConsole().print("error", message);
+	error.value = message;
+}
+
 async function executeCommand(cmdInput: string, vm: VirtualMachine | null) {
 	if (!vm) {
-		error.value = "Virtual Machine not initialized.";
+		reportError("Virtual Machine not initialized.");
 		return false;
 	}
 	if (isLoading.value) return false;
@@ -360,14 +366,11 @@ async function executeCommand(cmdInput: string, vm: VirtualMachine | null) {
 	let input = cmdInput;
 	const lines = input.split(/\r?\n/);
 
-	const { print } = useCmdConsole();
-
 	try {
 		for (const line of lines) {
 			const result = await processLine(line, vm);
 			if (result.error) {
-				print("error", result.error);
-				error.value = result.error;
+				reportError(result.error);
 				break;
 			}
 			if (result.success.length > 0) success.value.push(...result.success);
@@ -382,7 +385,7 @@ async function executeCommand(cmdInput: string, vm: VirtualMachine | null) {
 		}
 		return !error.value;
 	} catch (e: any) {
-		error.value = e.message || "Execution failed";
+		reportError(e.message || "Execution failed");
 		return false;
 	} finally {
 		isLoading.value = false;
