@@ -1,0 +1,24 @@
+{
+	"name": "vm6502-mcp",
+	"version": "0.0.0",
+	"private": true,
+	"type": "module",
+	"description": "MCP server bridging an agent to the vm6502 emulator running in the browser",
+	"bin": {
+		"vm6502-mcp": "./src/index.ts"
+	},
+	"scripts": {
+		"start": "node src/index.ts",
+		"typecheck": "tsc --noEmit"
+	},
+	"dependencies": {
+		"@modelcontextprotocol/sdk": "^1.32.2",
+		"ws": "^8.22.1",
+		"zod": "^4.6.7"
+	},
+	"devDependencies": {
+		"@types/node": "^26.6.6",
+		"@types/ws": "^8.18.1",
+		"typescript": "^6.0.3"
+	}
+}
