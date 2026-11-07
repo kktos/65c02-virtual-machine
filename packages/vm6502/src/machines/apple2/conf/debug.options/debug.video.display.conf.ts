@@ -36,6 +36,17 @@ export const debugVideoDisplayConf: DebugGroup = {
 				type: "boolean",
 				savable: true,
 			},
+			{
+				id: "dbgFontSize",
+				label: "Size",
+				type: "select",
+				defaultValue: "X2",
+				savable: true,
+				options: [
+					{ label: "x1", value: "X1" },
+					{ label: "x2", value: "X2" },
+				],
+			},
 		],
 		[
 			{
@@ -53,6 +64,18 @@ export const debugVideoDisplayConf: DebugGroup = {
 				defaultValue: -1,
 				savable: true,
 				options: IIgsColours,
+			},
+		],
+		[
+			{
+				id: "dbgBgOpacity",
+				label: "BG Opacity %",
+				type: "number",
+				defaultValue: 100,
+				min: 0,
+				max: 100,
+				savable: true,
+				disableIf: { optionId: "dbgTextBgColor", value: -1 },
 			},
 		],
 	],

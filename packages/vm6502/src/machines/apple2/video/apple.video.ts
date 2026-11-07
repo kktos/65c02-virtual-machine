@@ -27,6 +27,10 @@ const APPLE_DBLRES_MASK = 0b0000_0001;
 const APPLE_VIDEO7_REG_MASK = 0b0000_0110; // bits 1,2
 const APPLE_VIDEO7_REG_SHIFT = 1;
 
+// Palette indices 128-255 hold "colour i seen through the debug bar background" at 128 + i.
+// The renderers only use indices below 128 (IIgs 0-15, HGR 17-24, DHGR 32-47).
+const BLEND_BASE = 128;
+
 // Space above and below the text in the debug bar (buffer pixels; a multiple of 2 keeps it on the Apple pixel grid)
 const DEBUG_BAR_PADDING = 2;
 
@@ -47,6 +51,8 @@ interface AppleVideoOverrides {
 	wannaShowDebug?: boolean;
 	dbgTextFgColor?: number;
 	dbgTextBgColor?: number;
+	dbgBgOpacity?: number;
+	dbgFontSize?: "X1" | "X2";
 	borderWidth?: number;
 	borderHeight?: number;
 }
@@ -108,6 +114,9 @@ export class AppleVideo implements Video {
 	private debugText: DebugText;
 	private wannaShowDebug = false;
 
+	private palette: Uint8Array;
+	private blendKey = "";
+
 	// Visible part of the buffer. The Apple picture is centered in the buffer, and the border options
 	// can only shrink the border, so this is the picture plus the chosen border on each side.
 	private viewRect: ViewRect = { x: 0, y: 0, width: 0, height: 0 };
@@ -159,7 +168,8 @@ export class AppleVideo implements Video {
 
 		console.log("AppleVideo", `view w${width}h${height}`);
 
-		this.initPalette();
+		this.palette = this.buildBasePalette();
+		this.sendPalette();
 
 		this.textRenderer = new TextRenderer(this.ram, this.buffer, this.targetWidth, this.targetHeight, payload);
 		this.lowGrRenderer = new LowGrRenderer(this.ram, this.buffer, this.targetWidth, this.targetHeight);
@@ -169,7 +179,36 @@ export class AppleVideo implements Video {
 		this.updateRenderers();
 	}
 
-	private initPalette() {
+	private sendPalette() {
+		// postMessage sends a copy, so the palette can keep being updated here
+		this.parent.postMessage({ command: "setPalette", colors: this.palette });
+	}
+
+	/**
+	 * Fills the blend range: entry BLEND_BASE + i is base colour i mixed with the debug bar background
+	 * at the given opacity (0-1). Sent to the main thread only when the mix changes.
+	 */
+	private updateBlendPalette(bgIdx: number, opacity: number) {
+		const key = `${bgIdx}:${opacity}`;
+		if (key === this.blendKey) return;
+		this.blendKey = key;
+
+		const p = this.palette;
+		const bgR = p[bgIdx * 4]!;
+		const bgG = p[bgIdx * 4 + 1]!;
+		const bgB = p[bgIdx * 4 + 2]!;
+		for (let i = 0; i < BLEND_BASE; i++) {
+			const src = i * 4;
+			const dst = (BLEND_BASE + i) * 4;
+			p[dst] = Math.round(p[src]! * (1 - opacity) + bgR * opacity);
+			p[dst + 1] = Math.round(p[src + 1]! * (1 - opacity) + bgG * opacity);
+			p[dst + 2] = Math.round(p[src + 2]! * (1 - opacity) + bgB * opacity);
+			p[dst + 3] = 0xff;
+		}
+		this.sendPalette();
+	}
+
+	private buildBasePalette() {
 		const palette = new Uint8Array(256 * 4);
 		// IIgs 16-color palette
 		for (let i = 0; i < 16; i++) {
@@ -196,7 +235,7 @@ export class AppleVideo implements Video {
 			palette[idx * 4 + 2] = rgb[2];
 			palette[idx * 4 + 3] = 0xff;
 		}
-		this.parent.postMessage({ command: "setPalette", colors: palette });
+		return palette;
 	}
 
 	public setupTests(bus: AppleBus) {
@@ -234,10 +273,43 @@ export class AppleVideo implements Video {
 		this.updateRenderers();
 		this.updateViewRect();
 
+		// x2 (default) keeps the text on the Apple pixel grid; x1 is smaller but uneven when stretched
+		const fontScale = this.overrides.dbgFontSize === "X1" ? 1 : 2;
+		if (fontScale !== this.debugText.fontScale) {
+			this.debugText.setScale(fontScale);
+			// The bar changes height: repaint the border over the old one
+			this.borderOverrideColorLatch = true;
+		}
+
+		const dbgBg = this.overrides.dbgTextBgColor ?? -1;
+		if (dbgBg >= 0 && this.dbgBgOpacity < 1) this.updateBlendPalette(dbgBg, this.dbgBgOpacity);
+
 		if (this.overrides.runTest && this.tester) {
 			console.log("runTest", this.overrides.runTest);
 			this.tester.run(this.overrides.runTest);
 			return;
+		}
+	}
+
+	/** Debug bar background opacity, 0-1 (the option is a percentage; unset means opaque) */
+	private get dbgBgOpacity() {
+		const pct = this.overrides.dbgBgOpacity;
+		if (pct === undefined || !Number.isFinite(pct)) return 1;
+		return Math.min(100, Math.max(0, Math.round(pct))) / 100;
+	}
+
+	/** Remaps the pixels of a rectangle to their "seen through the debug bar background" entries */
+	private blendRect(x: number, y: number, w: number, h: number) {
+		const buf = this.buffer;
+		const y1 = Math.min(this.targetHeight, y + h);
+		const x1 = Math.min(this.targetWidth, x + w);
+		for (let row = Math.max(0, y); row < y1; row++) {
+			const offset = row * this.targetWidth;
+			for (let col = Math.max(0, x); col < x1; col++) {
+				const v = buf[offset + col]!;
+				// Already blended pixels are left alone, so a pixel can never be blended twice
+				if (v < BLEND_BASE) buf[offset + col] = BLEND_BASE + v;
+			}
 		}
 	}
 
@@ -378,10 +450,16 @@ export class AppleVideo implements Video {
 			const dbgBg = this.overrides.dbgTextBgColor ?? -1;
 			const dbgFg = this.overrides.dbgTextFgColor ?? -1;
 			const isTransparent = dbgBg < 0;
-			// No background colour: the text goes straight over the border / picture. The picture is
-			// redrawn every tick but the border isn't, so wipe the previous text from the border part.
-			if (isTransparent) this.paintBorder(this.paintedBorderColor, top, top + this.debugBarHeight);
-			else this.debugText.drawRect(0, top, this.targetWidth, this.debugBarHeight, dbgBg);
+			const opacity = this.dbgBgOpacity;
+			if (!isTransparent && opacity >= 1) {
+				this.debugText.drawRect(0, top, this.targetWidth, this.debugBarHeight, dbgBg);
+			} else {
+				// Text over the border / picture. The picture is redrawn every tick but the border isn't,
+				// so repaint the border part to wipe the previous text (and the previous blend).
+				this.paintBorder(this.paintedBorderColor, top, top + this.debugBarHeight);
+				// Translucent background: show what's under the bar through the background colour
+				if (!isTransparent) this.blendRect(0, top, this.targetWidth, this.debugBarHeight);
+			}
 			const debugStr = `${isText ? "TEXT" : isHgr ? " HGR" : "  GR"} ${is80Col ? "80" : "40"} ${isMixed ? "MIXED" : " FULL"} ${isPage2 ? "P2" : "P1"} ${isDblRes ? "DBL" : ""}`;
 			// Unset text colour: white over a transparent bar, black over a coloured one
 			const fg = dbgFg >= 0 ? dbgFg : isTransparent ? 15 : 0;
