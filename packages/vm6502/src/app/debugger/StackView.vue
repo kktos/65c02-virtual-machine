@@ -1,10 +1,10 @@
 <template>
-	<div class="p-3 bg-gray-800 rounded-lg shadow-xl flex flex-col h-full">
+	<div class="p-2 bg-gray-800 rounded-lg shadow-xl flex flex-col h-full">
 		<DebuggerPanelTitle title="Stack" />
 		<div ref="scrollContainer" class="flex flex-col h-full">
 			<!-- <DebuggerPanelTitle title="Stack ($0100 - $01FF)" /> -->
 			<div
-				class="font-mono text-xs overflow-y-auto flex-grow min-h-0 bg-gray-900 p-2 rounded-md"
+				class="font-mono text-xs overflow-y-auto flex-grow min-h-0 bg-gray-900 p-1.5 rounded-md"
 				style="line-height: 1.4"
 				@wheel.prevent="handleScroll"
 			>

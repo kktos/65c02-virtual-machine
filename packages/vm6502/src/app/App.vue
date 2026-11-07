@@ -54,7 +54,7 @@
 							<!-- Registers and flags: side by side (wrapping) when narrow, stacked when wide -->
 							<div class="[grid-area:cpu] flex flex-wrap gap-2 min-w-0 @[54rem]:flex-col @[54rem]:flex-nowrap">
 								<RegistersView
-									class="flex-[1_1_15rem] min-w-0 @[54rem]:flex-1"
+									class="flex-[1_1_15rem] min-w-0 @[54rem]:flex-none"
 									:registers="registers"
 									:virtual-registers="virtualRegisters"
 								/>

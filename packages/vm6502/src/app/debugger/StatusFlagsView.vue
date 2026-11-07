@@ -1,5 +1,5 @@
 <template>
-	<div class="p-3 bg-gray-800 rounded-lg shadow-xl">
+	<div class="p-2 bg-gray-800 rounded-lg shadow-xl">
 		<DebuggerPanelTitle title="Status Flags" />
 		<div class="flex flex-wrap justify-center gap-x-2 gap-y-1">
 			<div v-for="(group, idx) in flagGroups" :key="idx" class="flex gap-1">
@@ -8,7 +8,7 @@
 					:key="key"
 					@click="handleFlagToggle(key)"
 					:disabled="name === '-'"
-					class="py-1 text-xs font-medium transition duration-150 w-7"
+					class="py-0.5 text-[0.7rem] font-medium transition duration-150 w-5.5"
 					:class="[
 						key !== 'U' && registers[key]
 							? 'bg-green-600 text-white hover:bg-green-500'
