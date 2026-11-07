@@ -80,7 +80,12 @@ function hexToRgb(hex: string): [number, number, number] {
 
 export class AppleVideo implements Video {
 	private parent: Worker;
+	// Double buffering: every renderer draws into `buffer` (private), and the finished frame is
+	// copied in one go into `screen`, the buffer shared with the main thread. The main thread reads
+	// `screen` at its own pace, so it never sees a half-drawn frame (e.g. the picture drawn over the
+	// debug bar before the bar is drawn again).
 	private buffer: Uint8Array;
+	private screen: Uint8Array;
 	private registers: DataView;
 	private ram: Uint8Array;
 
@@ -116,6 +121,8 @@ export class AppleVideo implements Video {
 	private borderOverrideColorIdx = 0;
 	private borderOverrideColorLatch = false;
 	private borderColorIdx = 2;
+	// Colour the border was last painted with: a transparent debug bar repaints it under its text
+	private paintedBorderColor = 0;
 
 	private renderText40!: (
 		startRow: number,
@@ -136,7 +143,8 @@ export class AppleVideo implements Video {
 		payload?: unknown,
 	) {
 		this.parent = parent;
-		this.buffer = mem;
+		this.screen = mem;
+		this.buffer = new Uint8Array(mem.length);
 		this.registers = registers;
 		this.ram = ram.subarray(RAM_OFFSET);
 
@@ -233,6 +241,31 @@ export class AppleVideo implements Video {
 		}
 	}
 
+	/** Paints the border (everything around the picture) between rows fromY and toY */
+	private paintBorder(color: number, fromY: number, toY: number) {
+		this.paintedBorderColor = color;
+		const picLeft = Math.floor((this.targetWidth - NATIVE_VIEW_WIDTH) / 2);
+		const picTop = Math.floor((this.targetHeight - NATIVE_VIEW_HEIGHT) / 2);
+		const picRight = picLeft + NATIVE_VIEW_WIDTH;
+		const picBottom = picTop + NATIVE_VIEW_HEIGHT;
+		const y0 = Math.max(0, fromY);
+		const y1 = Math.min(this.targetHeight, toY);
+		if (y1 <= y0) return;
+
+		// Rows above and below the picture: full width
+		const aboveEnd = Math.min(y1, picTop);
+		if (aboveEnd > y0) this.debugText.drawRect(0, y0, this.targetWidth, aboveEnd - y0, color);
+		const belowStart = Math.max(y0, picBottom);
+		if (y1 > belowStart) this.debugText.drawRect(0, belowStart, this.targetWidth, y1 - belowStart, color);
+		// Rows beside the picture: left and right strips only
+		const sideStart = Math.max(y0, picTop);
+		const sideEnd = Math.min(y1, picBottom);
+		if (sideEnd > sideStart) {
+			this.debugText.drawRect(0, sideStart, picLeft, sideEnd - sideStart, color);
+			this.debugText.drawRect(picRight, sideStart, this.targetWidth - picRight, sideEnd - sideStart, color);
+		}
+	}
+
 	private updateViewRect() {
 		const maxBorderX = Math.max(0, Math.floor((this.targetWidth - NATIVE_VIEW_WIDTH) / 2));
 		const maxBorderY = Math.max(0, Math.floor((this.targetHeight - NATIVE_VIEW_HEIGHT) / 2));
@@ -286,18 +319,14 @@ export class AppleVideo implements Video {
 
 		if (this.borderOverrideColorLatch) {
 			this.borderOverrideColorLatch = false;
-			newBorderColor = this.borderOverrideColorIdx;
+			// Forced repaint (option change, debug bar toggled, view resized): without an override,
+			// repaint with the machine's own border colour
+			newBorderColor = this.borderOverrideColorIdx >= 0 ? this.borderOverrideColorIdx : borderIdx;
 			this.borderColorIdx = borderIdx;
 		}
 
 		// The debug bar is drawn after the picture on every tick, so the border can be painted in full
-		if (newBorderColor >= 0) {
-			this.debugText.drawRect(0, 0, this.targetWidth, 48, newBorderColor);
-			this.debugText.drawRect(0, this.targetHeight - 48, this.targetWidth, 48, newBorderColor);
-			this.debugText.drawRect(0, 0, 40, this.targetHeight, newBorderColor);
-			this.debugText.drawRect(this.targetWidth - 40, 0, 40, this.targetHeight, newBorderColor);
-			// this.buffer.fill(newBorderColor);
-		}
+		if (newBorderColor >= 0) this.paintBorder(newBorderColor, 0, this.targetHeight);
 
 		const stateByte2 = this.registers.getUint8(MACHINE_STATE_OFFSET2);
 		let isText = (stateByte2 & APPLE_TEXT_MASK) !== 0;
@@ -348,10 +377,18 @@ export class AppleVideo implements Video {
 			const top = this.viewRect.y;
 			const dbgBg = this.overrides.dbgTextBgColor ?? -1;
 			const dbgFg = this.overrides.dbgTextFgColor ?? -1;
-			this.debugText.drawRect(0, top, this.targetWidth, this.debugBarHeight, dbgBg >= 0 ? dbgBg : 15);
+			const isTransparent = dbgBg < 0;
+			// No background colour: the text goes straight over the border / picture. The picture is
+			// redrawn every tick but the border isn't, so wipe the previous text from the border part.
+			if (isTransparent) this.paintBorder(this.paintedBorderColor, top, top + this.debugBarHeight);
+			else this.debugText.drawRect(0, top, this.targetWidth, this.debugBarHeight, dbgBg);
 			const debugStr = `${isText ? "TEXT" : isHgr ? " HGR" : "  GR"} ${is80Col ? "80" : "40"} ${isMixed ? "MIXED" : " FULL"} ${isPage2 ? "P2" : "P1"} ${isDblRes ? "DBL" : ""}`;
-			this.debugText.drawCenteredString(top + DEBUG_BAR_PADDING, debugStr, dbgFg >= 0 ? dbgFg : 0);
+			// Unset text colour: white over a transparent bar, black over a coloured one
+			const fg = dbgFg >= 0 ? dbgFg : isTransparent ? 15 : 0;
+			this.debugText.drawCenteredString(top + DEBUG_BAR_PADDING, debugStr, fg);
 		}
+
+		this.screen.set(this.buffer);
 
 		// if ((globalThis as any).DEBUG_VIDEO) this.handleDebugVideo();
 	}
@@ -464,6 +501,7 @@ export class AppleVideo implements Video {
 */
 	public reset() {
 		this.buffer.fill(0);
+		this.screen.fill(0);
 		// if (this.ctx) this.ctx.clearRect(0, 0, this.offscreenCanvas.width, this.offscreenCanvas.height);
 	}
 }
