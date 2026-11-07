@@ -2,6 +2,11 @@
 	<Toaster rich-colors position="top-right" />
 	<LogWindow v-for="win in logWindows.values()" :key="win.id" :window-state="win" />
 	<RoutineEditor />
+	<!-- Mounted here, not in the disassembly view: they must stay open when switching to the memory viewer tab -->
+	<template v-if="vm">
+		<SymbolManager @goto-address="gotoDisassembly" />
+		<FormattingManager @goto-address="gotoDisassembly" />
+	</template>
 	<ResizablePanelGroup
 		v-if="vm"
 		direction="horizontal"
@@ -53,7 +58,9 @@
 							class="grid h-full gap-2 grid-cols-[16rem_minmax(0,1fr)] grid-rows-[auto_minmax(0,1fr)] [grid-template-areas:'cpu_cpu'_'stack_trace'] @[54rem]:grid-cols-[minmax(13rem,300px)_16rem_minmax(0,1fr)] @[54rem]:grid-rows-[minmax(0,1fr)] @[54rem]:[grid-template-areas:'cpu_stack_trace']"
 						>
 							<!-- Registers and flags: side by side (wrapping) when narrow, stacked when wide -->
-							<div class="[grid-area:cpu] flex flex-wrap gap-2 min-w-0 @[54rem]:flex-col @[54rem]:flex-nowrap">
+							<div
+								class="[grid-area:cpu] flex flex-wrap gap-2 min-w-0 @[54rem]:flex-col @[54rem]:flex-nowrap"
+							>
 								<RegistersView
 									class="flex-[1_1_15rem] min-w-0 @[54rem]:flex-none"
 									:registers="registers"
@@ -72,7 +79,7 @@
 				<ResizableHandle />
 
 				<ResizablePanel>
-					<TogglableDisplay id="disasm-mem-view" v-model:activeTab="activeDebuggerTab">
+					<TogglableDisplay id="disasm-mem-view" v-model:activeTab="debuggerTab">
 						<template #tab1-title> Disassembly </template>
 						<template #tab2-title> Memory Viewer </template>
 						<template #tab1-content>
@@ -134,6 +141,9 @@ import { useCmdConsole } from "@/composables/useCmdConsole";
 import { useLogWindows } from "@/composables/useLogWindows";
 import LogWindow from "@/components/LogWindow.vue";
 import RoutineEditor from "@/app/debugger/RoutineEditor.vue";
+import FormattingManager from "@/app/debugger/FormattingManager/FormattingManager.vue";
+import SymbolManager from "@/app/debugger/SymbolManager/SymbolManager.vue";
+import { useDisassembly } from "@/composables/useDisassembly";
 
 const dbgTopPanelResize = (_size: unknown) => {
 	// console.log('dbgTopPanelResize resized', size);
@@ -160,7 +170,18 @@ const handleGlobalKeydown = (e: KeyboardEvent) => {
 onMounted(() => window.addEventListener("keydown", handleGlobalKeydown));
 onUnmounted(() => window.removeEventListener("keydown", handleGlobalKeydown));
 
-const { activeTab: activeDebuggerTab } = useDebuggerNav();
+const { activeTab: activeDebuggerTab, setActiveTab } = useDebuggerNav();
+/** The debugger tabs component only knows "tab1" (disassembly) and "tab2" (memory) */
+const debuggerTab = computed({
+	get: () => (activeDebuggerTab.value === "memory" ? "tab2" : "tab1"),
+	set: (tab: "tab1" | "tab2") => setActiveTab(tab === "tab2" ? "memory" : "disassembly"),
+});
+
+const { requestJump } = useDisassembly();
+const gotoDisassembly = (address: number) => {
+	setActiveTab("disassembly");
+	requestJump(address);
+};
 
 provide("vm", vm);
 

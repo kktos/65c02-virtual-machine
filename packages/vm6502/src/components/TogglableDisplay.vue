@@ -1,6 +1,6 @@
 <template>
 	<div class="h-full w-full flex flex-col" :id="id">
-		<Tabs v-if="displayMode === 'tabs'" default-value="tab1" class="flex-1 min-h-0 gap-0">
+		<Tabs v-if="displayMode === 'tabs'" v-model="activeTab" class="flex-1 min-h-0 gap-0">
 			<!-- Tab strip flush with the panel, same frame as the debugger toolbar -->
 			<div class="flex items-center gap-1 p-1 bg-gray-800 border-b border-gray-700 shrink-0">
 				<TabsList class="h-7 p-0 gap-0.5 bg-transparent">
@@ -46,6 +46,8 @@ import ResizablePanel from "./ui/resizable/ResizablePanel.vue";
 import ResizablePanelGroup from "./ui/resizable/ResizablePanelGroup.vue";
 
 const props = defineProps<{ id: string }>();
+/** Visible tab in tabs mode, so it can also be switched from code */
+const activeTab = defineModel<"tab1" | "tab2">("activeTab", { default: "tab1" });
 
 const triggerClass =
 	"flex-none h-full px-2.5 py-0 text-xs text-gray-400 hover:text-gray-200 data-[state=active]:bg-gray-700 data-[state=active]:text-cyan-300";
