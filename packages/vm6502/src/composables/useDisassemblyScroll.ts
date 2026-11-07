@@ -12,20 +12,14 @@ export function useDisassemblyScroll(
 ) {
 	const scrollContainer = ref<HTMLElement | null>(null);
 	const containerHeight = ref(0);
-	const TABLE_ROW_HEIGHT = 20.5;
-	const TABLE_HEADER_HEIGHT = 24.5;
-	const PANEL_TITLE_HEIGHT = 33;
-	const PANEL_TITLE_MB_HEIGHT = 12;
+	const TABLE_ROW_HEIGHT = 24;
+	const TABLE_HEADER_HEIGHT = 22;
 	let resizeObserver: ResizeObserver | null = null;
 
+	// scrollContainer is the table viewport itself (toolbar and status bar excluded)
 	const visibleRowCount = computed(() => {
 		if (containerHeight.value === 0) return 10; // Default before mounted
-		return Math.max(
-			1,
-			Math.floor(
-				(containerHeight.value - TABLE_HEADER_HEIGHT - PANEL_TITLE_HEIGHT - PANEL_TITLE_MB_HEIGHT) / TABLE_ROW_HEIGHT,
-			),
-		);
+		return Math.max(1, Math.floor((containerHeight.value - TABLE_HEADER_HEIGHT) / TABLE_ROW_HEIGHT));
 	});
 
 	const readByte = (address: number) => {

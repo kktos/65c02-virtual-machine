@@ -22,10 +22,16 @@
 				<!-- ── Header ───────────────────────────────────────────────── -->
 				<div class="col-span-full grid sticky top-0 z-[5] border-b border-gray-700" :style="{ gridTemplateColumns }">
 					<div />
+					<!--
+						COMMENT shrinks to fit (minmax(0, 1fr)): its label is right-aligned with flex so that,
+						when the column is narrower than the label, it overflows leftwards (not scrollable)
+						instead of rightwards, which would add a horizontal scrollbar.
+					-->
 					<div
 						v-for="col in columns"
 						:key="col.key"
 						class="px-1.5 py-0.5 tracking-widest uppercase opacity-80 select-none"
+						:class="{ 'flex justify-end': col.key === 'comment' }"
 					>
 						{{ col.label }}
 					</div>

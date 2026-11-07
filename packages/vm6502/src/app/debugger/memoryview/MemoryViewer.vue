@@ -2,12 +2,12 @@
 	<div
 		:id="id"
 		:class="[
-			'p-4 rounded-lg shadow-xl h-full flex flex-col transition-all duration-200',
-			isActive ? 'bg-gray-800 ring-1 ring-cyan-500' : 'bg-gray-800',
+			'h-full flex flex-col bg-gray-900 transition-all duration-200',
+			isActive ? 'ring-1 ring-inset ring-cyan-500' : '',
 		]"
-		ref="scrollContainer"
 	>
-		<div class="mb-2 mt-1 flex flex-wrap items-center gap-4 shrink-0">
+		<!-- Toolbar flush against the panel frame -->
+		<div class="flex flex-wrap items-center gap-2 p-1 shrink-0 bg-gray-800 border-b border-gray-700">
 			<div class="flex flex-1 items-center gap-2">
 				<AddressNavigator
 					name="memory"
@@ -75,8 +75,10 @@
 			</div>
 		</div>
 
+		<!-- Table viewport: its size drives the visible rows and bytes per line -->
 		<div
-			class="font-mono text-xs overflow-y-hidden flex-grow min-h-0 bg-gray-900 p-2 rounded-md"
+			ref="scrollContainer"
+			class="font-mono text-xs overflow-y-hidden flex-grow min-h-0 bg-gray-900 px-1"
 			@wheel="throttledWheelHandler"
 			@mouseup="endSelection"
 			@mouseleave="endSelection"
@@ -285,7 +287,8 @@ const startAddress = ref<number>(props.initialAddress ?? 0x0000);
 
 const scrollContainer = ref<HTMLElement | null>(null);
 const containerHeight = ref(0);
-const ROW_HEIGHT_ESTIMATE = 22; // Estimated height of a row in pixels
+const ROW_HEIGHT_ESTIMATE = 20.5; // Height of a row in pixels
+const HEADER_HEIGHT_ESTIMATE = 24.5; // Height of the sticky column header row
 let resizeObserver: ResizeObserver | null = null;
 
 const { memoryViewAddress, setActiveTab } = useDebuggerNav();
@@ -293,7 +296,7 @@ const { requestJump } = useDisassembly();
 
 const visibleRowCount = computed(() => {
 	if (containerHeight.value === 0) return 10; // Default before mounted
-	return Math.max(1, Math.floor(containerHeight.value / ROW_HEIGHT_ESTIMATE));
+	return Math.max(1, Math.floor((containerHeight.value - HEADER_HEIGHT_ESTIMATE) / ROW_HEIGHT_ESTIMATE));
 });
 const debugOptionsPopover = ref<InstanceType<typeof DebugOptionsPopover> | null>(null);
 const debugOverrides = computed(() => debugOptionsPopover.value?.debugOverrides || {});
