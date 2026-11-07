@@ -13,6 +13,14 @@ export class DebugText {
 		private scale = 2,
 	) {}
 
+	public get fontScale() {
+		return this.scale;
+	}
+
+	public setScale(scale: number) {
+		this.scale = Math.max(1, Math.floor(scale));
+	}
+
 	public get charSize() {
 		return GLYPH_SIZE * this.scale;
 	}
