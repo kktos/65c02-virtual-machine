@@ -131,11 +131,26 @@ const loadMachine = async (newMachine?: MachineConfig) => {
 		await initSymbols(selectedMachine.value.name);
 
 		const initScript = selectedMachine.value.routines?.init;
-		if (initScript) {
-			const { setRoutine, runMachineScript } = useRoutines();
-			// The init script and the routines it defines are part of the machine sources: read-only
-			setRoutine("init", initScript, [], { readonly: true });
-			await runMachineScript(() => executeCommand("do init", newVm));
+		const { initRoutines, setRoutine } = useRoutines();
+		try {
+			// The init script and the routines it defines are part of the machine sources: read-only.
+			// The user routines saved for this machine are loaded afterwards.
+			const renamed = await initRoutines(
+				selectedMachine.value.name,
+				initScript
+					? async () => {
+							setRoutine("init", initScript, [], { readonly: true });
+							await executeCommand("do init", newVm);
+						}
+					: undefined,
+			);
+			for (const { from, to } of renamed)
+				toast.warning(
+					`Your routine '${from}' was renamed '${to}': the machine now defines a routine '${from}'.`,
+				);
+		} catch (e) {
+			console.error("Failed to init routines", e);
+			toast.error(`Routines: ${e instanceof Error ? e.message : e}`);
 		}
 	}
 

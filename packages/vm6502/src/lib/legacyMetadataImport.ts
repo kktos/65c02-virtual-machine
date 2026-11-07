@@ -10,6 +10,8 @@ import { loadMetadata, saveMetadata, type MetadataKind } from "@/lib/metadataSto
  */
 export const LEGACY_DB_NAME = "vm6502_metadata";
 
+/** Kinds that existed in the legacy database */
+type LegacyKind = Exclude<MetadataKind, "routines">;
 type LegacyRecord = Record<string, unknown>;
 type Item = Record<string, unknown>;
 
@@ -22,7 +24,7 @@ type Converter = {
 const isNum = (v: unknown): v is number => typeof v === "number" && !Number.isNaN(v);
 const str = (v: unknown, fallback = "") => (typeof v === "string" ? v : fallback);
 
-const CONVERTERS: Record<MetadataKind, Converter> = {
+const CONVERTERS: Record<LegacyKind, Converter> = {
 	symbols: {
 		toItem: (r) =>
 			isNum(r.addr) && r.label && r.ns
@@ -46,7 +48,7 @@ const CONVERTERS: Record<MetadataKind, Converter> = {
 	},
 };
 
-const LEGACY_STORE_KINDS: Record<string, MetadataKind> = {
+const LEGACY_STORE_KINDS: Record<string, LegacyKind> = {
 	symbols: "symbols",
 	datablocks: "formats",
 	notes: "notes",
@@ -56,7 +58,7 @@ export type LegacyImportReport = {
 	found: boolean;
 	machines: string[];
 	disks: number;
-	added: Record<MetadataKind, number>;
+	added: Record<LegacyKind, number>;
 	/** Legacy items not imported because the current storage already has an entry for them */
 	skipped: number;
 };

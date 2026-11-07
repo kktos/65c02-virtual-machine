@@ -147,7 +147,8 @@ import ResizableHandle from "../../components/ui/resizable/ResizableHandle.vue";
 import ResizablePanel from "../../components/ui/resizable/ResizablePanel.vue";
 import ResizablePanelGroup from "../../components/ui/resizable/ResizablePanelGroup.vue";
 
-const { getRoutineNames, getRoutine, setRoutine, deleteRoutine, routineExists, isRoutineReadonly } = useRoutines();
+const { getRoutineNames, getRoutine, setRoutine, deleteRoutine, routineExists, isRoutineReadonly, uniqueRoutineName } =
+	useRoutines();
 
 const routineNames = computed(() => getRoutineNames().sort());
 const selectedRoutineName = ref<string | null>(null);
@@ -197,9 +198,7 @@ const duplicateSelectedRoutine = () => {
 	const routine = source ? getRoutine(source) : undefined;
 	if (!source || !routine) return;
 
-	let name = `${source}_copy`;
-	for (let i = 2; routineExists(name); i++) name = `${source}_copy${i}`;
-
+	const name = uniqueRoutineName(`${source}_copy`);
 	setRoutine(name, [...routine.lines], [...routine.args], { readonly: false });
 	selectRoutine(name);
 	startRenaming(name);
