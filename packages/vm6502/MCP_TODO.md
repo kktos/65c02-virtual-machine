@@ -70,8 +70,13 @@ Next:
 - [ ] a breakpoint whose command resumes the machine still ends `run_until` (it reports that breakpoint)
 - [ ] `run_until` `cycles` limit (needs worker support)
 - [ ] text screen decoder lives in the bridge; move it to the machine (e.g. `bus.getTextScreen()`)
-- [ ] booting the //e from reset stops on BRK at $0003 (A=$2F X=$42) — check whether that's
-      expected with no bootable disk
+- [x] booting the //e from reset stopped on BRK at $0003 (A=$2F X=$42): not expected. The SmartPort card's
+      boot code (slot 5) got error $2F (no disk), its `BCS` landed inside `JMP $0801`, then hit an `RTS` with
+      nothing to return to (the slot scan enters with `JMP ($0000)`) → $0001 → BRK. Its error path now resumes
+      the slot scan ($FABA) like real boot ROMs, or cold-starts BASIC when not called by the scan.
+      `src/machines/apple2/tests/boot.test.ts` boots the real //e in Node.
+- [ ] every BRK stops the CPU: `isHyperCallActive` is a constant `true` in `cpu.65c02.ts`, so the
+      "break on BRK" toggle has no effect and a BRK never goes through the $FFFE vector
 - [x] `exec_command` failed if the user's console was busy. Commands are now queued (`runCommand` in
       `useCommands`): every caller (console, breakpoint commands, init, MCP) waits for its turn and gets
       its own output. MCP refuses while the user's console is in multi-line mode, and closes a
