@@ -8,6 +8,7 @@ import { useCommands } from "@/composables/useCommands";
 import { useBreakpoints } from "@/composables/useBreakpoints";
 import { parseAddress } from "@/lib/parse.utils";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
+import type { StopInfo } from "@/types/stopinfo.interface";
 import {
 	FLAG_B_MASK,
 	FLAG_C_MASK,
@@ -106,6 +107,29 @@ const readRegisters = (vm: VirtualMachine) => {
 		P: hex(P, 2),
 		flags: flags.map(([name, mask]) => (P & mask ? name : name.toLowerCase())).join(""),
 	};
+};
+
+const hexAddr = (a: number) => hex(a, a > 0xffff ? 6 : 4);
+// `address` from the user may omit the bank; stop addresses are physical ((bank << 16) | addr).
+const isSameAddress = (physical: number, address: number) =>
+	physical === address || (address <= 0xffff && (physical & 0xffff) === address);
+
+/** Why the machine stopped, for the agent. `target`: run_until's address, reported as `reached_address`. */
+const describeStop = (stop: StopInfo | undefined, target?: number): Record<string, unknown> => {
+	if (!stop) return { stopped: "unknown" };
+	switch (stop.reason) {
+		case "breakpoint":
+			if (target !== undefined && stop.breakpointType === "pc" && isSameAddress(stop.address, target))
+				return { stopped: "reached_address", address: hexAddr(stop.address) };
+			return { stopped: "breakpoint", breakpoint: { type: stop.breakpointType, address: hexAddr(stop.address) } };
+		case "error":
+			return { stopped: "error", address: hexAddr(stop.address), message: stop.message };
+		case "pause":
+		case "reset":
+			return { stopped: stop.reason };
+		default:
+			return { stopped: stop.reason, address: hexAddr(stop.address) };
+	}
 };
 
 /** Resolves true when `isRunning` equals `value`; false after `ms` or on abort. */
@@ -213,11 +237,15 @@ export const MCP_TOOLS: McpTool[] = [
 	},
 	{
 		name: "get_registers",
-		description: "CPU registers, flags (uppercase = set) and whether the machine is running.",
+		description:
+			"CPU registers, flags (uppercase = set), whether the machine is running and, when it is not, " +
+			"why it last stopped (`last_stop`, same values as run_until's `stopped`).",
 		inputSchema: { type: "object", properties: {} },
 		annotations: { readOnlyHint: true },
 		async execute() {
-			return json(readRegisters(await getVm()));
+			const vm = await getVm();
+			const regs = readRegisters(vm);
+			return json(regs.running || !vm.lastStop ? regs : { ...regs, last_stop: describeStop(vm.lastStop) });
 		},
 	},
 	{
@@ -263,7 +291,11 @@ export const MCP_TOOLS: McpTool[] = [
 		description:
 			"Resume the machine and block until it stops (breakpoint, BRK, pause) or the timeout expires. " +
 			"With `address`, a temporary PC breakpoint is set there first. " +
-			"On timeout the machine is paused (unless pause_on_timeout is false). Returns why it stopped and the registers.",
+			"On timeout the machine is paused (unless pause_on_timeout is false). Returns the registers and `stopped`: " +
+			"`reached_address`, `breakpoint` (with its type and address; for read/write breakpoints the address is the " +
+			"memory accessed, PC is the instruction), `brk`, `step` (step over/out done), `error` (unimplemented opcode), " +
+			"`pause` (paused by someone else), `reset`, or `timeout (paused)` / `cancelled (…)`. " +
+			"Hypercall BRKs (the machine resumes by itself) don't stop the wait.",
 		inputSchema: {
 			type: "object",
 			properties: {
@@ -290,17 +322,25 @@ export const MCP_TOOLS: McpTool[] = [
 				}
 			}
 
+			const deadline = Date.now() + timeoutMs;
+			const stopBefore = vm.lastStop; // each stop is a new object: tells a fresh stop from an old one
+			const report = () => json({ ...describeStop(vm.lastStop, address), ...readRegisters(vm) });
+
 			try {
 				if (!isRunning.value) {
 					vm.play();
-					// Stopped again before we saw it running (e.g. breakpoint right at PC)
-					if (!(await waitForRunning(true, 1000, signal)))
-						return json({ stopped: "immediately", ...readRegisters(vm) });
+					if (!(await waitForRunning(true, 1000, signal))) {
+						if (vm.lastStop !== stopBefore) return report(); // stopped before we saw it running
+						return json({ stopped: "did not start", ...readRegisters(vm) });
+					}
 				}
-				if (await waitForRunning(false, timeoutMs, signal)) {
-					const pc = vm.sharedRegisters.getUint16(REG_PC_OFFSET, true);
-					const reason = address !== undefined && pc === address ? "reached address" : "stopped";
-					return json({ stopped: reason, ...readRegisters(vm) });
+				while (await waitForRunning(false, Math.max(0, deadline - Date.now()), signal)) {
+					// A hypercall BRK stops the CPU for a moment: the main thread runs it and resumes.
+					if (vm.lastStop?.reason === "hypercall") {
+						const left = deadline - Date.now();
+						if (left > 0 && (await waitForRunning(true, Math.min(1000, left), signal))) continue;
+					}
+					return report();
 				}
 				const why = signal?.aborted ? "cancelled" : "timeout";
 				if (pauseOnTimeout) {

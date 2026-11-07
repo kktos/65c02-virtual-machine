@@ -28,6 +28,7 @@ import { useMemoryMap } from "../composables/useMemoryMap";
 import { parseHexData } from "../lib/array.utils";
 import type { Breakpoint } from "../types/breakpoint.interface";
 import { executeHypercallCmd, HYPERCALL_COMMANDS } from "./hypercall";
+import type { StopInfo } from "@/types/stopinfo.interface";
 import type { EmulatorRegisters } from "@/types/emulatorstate.interface";
 import { logBus } from "./logbus.class";
 
@@ -56,6 +57,7 @@ export class VirtualMachine {
 	public busState: Dict = {};
 	private isRendering = false;
 	private _isRunning = false;
+	private _lastStop?: StopInfo;
 
 	public worker: Worker;
 	public machineConfig: MachineConfig;
@@ -119,6 +121,7 @@ export class VirtualMachine {
 					break;
 				case "isRunning":
 					this._isRunning = event.data.isRunning;
+					if (!this._isRunning) this.recordStop(event.data.stop);
 					this.onmessage?.(event);
 					break;
 				case "break": {
@@ -248,6 +251,22 @@ export class VirtualMachine {
 
 		this.setSpeed(this.machineConfig.speed ?? 1);
 		await this.workerReadyPromise;
+	}
+
+	/**
+	 * Why the CPU last stopped. Set when `isRunning` turns false, before `onmessage` sees it,
+	 * so a watcher on the running state can read it. A new object on every stop.
+	 */
+	public get lastStop() {
+		return this._lastStop;
+	}
+
+	private recordStop(stop: StopInfo | undefined) {
+		if (!stop) return;
+		// The main thread runs hypercalls and resumes, so this stop is transient.
+		if (stop.reason === "brk" && HYPERCALL_COMMANDS.has(this.readDebug(stop.address + 1)))
+			stop = { reason: "hypercall", address: stop.address };
+		this._lastStop = stop;
 	}
 
 	public get isRunning() {
