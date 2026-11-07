@@ -8,6 +8,7 @@ import { hideCmd } from "./hide.cmd";
 import { hook } from "./hook.cmd";
 import { labelsCmd } from "./labels.cmd";
 import { formatsCmd } from "./formats.cmd";
+import { importLegacyCmd } from "./importLegacy.cmd";
 import { listCmd } from "./list.cmd";
 import { logCmd } from "./log.cmd";
 import { gplCmd } from "./gpl.cmd";
@@ -144,6 +145,7 @@ export const COMMANDDEF_LIST = {
 	FIND: findLabelCmd,
 	LABELS: labelsCmd,
 	FORMATS: formatsCmd,
+	IMPORT_LEGACY: importLegacyCmd,
 	SCOPEPATH: scopePathCmd,
 
 	M: setMemView,

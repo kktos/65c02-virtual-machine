@@ -1,10 +1,11 @@
 import { toHex } from "@/lib/hex.utils";
-import { openDB, type DBSchema } from "idb";
-import { computed, ref } from "vue";
+import { createMetadataSync } from "@/lib/metadataStore";
+import { computed, ref, type Ref } from "vue";
 
 export type DataType = "code" | "byte" | "word" | "string";
 
 export interface DataBlock {
+	/** In-memory identity, assigned at load time; it is not persisted */
 	id?: number;
 	disk: string;
 	address: number;
@@ -14,16 +15,11 @@ export interface DataBlock {
 }
 
 export type FormattingDict = Record<number, Record<string, DataBlock>>;
+/** What is persisted: the disk is implied by the storage key */
+export type StoredFormat = Omit<DataBlock, "id" | "disk">;
 
-interface MetadataDB extends DBSchema {
-	datablocks: {
-		key: number;
-		value: DataBlock;
-		indexes: {
-			"by-disk": [string];
-		};
-	};
-}
+const SYSTEM_DISK = "*";
+const FORMAT_TYPES: Record<string, DataType> = { b: "byte", w: "word", s: "string" };
 
 // Global state for formatting rules
 const activeFormattingGroups = ref<Map<string, boolean>>(new Map());
@@ -36,123 +32,159 @@ const formattingState = computed(() => ({
 	activeGroups: activeFormattingGroups.value,
 }));
 
-const DB_NAME = "vm6502_metadata";
-let diskKey = ref("");
-let storeName = "";
+const diskKey = ref("");
+const store = createMetadataSync("formats");
+let nextId = 1;
+
+const rulesFor = (disk: string) => (disk === SYSTEM_DISK ? systemRules : diskRules);
+
+const registerGroup = (group: string) => {
+	if (!activeFormattingGroups.value.has(group)) activeFormattingGroups.value.set(group, true);
+};
+
+const makeBlock = (disk: string, f: StoredFormat, id = nextId++): DataBlock => ({
+	id,
+	disk,
+	address: f.address,
+	type: f.type,
+	length: f.length,
+	group: f.group,
+});
+
+function* allBlocks(dict: FormattingDict) {
+	for (const byGroup of Object.values(dict)) if (byGroup) yield* Object.values(byGroup);
+}
+
+/** Saves the whole rule list of a disk; the snapshot is taken synchronously, as plain objects */
+const persist = (disk: string) =>
+	store.save<StoredFormat>(
+		disk,
+		Array.from(allBlocks(rulesFor(disk).value), ({ address, type, length, group }) => ({
+			address,
+			type,
+			length,
+			group,
+		})),
+	);
+
+const loadDisk = async (disk: string) => {
+	const items = await store.load<StoredFormat>(disk);
+	const dict: FormattingDict = {};
+	for (const f of items ?? []) {
+		(dict[f.address] ??= {})[f.group] = makeBlock(disk, f);
+		registerGroup(f.group);
+	}
+	rulesFor(disk).value = dict;
+	return items;
+};
+
+/** Parses one FORMATS script line: `$ADDR b|w|s [count]`. Returns an error message when invalid. */
+export const parseFormatsLine = (line: string): Omit<StoredFormat, "group"> | string => {
+	const parts = line.trim().split(/\s+/) as string[];
+	if (parts.length < 2) return `Invalid line "${line}"`;
+
+	const address = parseInt(parts[0]!.replace(/^(0x|\$)/i, ""), 16);
+	if (Number.isNaN(address)) return `Invalid address "${parts[0]}"`;
+
+	const type = FORMAT_TYPES[parts[1]!.toLowerCase()];
+	if (!type) return `Invalid type "${parts[1]}". Use w, b, or s.`;
+
+	const count = parts[2] ? parseInt(parts[2], 10) : 1;
+	if (Number.isNaN(count)) return `Invalid count "${parts[2]}"`;
+
+	return { address, type, length: type === "word" ? count * 2 : count };
+};
+
+/**
+ * Parses both formatting text formats (invalid lines are skipped):
+ * - FORMATS scripts, as written by the Formatting Manager export:
+ *     FORMATS [<group>] / $ADDR b|w|s [count] / END_FORMATS
+ * - legacy files:
+ *     '%% DATA: group %%': / ADDR: byte|word|string|code[count]
+ */
+export const parseFormattingsText = (text: string): StoredFormat[] => {
+	const formats: StoredFormat[] = [];
+	let group = "user";
+	let inFormatsBlock = false;
+
+	for (const rawLine of text.split(/\r?\n/)) {
+		const line = rawLine.trim();
+		if (!line) continue;
+
+		const formatsHeader = line.match(/^FORMATS(?:\s+(\S+))?$/i);
+		if (formatsHeader) {
+			group = formatsHeader[1] ?? "user";
+			inFormatsBlock = true;
+			continue;
+		}
+		if (/^END_FORMATS$/i.test(line)) {
+			inFormatsBlock = false;
+			continue;
+		}
+		if (inFormatsBlock) {
+			const parsed = parseFormatsLine(line);
+			if (typeof parsed !== "string") formats.push({ ...parsed, group });
+			continue;
+		}
+
+		const legacyHeader = line.match(/^'%% DATA:\s*(.+) %%':/);
+		if (legacyHeader) {
+			group = legacyHeader[1]?.trim() || "user";
+			continue;
+		}
+		const legacyData = line.match(/^([0-9A-Fa-f]+):\s*(code|byte|word|string)\[(\d+)\]/);
+		if (legacyData) {
+			const type = legacyData[2] as DataType;
+			const count = parseInt(legacyData[3]!, 10);
+			formats.push({
+				address: parseInt(legacyData[1]!, 16),
+				type,
+				length: type === "word" ? count * 2 : count,
+				group,
+			});
+		}
+	}
+	return formats;
+};
 
 export function useFormatting() {
 	const setDiskKey = (newKey: string) => {
 		diskKey.value = newKey;
-		loadFormatsFromDb();
+		return store.enqueue(() => loadDisk(newKey)).then(() => undefined);
 	};
 
-	const getDb = async () => {
-		if (!diskKey.value) throw new Error("useFormatting -- No disk key provided");
-		if (!storeName) throw new Error("useFormatting -- No store name provided");
-
-		// 1. Probe the current version
-		const probeDb = await openDB(DB_NAME);
-		const currentVersion = probeDb.version;
-		const storeExists = probeDb.objectStoreNames.contains(storeName);
-		probeDb.close();
-
-		if (storeExists) return openDB<MetadataDB>(DB_NAME);
-
-		const db = await openDB<MetadataDB>(DB_NAME, currentVersion + 1, {
-			upgrade(db) {
-				if (!db.objectStoreNames.contains(storeName as any)) {
-					const store = db.createObjectStore(storeName as unknown as "datablocks", {
-						keyPath: "id",
-						autoIncrement: true,
-					});
-					store.createIndex("by-disk", ["disk"]);
-				}
-			},
-			blocked(_currentVersion, _blockedVersion, _event) {
-				console.error(`Db ${DB_NAME} blocked`);
-			},
-			blocking(_currentVersion, _blockedVersion, event) {
-				console.error(`------Db ${DB_NAME} ${storeName} blocking`, event);
-			},
+	/** Reloads the system rules and the current disk's rules from storage */
+	const reloadFormats = () =>
+		store.enqueue(async () => {
+			await loadDisk(SYSTEM_DISK);
+			if (diskKey.value !== SYSTEM_DISK) await loadDisk(diskKey.value);
 		});
-		return db;
-	};
-
-	const loadFormatsFromDb = async () => {
-		if (!diskKey.value) return;
-		try {
-			const db = await getDb();
-			const tx = db.transaction(storeName as unknown as "datablocks", "readonly");
-			const index = tx.store.index("by-disk");
-
-			const foundGroups = new Set<string>();
-			const newDiskDict: FormattingDict = {};
-			const diskFormats = await index.getAll([diskKey.value]);
-			for (const fmt of diskFormats) {
-				if (!newDiskDict[fmt.address]) newDiskDict[fmt.address] = {};
-				newDiskDict[fmt.address]![fmt.group] = fmt;
-				foundGroups.add(fmt.group);
-			}
-
-			const targetDict = diskKey.value === "*" ? systemRules : diskRules;
-			targetDict.value = newDiskDict;
-
-			for (const group of foundGroups)
-				if (!activeFormattingGroups.value.has(group)) activeFormattingGroups.value.set(group, true);
-		} catch (e) {
-			console.error("Failed to load formatting rules", e);
-		}
-	};
 
 	const initFormats = async (machineName: string, newFormats?: FormattingDict) => {
-		storeName = `${machineName.replace(/ /g, "_").toLowerCase()}_datablocks`;
+		store.setMachine(machineName);
 		activeFormattingGroups.value.clear();
+		diskKey.value = SYSTEM_DISK;
+		diskRules.value = {};
 
-		if (!newFormats) return;
-
-		diskKey.value = "*";
-		const db = await getDb();
-		const tx = db.transaction(storeName as unknown as "datablocks", "readwrite");
-		const index = tx.store.index("by-disk");
-		const count = await index.count([diskKey.value]);
-		if (count) {
-			console.log(`Formatting: Found ${count} System formats in DB.`);
-			await loadFormatsFromDb();
-			return;
-		}
-
-		console.log("Formatting: Creating system formats in DB...");
-
-		const keys = await index.getAllKeys([diskKey.value]);
-		await Promise.all(keys.map((key) => tx.store.delete(key)));
-
-		const promises: Promise<IDBValidKey>[] = [];
-		const newDict: FormattingDict = {};
-
-		for (const [addrStr, groups] of Object.entries(newFormats)) {
-			for (const [group, data] of Object.entries(groups)) {
-				const address = Number(addrStr);
-				const block: DataBlock = {
-					disk: diskKey.value,
-					group,
-					address,
-					type: data.type,
-					length: data.length,
-				};
-				promises.push(
-					tx.store.add(block).then((id) => {
-						const b = { ...block, id: Number(id) };
-						if (!newDict[address]) newDict[address] = {};
-						newDict[address][group] = b;
-						return id;
-					}),
-				);
-				if (!activeFormattingGroups.value.has(group)) activeFormattingGroups.value.set(group, true);
+		await store.enqueue(async () => {
+			const stored = await loadDisk(SYSTEM_DISK);
+			if (stored || !newFormats) {
+				console.log(`Formatting: Found ${stored?.length ?? 0} System formats.`);
+				return;
 			}
-		}
-		await Promise.all(promises);
-		await tx.done;
-		systemRules.value = newDict;
+
+			console.log("Formatting: Creating system formats...");
+			const dict: FormattingDict = {};
+			for (const [addrStr, groups] of Object.entries(newFormats)) {
+				for (const [group, data] of Object.entries(groups)) {
+					const address = Number(addrStr);
+					(dict[address] ??= {})[group] = makeBlock(SYSTEM_DISK, { ...data, address, group });
+					registerGroup(group);
+				}
+			}
+			systemRules.value = dict;
+			await persist(SYSTEM_DISK);
+		});
 	};
 
 	const findFormattings = (query: string, group = "") => {
@@ -181,153 +213,80 @@ export function useFormatting() {
 		return results;
 	};
 
+	/** Adds a rule to the current disk, replacing any rule of the same group at that address */
 	const addFormatting = async (address: number, type: DataType, length: number, group = "user") => {
-		const db = await getDb();
-		const block: DataBlock = {
-			disk: diskKey.value,
-			group,
-			address,
-			type,
-			length,
-		};
-		const id = await db.add(storeName as unknown as "datablocks", block);
+		await store.ready();
+		const disk = diskKey.value;
+		const dict = rulesFor(disk);
 
-		const newBlock = { ...block, id: Number(id) };
-		const targetDict = diskKey.value === "*" ? systemRules : diskRules;
-		if (!targetDict.value[address]) targetDict.value[address] = {};
-		targetDict.value[address][group] = newBlock;
+		const block = makeBlock(disk, { address, type, length, group });
+		if (!dict.value[address]) dict.value[address] = {};
+		dict.value[address]![group] = block;
+		registerGroup(group);
 
-		if (!activeFormattingGroups.value.has(group)) activeFormattingGroups.value.set(group, true);
-		return id;
+		await persist(disk);
+		return block.id!;
 	};
 
-	const addManyFormattings = async (formattings: Omit<DataBlock, "id" | "disk">[]) => {
+	/** Adds or replaces rules on the current disk, in one write */
+	const addManyFormattings = async (formattings: StoredFormat[]) => {
 		if (formattings.length === 0) return;
 
-		const targetDict = diskKey.value === "*" ? systemRules : diskRules;
-		const newDict = { ...targetDict.value };
-		const modifiedAddrs = new Set<number>();
-		const newGroups = new Set<string>();
+		await store.ready();
+		const disk = diskKey.value;
+		const target = rulesFor(disk);
 
-		const db = await getDb();
-		const tx = db.transaction(storeName as unknown as "datablocks", "readwrite");
-		const store = tx.store;
+		// Copy-on-write, so the reactive dict is replaced once instead of triggering on every rule
+		const dict: FormattingDict = { ...target.value };
+		const copied = new Set<number>();
+		for (const f of formattings) {
+			if (!copied.has(f.address)) {
+				dict[f.address] = { ...dict[f.address] };
+				copied.add(f.address);
+			}
+			dict[f.address]![f.group] = makeBlock(disk, f);
+			registerGroup(f.group);
+		}
 
-		const promises = formattings.map((entry) => {
-			const block: DataBlock = {
-				disk: diskKey.value,
-				group: entry.group,
-				address: entry.address,
-				type: entry.type,
-				length: entry.length,
-			};
+		target.value = dict;
+		await persist(disk);
+	};
 
-			return store.add(block).then((id) => {
-				const b = { ...block, id: Number(id) };
-				if (!modifiedAddrs.has(b.address)) {
-					newDict[b.address] = newDict[b.address] ? { ...newDict[b.address] } : {};
-					modifiedAddrs.add(b.address);
-				}
-				newDict[b.address]![b.group] = b;
-				newGroups.add(b.group);
-			});
-		});
-
-		await Promise.all(promises);
-		await tx.done;
-
-		targetDict.value = newDict;
-
-		for (const group of newGroups)
-			if (!activeFormattingGroups.value.has(group)) activeFormattingGroups.value.set(group, true);
+	const removeEntry = (dict: Ref<FormattingDict>, address: number, group: string) => {
+		const byGroup = dict.value[address];
+		if (!byGroup?.[group]) return false;
+		delete byGroup[group];
+		if (Object.keys(byGroup).length === 0) delete dict.value[address];
+		return true;
 	};
 
 	const removeFormatting = async (address: number, group = "user") => {
-		const targetDict = diskKey.value === "*" ? systemRules : diskRules;
-		const rule = targetDict.value[address]?.[group];
-		if (!rule || !rule.id) return;
-
-		const db = await getDb();
-		await db.delete(storeName as unknown as "datablocks", rule.id);
-
-		const entry = targetDict.value[address];
-		if (entry) {
-			delete entry[group];
-			if (Object.keys(entry).length === 0) delete targetDict.value[address];
-		}
+		await store.ready();
+		const disk = diskKey.value;
+		if (removeEntry(rulesFor(disk), address, group)) await persist(disk);
 	};
 
 	const removeManyFormattings = async (ids: Set<number>) => {
 		if (ids.size === 0) return;
 
-		const db = await getDb();
-		const tx = db.transaction(storeName as unknown as "datablocks", "readwrite");
-		const store = tx.store;
-
-		// Fetch all records first to operate on them in memory
-		const recordsToDelete = (await Promise.all(Array.from(ids).map((id) => store.get(id)))).filter(
-			(r): r is DataBlock => r !== undefined,
-		);
-
-		if (recordsToDelete.length === 0) {
-			await tx.done;
-			return;
+		await store.ready();
+		const touchedDisks = new Set<string>();
+		for (const target of [systemRules, diskRules]) {
+			const dict: FormattingDict = {};
+			let changed = false;
+			for (const [addr, byGroup] of Object.entries(target.value)) {
+				const kept: Record<string, DataBlock> = {};
+				for (const [group, block] of Object.entries(byGroup)) {
+					if (block.id !== undefined && ids.has(block.id)) {
+						changed = true;
+						touchedDisks.add(block.disk);
+					} else kept[group] = block;
+				}
+				if (Object.keys(kept).length) dict[Number(addr)] = kept;
+			}
+			if (changed) target.value = dict;
 		}
-
-		// Batch delete from DB in parallel
-		const deletePromises = recordsToDelete.map((r) => store.delete(r.id!));
-		await Promise.all(deletePromises);
-		await tx.done;
-
-		// Group records by disk to process dicts separately
-		const systemRecords = recordsToDelete.filter((r) => r.disk === "*");
-		const diskRecords = recordsToDelete.filter((r) => r.disk !== "*");
-
-		// Update systemRules atomically
-		if (systemRecords.length > 0) {
-			const newSystemRules = { ...systemRules.value };
-			const modifiedAddrs = new Set<number>();
-
-			for (const record of systemRecords) {
-				if (newSystemRules[record.address]) {
-					if (!modifiedAddrs.has(record.address)) {
-						newSystemRules[record.address] = { ...newSystemRules[record.address] };
-						modifiedAddrs.add(record.address);
-					}
-					delete newSystemRules[record.address]![record.group];
-				}
-			}
-
-			for (const addr of modifiedAddrs) {
-				if (Object.keys(newSystemRules[addr]!).length === 0) {
-					delete newSystemRules[addr];
-				}
-			}
-			systemRules.value = newSystemRules;
-		}
-
-		// Update diskRules atomically
-		if (diskRecords.length > 0) {
-			const newDiskRules = { ...diskRules.value };
-			const modifiedAddrs = new Set<number>();
-
-			for (const record of diskRecords) {
-				if (newDiskRules[record.address]) {
-					if (!modifiedAddrs.has(record.address)) {
-						newDiskRules[record.address] = { ...newDiskRules[record.address] };
-						modifiedAddrs.add(record.address);
-					}
-					delete newDiskRules[record.address]![record.group];
-				}
-			}
-
-			for (const addr of modifiedAddrs) {
-				if (Object.keys(newDiskRules[addr]!).length === 0) {
-					delete newDiskRules[addr];
-				}
-			}
-			diskRules.value = newDiskRules;
-		}
+		await Promise.all(Array.from(touchedDisks, persist));
 	};
 
 	const getFormat = (address: number) => {
@@ -343,54 +302,8 @@ export function useFormatting() {
 		return search(diskRules.value) ?? search(systemRules.value);
 	};
 
-	const addFormattingsFromText = async (text: string) => {
-		const db = await getDb();
-		const tx = db.transaction(storeName as unknown as "datablocks", "readwrite");
-		const lines = text.split(/\r?\n/);
-		let currentGroup = "user";
-
-		// Matches: '%% DATA: groupname %%':
-		const headerRegex = /^'%% DATA:\s*(.+) %%':/;
-		const dataRegex = /^\s*([0-9A-Fa-f]+):\s*(code|byte|word|string)\[(\d+)\]/;
-
-		const promises: Promise<void>[] = [];
-
-		for (const line of lines) {
-			const headerMatch = line.match(headerRegex);
-			if (headerMatch) {
-				currentGroup = headerMatch[1] ? headerMatch[1].trim() : "user";
-				if (!activeFormattingGroups.value.has(currentGroup)) activeFormattingGroups.value.set(currentGroup, true);
-				continue;
-			}
-
-			const dataMatch = line.match(dataRegex) as [unknown, string, DataType, string];
-			if (dataMatch) {
-				const address = parseInt(dataMatch[1], 16);
-				const type = dataMatch[2];
-				let length = parseInt(dataMatch[3], 10);
-				if (type === "word") length *= 2;
-
-				const block: DataBlock = {
-					disk: diskKey.value,
-					group: currentGroup,
-					address,
-					type,
-					length,
-				};
-
-				promises.push(
-					tx.store.add(block).then((id) => {
-						const b = { ...block, id: Number(id) };
-						const targetDict = diskKey.value === "*" ? systemRules : diskRules;
-						if (!targetDict.value[address]) targetDict.value[address] = {};
-						targetDict.value[address][currentGroup] = b;
-					}),
-				);
-			}
-		}
-		await Promise.all(promises);
-		await tx.done;
-	};
+	/** Imports a FORMATS script (as exported) or a legacy '%% DATA' file into the current disk */
+	const addFormattingsFromText = (text: string) => addManyFormattings(parseFormattingsText(text));
 
 	const generateTextFromFormattings = (): string => {
 		const groups = new Map<string, DataBlock[]>();
@@ -477,6 +390,7 @@ export function useFormatting() {
 	return {
 		setDiskKey,
 		initFormats,
+		reloadFormats,
 		formattingState,
 		activeFormattingGroups,
 
