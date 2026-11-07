@@ -44,12 +44,13 @@
 
 					<!--
 						The panel width drives the layout (container query):
-						- narrow: CPU strip (registers + flags) across the top, Stack | Tabs below
-						- wide (>= 54rem): 3 columns, CPU stacked vertically | Stack | Tabs
+						- narrow: CPU strip (registers + flags) across the top, Stack | Trace below
+						- wide (>= 54rem): 3 columns, CPU stacked vertically | Stack | Trace
+						Breakpoints live in a drawer opened from the debugger toolbar.
 					-->
 					<div class="@container min-h-0 p-2">
 						<div
-							class="grid h-full gap-2 grid-cols-[16rem_minmax(0,1fr)] grid-rows-[auto_minmax(0,1fr)] [grid-template-areas:'cpu_cpu'_'stack_tabs'] @[54rem]:grid-cols-[minmax(13rem,300px)_16rem_minmax(0,1fr)] @[54rem]:grid-rows-[minmax(0,1fr)] @[54rem]:[grid-template-areas:'cpu_stack_tabs']"
+							class="grid h-full gap-2 grid-cols-[16rem_minmax(0,1fr)] grid-rows-[auto_minmax(0,1fr)] [grid-template-areas:'cpu_cpu'_'stack_trace'] @[54rem]:grid-cols-[minmax(13rem,300px)_16rem_minmax(0,1fr)] @[54rem]:grid-rows-[minmax(0,1fr)] @[54rem]:[grid-template-areas:'cpu_stack_trace']"
 						>
 							<!-- Registers and flags: side by side (wrapping) when narrow, stacked when wide -->
 							<div class="[grid-area:cpu] flex flex-wrap gap-2 min-w-0 @[54rem]:flex-col @[54rem]:flex-nowrap">
@@ -63,28 +64,7 @@
 
 							<StackView class="[grid-area:stack] min-h-0" :registers="registers" />
 
-							<Tabs default-value="breakpoints" class="[grid-area:tabs] h-full flex flex-col min-h-0 min-w-0">
-								<TabsList class="bg-gray-900/80 p-1 shrink-0 max-w-full justify-start overflow-x-auto">
-									<TabsTrigger
-										value="stack_trace"
-										class="data-[state=active]:bg-gray-700 data-[state=active]:text-cyan-300 text-gray-400"
-									>
-										Stack Trace
-									</TabsTrigger>
-									<TabsTrigger
-										value="breakpoints"
-										class="data-[state=active]:bg-gray-700 data-[state=active]:text-cyan-300 text-gray-400"
-									>
-										Breakpoints
-									</TabsTrigger>
-								</TabsList>
-								<TabsContent value="breakpoints" class="flex-1 min-h-0">
-									<BreakpointsList />
-								</TabsContent>
-								<TabsContent value="stack_trace" class="flex-1 min-h-0">
-									<TraceView />
-								</TabsContent>
-							</Tabs>
+							<TraceView class="[grid-area:trace] min-h-0 min-w-0" />
 						</div>
 					</div>
 				</ResizablePanel>
@@ -112,7 +92,6 @@
 import { computed, onMounted, onUnmounted, provide, watch } from "vue";
 import { Toaster } from "vue-sonner";
 import "vue-sonner/style.css";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import TogglableDisplay from "../components/TogglableDisplay.vue";
 import { useMachine } from "../composables/useMachine";
 import ResizableHandle from "../components/ui/resizable/ResizableHandle.vue";
@@ -136,7 +115,6 @@ import {
 	REG_X_OFFSET,
 	REG_Y_OFFSET,
 } from "../virtualmachine/cpu/shared-memory";
-import BreakpointsList from "./debugger/BreakpointsList.vue";
 import DebuggerControls from "./debugger/DebuggerControls.vue";
 import DisassemblyView from "./debugger/disassembly/DisassemblyView.vue";
 import MultiMemoryViewer from "./debugger/memoryview/MultiMemoryViewer.vue";
