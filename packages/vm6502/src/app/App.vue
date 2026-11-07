@@ -77,21 +77,12 @@
 									>
 										Breakpoints
 									</TabsTrigger>
-									<TabsTrigger
-										value="state"
-										class="data-[state=active]:bg-gray-700 data-[state=active]:text-cyan-300 text-gray-400"
-									>
-										Machine State
-									</TabsTrigger>
 								</TabsList>
 								<TabsContent value="breakpoints" class="flex-1 min-h-0">
 									<BreakpointsList />
 								</TabsContent>
 								<TabsContent value="stack_trace" class="flex-1 min-h-0">
 									<TraceView />
-								</TabsContent>
-								<TabsContent value="state" class="flex-1 min-h-0">
-									<MachineStateView />
 								</TabsContent>
 							</Tabs>
 						</div>
@@ -148,7 +139,6 @@ import {
 import BreakpointsList from "./debugger/BreakpointsList.vue";
 import DebuggerControls from "./debugger/DebuggerControls.vue";
 import DisassemblyView from "./debugger/disassembly/DisassemblyView.vue";
-import MachineStateView from "./debugger/MachineStateView.vue";
 import MultiMemoryViewer from "./debugger/memoryview/MultiMemoryViewer.vue";
 import RegistersView from "./debugger/RegistersView.vue";
 import StackView from "./debugger/StackView.vue";
