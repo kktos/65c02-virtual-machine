@@ -284,7 +284,7 @@ import { useMachine } from "@/composables/useMachine";
 import MemorySelectionStatus from "./MemorySelectionStatus.vue";
 
 const vm = inject<Ref<VirtualMachine>>("vm");
-const { addFormatting, updateFormatting, removeManyFormattings, getFormat } = useFormatting();
+const { addFormatting, updateFormatting, removeManyFormattings, getFormatCovering } = useFormatting();
 const { isRunning } = useMachine();
 
 const props = defineProps<{
@@ -610,19 +610,22 @@ const endSelection = () => {
 	if (!isSelecting.value) return;
 	isSelecting.value = false;
 
-	// A plain click on the first byte of a formatting selects the whole formatted range
+	// A plain click on any byte of a formatting selects the whole formatted range
 	if (selectionAnchor.value === null || selectionAnchor.value !== selectionHead.value) return;
-	const format = getFormat(selectionAnchor.value);
-	if (format && format.length > 1) selectionHead.value = format.address + format.length - 1;
+	const format = getFormatCovering(selectionAnchor.value);
+	if (!format) return;
+	selectionAnchor.value = format.address;
+	selectionHead.value = format.address + Math.max(format.length, 1) - 1;
 };
 
-/** Type of the formatting covering exactly the selection, if any */
-const selectedFormatType = computed(() => {
+/** The formatting the selection is exactly, if any: its type is highlighted, and Byte/String/None act on it */
+const selectedFormat = computed(() => {
 	const range = selectedRange.value;
-	if (!range) return null;
-	const format = getFormat(range.start);
-	return format && format.length === range.size ? format.type : null;
+	if (!range) return undefined;
+	const format = getFormatCovering(range.start);
+	return format && format.address === range.start && format.length === range.size ? format : undefined;
 });
+const selectedFormatType = computed(() => selectedFormat.value?.type ?? null);
 
 const cancelSelection = () => {
 	selectionAnchor.value = null;
@@ -635,8 +638,7 @@ const formatAs = async (type: "byte" | "string" | "none") => {
 
 	// The selection is exactly an existing formatting: change or remove it instead of adding another rule.
 	// By id, so it works wherever the rule lives (system or disk, any group).
-	const format = getFormat(range.start);
-	const existingId = format && format.length === range.size ? format.id : undefined;
+	const existingId = selectedFormat.value?.id;
 
 	if (type === "none") {
 		if (existingId !== undefined) await removeManyFormattings(new Set([existingId]));
