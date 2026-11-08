@@ -32,6 +32,7 @@ import {
 	REG_Y_OFFSET,
 } from "./shared-memory";
 import { decodeHypercall } from "@/lib/hypercalls.lib";
+import { instructionTraceOn, recordInstruction } from "./instructionTrace";
 
 const STACK_PAGE_HI = 0x0100;
 
@@ -509,6 +510,17 @@ export function executeInstruction(): number {
 			return 0;
 		}
 	}
+
+	// Executed from here on (a breakpoint above stops before it): record it with the registers before it.
+	if (instructionTraceOn)
+		recordInstruction(
+			((bus.getBank?.(pc) ?? 0) << 16) | pc,
+			registersView.getUint8(REG_A_OFFSET),
+			registersView.getUint8(REG_X_OFFSET),
+			registersView.getUint8(REG_Y_OFFSET),
+			registersView.getUint8(REG_STATUS_OFFSET),
+			registersView.getUint8(REG_SP_OFFSET),
+		);
 
 	const opcode = bus.read(pc, true); // Opcode fetch (SYNC)
 	pc++;

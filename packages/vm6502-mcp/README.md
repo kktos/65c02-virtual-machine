@@ -47,6 +47,7 @@ Then run `pnpm dev` and open `http://localhost:5173/?mcp`.
 | `pause` | Pause and return registers |
 | `step` | Execute `count` instructions on the paused machine; stops early on a PC breakpoint, a stopping hypercall or an error |
 | `reset` | Reset (CPU, soft switches, video; memory kept), left paused on the reset vector |
+| `get_trace` | Last executed instructions (disassembled, registers before each); `enable: true` starts recording |
 | `list_disks` | The disk library (images kept in the browser) and what is in the drive |
 | `load_disk` | Insert a library disk by key or name; `boot: true` cold-boots it |
 | `eject_disk` | Empty the drive (stays empty at the next startup) |

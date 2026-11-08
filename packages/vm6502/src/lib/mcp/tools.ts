@@ -17,6 +17,12 @@ import { HYPERCALL_NAMES } from "@/lib/hypercalls.lib";
 import { disassemble } from "@/lib/disassembler";
 import type { DisassemblyLine } from "@/types/disassemblyline.interface";
 import {
+	INSTRUCTION_TRACE_DEFAULT_SIZE,
+	INSTRUCTION_TRACE_MAX_SIZE,
+	type TraceSnapshot,
+	unpackTraceEntries,
+} from "@/virtualmachine/cpu/instructionTrace";
+import {
 	FLAG_B_MASK,
 	FLAG_C_MASK,
 	FLAG_D_MASK,
@@ -277,6 +283,33 @@ const coldBoot = async (vm: VirtualMachine) => {
 	await vm.reset();
 	vm.play();
 	await waitForRunning(true, 1000);
+};
+
+const h2 = (v: number) => v.toString(16).toUpperCase().padStart(2, "0");
+
+/** Trace entries for the agent: disassembled from memory as it is now, registers as they were before. */
+const describeTrace = async (vm: VirtualMachine, snapshot: TraceSnapshot) => {
+	const lines = new Map<number, DisassemblyLine | undefined>();
+	const entries = [];
+	for (const e of unpackTraceEntries(snapshot.words)) {
+		if (!lines.has(e.address)) {
+			const [line] = await disassemble({
+				readByte: (a) => vm.readDebug(a) ?? 0,
+				scope: vm.getScope(e.address & 0xffff),
+				fromAddress: e.address,
+				lineCount: 1,
+			});
+			lines.set(e.address, line);
+		}
+		const line = lines.get(e.address);
+		entries.push({
+			address: hexAddr(e.address),
+			...(line?.label && { label: line.label }),
+			instruction: line ? (line.opr ? `${line.opc} ${line.opr}` : line.opc) : "?",
+			regs: `A=${h2(e.a)} X=${h2(e.x)} Y=${h2(e.y)} P=${h2(e.p)} SP=${h2(e.sp)}`,
+		});
+	}
+	return entries;
 };
 
 const hexdump = (start: number, bytes: Uint8Array) => {
@@ -749,6 +782,59 @@ export const MCP_TOOLS: McpTool[] = [
 			if (!disk) return json({ result: "already_empty" });
 			await eject(vm);
 			return json({ result: "ejected", disk: describeDisk(disk) });
+		},
+	},
+	{
+		name: "get_trace",
+		description:
+			"The last instructions executed, oldest first, each with the registers *before* it: how the machine got " +
+			"where it is (after a breakpoint, a crash, a BRK…). Off by default (it costs a little speed): " +
+			"`enable: true` starts recording (cleared; keeps the last `size` instructions, default 4096, max 65536), " +
+			"then run (run_until / step) and call get_trace again. `enable: false` stops recording and keeps what was " +
+			"recorded. Returns `recording`, `capacity`, `recorded` (instructions recorded since enabled: more than " +
+			"`capacity` means the oldest are gone) and the last `count` entries (default 50, max 1000): `address`, " +
+			"`label`, `instruction` (disassembled from memory as it is now: self-modified code may differ), `regs`. " +
+			"The last entry is the last instruction executed; PC (get_registers) is the next one. Everything executed " +
+			"is recorded, interrupt handlers included.",
+		inputSchema: {
+			type: "object",
+			properties: {
+				enable: { type: "boolean", description: "true: start recording (cleared); false: stop (kept)" },
+				size: {
+					type: "integer",
+					minimum: 1,
+					maximum: INSTRUCTION_TRACE_MAX_SIZE,
+					default: INSTRUCTION_TRACE_DEFAULT_SIZE,
+					description: "With enable: true, how many instructions to keep (rounded up to a power of 2)",
+				},
+				count: { type: "integer", minimum: 1, maximum: 1000, default: 50, description: "Entries returned" },
+			},
+		},
+		async execute(input) {
+			const vm = await getVm();
+			const count = toInt(input.count, "count", 50, 1, 1000);
+			const size = toInt(input.size, "size", INSTRUCTION_TRACE_DEFAULT_SIZE, 1, INSTRUCTION_TRACE_MAX_SIZE);
+			if (input.enable !== undefined && typeof input.enable !== "boolean")
+				throw new Error("enable: boolean expected");
+			if (input.enable === true) {
+				const state = await vm.setInstructionTrace(true, size);
+				return json({
+					recording: true,
+					capacity: state.capacity,
+					recorded: 0,
+					note: "Recording: run the machine, then call get_trace",
+				});
+			}
+			if (input.enable === false) await vm.setInstructionTrace(false);
+			const snapshot = await vm.getInstructionTrace(count);
+			const head = {
+				recording: snapshot.enabled,
+				capacity: snapshot.capacity,
+				recorded: snapshot.total,
+				...(!snapshot.enabled &&
+					snapshot.total === 0 && { note: "Nothing recorded: call get_trace with enable: true, then run" }),
+			};
+			return jsonWithList(head, "entries", await describeTrace(vm, snapshot));
 		},
 	},
 	{

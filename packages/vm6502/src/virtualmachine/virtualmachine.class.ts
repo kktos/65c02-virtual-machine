@@ -1,4 +1,5 @@
 import { ref } from "vue";
+import type { TraceSnapshot } from "./cpu/instructionTrace";
 import type { Dict } from "@/types/dict.type";
 import type { MachineConfig } from "@/types/machine.interface";
 import type { IBus } from "@/types/bus.interface";
@@ -497,6 +498,11 @@ export class VirtualMachine {
 		}
 	}
 
+	/** Instruction trace (last instructions + registers): on (cleared, `size` entries) or off (kept). */
+	public setInstructionTrace = (enabled: boolean, size?: number) =>
+		this.request<TraceSnapshot>("setInstructionTrace", { enabled, size });
+	/** The last `count` instructions recorded (all if omitted), oldest first. */
+	public getInstructionTrace = (count?: number) => this.request<TraceSnapshot>("getInstructionTrace", { count });
 	public setTraceSize = (size: number) => this.worker.postMessage({ command: "setTraceSize", size });
 	public getTrace = () => this.worker.postMessage({ command: "getTrace" });
 	public clearTrace = () => {

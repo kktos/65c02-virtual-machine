@@ -23,6 +23,7 @@ import {
 	stepOverInstruction,
 } from "./cpu.65c02";
 import { loadBus } from "./loaders/bus.loader";
+import { readInstructionTrace, setInstructionTrace } from "./instructionTrace";
 import { loadVideo } from "./loaders/video.loader";
 import { MEMORY_OFFSET, REG_PC_OFFSET, STACK_METADATA_OFFSET } from "./shared-memory";
 
@@ -175,6 +176,16 @@ self.onmessage = async (event: MessageEvent) => {
 		case "clearTrace":
 			clearTrace();
 			break;
+		case "setInstructionTrace":
+			setInstructionTrace(!!event.data.enabled, event.data.size);
+			reply(event, readInstructionTrace(0));
+			break;
+		case "getInstructionTrace": {
+			const snapshot = readInstructionTrace(event.data.count);
+			if (event.data.id !== undefined)
+				self.postMessage({ type: "reply", id: event.data.id, ...snapshot }, [snapshot.words.buffer]);
+			break;
+		}
 		case "refreshVideo":
 			if (video) video.tick();
 			break;

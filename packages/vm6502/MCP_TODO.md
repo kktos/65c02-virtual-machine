@@ -67,9 +67,12 @@ Still open, by priority (reviewed 2026-11-08: what blocks the use cases above):
        `useDiskDrive`, shared with the toolbar. Still to do: images from the agent's host, `load_disk({ path })` and
        `load_binary({ path, address })`: the Node relay reads the file and sends the bytes over the WebSocket (then
        `insertFile` adds a disk to the library).
-2. [ ] **Execution trace**: `get_trace({ limit })`, the last N instructions as JSON. After a breakpoint the agent
-       only sees the current state; tracing back from a copy-protection check or a crash is the core RE move.
-       The trace already exists (`vm.getTrace`, `TraceView.vue`): cheap.
+2. [x] **Execution trace**: `get_trace({ enable?, size?, count? })`. The existing trace (`vm.getTrace`, `TraceView`)
+       only logs JSR / JMP, so this is a new one: a ring buffer in the worker (`cpu/instructionTrace.ts`, 2 words per
+       entry, default 4096, max 65536) of every executed instruction with A X Y P SP *before* it, recorded in
+       `executeInstruction` after the breakpoint check (an instruction stopped on isn't recorded). Off by default:
+       one flag check per instruction. Read with a worker request; the tool disassembles the entries (memory as it is
+       now) with labels. Recording is lost when the VM is rebuilt (reload, `reboot`).
 3. [ ] **Memory snapshot + diff** (cheat-finder): `snapshot`, then `diff({ filter: changed | inc | dec | = value })`
        with the candidates kept in the tab. Doable with read_memory today, but 48 KB = 12 calls of ~12 KB of hex
        per round.
