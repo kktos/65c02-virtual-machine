@@ -15,4 +15,8 @@ export interface ISlotCard {
 	tick?(cycles: number): Float32Array[];
 
 	setDebugOverrides?(overrides: Dict): void;
+
+	/** The card's state for a save state (see IBus.snapshot), and putting it back. */
+	snapshot?(): unknown;
+	restoreSnapshot?(state: unknown): void;
 }

@@ -57,6 +57,10 @@ Then run `pnpm dev` and open `http://localhost:5173/?mcp`.
 | `pause` | Pause and return registers |
 | `step` | Execute `count` instructions on the paused machine; stops early on a PC breakpoint, a stopping hypercall or an error |
 | `reset` | Reset (CPU, soft switches, video; memory kept), left paused on the reset vector |
+| `save_state` | Save the whole machine (registers, memory, soft switches, cards) under a name, in the tab |
+| `restore_state` | Put a saved state back, machine left paused (restore → patch → run → compare) |
+| `list_states` | The save states |
+| `delete_state` | Delete one, or all with `all: true` |
 | `get_trace` | Last executed instructions (disassembled, registers before each); `enable: true` starts recording |
 | `list_disks` | The disk library (images kept in the browser) and what is in the drive |
 | `load_disk` | Insert a library disk by key or name, or an image file from the agent's machine by `path` (added to the library); `boot: true` cold-boots it |

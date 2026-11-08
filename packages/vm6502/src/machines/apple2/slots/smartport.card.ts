@@ -34,6 +34,18 @@ export class SmartPortCard implements ISlotCard {
 		this.diskData = data;
 	}
 
+	/**
+	 * The disk in the drive. Shared, not copied: the card only reads it, and a new disk is a new array.
+	 * (If writes are ever supported, they must copy it first when a snapshot holds it.)
+	 */
+	public snapshot() {
+		return { diskData: this.diskData };
+	}
+
+	public restoreSnapshot(state: unknown) {
+		this.diskData = (state as ReturnType<SmartPortCard["snapshot"]>).diskData;
+	}
+
 	/** No disk: calls answer "no device" ($2F) and the boot code resumes the slot scan. */
 	public ejectMedia() {
 		this.diskData = null;
