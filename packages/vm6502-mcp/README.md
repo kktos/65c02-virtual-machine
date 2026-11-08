@@ -39,6 +39,7 @@ Then run `pnpm dev` and open `http://localhost:5173/?mcp`.
 | `read_memory` | Hex dump, debug read (no I/O side effects), max 4 KB |
 | `get_registers` | CPU registers, flags, running state |
 | `screen_text` | Apple II text screen as text (page 1/2, 40/80 cols) |
+| `read_log` | Lines of a log window (`hyper` = hypercall logs), with a cursor to get only new lines |
 | `type_keys` | Type on the emulated keyboard (`\n` = Return) |
 | `run_until` | Resume and **block** until a stop (BP, BRK, pause) or timeout; optional temp PC breakpoint |
 | `pause` | Pause and return registers |
