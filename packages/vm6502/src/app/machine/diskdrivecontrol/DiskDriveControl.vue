@@ -209,7 +209,7 @@
 							<FolderOpen class="h-4 w-4" />
 							<input
 								type="file"
-								:accept="ACCEPTED_EXTENSIONS.join(',')"
+								:accept="DISK_EXTENSIONS.join(',')"
 								@change="handleFileSelect"
 								class="hidden"
 							/>
@@ -254,11 +254,9 @@ import { computed, inject, nextTick, type Ref, ref, watch } from "vue";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { type StoredDisk, useDiskStorage } from "@/composables/useDiskStorage";
-import { useDiskDrive } from "@/composables/useDiskDrive";
+import { DISK_EXTENSIONS, useDiskDrive } from "@/composables/useDiskDrive";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import DiskDriveLogs from "./DiskDriveLogs.vue";
-
-const ACCEPTED_EXTENSIONS = [".po", ".2mg", ".dsk", ".hdv"];
 
 const vm = inject<Ref<VirtualMachine>>("vm");
 
@@ -355,8 +353,8 @@ const errorMessage = (e: unknown, fallback: string) => {
 
 const insertLocalFile = async (file: File) => {
 	if (!vm?.value) return;
-	if (!ACCEPTED_EXTENSIONS.some((ext) => file.name.toLowerCase().endsWith(ext))) {
-		error.value = `Unsupported disk image: ${file.name} (expected ${ACCEPTED_EXTENSIONS.join(", ")})`;
+	if (!DISK_EXTENSIONS.some((ext) => file.name.toLowerCase().endsWith(ext))) {
+		error.value = `Unsupported disk image: ${file.name} (expected ${DISK_EXTENSIONS.join(", ")})`;
 		return;
 	}
 	error.value = null;

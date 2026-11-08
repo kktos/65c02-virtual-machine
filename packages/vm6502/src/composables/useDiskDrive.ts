@@ -15,6 +15,9 @@ const SLOT = 5;
 /** Metadata disk key with an empty drive: the system set, as at startup before any disk. */
 const NO_DISK = "*";
 
+/** Image files the drive takes (the SmartPort card: `.2mg` has a header, the others are raw blocks). */
+export const DISK_EXTENSIONS = [".po", ".2mg", ".dsk", ".hdv"];
+
 export type InsertedDisk = { key: IDBValidKey; name: string; size: number; type: StoredDisk["type"] };
 
 const inserted = shallowRef<InsertedDisk | null>(null);

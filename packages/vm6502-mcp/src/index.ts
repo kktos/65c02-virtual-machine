@@ -2,7 +2,8 @@
 // MCP server for the vm6502 emulator: a thin relay.
 // Speaks MCP over stdio to the agent and forwards tool calls over a local WebSocket to the
 // emulator tab (opened with `?mcp` in its URL). The tools themselves are defined by the page
-// (packages/vm6502/src/lib/mcp/tools.ts); only `status` is local.
+// (packages/vm6502/src/lib/mcp/tools.ts); only `status` is local. Files on the agent's machine named by a
+// tool's arguments are read here and sent with the call (hostFiles.ts).
 
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -13,6 +14,7 @@ import {
 	type Tool,
 } from "@modelcontextprotocol/sdk/types.js";
 import { BrowserBridge, log } from "./bridge.ts";
+import { readHostFiles } from "./hostFiles.ts";
 
 const PORT = Number(process.env.VM6502_MCP_PORT ?? 6502);
 
@@ -47,7 +49,9 @@ server.setRequestHandler(CallToolRequestSchema, async ({ params }) => {
 	if (!bridge.tools.some((t) => t.name === params.name) && bridge.status.connected)
 		return text(`Unknown tool: ${params.name}`, true);
 	try {
-		const result = await bridge.callTool(params.name, params.arguments ?? {});
+		const tool = bridge.tools.find((t) => t.name === params.name);
+		const args = await readHostFiles(tool, params.arguments ?? {});
+		const result = await bridge.callTool(params.name, args);
 		if (typeof result === "string") return text(result);
 		return { content: result.content as CallToolResult["content"], isError: false };
 	} catch (e) {

@@ -21,13 +21,18 @@ The browser is the WebSocket client, so the bridge is opt-in: open the app with 
 To add a tool: add an entry to `MCP_TOOLS` in `tools.ts`. Nothing to change here. A tool answers text,
 or MCP content blocks (`{ content: [...] }`, e.g. an image) that the server passes on as they are.
 
+**Files on the agent's machine**: a page can't read them, so a tool marks a string property of its schema
+with `"x-vm6502-host-file": true` (`hostFileSchema` in `tools.ts`). The agent passes a path there; this
+server reads the file (absolute, `~/…`, or relative to its working directory; max 64 MB) and sends
+`{ name, path, size, data }` (data in base64) in its place (`src/hostFiles.ts`). `load_disk`'s `path` uses it.
+
 ## Setup (Claude Code)
 
 ```sh
 claude mcp add vm6502 -- node /absolute/path/to/packages/vm6502-mcp/src/index.ts
 ```
 
-Needs Node ≥ 22.18 (runs the TypeScript directly). Port: `VM6502_MCP_PORT` (default 6502).
+Needs Node ≥ 22.18 (runs the TypeScript directly). Port: `VM6502_MCP_PORT` (default 6502). Tests: `npm test`.
 
 Then run `pnpm dev` and open `http://localhost:5173/?mcp`.
 
@@ -43,6 +48,8 @@ Then run `pnpm dev` and open `http://localhost:5173/?mcp`.
 | `get_registers` | CPU registers, flags, running state |
 | `screen_text` | Apple II text screen as text: the displayed one by default (page 1/2, 40/80 cols), with a header saying which |
 | `screenshot` | The screen as a PNG image, as displayed (any video mode, border included; //e: 640x480) |
+| `memory_snapshot` | Start a cheat-finder search: record memory ranges (default $0000-$BFFF), every byte a candidate |
+| `memory_diff` | Keep the candidates that changed / stayed / increased / decreased (`by`) / equal a value; lists them |
 | `read_log` | Lines of a log window (`hyper` = hypercall logs), with a cursor to get only new lines |
 | `type_keys` | Type on the emulated keyboard (`\n` = Return) |
 | `run_until` | Resume and **block** until a stop (BP, BRK, pause) or timeout; optional temp PC breakpoint |
@@ -51,7 +58,7 @@ Then run `pnpm dev` and open `http://localhost:5173/?mcp`.
 | `reset` | Reset (CPU, soft switches, video; memory kept), left paused on the reset vector |
 | `get_trace` | Last executed instructions (disassembled, registers before each); `enable: true` starts recording |
 | `list_disks` | The disk library (images kept in the browser) and what is in the drive |
-| `load_disk` | Insert a library disk by key or name; `boot: true` cold-boots it |
+| `load_disk` | Insert a library disk by key or name, or an image file from the agent's machine by `path` (added to the library); `boot: true` cold-boots it |
 | `eject_disk` | Empty the drive (stays empty at the next startup) |
 | `set_breakpoint` | Add a PC / read / write / access breakpoint (address or range, optional hook command); idempotent |
 | `remove_breakpoint` | Remove one (same type + address/range), or all with `all: true` |
