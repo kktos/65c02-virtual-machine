@@ -73,9 +73,15 @@ Still open, by priority (reviewed 2026-11-08: what blocks the use cases above):
        `executeInstruction` after the breakpoint check (an instruction stopped on isn't recorded). Off by default:
        one flag check per instruction. Read with a worker request; the tool disassembles the entries (memory as it is
        now) with labels. Recording is lost when the VM is rebuilt (reload, `reboot`).
-3. [ ] **Memory snapshot + diff** (cheat-finder): `snapshot`, then `diff({ filter: changed | inc | dec | = value })`
-       with the candidates kept in the tab. Doable with read_memory today, but 48 KB = 12 calls of ~12 KB of hex
-       per round.
+3. [x] **Memory snapshot + diff** (cheat-finder): `memory_snapshot({ address?, end_address? | ranges? })` records
+       the ranges (default $0000-$BFFF, max 256 KB, banks allowed: $10000-$1BFFF = aux) and makes every byte a
+       candidate; `memory_diff({ filter?, value?, by?, count? })` keeps those matching `changed` / `unchanged` /
+       `increased` / `decreased` (`by`: exact, modulo 256) / `equals` / `not_equals` against their reference,
+       whose value then becomes the reference (Cheat Engine's "next scan"). No `filter`: lists without narrowing.
+       Lists the first `count` (default 50) with `label`, `previous`, `value`. The search lives in the tab
+       (`MemorySearch`, `src/lib/memorySearch.lib.ts`: one `readDebugRange` per range per round, candidates as
+       offsets). Tried on the running Conan intro: a byte planted with write_memory found in 3 rounds (49152 → 1).
+       Byte-wise only: 16-bit / BCD values aren't matched as such.
 4. [x] **`screenshot`**: the screen as an MCP image (PNG), any mode, border included, at the video buffer's
        resolution (//e: 640x480). Built from the shared video buffer (palette indices) + the palette and view rect
        the machine's video sends (`vm.screenshot()`), not from the WebGL canvas: exact pixels, whatever the
