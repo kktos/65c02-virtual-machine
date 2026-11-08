@@ -9,6 +9,7 @@ import {
 	getTrace,
 	initCPU,
 	isStoppedOnBrk,
+	prepareForRestore,
 	removeBreakpoint,
 	resetCPU,
 	setBreakOnBrk,
@@ -25,6 +26,14 @@ import {
 import { loadBus } from "./loaders/bus.loader";
 import { readInstructionTrace, setInstructionTrace } from "./instructionTrace";
 import { loadVideo } from "./loaders/video.loader";
+import {
+	deleteMachineStates,
+	hasMachineState,
+	listMachineStates,
+	type MachineViews,
+	restoreMachineState,
+	saveMachineState,
+} from "./saveStates";
 import { MEMORY_OFFSET, REG_PC_OFFSET, STACK_METADATA_OFFSET } from "./shared-memory";
 
 const COLORED_LOG = "color:magenta;font-weight:bold;";
@@ -76,6 +85,35 @@ async function init(machine: MachineConfig) {
 	console.log(`%cWorker:%c Initialized with "${machine.name}".`, COLORED_LOG, COLORDEFAULT_LOG);
 	self.postMessage({ type: "ready" });
 }
+
+/** Save state commands: `{ result }` or `{ error }`. Restoring stops the machine (as paused) first. */
+const saveStateCommand = (command: string, data: { name?: string; meta?: Record<string, unknown> }) => {
+	const views: MachineViews = {
+		registers: registersView as DataView,
+		stackMetadata: stackMetadataView as Uint8Array,
+		memory: memoryView as Uint8Array,
+		bus,
+	};
+	try {
+		switch (command) {
+			case "saveState":
+				return { result: saveMachineState(data.name as string, views, data.meta) };
+			case "restoreState": {
+				if (!hasMachineState(data.name as string)) return { result: undefined };
+				prepareForRestore();
+				const result = restoreMachineState(data.name as string, views);
+				if (result) video?.tick(); // the frame of the restored screen
+				return { result };
+			}
+			case "listStates":
+				return { result: listMachineStates() };
+			default:
+				return { result: deleteMachineStates(data.name) };
+		}
+	} catch (e) {
+		return { error: e instanceof Error ? e.message : String(e) };
+	}
+};
 
 /** Answers a request from the main thread (`VirtualMachine.request`): only when it carries an `id`. */
 const reply = (event: MessageEvent, data: object = {}) => {
@@ -186,6 +224,12 @@ self.onmessage = async (event: MessageEvent) => {
 				self.postMessage({ type: "reply", id: event.data.id, ...snapshot }, [snapshot.words.buffer]);
 			break;
 		}
+		case "saveState":
+		case "restoreState":
+		case "listStates":
+		case "deleteStates":
+			reply(event, saveStateCommand(command, event.data));
+			break;
 		case "refreshVideo":
 			if (video) video.tick();
 			reply(event);

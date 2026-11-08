@@ -24,6 +24,7 @@ import {
 	normalizeRanges,
 } from "@/lib/memorySearch.lib";
 import { useSymbols } from "@/composables/useSymbols";
+import { SAVE_STATES_MAX, type SaveStateInfo } from "@/virtualmachine/cpu/saveStates";
 import type { DisassemblyLine } from "@/types/disassemblyline.interface";
 import {
 	INSTRUCTION_TRACE_DEFAULT_SIZE,
@@ -469,6 +470,29 @@ const describeCandidate = (c: MemoryCandidate) => {
 		previous: hex(c.previous, 2),
 		value: hex(c.value, 2),
 	};
+};
+
+// ─── Save states ──────────────────────────────────────────────────────────────
+
+const DEFAULT_STATE_NAME = "default";
+
+type StateDisk = { key: string; name: string } | null;
+const stateDisk = (info: SaveStateInfo): StateDisk => (info.meta.disk as StateDisk | undefined) ?? null;
+
+const describeState = (info: SaveStateInfo) => ({
+	name: info.name,
+	pc: hex(info.pc, 4),
+	...(info.cycles !== undefined && { cycles: info.cycles }),
+	created: new Date(info.createdAt).toISOString(),
+	bytes: info.bytes,
+	disk: stateDisk(info),
+});
+
+const toStateName = (v: unknown) => {
+	if (v === undefined) return DEFAULT_STATE_NAME;
+	const name = toStr(v, "name").trim();
+	if (!name) throw new Error("name: must not be empty");
+	return name;
 };
 
 // ─── Tools ────────────────────────────────────────────────────────────────────
@@ -1105,6 +1129,105 @@ export const MCP_TOOLS: McpTool[] = [
 				...(notWritten.length && { not_written: notWritten }),
 				...(setPc && readRegisters(vm)),
 			});
+		},
+	},
+	{
+		name: "save_state",
+		description:
+			"Save the whole machine under `name` (default `default`; an existing state with that name is replaced): " +
+			"CPU registers, all memory (main / aux RAM, language card, ROMs), soft switches and the rest of the bus " +
+			"(keyboard latch, cycle counter…), the cards (mouse, the disk in the drive). restore_state puts it all back, " +
+			"to repeat an experiment from the same point (restore → patch → run → compare). Works running or paused " +
+			`(taken between two instructions). States live in the browser tab, at most ${SAVE_STATES_MAX}, and are ` +
+			"lost when the page reloads or the machine is rebuilt. Not saved: breakpoints, the instruction trace, " +
+			"labels / metadata, live inputs (joystick). Returns `result` (`saved` / `replaced`) and the state: `name`, " +
+			"`pc`, `cycles`, `created`, `bytes`, `disk` (the one in the drive).",
+		inputSchema: {
+			type: "object",
+			properties: { name: { type: "string", default: DEFAULT_STATE_NAME } },
+		},
+		async execute(input) {
+			const vm = await getVm();
+			const name = toStateName(input.name);
+			const existed = (await vm.listMachineStates()).some((st) => st.name === name);
+			const disk = useDiskDrive().inserted.value;
+			const info = await vm.saveMachineState(name, {
+				disk: disk ? { key: String(disk.key), name: disk.name } : null,
+			});
+			return json({ result: existed ? "replaced" : "saved", state: describeState(info) });
+		},
+	},
+	{
+		name: "restore_state",
+		description:
+			"Put the machine back as it was when save_state saved `name` (default `default`): registers, memory, " +
+			"soft switches, cards. The machine is left paused (patch with write_memory, then run_until / step). The " +
+			"state is kept: restore it as many times as needed. Breakpoints stay as they are now. If the disk in the " +
+			"drive has changed since, the machine gets the saved one back but the toolbar still shows the current one " +
+			"(`disk_note`). Returns the state and the registers.",
+		inputSchema: {
+			type: "object",
+			properties: { name: { type: "string", default: DEFAULT_STATE_NAME } },
+		},
+		async execute(input) {
+			const vm = await getVm();
+			const name = toStateName(input.name);
+			const info = await vm.restoreMachineState(name);
+			if (!info) {
+				const names = (await vm.listMachineStates()).map((st) => st.name);
+				throw new Error(
+					`name: no save state '${name}' (${names.length ? `have: ${names.join(", ")}` : "none saved"})`,
+				);
+			}
+			await waitForRunning(false, 1000);
+			vm.syncBusState(); // the main thread's copy of the soft switches
+			const saved = stateDisk(info);
+			const now = useDiskDrive().inserted.value;
+			const diskNote =
+				(saved?.key ?? null) !== (now ? String(now.key) : null)
+					? `the machine has the saved state's disk (${saved?.name ?? "none"}); the toolbar still shows ${now?.name ?? "no disk"}`
+					: undefined;
+			return json({
+				result: "restored",
+				state: describeState(info),
+				...(diskNote && { disk_note: diskNote }),
+				...readRegisters(vm),
+			});
+		},
+	},
+	{
+		name: "list_states",
+		description: "The save states (oldest first): `name`, `pc`, `cycles`, `created`, `bytes`, `disk`.",
+		inputSchema: { type: "object", properties: {} },
+		annotations: { readOnlyHint: true },
+		async execute() {
+			const vm = await getVm();
+			const states = await vm.listMachineStates();
+			return jsonWithList({ count: states.length, max: SAVE_STATES_MAX }, "states", states.map(describeState));
+		},
+	},
+	{
+		name: "delete_state",
+		description:
+			"Delete the save state `name`, or all of them with `all: true`. Deleting one that doesn't exist is not an " +
+			"error: `result` is `not_found`.",
+		inputSchema: {
+			type: "object",
+			properties: {
+				name: { type: "string" },
+				all: { type: "boolean", description: "Delete every save state; ignores `name`" },
+			},
+		},
+		async execute(input) {
+			const vm = await getVm();
+			if (input.all === true) {
+				const deleted = await vm.deleteMachineStates();
+				return json({ result: "deleted", count: deleted.length, deleted });
+			}
+			if (input.name === undefined) throw new Error("name: required (or `all: true`)");
+			const name = toStateName(input.name);
+			const deleted = await vm.deleteMachineStates(name);
+			return json({ result: deleted.length ? "deleted" : "not_found", name });
 		},
 	},
 	{

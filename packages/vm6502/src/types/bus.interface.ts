@@ -77,6 +77,14 @@ export interface IBus {
 	/** Saves the internal state of the bus (e.g., softswitch flags). */
 	saveState?(): Dict;
 
+	/**
+	 * Everything the bus and its devices hold outside memory (soft switches, counters, cards…), for a save
+	 * state: `restoreSnapshot` puts it back. Structured-cloneable; may share immutable data (a disk image).
+	 * Live inputs (joystick, paddle positions) are not part of it.
+	 */
+	snapshot?(): unknown;
+	restoreSnapshot?(state: unknown): void;
+
 	setRegistersView?(view: DataView): void;
 	syncState?(): void;
 	syncStateFromBuffer?(view: DataView): Dict;

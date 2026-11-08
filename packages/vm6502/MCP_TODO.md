@@ -97,8 +97,23 @@ Still open, by priority (reviewed 2026-11-08: what blocks the use cases above):
        of the page as drawn: scaled, with the integer-scaling bands).
        Encoded as an 8-bit indexed PNG by `src/lib/png.lib.ts` (no dependency, `CompressionStream`). Tools can now
        answer MCP content blocks (`{ content: [...] }`) besides text; the WS bridge and the Node relay pass them on.
-5. [ ] **Full save states**: memory + CPU + soft switches + disk position, to make experiments repeatable
-       (restore → patch → compare). `bus.saveState` only covers the soft switches today: the biggest job here.
+5. [x] **Full save states**: `save_state({ name? })` / `restore_state({ name? })` / `list_states` / `delete_state`
+       (default name `default`). A state (`src/virtualmachine/cpu/saveStates.ts`, kept in the worker, at most 32,
+       ~150 KB each on the //e) is the CPU registers, the debugger's stack metadata, the whole memory section of the
+       shared buffer (main / aux RAM, LC banks, ROMs) and `IBus.snapshot()`: on the //e the soft switches, LC
+       pre-write count, Video-7 registers, keyboard latch, colors, `totalCycles`, active expansion slot, paddle
+       timers, and each card's `snapshot()` (mouse position / clamps / mode; SmartPort's disk image, shared, not
+       copied: the card never writes it). Not the live inputs (joystick, paddle positions), the speaker, breakpoints,
+       the trace or the metadata. Saved / restored between two run-loop time slices (consistent while running);
+       restoring stops the machine (`prepareForRestore`: as a pause, forgets the BRK / step-out it was on), redraws
+       the frame, and the bus rewrites the shared soft switch bytes (`syncState`, which toggles `fakingVBL`: put
+       back). The tab passes the drive's disk as metadata: `restore_state` says (`disk_note`) when the toolbar shows
+       another one. Lost when the VM is rebuilt (reload, `reboot`).
+       Checked: `machines/apple2/tests/saveState.test.ts` on the real //e (state back exactly; 50k instructions
+       replayed from a restored state end identical); live on Conan: restore → `memory_diff changed` = 0 of 98304,
+       and 20000 steps twice from the state give the same registers and memory.
+       Possible next: keep states across reloads (IndexedDB) / export them; a disk that can be written would need
+       copy-on-write in the card.
 
 Lower: exec_command already reaches them, or they are comfort.
 - [ ] labels / comments / data-format CRUD as structured tools (`defLabel`, `comment`, `defData`, `labels`,

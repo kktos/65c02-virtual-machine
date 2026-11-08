@@ -45,6 +45,15 @@ export class MouseCard implements ISlotCard {
 	// Bits	4-7 : Reserved
 	private mode = 0;
 
+	public snapshot() {
+		const { x, y, lastButton0, button0, minX, maxX, minY, maxY, mode } = this;
+		return { x, y, lastButton0, button0, minX, maxX, minY, maxY, mode };
+	}
+
+	public restoreSnapshot(state: unknown) {
+		Object.assign(this, state as ReturnType<MouseCard["snapshot"]>);
+	}
+
 	constructor(
 		private bus: IBus,
 		public slot: number,

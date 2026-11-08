@@ -135,6 +135,48 @@ const allRegions: MemRegionSearch[] = [
 		bankTest: (b: number) => b > 0,
 	},
 ];
+// What a save state keeps of the bus, besides memory (shared buffer) and the cards. Not the live inputs
+// (joystick buttons, paddle positions: read from the shared registers at each tick) nor the speaker.
+const SNAPSHOT_FIELDS = [
+	"activeExpansionSlot",
+	"lcBank2",
+	"lcReadRam",
+	"lcWriteRam",
+	"lcPreWriteCount",
+	"store80",
+	"ramRdAux",
+	"ramWrAux",
+	"altZp",
+	"auxMemBank",
+	"intCxRom",
+	"intC8Rom",
+	"slotC3Rom",
+	"col80",
+	"altChar",
+	"text",
+	"mixed",
+	"page2",
+	"hires",
+	"fakingVBL",
+	"dblRes",
+	"video7Register",
+	"video7SeqState",
+	"video7NextBit",
+	"tbColor",
+	"brdrColor",
+	"lastKey",
+	"keyStrobe",
+	"kbd_pb0",
+	"kbd_pb1",
+	"totalCycles",
+] as const;
+type SnapshotField = (typeof SNAPSHOT_FIELDS)[number];
+type AppleBusSnapshot = {
+	fields: Record<SnapshotField, number | boolean>;
+	paddleTimers: [number, number, number, number];
+	cards: unknown[];
+};
+
 export class AppleBus implements IBus {
 	public memory: Uint8Array;
 	private registers?: DataView;
@@ -1073,6 +1115,27 @@ export class AppleBus implements IBus {
 			hires: this.hires,
 			dblRes: this.dblRes,
 		};
+	}
+
+	public snapshot(): AppleBusSnapshot {
+		const fields: Partial<Record<SnapshotField, number | boolean>> = {};
+		for (const key of SNAPSHOT_FIELDS) fields[key] = this[key];
+		return {
+			fields: fields as Record<SnapshotField, number | boolean>,
+			paddleTimers: [...this.paddleTimers],
+			cards: this.slots.map((card) => card?.snapshot?.()),
+		};
+	}
+
+	public restoreSnapshot(state: unknown) {
+		const { fields, paddleTimers, cards } = state as AppleBusSnapshot;
+		Object.assign(this, fields);
+		this.paddleTimers = [...paddleTimers];
+		this.slots.forEach((card, slot) => {
+			if (cards[slot] !== undefined) card?.restoreSnapshot?.(cards[slot]);
+		});
+		this.syncState(); // the soft switches the main thread and the UI read
+		this.fakingVBL = fields.fakingVBL as boolean; // syncState toggles it (once per frame)
 	}
 
 	public insertMedia(data: Uint8Array, metadata?: Record<string, unknown>) {

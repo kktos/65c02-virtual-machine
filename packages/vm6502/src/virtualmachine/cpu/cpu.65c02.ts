@@ -149,6 +149,16 @@ export function setRunning(running: boolean, stop?: StopInfo) {
 	}
 }
 
+/**
+ * Before a save state is put back: the machine is stopped (as paused) and forgets where it was
+ * (stopped on a BRK, stepping out), which belonged to the state being replaced.
+ */
+export function prepareForRestore() {
+	stoppedOnBrkAt = null;
+	if (isRunning) setRunning(false, { reason: "pause" });
+	stepOutTargetSP = null;
+}
+
 export function setClockSpeed(speed: number) {
 	if (speed >= 0) {
 		clockSpeedMhz = speed;

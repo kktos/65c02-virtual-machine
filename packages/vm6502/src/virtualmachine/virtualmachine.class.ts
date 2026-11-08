@@ -1,5 +1,6 @@
 import { ref } from "vue";
 import type { TraceSnapshot } from "./cpu/instructionTrace";
+import type { SaveStateInfo, SaveStateMeta } from "./cpu/saveStates";
 import type { Dict } from "@/types/dict.type";
 import type { MachineConfig } from "@/types/machine.interface";
 import type { IBus } from "@/types/bus.interface";
@@ -517,6 +518,21 @@ export class VirtualMachine {
 	};
 	/** Redraws the frame from memory (the screen isn't redrawn while paused); resolves once it is drawn. */
 	public refreshVideo = (): Promise<void> => this.request("refreshVideo").then(() => undefined);
+
+	/** Save states (cpu/saveStates.ts), kept in the worker: lost when the VM is rebuilt. */
+	private stateRequest = async <T>(command: string, data: object): Promise<T> => {
+		const answer = await this.request<{ result?: T; error?: string }>(command, data);
+		if (answer.error) throw new Error(answer.error);
+		return answer.result as T;
+	};
+	public saveMachineState = (name: string, meta: SaveStateMeta = {}) =>
+		this.stateRequest<SaveStateInfo>("saveState", { name, meta });
+	/** Stops the machine (as paused) and puts the state back; undefined when there is no state `name`. */
+	public restoreMachineState = (name: string) =>
+		this.stateRequest<SaveStateInfo | undefined>("restoreState", { name });
+	public listMachineStates = () => this.stateRequest<SaveStateInfo[]>("listStates", {});
+	/** Without a name, deletes them all. Returns the names deleted. */
+	public deleteMachineStates = (name?: string) => this.stateRequest<string[]>("deleteStates", { name });
 
 	/**
 	 * The screen as a PNG, as displayed: the visible part of the video buffer (border included), at its
