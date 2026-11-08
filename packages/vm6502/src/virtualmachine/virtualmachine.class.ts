@@ -24,7 +24,12 @@ import {
 	REG_Y_OFFSET,
 	STACK_METADATA_OFFSET,
 } from "@/virtualmachine/cpu/shared-memory";
-import { VideoOutput, type VideoViewRect } from "@/virtualmachine/video/video.output";
+import {
+	cropVideoBuffer,
+	grayscalePalette,
+	VideoOutput,
+	type VideoViewRect,
+} from "@/virtualmachine/video/video.output";
 import { useMemoryMap } from "../composables/useMemoryMap";
 import { parseHexData } from "../lib/array.utils";
 import type { Breakpoint } from "../types/breakpoint.interface";
@@ -32,6 +37,7 @@ import { applyHypercall } from "./hypercall";
 import type { StepResult, StopInfo } from "@/types/stopinfo.interface";
 import type { EmulatorRegisters } from "@/types/emulatorstate.interface";
 import { logBus } from "./logbus.class";
+import { encodeIndexedPng } from "@/lib/png.lib";
 
 const MACHINES_BASE_PATH = "../machines";
 const busModules = import.meta.glob("../machines/*/*.bus.ts");
@@ -43,6 +49,9 @@ const kbdElements = new Set<string>(["INPUT", "TEXTAREA", "SELECT"]);
 let audioCtx: AudioContext | null = null;
 let nextStartTime = 0;
 
+/** The screen as a PNG image of `width` x `height` pixels. */
+export type Screenshot = { width: number; height: number; png: Uint8Array };
+
 export class VirtualMachine {
 	public sharedBuffer: SharedArrayBuffer;
 	public sharedRegisters: DataView;
@@ -51,10 +60,12 @@ export class VirtualMachine {
 	public videoBuffer?: SharedArrayBuffer;
 	public videoMemory?: Uint8Array;
 	private videoOutput?: VideoOutput;
-	private pendingPalette: Uint8Array | null = null;
+	// The palette and the visible part of the video buffer, as last sent by the machine's video.
+	// They can arrive before the canvas is attached (applied in initVideo); screenshot uses them too.
+	private palette: Uint8Array | null = null;
+	private viewRect: VideoViewRect | null = null;
 	// The video options can arrive before the canvas is attached; kept here and applied in initVideo
 	private integerScaling = false;
-	private pendingViewRect: VideoViewRect | null = null;
 	public busState: Dict = {};
 	private isRendering = false;
 	private _isRunning = false;
@@ -143,11 +154,11 @@ export class VirtualMachine {
 					break;
 				default:
 					if (command === "setPalette") {
-						if (this.videoOutput) this.videoOutput.setPalette(colors);
-						else this.pendingPalette = colors;
+						this.palette = colors;
+						this.videoOutput?.setPalette(colors);
 					} else if (command === "setViewRect") {
-						if (this.videoOutput) this.videoOutput.setViewRect(event.data.rect);
-						else this.pendingViewRect = event.data.rect;
+						this.viewRect = event.data.rect;
+						this.videoOutput?.setViewRect(event.data.rect);
 					} else {
 						this.onmessage?.(event);
 					}
@@ -288,14 +299,8 @@ export class VirtualMachine {
 			this.machineConfig.video.height,
 		);
 
-		if (this.pendingPalette) {
-			this.videoOutput.setPalette(this.pendingPalette);
-			this.pendingPalette = null;
-		}
-		if (this.pendingViewRect) {
-			this.videoOutput.setViewRect(this.pendingViewRect);
-			this.pendingViewRect = null;
-		}
+		if (this.palette) this.videoOutput.setPalette(this.palette);
+		if (this.viewRect) this.videoOutput.setViewRect(this.viewRect);
 		this.videoOutput.setIntegerScaling(this.integerScaling);
 
 		this.isRendering = true;
@@ -510,7 +515,24 @@ export class VirtualMachine {
 		this.traceOverflow.value = false;
 		this.lastTraceHead = "";
 	};
-	public refreshVideo = () => this.worker.postMessage({ command: "refreshVideo" });
+	/** Redraws the frame from memory (the screen isn't redrawn while paused); resolves once it is drawn. */
+	public refreshVideo = (): Promise<void> => this.request("refreshVideo").then(() => undefined);
+
+	/**
+	 * The screen as a PNG, as displayed: the visible part of the video buffer (border included), at its
+	 * resolution, built from the buffer and the palette (not the canvas: exact pixels, whatever the canvas
+	 * size or scaling). When paused, the frame is redrawn from memory first.
+	 * Used by the toolbar's Save Screenshot and the MCP `screenshot` tool. Undefined if the machine has no video.
+	 */
+	public async screenshot(): Promise<Screenshot | undefined> {
+		const video = this.machineConfig.video;
+		if (!video || !this.videoMemory) return undefined;
+		if (!this._isRunning) await this.refreshVideo();
+		const { width, height, ...rect } = this.viewRect ?? { x: 0, y: 0, width: video.width, height: video.height };
+		const pixels = cropVideoBuffer(this.videoMemory, video.width, { ...rect, width, height });
+		const png = await encodeIndexedPng(width, height, pixels, this.palette ?? grayscalePalette());
+		return { width, height, png };
+	}
 	public mute = (enabled: boolean) => this.worker.postMessage({ command: "mute", enabled });
 
 	public getBank(address: number) {

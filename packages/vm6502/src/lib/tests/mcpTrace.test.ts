@@ -47,7 +47,7 @@ const { findTool } = await import("@/lib/mcp/tools");
 const call = (input: Record<string, unknown> = {}) =>
 	findTool("get_trace")!
 		.execute(input, {})
-		.then((r) => JSON.parse(r));
+		.then((r) => JSON.parse(r as string));
 
 describe("get_trace tool", () => {
 	beforeEach(() => {

@@ -50,7 +50,7 @@ const { findTool } = await import("@/lib/mcp/tools");
 const call = (input: Record<string, unknown>) =>
 	findTool("disassemble")!
 		.execute(input, {})
-		.then((r) => JSON.parse(r));
+		.then((r) => JSON.parse(r as string));
 
 describe("disassemble tool", () => {
 	it("returns one entry per instruction, with labels, targets and comments", async () => {
@@ -96,7 +96,7 @@ describe("disassemble tool", () => {
 	});
 
 	it("puts each line on one line of output", async () => {
-		const text = await findTool("disassemble")!.execute({ address: 0x300, count: 3 }, {});
+		const text = (await findTool("disassemble")!.execute({ address: 0x300, count: 3 }, {})) as string;
 		expect(text.split("\n").filter((l) => l.includes('"instruction"'))).toHaveLength(3);
 	});
 

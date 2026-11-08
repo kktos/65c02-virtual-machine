@@ -15,6 +15,7 @@ import type { StopInfo } from "@/types/stopinfo.interface";
 import type { Breakpoint } from "@/types/breakpoint.interface";
 import { HYPERCALL_NAMES } from "@/lib/hypercalls.lib";
 import { disassemble } from "@/lib/disassembler";
+import { bytesToBase64 } from "@/lib/png.lib";
 import type { DisassemblyLine } from "@/types/disassemblyline.interface";
 import {
 	INSTRUCTION_TRACE_DEFAULT_SIZE,
@@ -43,14 +44,20 @@ import {
 export type JsonSchema = Record<string, unknown>;
 export type ToolInput = Record<string, unknown>;
 
+/** An MCP content block: what a tool can answer besides plain text. */
+export type McpContent = { type: "text"; text: string } | { type: "image"; data: string; mimeType: string };
+
+/** Text (most tools), or MCP content blocks (e.g. an image), passed through as they are by the transports. */
+export type McpToolResult = string | { content: McpContent[] };
+
 export type McpTool = {
 	name: string;
 	description: string;
 	/** JSON Schema of the input (always an object schema). */
 	inputSchema: JsonSchema & { type: "object" };
 	annotations?: { readOnlyHint?: boolean };
-	/** Returns the text handed back to the agent. Throws on error. */
-	execute: (input: ToolInput, ctx: { signal?: AbortSignal }) => Promise<string>;
+	/** Returns what is handed back to the agent. Throws on error. */
+	execute: (input: ToolInput, ctx: { signal?: AbortSignal }) => Promise<McpToolResult>;
 };
 
 /** What a transport needs to advertise a tool (everything but `execute`). */
@@ -533,6 +540,27 @@ export const MCP_TOOLS: McpTool[] = [
 			if (shown?.shown === "mixed") notes.push("mixed mode: only the last 4 rows are on screen");
 			const header = `[page ${read.page}, ${read.cols} cols${notes.length ? ` — ${notes.join("; ")}` : ""}]`;
 			return [header, ...bus.getTextScreen(read)].join("\n");
+		},
+	},
+	{
+		name: "screenshot",
+		description:
+			"The screen as a PNG image, as displayed: any video mode (text, GR, HGR, double hi-res…) with the " +
+			"border, at the video buffer's resolution (Apple //e: 640x480, the 560x384 picture in its border, " +
+			"so a hi-res pixel is 2x2). When paused, the frame is redrawn from memory first. For text, " +
+			"screen_text is exact and much cheaper.",
+		inputSchema: { type: "object", properties: {} },
+		annotations: { readOnlyHint: true },
+		async execute() {
+			const vm = await getVm();
+			const shot = await vm.screenshot();
+			if (!shot) throw new Error(`No video output for ${vm.machineConfig.name}`);
+			return {
+				content: [
+					{ type: "image", data: bytesToBase64(shot.png), mimeType: "image/png" },
+					{ type: "text", text: json({ width: shot.width, height: shot.height, running: vm.isRunning }) },
+				],
+			};
 		},
 	},
 	{

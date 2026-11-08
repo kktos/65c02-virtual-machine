@@ -27,7 +27,9 @@ vi.mock("@/composables/useSymbols", () => ({ useSymbols: () => ({ getAddressForL
 
 const { findTool } = await import("@/lib/mcp/tools");
 const call = (name: string, input: Record<string, unknown> = {}) =>
-	findTool(name)!.execute(input, {}).then((r) => JSON.parse(r));
+	findTool(name)!
+		.execute(input, {})
+		.then((r) => JSON.parse(r as string));
 
 describe("step tool", () => {
 	beforeEach(() => {

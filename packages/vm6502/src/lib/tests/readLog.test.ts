@@ -11,7 +11,7 @@ const { useLogWindows } = await import("@/composables/useLogWindows");
 const readLog = (input: Record<string, unknown> = {}) =>
 	findTool("read_log")!
 		.execute(input, {})
-		.then((r) => JSON.parse(r));
+		.then((r) => JSON.parse(r as string));
 
 // Log windows are module state: each test uses its own window names.
 let n = 0;

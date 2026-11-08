@@ -18,7 +18,8 @@ The same registry is also exposed through [WebMCP](https://developer.chrome.com/
 The browser is the WebSocket client, so the bridge is opt-in: open the app with `?mcp`
 (or `?mcp=<port>`). The newest connected tab wins. The server only listens on 127.0.0.1.
 
-To add a tool: add an entry to `MCP_TOOLS` in `tools.ts`. Nothing to change here.
+To add a tool: add an entry to `MCP_TOOLS` in `tools.ts`. Nothing to change here. A tool answers text,
+or MCP content blocks (`{ content: [...] }`, e.g. an image) that the server passes on as they are.
 
 ## Setup (Claude Code)
 
@@ -41,6 +42,7 @@ Then run `pnpm dev` and open `http://localhost:5173/?mcp`.
 | `disassemble` | JSON disassembly with labels / comments / data formats; paginated (`count`, `end_address`, `next_address`) |
 | `get_registers` | CPU registers, flags, running state |
 | `screen_text` | Apple II text screen as text: the displayed one by default (page 1/2, 40/80 cols), with a header saying which |
+| `screenshot` | The screen as a PNG image, as displayed (any video mode, border included; //e: 640x480) |
 | `read_log` | Lines of a log window (`hyper` = hypercall logs), with a cursor to get only new lines |
 | `type_keys` | Type on the emulated keyboard (`\n` = Return) |
 | `run_until` | Resume and **block** until a stop (BP, BRK, pause) or timeout; optional temp PC breakpoint |

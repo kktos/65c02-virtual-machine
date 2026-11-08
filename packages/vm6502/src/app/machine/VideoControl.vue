@@ -29,6 +29,8 @@
 import { Camera, Monitor } from "lucide-vue-next";
 import { computed, ref } from "vue";
 import DebugOptionsPopover from "@/components/DebugOptionsPopover.vue";
+import { useMachine } from "@/composables/useMachine";
+import { bytesToBase64 } from "@/lib/png.lib";
 
 const debugOptionsPopover = ref<InstanceType<typeof DebugOptionsPopover> | null>(null);
 const debugOverrides = computed(() => debugOptionsPopover.value?.debugOverrides || {});
@@ -39,13 +41,15 @@ const activeMode = computed(() => {
 	return String(mode);
 });
 
-const saveSnapshot = () => {
-	const canvas = document.querySelector("canvas");
-	if (canvas) {
-		const link = document.createElement("a");
-		link.download = `snapshot-${new Date().toISOString().replace(/[:.]/g, "-")}.png`;
-		link.href = canvas.toDataURL("image/png");
-		link.click();
-	}
+const { vm } = useMachine();
+
+// The same capture as the MCP `screenshot` tool: the emulator's frame at its resolution, not the canvas
+const saveSnapshot = async () => {
+	const shot = await vm.value?.screenshot();
+	if (!shot) return;
+	const link = document.createElement("a");
+	link.download = `snapshot-${new Date().toISOString().replace(/[:.]/g, "-")}.png`;
+	link.href = `data:image/png;base64,${bytesToBase64(shot.png)}`;
+	link.click();
 };
 </script>

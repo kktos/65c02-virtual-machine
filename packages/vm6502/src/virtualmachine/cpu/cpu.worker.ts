@@ -188,6 +188,7 @@ self.onmessage = async (event: MessageEvent) => {
 		}
 		case "refreshVideo":
 			if (video) video.tick();
+			reply(event);
 			break;
 		case "setDebugOverrides":
 			switch (event.data.category) {
