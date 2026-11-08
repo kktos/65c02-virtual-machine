@@ -82,6 +82,11 @@ export interface MachineSpeed {
 export interface MachineConfig {
 	name: string;
 	speed?: number;
+	/**
+	 * Run `BRK <cmd>` (cmd $01-$04) as a hypercall (log, add memory region…) instead of a BRK.
+	 * Off by default: real software can have those bytes after a BRK.
+	 */
+	hypercalls?: boolean;
 	memory: MemoryConfig;
 	regions?: MemoryRegion[];
 	bus: {

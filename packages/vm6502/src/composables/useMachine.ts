@@ -12,10 +12,14 @@ import type { EmulatorRegisters } from "@/types/emulatorstate.interface";
 import { useCommands } from "./useCommands";
 import { useRoutines } from "./useRoutines";
 import type { RegisterDescriptor } from "@/types/registers";
+import { setHypercallDisassembly } from "@/lib/hypercalls.lib";
 
 // Initialize global state with the default machine (same default as App.vue used)
 const selectedMachine = ref<MachineConfig>(availableMachines[1] as MachineConfig);
 const isRunning = ref(false);
+// "Break on BRK": stop the CPU on a BRK instead of running it. On by default (the worker's default too);
+// kept here so it survives a machine change and the toolbar and the `brk` command agree.
+const breakOnBrk = ref(true);
 const videoCanvas = ref<HTMLCanvasElement | null>(null);
 const vm = shallowRef<VirtualMachine | null>(null);
 const registers: EmulatorRegisters = reactive({
@@ -105,6 +109,7 @@ const loadMachine = async (newMachine?: MachineConfig) => {
 
 	console.log(`Main: Loading machine ${selectedMachine.value.name}`);
 
+	setHypercallDisassembly(!!selectedMachine.value.hypercalls);
 	const newVm = new VirtualMachine(selectedMachine.value);
 	vm.value = markRaw<VirtualMachine>(newVm);
 	setupVmListeners(newVm);
@@ -117,6 +122,7 @@ const loadMachine = async (newMachine?: MachineConfig) => {
 
 	newVm.ready.then(() => {
 		newVm.initAudio();
+		newVm.setBreakOnBrk(breakOnBrk.value);
 	});
 
 	{
@@ -167,6 +173,11 @@ const addVirtualRegister = (vr: RegisterDescriptor) => {
 	virtualRegisters.value.push(vr);
 };
 
+const setBreakOnBrk = (enabled: boolean) => {
+	breakOnBrk.value = enabled;
+	vm.value?.setBreakOnBrk(enabled);
+};
+
 export function useMachine() {
 	return {
 		selectedMachine,
@@ -177,5 +188,7 @@ export function useMachine() {
 		registers,
 		virtualRegisters: readonly(virtualRegisters),
 		addVirtualRegister,
+		breakOnBrk: readonly(breakOnBrk),
+		setBreakOnBrk,
 	};
 }

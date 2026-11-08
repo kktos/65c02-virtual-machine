@@ -6,6 +6,7 @@ import { defLabel } from "./defLabel.cmd";
 import { font } from "./font.cmd";
 import { hideCmd } from "./hide.cmd";
 import { hook } from "./hook.cmd";
+import { brkCmd } from "./brk.cmd";
 import { labelsCmd } from "./labels.cmd";
 import { formatsCmd } from "./formats.cmd";
 import { importLegacyCmd } from "./importLegacy.cmd";
@@ -222,6 +223,7 @@ export const COMMANDDEF_LIST = {
 		fn: execRemoveBP("read"),
 		group: "Breakpoints",
 	},
+	BRK: brkCmd,
 
 	EXPLAIN: explainCmd,
 	LOG: logCmd,

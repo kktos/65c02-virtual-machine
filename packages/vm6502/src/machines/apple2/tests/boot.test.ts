@@ -29,13 +29,15 @@ const boot = (): Machine => {
 
 const pc = (m: Machine) => m.regs.getUint16(REG_PC_OFFSET, true);
 
-/** Steps until `until` is true; fails on BRK (every BRK stops the CPU). */
+/**
+ * Steps until `until` is true; fails on BRK. Checked before each step: stepping executes a BRK
+ * (through $FFFE) rather than stopping on it, so the CPU doesn't report it.
+ */
 const runUntil = (m: Machine, until: () => boolean, maxSteps = 3_000_000) => {
 	for (let i = 0; i < maxSteps; i++) {
 		if (until()) return;
+		if (m.bus.readDebug(pc(m)) === 0x00) throw new Error(`BRK at $${pc(m).toString(16).toUpperCase()}`);
 		stepInstruction();
-		const brk = m.messages.find((msg) => msg.type === "break");
-		if (brk) throw new Error(`BRK at $${pc(m).toString(16).toUpperCase()}`);
 		m.messages.length = 0;
 	}
 	throw new Error(`not reached after ${maxSteps} instructions (PC=$${pc(m).toString(16).toUpperCase()})`);
@@ -73,4 +75,12 @@ describe("//e boot with no disk in the SmartPort drive (slot 5)", () => {
 		m.regs.setUint16(REG_PC_OFFSET, 0xc500, true);
 		runUntil(m, () => pc(m) === 0xe000, 10_000);
 	});
+});
+
+it("runUntil fails on a BRK (the check the tests above rely on)", () => {
+	const m = boot();
+	m.bus.write(0x300, 0xea); // NOP
+	m.bus.write(0x301, 0x00); // BRK
+	m.regs.setUint16(REG_PC_OFFSET, 0x300, true);
+	expect(() => runUntil(m, () => false, 10)).toThrow("BRK at $301");
 });

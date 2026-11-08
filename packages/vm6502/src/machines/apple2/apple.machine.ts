@@ -7,6 +7,7 @@ import { initRoutine } from "./scripts/init";
 
 export const apple2e: MachineConfig = {
 	name: "Apple //e",
+	hypercalls: true,
 	memory: memoryConfig,
 	css: ["apple2/fonts/fonts.css"],
 	bus: { class: "AppleBus", path: "apple2/apple.bus" },

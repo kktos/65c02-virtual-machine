@@ -10,9 +10,9 @@ export type StopInfo =
 	| { reason: "breakpoint"; breakpointType: string; address: number }
 	/** step over / step out finished */
 	| { reason: "step"; address: number }
-	/** BRK instruction */
+	/** BRK instruction, when "break on BRK" is on */
 	| { reason: "brk"; address: number }
-	/** BRK that is a hypercall: the main thread runs it and resumes (set by the VM on the main thread) */
+	/** BRK that is a hypercall (machine has `hypercalls` on): the main thread runs it and resumes */
 	| { reason: "hypercall"; address: number }
 	/** unimplemented opcode */
 	| { reason: "error"; address: number; message: string };

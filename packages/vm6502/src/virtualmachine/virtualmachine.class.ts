@@ -27,7 +27,7 @@ import { VideoOutput, type VideoViewRect } from "@/virtualmachine/video/video.ou
 import { useMemoryMap } from "../composables/useMemoryMap";
 import { parseHexData } from "../lib/array.utils";
 import type { Breakpoint } from "../types/breakpoint.interface";
-import { executeHypercallCmd, HYPERCALL_COMMANDS } from "./hypercall";
+import { executeHypercallCmd } from "./hypercall";
 import type { StopInfo } from "@/types/stopinfo.interface";
 import type { EmulatorRegisters } from "@/types/emulatorstate.interface";
 import { logBus } from "./logbus.class";
@@ -124,15 +124,13 @@ export class VirtualMachine {
 					if (!this._isRunning) this.recordStop(event.data.stop);
 					this.onmessage?.(event);
 					break;
-				case "break": {
-					// It's a BRK instruction. Check for hypercalls.
-					const { wasRunning } = event.data;
-					const hypercallCommand = this.read(address + 1);
-					if (HYPERCALL_COMMANDS.has(hypercallCommand))
-						executeHypercallCmd(this, hypercallCommand, address, wasRunning);
-					else this.onmessage?.(event);
+				case "hypercall":
+					// The worker stopped on `BRK <cmd>`: run it, move PC past it, resume if it was running.
+					executeHypercallCmd(this, this.read(address + 1), address, event.data.wasRunning);
 					break;
-				}
+				case "break":
+					this.onmessage?.(event);
+					break;
 				case "breakpointHit":
 					this.onmessage?.(event);
 					break;
@@ -230,6 +228,7 @@ export class VirtualMachine {
 			command: "init",
 			machine: {
 				name: this.machineConfig.name,
+				hypercalls: !!this.machineConfig.hypercalls,
 				bus: {
 					path: this.machineConfig.bus.path,
 					class: this.machineConfig.bus.class,
@@ -263,9 +262,6 @@ export class VirtualMachine {
 
 	private recordStop(stop: StopInfo | undefined) {
 		if (!stop) return;
-		// The main thread runs hypercalls and resumes, so this stop is transient.
-		if (stop.reason === "brk" && HYPERCALL_COMMANDS.has(this.readDebug(stop.address + 1)))
-			stop = { reason: "hypercall", address: stop.address };
 		this._lastStop = stop;
 	}
 

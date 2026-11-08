@@ -203,6 +203,8 @@ export const MCP_TOOLS: McpTool[] = [
 			"covering that address or overlapping that range, so use it to check whether one is set. " +
 			"`bp`/`bpr`/`bpw`/`bpa` add one (answers `already set` for a duplicate), `bc`/`bcr`/`bcw`/`bca` remove one " +
 			"(answers `No breakpoint …` if there was none). " +
+			"`brk on|off`: whether a BRK stops the machine (on by default, so a crash into zeroed memory stops " +
+			"there) or runs through the $FFFE vector like real hardware (e.g. into the Apple II monitor). " +
 			"Several lines can be sent at once (newline-separated); multi-line commands (`asm`, `routine`…) " +
 			"must include their lines and terminator in the same call. " +
 			"Waits for its turn if another command is running. " +
@@ -297,7 +299,7 @@ export const MCP_TOOLS: McpTool[] = [
 			"With `address`, a temporary PC breakpoint is set there first. " +
 			"On timeout the machine is paused (unless pause_on_timeout is false). Returns the registers and `stopped`: " +
 			"`reached_address`, `breakpoint` (with its type and address; for read/write breakpoints the address is the " +
-			"memory accessed, PC is the instruction), `brk`, `step` (step over/out done), `error` (unimplemented opcode), " +
+			"memory accessed, PC is the instruction), `brk` (when break on BRK is on; resuming then executes it), `step` (step over/out done), `error` (unimplemented opcode), " +
 			"`pause` (paused by someone else), `reset`, or `timeout (paused)` / `cancelled (…)`. " +
 			"Hypercall BRKs (the machine resumes by itself) don't stop the wait.",
 		inputSchema: {

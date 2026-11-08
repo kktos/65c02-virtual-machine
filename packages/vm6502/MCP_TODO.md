@@ -75,8 +75,14 @@ Next:
       nothing to return to (the slot scan enters with `JMP ($0000)`) → $0001 → BRK. Its error path now resumes
       the slot scan ($FABA) like real boot ROMs, or cold-starts BASIC when not called by the scan.
       `src/machines/apple2/tests/boot.test.ts` boots the real //e in Node.
-- [ ] every BRK stops the CPU: `isHyperCallActive` is a constant `true` in `cpu.65c02.ts`, so the
-      "break on BRK" toggle has no effect and a BRK never goes through the $FFFE vector
+- [x] every BRK stopped the CPU: `isHyperCallActive` was a constant `true` in `cpu.65c02.ts`, so the
+      "break on BRK" toggle had no effect, a BRK never went through $FFFE, stepping stayed stuck on it,
+      and `BRK $01-$04` in real software ran as a hypercall. The worker now decides: hypercall (only if
+      the machine sets `hypercalls: true`; the //e does, Klaus doesn't) → stop as `hypercall`; else
+      break on BRK (on by default; toolbar or `brk on|off`) and running → stop as `brk`, and resuming
+      executes it; else a real BRK through $FFFE, with B set in the pushed P. Stepping always executes
+      it. The disassembler only decodes hypercalls on machines that have them.
+- [ ] hypercalls without stopping the CPU — see "Hypercalls: run them without a stop" below
 - [x] `exec_command` failed if the user's console was busy. Commands are now queued (`runCommand` in
       `useCommands`): every caller (console, breakpoint commands, init, MCP) waits for its turn and gets
       its own output. MCP refuses while the user's console is in multi-line mode, and closes a
@@ -86,6 +92,40 @@ Next:
       The monitor now throws `Unknown command: …` for any word other than `G` / `L`, a register or a label.
 - [ ] WebMCP: try it for real (enable the flag), check how long-running `run_until` behaves
 - [ ] mark tools that change state (`write_memory`, …) with `consequentialHint` for WebMCP
+
+## Hypercalls: run them without a stop
+
+Today a hypercall is a round trip: the worker stops the CPU (`isRunning: false`, reason `hypercall`)
+and posts `hypercall`; the main thread (`executeHypercallCmd`) reads the arguments from memory, does
+the work (log line, memory-map region), moves PC past the call and sends `run`. Costs:
+
+- two messages and a stop / restart per call: a hypercall in a loop runs at message speed, and each
+  restart resets the run loop's timing;
+- `run_until` has to special-case `hypercall` stops, and `isRunning` flickers for the UI;
+- `LOG_REGS` reads the registers from shared memory, which is right only because the CPU is stopped;
+  likewise the arguments are read after the fact.
+
+Idea: the worker does the CPU side itself and never stops:
+
+1. Decode the call in the worker: its length (`LOG_STRING` must scan the format string for `%h` to
+   know how many argument bytes follow; the others are fixed or count-based) and a snapshot of what
+   the main thread needs, taken now: registers for `LOG_REGS`, argument bytes, the strings.
+2. Post a fire-and-forget `{ type: "hypercall", cmd, pc, regs, payload }`, move PC past the call
+   and carry on in the same time slice.
+3. The main thread only applies the side effect (`logBus.emit`, `addRegion` / `removeRegions`).
+
+Gains: no stop / resume; `hypercall` can leave `StopInfo` and `run_until`; same behaviour when
+running and stepping; the log shows the state at the call, not a moment later.
+
+To settle:
+
+- one decoder for the worker, `hypercall.ts` and the disassembler. `src/lib/hypercalls.lib.ts`
+  already works out each call's length for the disassembly and only imports a type and `toHex`, so
+  it can probably be shared, but check that its lengths match `executeHypercallCmd`'s;
+- read the arguments with a side-effect-free read (`bus.readDebug` when there is one): `bus.read`
+  on an I/O address would trigger soft switches;
+- the cycles to charge for the call (7, like a BRK?);
+- ordering is fine: worker messages arrive in order, so a log line comes before any later stop.
 
 ## Pitfalls
 

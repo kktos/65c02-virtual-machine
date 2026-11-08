@@ -106,6 +106,7 @@ import MemoryMap from "@/app/debugger/memorymap/MemoryMap.vue";
 import MachineState from "@/app/debugger/MachineState.vue";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import { useCmdConsole } from "@/composables/useCmdConsole";
+import { useMachine } from "@/composables/useMachine";
 
 const vm = inject<Ref<VirtualMachine>>("vm");
 
@@ -123,11 +124,8 @@ const toggle = () => {
 	else vm?.value.play();
 };
 
-const breakOnBrk = ref(false);
-const toggleBreakOnBrk = () => {
-	breakOnBrk.value = !breakOnBrk.value;
-	vm?.value?.setBreakOnBrk(breakOnBrk.value);
-};
+const { breakOnBrk, setBreakOnBrk } = useMachine();
+const toggleBreakOnBrk = () => setBreakOnBrk(!breakOnBrk.value);
 
 const traceEnabled = ref(false);
 const toggleTrace = () => {
