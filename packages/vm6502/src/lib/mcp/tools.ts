@@ -6,6 +6,7 @@ import { watch } from "vue";
 import { useMachine } from "@/composables/useMachine";
 import { useCommands } from "@/composables/useCommands";
 import { useBreakpoints } from "@/composables/useBreakpoints";
+import { useLogWindows } from "@/composables/useLogWindows";
 import { parseAddress } from "@/lib/parse.utils";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import type { StopInfo } from "@/types/stopinfo.interface";
@@ -277,6 +278,60 @@ export const MCP_TOOLS: McpTool[] = [
 			const page = toInt(input.page, "page", 1, 1, 2);
 			const cols = toInt(input.cols, "cols", 40, 40, 80) === 80 ? 80 : 40;
 			return appleTextScreen(vm, page, cols).join("\n");
+		},
+	},
+	{
+		name: "read_log",
+		description:
+			"Read a log window: `hyper` gets the hypercall logs (LOG_STRING / LOG_REGS), other windows are written " +
+			"by `log <name> …` commands. Without `name`, lists the windows. Returns `lines` (oldest first) and " +
+			"`cursor`: pass it back as `after` to get only the lines written since. At most `limit` lines per call; " +
+			"`more: true` means call again with the new cursor. A window keeps its last 500 lines: `dropped: true` " +
+			"means lines after `after` are gone (overflowed or cleared). A window that doesn't exist yet (e.g. `hyper` " +
+			"before the first hypercall log) returns no lines, not an error.",
+		inputSchema: {
+			type: "object",
+			properties: {
+				name: { type: "string", description: "Log window name, e.g. `hyper`" },
+				after: { type: "integer", minimum: -1, description: "`cursor` from a previous call" },
+				limit: { type: "integer", minimum: 1, maximum: 500, default: 200 },
+			},
+		},
+		annotations: { readOnlyHint: true },
+		async execute(input) {
+			const { logWindows, getLines } = useLogWindows();
+			const windows = () =>
+				Array.from(logWindows.values(), (w) => ({
+					name: w.name,
+					lines: getLines(w.name).length,
+					visible: w.isVisible,
+				}));
+			if (input.name === undefined) return json({ windows: windows() });
+
+			const name = toStr(input.name, "name");
+			const after =
+				input.after === undefined ? undefined : toInt(input.after, "after", -1, -1, Number.MAX_SAFE_INTEGER);
+			const limit = toInt(input.limit, "limit", 200, 1, 500);
+			if (!logWindows.has(name))
+				return json({
+					name,
+					lines: [],
+					cursor: after ?? -1,
+					note: `No log window '${name}' yet`,
+					windows: windows(),
+				});
+
+			const all = getLines(name);
+			const fresh = after === undefined ? all : all.filter((l) => l.id > after);
+			const lines = fresh.slice(0, limit);
+			const first = all[0];
+			return json({
+				name,
+				lines: lines.map((l) => l.text),
+				cursor: lines.at(-1)?.id ?? after ?? -1,
+				...(fresh.length > limit && { more: true }),
+				...(after !== undefined && first && first.id > after + 1 && { dropped: true }),
+			});
 		},
 	},
 	{
