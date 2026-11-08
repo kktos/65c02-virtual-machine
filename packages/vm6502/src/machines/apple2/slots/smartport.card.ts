@@ -34,6 +34,11 @@ export class SmartPortCard implements ISlotCard {
 		this.diskData = data;
 	}
 
+	/** No disk: calls answer "no device" ($2F) and the boot code resumes the slot scan. */
+	public ejectMedia() {
+		this.diskData = null;
+	}
+
 	private initRom() {
 		// --- SmartPort Identification ---
 		// The OS scans slots for these bytes to identify SmartPort devices.

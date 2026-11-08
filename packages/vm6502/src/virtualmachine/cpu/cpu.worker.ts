@@ -154,6 +154,9 @@ self.onmessage = async (event: MessageEvent) => {
 		case "insertMedia":
 			bus?.insertMedia?.(event.data.data, event.data.metadata);
 			break;
+		case "ejectMedia":
+			bus?.ejectMedia?.(event.data.metadata);
+			break;
 		case "keydown":
 			bus?.pressKey?.(key, code, event.data.ctrl, event.data.shift, event.data.alt, event.data.meta);
 			break;

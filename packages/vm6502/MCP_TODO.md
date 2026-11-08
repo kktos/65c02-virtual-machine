@@ -59,10 +59,32 @@ Next:
 - [x] `set_breakpoint` / `remove_breakpoint` / `list_breakpoints` — JSON results; `set` is idempotent
       (re-enables a disabled one, updates its `command`), `remove` answers `not_found` rather than failing,
       `all: true` clears everything
-- [ ] labels / comments / data-format CRUD
-- [ ] `screenshot` (HIRES / GR) as image
-- [ ] memory snapshot + diff (cheat-finder)
+
+Still open, by priority (reviewed 2026-11-08: what blocks the use cases above):
+
+1. [ ] **Loading software**: `list_disks` (the library: name, key, type, size, which one is in the drive, so the
+       agent reuses an image it already has), `load_disk({ name | key | path })`, `eject_disk`,
+       `load_binary({ path, address })`. The agent can't start any use case alone: disks only go in through the
+       UI. RE / dev loop start with "boot this disk", writing code needs "load this file". Library disks go
+       through `useDiskDrive` (`insertFromLibrary`, `eject`), shared with the toolbar; files on the agent's host:
+       the Node relay reads them and sends the bytes over the WebSocket (then `insertFile` adds them to the library).
+2. [ ] **Execution trace**: `get_trace({ limit })`, the last N instructions as JSON. After a breakpoint the agent
+       only sees the current state; tracing back from a copy-protection check or a crash is the core RE move.
+       The trace already exists (`vm.getTrace`, `TraceView.vue`): cheap.
+3. [ ] **Memory snapshot + diff** (cheat-finder): `snapshot`, then `diff({ filter: changed | inc | dec | = value })`
+       with the candidates kept in the tab. Doable with read_memory today, but 48 KB = 12 calls of ~12 KB of hex
+       per round.
+4. [ ] **`screenshot`** (HIRES / GR / DHGR) as an MCP image: the agent is blind as soon as a program leaves
+       text mode (most games). Probably simple (the canvas). Less important while the focus is text software.
+5. [ ] **Full save states**: memory + CPU + soft switches + disk position, to make experiments repeatable
+       (restore → patch → compare). `bus.saveState` only covers the soft switches today: the biggest job here.
+
+Lower: exec_command already reaches them, or they are comfort.
+- [ ] labels / comments / data-format CRUD as structured tools (`defLabel`, `comment`, `defData`, `labels`,
+      `findLabel`, `xref` work through exec_command)
 - [ ] MCP resources: memory map, current disk symbols
+- [ ] end-to-end pass over the bridge for `write_memory`, `disassemble` and the disassembler's `peek`
+      (unit-tested only)
 
 ## Done so far
 
@@ -85,6 +107,13 @@ Next:
       answers both), most specific first (same type before `access`, then narrowest range): that one's command
       runs, and every temporary one among them is removed.
 - [ ] `run_until` `cycles` limit (needs worker support)
+- [x] once a disk had been inserted, the machine could never start without one: the last disk is remembered
+      (localStorage) and put back at startup, and nothing ejected it. The drive logic moved from
+      `DiskDriveControl.vue` to `useDiskDrive` (shared with the MCP tools to come); `eject` empties the drive
+      (`vm.ejectDisk` → `ejectMedia` → SmartPort card: calls answer $2F, the boot resumes the slot scan), forgets
+      the disk and puts the metadata back on "no disk"; the library popover shows what's in the drive + Eject.
+      Also: a URL disk's `.sym` symbols were added to the *previous* disk (before the metadata switched), and a
+      renamed `.2mg` lost its header handling (the card got the display name, not the file name)
 - [x] the disassembler reads operand values (`info`, e.g. `LDA $C030,X`) with `readByte(addr, false)`, which
       the `d` / `L` / `explain` commands and the disassembly view sent to `vm.read`: on $C000-$CFFF that runs soft
       switch / card handlers and flips `$CFFF` / slot ROM selection on the main-thread bus. They now use
