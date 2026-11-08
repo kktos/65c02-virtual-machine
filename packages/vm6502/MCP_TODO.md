@@ -137,6 +137,10 @@ Lower: exec_command already reaches them, or they are comfort.
       `run_until` returns `reached_address` / `breakpoint` (type + address) / `brk` / `step` / `error` /
       `pause` / `reset`, keeps waiting through hypercalls; `get_registers` adds `last_stop`.
 - [ ] a breakpoint whose command resumes the machine still ends `run_until` (it reports that breakpoint)
+      Seen again (Karateka, 2026-11-08): hook `log loads … ;run` on `$0309`, `run_until $3F2E` returned
+      `stopped: breakpoint $0309` while the machine went on running (the harness's results at `$3F57` were
+      written after). The machine isn't stopped when the result says so: keep waiting when the hook resumes, or
+      say the hook resumed it
 - [x] hook commands never ran on range or `access` breakpoints: on a hit, `useMachine` looked the breakpoint up
       by exact `{ type, address }`, but the worker reports `read` / `write` and the physical byte accessed.
       `findHitBreakpoints(type, address)` (`useBreakpoints`) now returns the enabled ones covering it (`access`
@@ -190,6 +194,20 @@ Lower: exec_command already reaches them, or they are comfort.
       others): `read_log({ name?, after?, limit? })` returns the lines and a `cursor`; passed back as
       `after`, only the new lines come. No `name` lists the windows; a window not created yet (`hyper`
       before the first hypercall log) gives no lines, not an error; `dropped` / `more` flags.
+- [ ] `run_until` silently resumes from a stop it never reported. `load_disk({ boot: true })` returns the machine
+      running; when a breakpoint hits during the boot, the next `run_until` resumes from it and runs past, and
+      the agent never learns it stopped there (Karateka: 3-4 reboots lost, a breakpoint in LC RAM thought broken).
+      Ideas: `run_until` returns `resumed_from` (the `last_stop` it resumed from, when the caller hadn't seen it);
+      and/or `load_disk` takes `run_until` options (address / timeout) and waits like `run_until`
+- [ ] `get_trace` only gives the last `count` (max 1000) entries: on Karateka the 65K-entry ring held the whole
+      boot, but its end was the hang loop (`BRA *`) repeated, and what led there was out of reach. Ideas, by use:
+      `before` / `offset` to page back; a filter (PC range, or excluding one: the ROM's WAIT); collapsing
+      identical consecutive entries (`BRA *` × 60000 → one entry with a repeat count)
+- [ ] no way to get memory out to the agent's machine. Checking that a loader put the right bytes in memory
+      (Karateka: 6 loads × 12K against the extracted files) meant writing a 6502 checksum routine. Ideas:
+      `save_binary({ path, address, length })`, the mirror of `load_binary` (the relay writes the file);
+      and/or `compare_memory({ path, address })` returning the ranges that differ. The `WRITE` command saves
+      in the browser, not on the agent's side
 - [ ] WebMCP: try it for real (enable the flag), check how long-running `run_until` behaves
 - [ ] mark tools that change state (`write_memory`, …) with `consequentialHint` for WebMCP
 
