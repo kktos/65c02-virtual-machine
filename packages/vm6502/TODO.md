@@ -226,3 +226,10 @@ we need to add to the end of the queue the pipe....
 -32- **FIXED**
 when the console window is snapped to the bottom and the app is started with a smaller browser window
 the position of the window is not adjusted to the new bottom, i.e: it could be offscreen
+
+-33-
+when the memory viewer tab is showing and the CPU stops (breakpoint, BRK, `BRK $8x` hypercall, step out...),
+the disassembly stays hidden: both are tabs of the same panel (`activeTab` in `useDebuggerNav.ts`) and nothing
+switches back to the disassembly on a stop.
+Fix: `setActiveTab("disassembly")` when the CPU stops. To decide: also on a plain user pause, or only on stops
+the user did not ask for (breakpoint, BRK, hypercall)?
