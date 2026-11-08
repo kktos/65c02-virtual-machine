@@ -22,6 +22,7 @@ type UseBreakpointsResult = {
 	toggleBreakpointEnable: (bp: Breakpoint, vm?: VirtualMachine) => void;
 	getBreakpoint: (bp: Breakpoint) => BreakpointState | undefined;
 	getBreakpointKey: (bp: Breakpoint) => string;
+	findHitBreakpoints: (type: string, address: number) => BreakpointState[];
 	pcBreakpoints: ComputedRef<Map<number, boolean>>;
 };
 
@@ -112,6 +113,23 @@ export function useBreakpoints(): UseBreakpointsResult {
 		return breakpoints.value.get(getBreakpointKey(bp));
 	};
 
+	/**
+	 * The enabled breakpoints the worker may have stopped on: `type` is what it reports (`pc`, `read`, `write`;
+	 * `access` breakpoints stop as `read` or `write`), `address` the physical address hit (the byte accessed for
+	 * read / write, so it can be anywhere in a range). Most specific first: same type before `access`, then the
+	 * narrowest range.
+	 */
+	const findHitBreakpoints = (type: string, address: number): BreakpointState[] => {
+		const types = type === "read" || type === "write" ? [type, "access"] : [type];
+		const span = (bp: Breakpoint) => (bp.endAddress ?? bp.address) - bp.address;
+		return Array.from(breakpoints.value.values())
+			.filter(
+				(bp) =>
+					bp.enabled && types.includes(bp.type) && bp.address <= address && (bp.endAddress ?? bp.address) >= address,
+			)
+			.sort((a, b) => types.indexOf(a.type) - types.indexOf(b.type) || span(a) - span(b));
+	};
+
 	// Computed map for efficient lookup of PC breakpoints (used in DisassemblyView)
 	const pcBreakpoints = computed(() => {
 		const map = new Map<number, boolean>();
@@ -131,6 +149,7 @@ export function useBreakpoints(): UseBreakpointsResult {
 		toggleBreakpoint,
 		toggleBreakpointEnable,
 		getBreakpoint,
+		findHitBreakpoints,
 		pcBreakpoints,
 	};
 

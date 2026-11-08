@@ -10,6 +10,7 @@ import { useLogWindows } from "@/composables/useLogWindows";
 import { parseAddress } from "@/lib/parse.utils";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import type { StopInfo } from "@/types/stopinfo.interface";
+import type { Breakpoint } from "@/types/breakpoint.interface";
 import { HYPERCALL_NAMES } from "@/lib/hypercalls.lib";
 import {
 	FLAG_B_MASK,
@@ -136,6 +137,30 @@ const describeStop = (stop: StopInfo | undefined, target?: number): Record<strin
 	}
 };
 
+const BP_TYPES: Breakpoint["type"][] = ["pc", "read", "write", "access"];
+
+/** `{ type?, address, end_address? }` → the Breakpoint the store keys on (a one-byte range is a plain address). */
+const toBreakpoint = (input: ToolInput): Breakpoint => {
+	const type = (input.type ?? "pc") as Breakpoint["type"];
+	if (!BP_TYPES.includes(type)) throw new Error(`type: must be one of ${BP_TYPES.join(", ")}`);
+	const address = toAddress(input.address, "address");
+	if (input.end_address === undefined || input.end_address === null) return { type, address };
+	const endAddress = toAddress(input.end_address, "end_address");
+	if (endAddress < address) throw new Error("end_address: must not be before address");
+	if (endAddress === address) return { type, address };
+	if (type === "pc") throw new Error("end_address: ranges are for read / write / access breakpoints");
+	return { type, address, endAddress };
+};
+
+const describeBreakpoint = (bp: Breakpoint & { enabled?: boolean }) => ({
+	type: bp.type,
+	address: hexAddr(bp.address),
+	...(bp.endAddress !== undefined && { end_address: hexAddr(bp.endAddress) }),
+	...(bp.enabled !== undefined && { enabled: bp.enabled }),
+	...(bp.isTemporary && { temporary: true }),
+	...(bp.command && { command: bp.command }),
+});
+
 /** Resolves true when `isRunning` equals `value`; false after `ms` or on abort. */
 const waitForRunning = (value: boolean, ms: number, signal?: AbortSignal) =>
 	new Promise<boolean>((resolve) => {
@@ -176,10 +201,7 @@ export const MCP_TOOLS: McpTool[] = [
 			"Run a line in the emulator's debugger console and return its output. " +
 			"The full command language is available (`help` lists commands, `help <name>` details one): " +
 			"disassembly, hexdump, labels, comments, breakpoints, hooks, routines, search, xref, etc. " +
-			"Breakpoints: `list bp` lists them all (hooks included); `list bp <address|start:end>` shows only those " +
-			"covering that address or overlapping that range, so use it to check whether one is set. " +
-			"`bp`/`bpr`/`bpw`/`bpa` add one (answers `already set` for a duplicate), `bc`/`bcr`/`bcw`/`bca` remove one " +
-			"(answers `No breakpoint …` if there was none). " +
+			"For breakpoints, prefer the set_breakpoint / remove_breakpoint / list_breakpoints tools (structured results). " +
 			"`brk on|off`: whether a BRK stops the machine (on by default, so a crash into zeroed memory stops " +
 			"there) or runs through the $FFFE vector like real hardware (e.g. into the Apple II monitor). " +
 			"Several lines can be sent at once (newline-separated); multi-line commands (`asm`, `routine`…) " +
@@ -417,6 +439,104 @@ export const MCP_TOOLS: McpTool[] = [
 			vm.pause();
 			await waitForRunning(false, 1000);
 			return json(readRegisters(vm));
+		},
+	},
+	{
+		name: "set_breakpoint",
+		description:
+			"Set a breakpoint: `pc` stops before executing the instruction at `address`, `read` / `write` / `access` stop on a " +
+			"memory access to `address` (or to any byte of `address`..`end_address`). Idempotent: an existing one " +
+			"(same type and address/range) is re-enabled and gets the new `command` if one is given. " +
+			"`command`: debugger command line run when it is hit (a hook); the machine stays stopped unless the command " +
+			"resumes it (end it with `;run`). When several cover the address hit, the most specific one's command runs " +
+			"(same type before `access`, then the narrowest range); a plain breakpoint there just stops. Breakpoints are the user's too: they show in the debugger and are saved " +
+			"across reloads, so remove the ones you no longer need. Returns `result` (`added` / `updated` / `unchanged`) " +
+			"and the breakpoint.",
+		inputSchema: {
+			type: "object",
+			properties: {
+				address: addressSchema,
+				end_address: { ...addressSchema, description: "Last address of a range (inclusive). Not for `pc`." },
+				type: { type: "string", enum: BP_TYPES, default: "pc" },
+				command: { type: "string", description: "Command run when hit; `\"\"` removes it" },
+			},
+			required: ["address"],
+		},
+		async execute(input) {
+			const vm = await getVm();
+			const bp = toBreakpoint(input);
+			const command = input.command === undefined ? undefined : toStr(input.command, "command").trim();
+			const { getBreakpoint, addBreakpoint, toggleBreakpointEnable, updateBreakpointCommand } = useBreakpoints();
+
+			const existing = getBreakpoint(bp);
+			if (!existing) {
+				addBreakpoint(command ? { ...bp, command } : bp, vm);
+				return json({ result: "added", breakpoint: describeBreakpoint(getBreakpoint(bp)!) });
+			}
+			let changed = false;
+			if (!existing.enabled) {
+				toggleBreakpointEnable(bp, vm);
+				changed = true;
+			}
+			if (command !== undefined && command !== (existing.command ?? "")) {
+				updateBreakpointCommand(bp, command);
+				changed = true;
+			}
+			return json({ result: changed ? "updated" : "unchanged", breakpoint: describeBreakpoint(getBreakpoint(bp)!) });
+		},
+	},
+	{
+		name: "remove_breakpoint",
+		description:
+			"Remove a breakpoint (same type and address/range as when it was set), or all of them with `all: true`. " +
+			"Removing one that doesn't exist is not an error: `result` is `not_found`.",
+		inputSchema: {
+			type: "object",
+			properties: {
+				address: addressSchema,
+				end_address: { ...addressSchema, description: "Last address of the range, as set" },
+				type: { type: "string", enum: BP_TYPES, default: "pc" },
+				all: { type: "boolean", description: "Remove every breakpoint (hooks included); ignores the other fields" },
+			},
+		},
+		async execute(input) {
+			const vm = await getVm();
+			const { breakpoints, getBreakpoint, removeBreakpoint } = useBreakpoints();
+			if (input.all === true) {
+				const removed = breakpoints.value.map(describeBreakpoint);
+				for (const bp of breakpoints.value) removeBreakpoint(bp, vm);
+				return json({ result: "removed", count: removed.length, removed });
+			}
+			if (input.address === undefined) throw new Error("address: required (or `all: true`)");
+			const bp = toBreakpoint(input);
+			const existing = getBreakpoint(bp);
+			if (!existing) return json({ result: "not_found", breakpoint: describeBreakpoint(bp) });
+			removeBreakpoint(existing, vm);
+			return json({ result: "removed", breakpoint: describeBreakpoint(existing) });
+		},
+	},
+	{
+		name: "list_breakpoints",
+		description:
+			"List breakpoints (hooks and run_until's temporary one included), sorted by address. With `address` " +
+			"(and `end_address`), only those covering that address or overlapping that range.",
+		inputSchema: {
+			type: "object",
+			properties: {
+				address: addressSchema,
+				end_address: { ...addressSchema, description: "Last address of the range to look at" },
+			},
+		},
+		annotations: { readOnlyHint: true },
+		async execute(input) {
+			let list = useBreakpoints().breakpoints.value;
+			if (input.address !== undefined) {
+				const lo = toAddress(input.address, "address");
+				const hi = input.end_address === undefined ? lo : toAddress(input.end_address, "end_address");
+				if (hi < lo) throw new Error("end_address: must not be before address");
+				list = list.filter((bp) => bp.address <= hi && (bp.endAddress ?? bp.address) >= lo);
+			}
+			return json({ count: list.length, breakpoints: list.map(describeBreakpoint) });
 		},
 	},
 ];
