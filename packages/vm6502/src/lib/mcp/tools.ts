@@ -721,20 +721,25 @@ export const MCP_TOOLS: McpTool[] = [
 			"The disk library (images kept in the browser) and what is in the drive. Use a disk from here with " +
 			"load_disk rather than asking for the file again. Each disk: `key` (what load_disk takes; the file name, " +
 			"or the URL for a URL disk), `name` (display name, may have been renamed), `type` (`physical` = stored " +
-			"image, `url` = fetched when loaded), `size` (bytes; 0 for URL disks), `in_drive: true` for the inserted one.",
+			"image, `url` = fetched when loaded), `size` (bytes; 0 for a URL disk not fetched yet), `in_drive: true` for " +
+			"the inserted one.",
 		inputSchema: { type: "object", properties: {} },
 		annotations: { readOnlyHint: true },
 		async execute() {
 			const { inserted, listDisks } = useDiskDrive();
 			const inDrive = inserted.value;
-			const disks = (await listDisks()).map((d) => ({
-				key: String(d.key),
-				name: d.name,
-				type: d.type,
-				size: d.size,
-				...(d.path && d.path !== String(d.key) && d.path !== d.name && { path: d.path }),
-				...(inDrive && String(inDrive.key) === String(d.key) && { in_drive: true }),
-			}));
+			const disks = (await listDisks()).map((d) => {
+				const isInDrive = !!inDrive && String(inDrive.key) === String(d.key);
+				return {
+					key: String(d.key),
+					name: d.name,
+					type: d.type,
+					// a URL disk's library entry has no size: once fetched, the inserted one has it
+					size: isInDrive && !d.size ? inDrive.size : d.size,
+					...(d.path && d.path !== String(d.key) && d.path !== d.name && { path: d.path }),
+					...(isInDrive && { in_drive: true }),
+				};
+			});
 			return json({ in_drive: inDrive ? describeDisk(inDrive) : null, count: disks.length, disks });
 		},
 	},
