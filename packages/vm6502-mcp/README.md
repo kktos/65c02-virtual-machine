@@ -43,6 +43,8 @@ Then run `pnpm dev` and open `http://localhost:5173/?mcp`.
 | `type_keys` | Type on the emulated keyboard (`\n` = Return) |
 | `run_until` | Resume and **block** until a stop (BP, BRK, pause) or timeout; optional temp PC breakpoint |
 | `pause` | Pause and return registers |
+| `step` | Execute `count` instructions on the paused machine; stops early on a PC breakpoint, a stopping hypercall or an error |
+| `reset` | Reset (CPU, soft switches, video; memory kept), left paused on the reset vector |
 | `set_breakpoint` | Add a PC / read / write / access breakpoint (address or range, optional hook command); idempotent |
 | `remove_breakpoint` | Remove one (same type + address/range), or all with `all: true` |
 | `list_breakpoints` | Breakpoints as JSON, optionally only those covering an address / overlapping a range |

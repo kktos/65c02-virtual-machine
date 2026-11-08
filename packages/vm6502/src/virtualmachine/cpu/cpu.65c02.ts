@@ -1,5 +1,5 @@
 import type { Video } from "@/types/video.interface";
-import type { StopInfo } from "@/types/stopinfo.interface";
+import type { StepResult, StopInfo } from "@/types/stopinfo.interface";
 import {
 	addBreakpoint,
 	BP_PC,
@@ -72,6 +72,9 @@ export const setHypercalls = (enabled: boolean) => (hypercallsEnabled = enabled)
 
 // PC of the BRK the CPU stopped on ("break on BRK"), so that resuming executes it instead of stopping again
 let stoppedOnBrkAt: number | null = null;
+
+// Set by whatever stops a step early (an error, a hypercall with the stop bit): read by `stepInstructions`.
+let stepStop: StopInfo | undefined;
 export const isStoppedOnBrk = () =>
 	stoppedOnBrkAt !== null && stoppedOnBrkAt === registersView?.getUint16(REG_PC_OFFSET, true);
 
@@ -132,6 +135,7 @@ export function initCPU(
 /** `stop` (why it stopped) is only meaningful when `running` is false. */
 export function setRunning(running: boolean, stop?: StopInfo) {
 	isRunning = running;
+	if (!running && stop) stepStop = stop;
 	if (!isRunning) stepOutTargetSP = null;
 	self.postMessage({ type: "isRunning", isRunning: running, stop: running ? undefined : stop });
 	if (isRunning) {
@@ -230,6 +234,49 @@ export function stepInstruction() {
 	if (bus?.tick) bus.tick(cycles);
 	if (video && memoryView) video.tick();
 	if (bus?.syncState) bus.syncState();
+}
+
+/**
+ * Up to `count` instructions, each like a single step (BRKs execute, memory breakpoints don't fire).
+ * Stops early, after an instruction, on: an error (unimplemented opcode), a hypercall with the stop bit,
+ * or an enabled PC breakpoint on the next instruction.
+ */
+export function stepInstructions(count: number): StepResult {
+	const physicalPC = () => {
+		const pc = registersView?.getUint16(REG_PC_OFFSET, true) ?? 0;
+		return ((bus?.getBank?.(pc) ?? 0) << 16) | pc;
+	};
+	if (isRunning || !registersView || !bus) return { executed: 0, address: physicalPC() };
+	if (count === 1) {
+		stepStop = undefined;
+		stepInstruction();
+		const stop = stepStop as StopInfo | undefined; // set by the instruction, not visible to TS's narrowing
+		return { executed: 1, address: physicalPC(), ...(stop && { stop }) };
+	}
+
+	// Like the run loop: the bus ticks per instruction, the screen is rendered once, at the end.
+	let executed = 0;
+	let stop: StopInfo | undefined;
+	while (executed < count) {
+		stepStop = undefined;
+		bus.tick?.(executeInstruction());
+		executed++;
+		stop = stepStop as StopInfo | undefined; // set by the instruction
+		if (stop) break;
+		if (executed === count) break;
+
+		const pc = registersView.getUint16(REG_PC_OFFSET, true);
+		if (breakpointMap[pc]! & BP_PC) {
+			const address = physicalPC();
+			if (bankedBreakpoints.get(address)! & BP_PC) {
+				stop = { reason: "breakpoint", breakpointType: "pc", address };
+				break;
+			}
+		}
+	}
+	if (video && memoryView) video.tick();
+	bus.syncState?.();
+	return { executed, address: physicalPC(), ...(stop && { stop }) };
 }
 
 export function resetCPU() {
@@ -490,8 +537,11 @@ export function executeInstruction(): number {
 						cycles = 7;
 						// Stop bit: stop after the call (PC on the next instruction). When stepping, the CPU is
 						// already stopped. Posted after the call, so its effect (a log line) comes first.
-						if (call.stop && isRunning)
-							setRunning(false, { reason: "hypercall", address: (bank << 16) | call.address, cmd: call.cmd });
+						if (call.stop) {
+							const stop = { reason: "hypercall", address: (bank << 16) | call.address, cmd: call.cmd } as const;
+							if (isRunning) setRunning(false, stop);
+							else stepStop = stop; // stepping: ends a multi-instruction step here
+						}
 						break;
 					}
 				}

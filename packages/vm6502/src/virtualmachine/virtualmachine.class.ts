@@ -28,7 +28,7 @@ import { useMemoryMap } from "../composables/useMemoryMap";
 import { parseHexData } from "../lib/array.utils";
 import type { Breakpoint } from "../types/breakpoint.interface";
 import { applyHypercall } from "./hypercall";
-import type { StopInfo } from "@/types/stopinfo.interface";
+import type { StepResult, StopInfo } from "@/types/stopinfo.interface";
 import type { EmulatorRegisters } from "@/types/emulatorstate.interface";
 import { logBus } from "./logbus.class";
 
@@ -112,6 +112,12 @@ export class VirtualMachine {
 				case "ready":
 					this.resolveWorkerReady();
 					break;
+				case "reply": {
+					const { id, type: _type, ...data } = event.data;
+					this.requests.get(id)?.(data);
+					this.requests.delete(id);
+					break;
+				}
 				case "trace":
 					this.handleTraceReceived(history);
 					break;
@@ -435,8 +441,25 @@ export class VirtualMachine {
 	public setBreakOnBrk = (enabled: boolean) => this.worker.postMessage({ command: "setBreakOnBrk", enabled });
 	public play = () => this.worker.postMessage({ command: "run" });
 	public pause = () => this.worker.postMessage({ command: "pause" });
-	public reset = () => this.worker.postMessage({ command: "reset" });
-	public step = () => this.worker.postMessage({ command: "step" });
+	/** Resolves once the worker has reset (the machine is then stopped, PC on the reset vector). */
+	public reset = (): Promise<void> => this.request("reset").then(() => undefined);
+	/** Steps `count` instructions (fewer if something stops it, see `StepResult`); resolves when done. */
+	public step = (count = 1): Promise<StepResult> =>
+		this.request<StepResult>("step", { count }).then((result) => {
+			this.recordStop(result.stop ?? { reason: "step", address: result.address });
+			return result;
+		});
+
+	private requests = new Map<number, (data: unknown) => void>();
+	private nextRequestId = 1;
+	/** Sends a worker command that answers with a `reply` message (see `reply` in cpu.worker.ts). */
+	private request<T>(command: string, data: object = {}): Promise<T> {
+		const id = this.nextRequestId++;
+		return new Promise<T>((resolve) => {
+			this.requests.set(id, resolve as (data: unknown) => void);
+			this.worker.postMessage({ command, id, ...data });
+		});
+	}
 	public stepOut = () => this.worker.postMessage({ command: "stepOut" });
 	public stepOver = () => this.worker.postMessage({ command: "stepOver" });
 

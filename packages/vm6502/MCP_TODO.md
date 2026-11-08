@@ -44,7 +44,10 @@ MVP:
 
 Next:
 - [x] `get_registers`, `pause`, `status`
-- [ ] `step(n)`, `reset`
+- [x] `step(n)`, `reset` — both wait for the worker: `VirtualMachine.step(count)` / `reset()` return promises
+      (a worker command sent with an `id` gets a `reply` message). `step` runs up to n instructions in the worker
+      (`stepInstructions`), each like Step Into, stopping early on a PC breakpoint, a stopping hypercall or an
+      error; a step now sets `lastStop` (`step`, or why it stopped early)
 - [ ] `write_memory`
 - [ ] `disassemble(range)` — paginated, JSON
 - [x] `set_breakpoint` / `remove_breakpoint` / `list_breakpoints` — JSON results; `set` is idempotent
