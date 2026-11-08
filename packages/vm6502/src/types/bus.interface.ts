@@ -50,8 +50,14 @@ export interface IBus {
 	/** Reads a range of memory with optional overrides for debugging/inspection. */
 	readDebugRange?(address: number, length: number, overrides?: Dict | string): Uint8Array;
 
-	/** The text screen as plain text, one string per row (debug read: no side effects). */
+	/**
+	 * The text screen as plain text, one string per row (debug read: no side effects).
+	 * Options left out are those of the displayed screen (`getTextMode`) when the bus knows it.
+	 */
 	getTextScreen?(options?: TextScreenOptions): string[];
+
+	/** Which text screen is displayed, from the video soft switches. */
+	getTextMode?(): TextMode;
 
 	/** Writes memory with optional overrides, bypassing side effects if possible. */
 	writeDebug?(address: number, value: number, overrides?: Dict): void;
@@ -85,5 +91,11 @@ export interface IBus {
 	getBank?(address: number): number;
 }
 
-/** Which text screen `getTextScreen` reads. Defaults: page 1, 40 columns. */
+/** Which text screen `getTextScreen` reads. */
 export type TextScreenOptions = { page?: 1 | 2; cols?: 40 | 80 };
+
+/**
+ * The displayed text screen. `shown`: "full" in text mode, "mixed" when graphics leave only the
+ * last 4 rows of text, "hidden" in full-screen graphics.
+ */
+export type TextMode = { page: 1 | 2; cols: 40 | 80; shown: "full" | "mixed" | "hidden" };

@@ -72,6 +72,10 @@ Next:
 - [x] text screen decoder lived in the bridge; it's now the machine's: `IBus.getTextScreen({ page, cols })`,
       implemented by `AppleBus` (`src/machines/apple2/video/text.screen.ts`). `screen_text` asks the bus
       (no more machine-name check) and the //e boot test uses it too.
+- [x] `screen_text` read page 1 / 40 columns unless told otherwise: in 80 columns the agent got only
+      the odd columns (main memory). It now defaults to the displayed screen (`IBus.getTextMode()`:
+      PAGE2 unless 80STORE, 80COL, TEXT / MIXED) and its first line says what was read and whether
+      it is on screen, e.g. `[page 1, 80 cols — mixed mode: only the last 4 rows are on screen]`.
 - [x] booting the //e from reset stopped on BRK at $0003 (A=$2F X=$42): not expected. The SmartPort card's
       boot code (slot 5) got error $2F (no disk), its `BCS` landed inside `JMP $0801`, then hit an `RTS` with
       nothing to return to (the slot scan enters with `JMP ($0000)`) → $0001 → BRK. Its error path now resumes

@@ -74,3 +74,41 @@ it("runUntil fails on a BRK (the check the tests above rely on)", () => {
 	m.regs.setUint16(REG_PC_OFFSET, 0x300, true);
 	expect(() => runUntil(m, () => false, 10)).toThrow("BRK at $301");
 });
+
+describe("text mode (what screen_text reads by default)", () => {
+	let m: Machine;
+	beforeEach(() => {
+		m = boot();
+	});
+
+	it("after reset: page 1, 40 columns, text mode", () => {
+		expect(m.bus.getTextMode()).toEqual({ page: 1, cols: 40, shown: "full" });
+	});
+
+	it("follows the 80COL and PAGE2 switches", () => {
+		m.bus.col80 = true;
+		m.bus.page2 = true;
+		expect(m.bus.getTextMode()).toMatchObject({ page: 2, cols: 80 });
+	});
+
+	it("with 80STORE on, PAGE2 picks the memory bank, not the displayed page", () => {
+		m.bus.store80 = true;
+		m.bus.page2 = true;
+		expect(m.bus.getTextMode().page).toBe(1);
+	});
+
+	it("graphics: hidden, or only the last 4 rows in mixed mode", () => {
+		m.bus.text = false;
+		expect(m.bus.getTextMode().shown).toBe("hidden");
+		m.bus.mixed = true;
+		expect(m.bus.getTextMode().shown).toBe("mixed");
+	});
+
+	it("getTextScreen reads the displayed page unless told otherwise", () => {
+		m.bus.write(0x400, 0xb1); // "1"
+		m.bus.write(0x800, 0xb2); // "2"
+		m.bus.page2 = true;
+		expect(m.bus.getTextScreen()[0]?.[0]).toBe("2");
+		expect(m.bus.getTextScreen({ page: 1 })[0]?.[0]).toBe("1");
+	});
+});
