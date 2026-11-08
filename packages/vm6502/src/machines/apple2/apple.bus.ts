@@ -574,6 +574,13 @@ export class AppleBus implements IBus {
 		// return this.memory[RAM_OFFSET + address] ?? 0;
 	}
 
+	peek(address: number): number {
+		// `read` has side effects only on $C000-$CFFF (soft switches, $CFFF, slot ROM selection, cards);
+		// `readDebug` gives the same bytes there (0 for I/O) without them. Banked addresses are physical.
+		if (address > 0xffff || (address >= 0xc000 && address <= 0xcfff)) return this.readDebug(address);
+		return this.read(address);
+	}
+
 	readDebug(address: number, overrides?: MemScopeOverride | string): number {
 		const bank = address >> 16;
 		const addr16 = address & 0xffff;
@@ -721,7 +728,8 @@ export class AppleBus implements IBus {
 				result.set(chunk, resultOffset);
 			} else {
 				// Fallback for complex regions (I/O, slots)
-				for (let i = 0; i < chunkLength; i++) result[resultOffset + i] = this.readDebug(currentAddress + i, overrides);
+				for (let i = 0; i < chunkLength; i++)
+					result[resultOffset + i] = this.readDebug(currentAddress + i, overrides);
 			}
 
 			// 3. Advance to the next block

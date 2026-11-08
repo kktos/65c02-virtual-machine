@@ -22,7 +22,8 @@ export const explainCmd = defineCommand({
 	group: "A.I.",
 	closeOnSuccess: false,
 	fn: async ({ vm, progress, params, opts }) => {
-		const readByte = (address: number, debug = true) => (debug ? vm.readDebug(address) : vm.read(address)) ?? 0;
+		const readByte = (address: number, debug = true) => (debug ? vm.readDebug(address) : vm.peek(address)) ?? 0;
+		vm.syncBusState(); // `peek` follows the banking soft switches: have them current
 		const { registers } = useMachine();
 		const { explainCode } = useGemini();
 

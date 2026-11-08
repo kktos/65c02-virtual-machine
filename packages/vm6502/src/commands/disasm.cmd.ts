@@ -24,7 +24,8 @@ export const disasmCmd = defineCommand({
 			start = val;
 		}
 
-		const readByte = (address: number, debug = true) => (debug ? vm.readDebug(address) : vm.read(address)) ?? 0;
+		const readByte = (address: number, debug = true) => (debug ? vm.readDebug(address) : vm.peek(address)) ?? 0;
+		vm.syncBusState(); // `peek` follows the banking soft switches: have them current
 
 		let lines: DisassemblyLine[];
 		if (end !== undefined) {

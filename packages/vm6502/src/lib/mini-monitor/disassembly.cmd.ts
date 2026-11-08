@@ -4,7 +4,8 @@ import { disassembleRange, disassemble, formatDisassemblyAsText } from "../disas
 
 export async function runDisassembly(start: number, end: number | undefined, vm: VirtualMachine) {
 	const { registers } = useMachine();
-	const readByte = (address: number, debug = true) => (debug ? vm.readDebug(address) : vm.read(address)) ?? 0;
+	const readByte = (address: number, debug = true) => (debug ? vm.readDebug(address) : vm.peek(address)) ?? 0;
+	vm.syncBusState(); // `peek` follows the banking soft switches: have them current
 
 	let lines = [];
 	if (end !== undefined) {

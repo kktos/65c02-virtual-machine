@@ -85,9 +85,11 @@ Next:
       answers both), most specific first (same type before `access`, then narrowest range): that one's command
       runs, and every temporary one among them is removed.
 - [ ] `run_until` `cycles` limit (needs worker support)
-- [ ] the `d` command's `readByte(addr, false)` goes to `vm.read`: the disassembler uses it for the operand
-      values in `info` (e.g. `LDA $C030,X`), so disassembling may hit I/O on the main-thread bus. The MCP
-      `disassemble` always reads with `readDebug`; check what `d` / the disassembly view should do
+- [x] the disassembler reads operand values (`info`, e.g. `LDA $C030,X`) with `readByte(addr, false)`, which
+      the `d` / `L` / `explain` commands and the disassembly view sent to `vm.read`: on $C000-$CFFF that runs soft
+      switch / card handlers and flips `$CFFF` / slot ROM selection on the main-thread bus. They now use
+      `vm.peek` (`IBus.peek`, AppleBus): the CPU's view (ALTZP, RAMRD, LC banking) without side effects, after a
+      `syncBusState()` so the banking is current. `vm.read` itself is unchanged (read-mode virtual registers use it)
 - [x] text screen decoder lived in the bridge; it's now the machine's: `IBus.getTextScreen({ page, cols })`,
       implemented by `AppleBus` (`src/machines/apple2/video/text.screen.ts`). `screen_text` asks the bus
       (no more machine-name check) and the //e boot test uses it too.

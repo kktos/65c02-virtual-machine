@@ -7,6 +7,10 @@ import { formatAddress, toHex } from "./hex.utils";
 import { runHypercall } from "./hypercalls.lib";
 import { BRANCH_OPCODES, opcodeMap } from "./opcodes";
 
+/**
+ * `debug` true (default): the byte at that physical address (`readDebug`, banks above $FFFF).
+ * `debug` false: what the CPU would read there now (`peek`). Either way: no I/O side effects.
+ */
 type FunctionReadByte = (address: number, debug?: boolean) => number;
 type FunctionGetScope = (address: number) => string;
 
@@ -697,7 +701,9 @@ export async function generateLabels(
 			const currentScope = vm.getScope(target);
 			if (labelPrefix !== null && !getLabelForAddress(target, [currentScope])) {
 				const label =
-					labelPrefix === "L" ? `L${toHex(target, 4)}` : `${labelPrefix}${toHex(target, target > 0xff ? 4 : 2)}`;
+					labelPrefix === "L"
+						? `L${toHex(target, 4)}`
+						: `${labelPrefix}${toHex(target, target > 0xff ? 4 : 2)}`;
 				symbolsToAdd.push({
 					addr: target,
 					label,
