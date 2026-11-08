@@ -52,7 +52,10 @@ Next:
       reads ($1xxxx = aux, $D000+ = the current LC read view, so ROM patches work); reads back and reports
       `not_written` ranges (I/O, slot ROM space) and returns `previous` for undo. read_memory / write_memory
       now sync the bus's soft switches first (they could be stale when the screen isn't rendering)
-- [ ] `disassemble(range)` — paginated, JSON
+- [x] `disassemble({ address, count?, end_address? })` — JSON, one compact line per instruction (`address`, `bytes`,
+      `instruction`, `label`, `target` when the operand is a label, `comment` / `block_comment`); at most `count`
+      lines (default 32, max 256), up to `end_address` (default: end of the 64K bank); `next_address` to page on.
+      Uses the app's disassembler, with debug reads only
 - [x] `set_breakpoint` / `remove_breakpoint` / `list_breakpoints` — JSON results; `set` is idempotent
       (re-enables a disabled one, updates its `command`), `remove` answers `not_found` rather than failing,
       `all: true` clears everything
@@ -82,6 +85,9 @@ Next:
       answers both), most specific first (same type before `access`, then narrowest range): that one's command
       runs, and every temporary one among them is removed.
 - [ ] `run_until` `cycles` limit (needs worker support)
+- [ ] the `d` command's `readByte(addr, false)` goes to `vm.read`: the disassembler uses it for the operand
+      values in `info` (e.g. `LDA $C030,X`), so disassembling may hit I/O on the main-thread bus. The MCP
+      `disassemble` always reads with `readDebug`; check what `d` / the disassembly view should do
 - [x] text screen decoder lived in the bridge; it's now the machine's: `IBus.getTextScreen({ page, cols })`,
       implemented by `AppleBus` (`src/machines/apple2/video/text.screen.ts`). `screen_text` asks the bus
       (no more machine-name check) and the //e boot test uses it too.
