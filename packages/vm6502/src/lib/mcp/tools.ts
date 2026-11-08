@@ -234,23 +234,43 @@ export const MCP_TOOLS: McpTool[] = [
 	{
 		name: "screen_text",
 		description:
-			"Text screen as plain text, one line per row (Apple II: 24 lines). Reads video memory directly, " +
-			"regardless of the current display mode. Inverse/flashing chars are shown as normal chars.",
+			"Text screen as plain text, one line per row (Apple II: 24 lines), read from video memory. " +
+			"By default the screen being displayed (page 1/2, 40/80 columns, from the soft switches); " +
+			"`page` / `cols` force one. The first line says what was read, e.g. `[page 1, 80 cols]`, and " +
+			"whether it is actually on screen (graphics mode hides it, mixed mode shows only the last 4 rows). " +
+			"Inverse/flashing chars are shown as normal chars.",
 		inputSchema: {
 			type: "object",
 			properties: {
-				page: { type: "integer", enum: [1, 2], default: 1 },
-				cols: { type: "integer", enum: [40, 80], default: 40 },
+				page: { type: "integer", enum: [1, 2], description: "Default: the displayed page" },
+				cols: { type: "integer", enum: [40, 80], description: "Default: the displayed width" },
 			},
 		},
 		annotations: { readOnlyHint: true },
 		async execute(input) {
 			const vm = await getVm();
-			// The machine's bus knows its screen layout and character set.
-			if (!vm.bus?.getTextScreen) throw new Error(`No text screen for ${vm.machineConfig.name}`);
-			const page = toInt(input.page, "page", 1, 1, 2) === 2 ? 2 : 1;
-			const cols = toInt(input.cols, "cols", 40, 40, 80) === 80 ? 80 : 40;
-			return vm.bus.getTextScreen({ page, cols }).join("\n");
+			// The machine's bus knows its screen layout, character set and display mode.
+			const bus = vm.bus;
+			if (!bus?.getTextScreen) throw new Error(`No text screen for ${vm.machineConfig.name}`);
+			const oneOf = <T extends number>(v: unknown, field: string, values: readonly T[]): T | undefined => {
+				if (v === undefined || v === null) return undefined;
+				const n = typeof v === "string" ? Number(v) : v;
+				if (!values.includes(n as T)) throw new Error(`${field}: must be ${values.join(" or ")}`);
+				return n as T;
+			};
+			const page = oneOf(input.page, "page", [1, 2] as const);
+			const cols = oneOf(input.cols, "cols", [40, 80] as const);
+
+			vm.syncBusState(); // soft switches as they are now, even when the screen isn't rendering
+			const shown = bus.getTextMode?.();
+			const read = { page: page ?? shown?.page ?? 1, cols: cols ?? shown?.cols ?? 40 };
+			const notes: string[] = [];
+			if (shown && (read.page !== shown.page || read.cols !== shown.cols))
+				notes.push(`displayed: page ${shown.page}, ${shown.cols} cols`);
+			if (shown?.shown === "hidden") notes.push("graphics mode: no text on screen");
+			if (shown?.shown === "mixed") notes.push("mixed mode: only the last 4 rows are on screen");
+			const header = `[page ${read.page}, ${read.cols} cols${notes.length ? ` — ${notes.join("; ")}` : ""}]`;
+			return [header, ...bus.getTextScreen(read)].join("\n");
 		},
 	},
 	{

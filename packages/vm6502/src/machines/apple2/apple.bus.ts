@@ -1,5 +1,5 @@
 import type { Dict } from "@/types/dict.type";
-import type { IBus, MachineStateSpec, TextScreenOptions } from "@/types/bus.interface";
+import type { IBus, MachineStateSpec, TextMode, TextScreenOptions } from "@/types/bus.interface";
 import {
 	INPUT_ANALOG_0_OFFSET,
 	INPUT_ANALOG_1_OFFSET,
@@ -629,8 +629,22 @@ export class AppleBus implements IBus {
 		return 0;
 	}
 
-	public getTextScreen(options?: TextScreenOptions): string[] {
-		return readTextScreen((address, length) => this.readDebugRange(address, length), options);
+	public getTextMode(): TextMode {
+		return {
+			// With 80STORE on, PAGE2 selects main/aux memory for $400-$7FF instead of the displayed page.
+			page: this.page2 && !this.store80 ? 2 : 1,
+			cols: this.col80 ? 80 : 40,
+			shown: this.text ? "full" : this.mixed ? "mixed" : "hidden",
+		};
+	}
+
+	/** Options left out: those of the displayed screen. */
+	public getTextScreen(options: TextScreenOptions = {}): string[] {
+		const { page, cols } = this.getTextMode();
+		return readTextScreen((address, length) => this.readDebugRange(address, length), {
+			page: options.page ?? page,
+			cols: options.cols ?? cols,
+		});
 	}
 
 	public readDebugRange(address: number, length: number, overrides?: MemScopeOverride | string): Uint8Array {
