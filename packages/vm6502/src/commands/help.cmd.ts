@@ -67,13 +67,16 @@ export const cmdHelp = defineCommand({
 			const commandHelp = commandsInGroup
 				.map(({ key, cmd, aliases }) => {
 					const allNames = [key, ...aliases].sort().join(", ");
-					// Use paramHelp if available, otherwise fall back to parsed params
-					const paramDisplay =
+					// Use paramHelp if available, otherwise fall back to parsed params.
+					// Escaped either way: a bare "|" splits the markdown table cell, and "<group>" would be
+					// taken as an HTML tag (then stripped by the sanitizer).
+					const paramDisplay = (
 						"paramHelp" in cmd && cmd.paramHelp
 							? cmd.paramHelp
-							: (("params" in cmd ? cmd.params : cmd.paramDef) as string[])
-									?.map((p) => `${p.replaceAll("|", "\\|")}`)
-									.join(" ") || "";
+							: (("params" in cmd ? cmd.params : cmd.paramDef) as string[])?.join(" ") || ""
+					)
+						.replaceAll("|", "\\|")
+						.replaceAll("<", "&lt;");
 					const description = cmd.description?.replaceAll("|", "\\|").replace(/\n/g, "<br/>") || "";
 					return `| ${allNames} | ${paramDisplay} | ${description} |`;
 				})

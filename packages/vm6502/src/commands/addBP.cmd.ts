@@ -1,27 +1,31 @@
 import { useBreakpoints } from "@/composables/useBreakpoints";
 import { isParamListItemRange } from "@/composables/useCommands";
 import { formatAddress } from "@/lib/hex.utils";
-import type { CommandContext } from "@/types/command";
+import type { Breakpoint } from "@/types/breakpoint.interface";
+import type { CommandContext, ParamListItem } from "@/types/command";
 
-export const execAddBP = (type: "pc" | "access" | "write" | "read") => {
+type BreakpointType = Breakpoint["type"];
+
+export const breakpointFromParam = (type: BreakpointType, param: ParamListItem): Breakpoint => {
+	if (isParamListItemRange(param)) return { type, address: param.start, endAddress: param.end };
+	if (typeof param === "number") return { type, address: param };
+	throw new Error("Invalid address parameter");
+};
+
+export const describeBreakpoint = (bp: Breakpoint) => {
+	const rangeStr = bp.endAddress !== undefined ? `-${formatAddress(bp.endAddress)}` : "";
+	return `(${bp.type}) at ${formatAddress(bp.address)}${rangeStr}`;
+};
+
+export const execAddBP = (type: BreakpointType) => {
 	return async ({ vm, params }: CommandContext) => {
-		const param = params[0];
-		let addr: number;
-		let endAddr: number | undefined;
+		const bp = breakpointFromParam(type, params[0]);
+		const { addBreakpoint, getBreakpoint } = useBreakpoints();
 
-		if (isParamListItemRange(param)) {
-			addr = param.start;
-			endAddr = param.end;
-		} else if (typeof param === "number") {
-			addr = param;
-		} else {
-			throw new Error("Invalid address parameter");
-		}
+		const existing = getBreakpoint(bp);
+		if (existing) return `Breakpoint ${describeBreakpoint(bp)} already set${existing.enabled ? "" : " (disabled)"}`;
 
-		const { addBreakpoint } = useBreakpoints();
-		addBreakpoint({ type, address: addr, endAddress: endAddr }, vm);
-
-		const rangeStr = endAddr ? `-${formatAddress(endAddr)}` : "";
-		return `Breakpoint (${type}) added at ${formatAddress(addr)}${rangeStr}`;
+		addBreakpoint(bp, vm);
+		return `Breakpoint ${describeBreakpoint(bp)} added`;
 	};
 };
