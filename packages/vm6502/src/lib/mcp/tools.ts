@@ -167,33 +167,6 @@ const hexdump = (start: number, bytes: Uint8Array) => {
 	return lines.join("\n");
 };
 
-// Apple II text screen: 24 rows of 40 bytes, interleaved in 8 groups of 3 rows.
-// 80-col mode interleaves aux (even columns) and main (odd columns) at the same addresses.
-// Aux memory is bank 1 for debug reads ($1xxxx).
-const AUX_BANK = 0x10000;
-const decodeAppleChar = (c: number) => {
-	let v = c & 0x7f;
-	if (c < 0x80) v = c & 0x3f; // inverse ($00-$3F) and flashing ($40-$7F)
-	if (v < 0x20) v += 0x40; // @ A-Z [ \ ] ^ _
-	return v === 0x7f ? " " : String.fromCharCode(v);
-};
-const appleTextScreen = (vm: VirtualMachine, page: number, cols: number) => {
-	const pageBase = page === 2 ? 0x800 : 0x400;
-	const lines: string[] = [];
-	for (let row = 0; row < 24; row++) {
-		const base = pageBase + (row & 7) * 0x80 + (row >> 3) * 0x28;
-		const main = vm.readDebugRange(base, 40);
-		const aux = cols === 80 ? vm.readDebugRange(AUX_BANK + base, 40) : undefined;
-		let line = "";
-		for (let col = 0; col < 40; col++) {
-			if (aux) line += decodeAppleChar(aux[col] ?? 0xa0);
-			line += decodeAppleChar(main[col] ?? 0xa0);
-		}
-		lines.push(line.trimEnd());
-	}
-	return lines;
-};
-
 // ─── Tools ────────────────────────────────────────────────────────────────────
 
 export const MCP_TOOLS: McpTool[] = [
@@ -261,7 +234,7 @@ export const MCP_TOOLS: McpTool[] = [
 	{
 		name: "screen_text",
 		description:
-			"Apple II text screen as plain text (24 lines). Reads video memory directly, " +
+			"Text screen as plain text, one line per row (Apple II: 24 lines). Reads video memory directly, " +
 			"regardless of the current display mode. Inverse/flashing chars are shown as normal chars.",
 		inputSchema: {
 			type: "object",
@@ -273,11 +246,11 @@ export const MCP_TOOLS: McpTool[] = [
 		annotations: { readOnlyHint: true },
 		async execute(input) {
 			const vm = await getVm();
-			if (!vm.machineConfig.name.startsWith("Apple"))
-				throw new Error(`No text screen decoder for ${vm.machineConfig.name}`);
-			const page = toInt(input.page, "page", 1, 1, 2);
+			// The machine's bus knows its screen layout and character set.
+			if (!vm.bus?.getTextScreen) throw new Error(`No text screen for ${vm.machineConfig.name}`);
+			const page = toInt(input.page, "page", 1, 1, 2) === 2 ? 2 : 1;
 			const cols = toInt(input.cols, "cols", 40, 40, 80) === 80 ? 80 : 40;
-			return appleTextScreen(vm, page, cols).join("\n");
+			return vm.bus.getTextScreen({ page, cols }).join("\n");
 		},
 	},
 	{

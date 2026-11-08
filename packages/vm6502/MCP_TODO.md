@@ -69,7 +69,9 @@ Next:
       `pause` / `reset`, keeps waiting through hypercalls; `get_registers` adds `last_stop`.
 - [ ] a breakpoint whose command resumes the machine still ends `run_until` (it reports that breakpoint)
 - [ ] `run_until` `cycles` limit (needs worker support)
-- [ ] text screen decoder lives in the bridge; move it to the machine (e.g. `bus.getTextScreen()`)
+- [x] text screen decoder lived in the bridge; it's now the machine's: `IBus.getTextScreen({ page, cols })`,
+      implemented by `AppleBus` (`src/machines/apple2/video/text.screen.ts`). `screen_text` asks the bus
+      (no more machine-name check) and the //e boot test uses it too.
 - [x] booting the //e from reset stopped on BRK at $0003 (A=$2F X=$42): not expected. The SmartPort card's
       boot code (slot 5) got error $2F (no disk), its `BCS` landed inside `JMP $0801`, then hit an `RTS` with
       nothing to return to (the slot scan enters with `JMP ($0000)`) → $0001 → BRK. Its error path now resumes
