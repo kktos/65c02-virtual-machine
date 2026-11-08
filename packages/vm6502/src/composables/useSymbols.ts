@@ -167,6 +167,8 @@ export const parseSymbolsText = (text: string): StoredSymbol[] => {
 export function useSymbols() {
 	const setDiskKey = (newKey: string) => {
 		symbolDiskKey.value = newKey;
+		// The system set: no disk (as at startup), so no disk entries either.
+		if (newKey === SYSTEM_DISK) diskDict.value = {};
 		return store.enqueue(() => loadDisk(newKey)).then(() => undefined);
 	};
 

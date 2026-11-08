@@ -62,12 +62,11 @@ Next:
 
 Still open, by priority (reviewed 2026-11-08: what blocks the use cases above):
 
-1. [ ] **Loading software**: `list_disks` (the library: name, key, type, size, which one is in the drive, so the
-       agent reuses an image it already has), `load_disk({ name | key | path })`, `eject_disk`,
-       `load_binary({ path, address })`. The agent can't start any use case alone: disks only go in through the
-       UI. RE / dev loop start with "boot this disk", writing code needs "load this file". Library disks go
-       through `useDiskDrive` (`insertFromLibrary`, `eject`), shared with the toolbar; files on the agent's host:
-       the Node relay reads them and sends the bytes over the WebSocket (then `insertFile` adds them to the library).
+1. [ ] **Loading software**. Done: `list_disks` (library + what's in the drive), `load_disk({ disk, boot? })` (by key
+       or name; `boot` cold-boots: PWREDUP invalidated + reset, like Ctrl-OpenApple-Reset), `eject_disk`, all through
+       `useDiskDrive`, shared with the toolbar. Still to do: images from the agent's host, `load_disk({ path })` and
+       `load_binary({ path, address })`: the Node relay reads the file and sends the bytes over the WebSocket (then
+       `insertFile` adds a disk to the library).
 2. [ ] **Execution trace**: `get_trace({ limit })`, the last N instructions as JSON. After a breakpoint the agent
        only sees the current state; tracing back from a copy-protection check or a crash is the core RE move.
        The trace already exists (`vm.getTrace`, `TraceView.vue`): cheap.
@@ -107,6 +106,9 @@ Lower: exec_command already reaches them, or they are comfort.
       answers both), most specific first (same type before `access`, then narrowest range): that one's command
       runs, and every temporary one among them is removed.
 - [ ] `run_until` `cycles` limit (needs worker support)
+- [x] eject put labels / formats / notes on disk key `""`, not the system set (`*`) a fresh start uses: entries added
+      after an eject went to a bucket no startup loads. `setDiskKey("*")` also kept the ejected disk's entries on
+      screen (only `init*` cleared them); it now clears them
 - [x] once a disk had been inserted, the machine could never start without one: the last disk is remembered
       (localStorage) and put back at startup, and nothing ejected it. The drive logic moved from
       `DiskDriveControl.vue` to `useDiskDrive` (shared with the MCP tools to come); `eject` empties the drive

@@ -12,8 +12,8 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 const ACTIVE_DISK_KEY = "vm6502_active_disk_name";
 const ACTIVE_DISK_URL_KEY = "vm6502_active_disk_url";
 const SLOT = 5;
-/** Metadata disk key with an empty drive, as at startup before any disk. */
-const NO_DISK = "";
+/** Metadata disk key with an empty drive: the system set, as at startup before any disk. */
+const NO_DISK = "*";
 
 export type InsertedDisk = { key: IDBValidKey; name: string; size: number; type: StoredDisk["type"] };
 

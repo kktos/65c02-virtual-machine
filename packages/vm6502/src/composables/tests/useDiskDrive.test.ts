@@ -75,7 +75,7 @@ describe("useDiskDrive", () => {
 		expect(vm.ejectDisk).toHaveBeenCalledWith({ slot: 5 });
 		expect(drive.inserted.value).toBeNull();
 		expect(storage.size).toBe(0);
-		expect(events).toEqual(expect.arrayContaining(["symbols:", "formats:", "notes:"]));
+		expect(events).toEqual(expect.arrayContaining(["symbols:*", "formats:*", "notes:*"]));
 
 		vm.insertDisk.mockClear();
 		await drive.restoreLastDisk(asVm);

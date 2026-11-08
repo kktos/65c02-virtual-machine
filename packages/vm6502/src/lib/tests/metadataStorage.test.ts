@@ -205,6 +205,31 @@ describe("formattings and notes storage", () => {
 	});
 });
 
+describe("back to no disk (eject)", () => {
+	it('setDiskKey("*") drops the disk\'s entries; new ones are system ones, found at the next startup', async () => {
+		let app = await loadApp();
+		await app.symbols.initSymbols(MACHINE);
+		await app.formats.initFormats(MACHINE);
+		await app.notes.initNotes(MACHINE);
+		await app.symbols.addSymbol(0x300, "SYS_ENTRY");
+		for (const m of [app.symbols, app.formats, app.notes]) await m.setDiskKey("game.dsk");
+		await app.symbols.addSymbol(0x800, "START");
+		await app.formats.addFormatting(0x2000, "byte", 8, "game");
+		await app.notes.addNote(0x2000, "main", "game note");
+
+		for (const m of [app.symbols, app.formats, app.notes]) await m.setDiskKey("*");
+		expect(app.symbols.getLabelForAddress(0x800, "main")).toBeUndefined();
+		expect(app.formats.getFormat(0x2000)).toBeUndefined();
+		expect(app.notes.getNoteEntry(0x2000, "main")).toBeUndefined();
+		expect(app.symbols.getLabelForAddress(0x300, "main")).toBe("SYS_ENTRY");
+
+		await app.symbols.addSymbol(0x310, "AFTER_EJECT");
+		app = await loadApp();
+		await app.symbols.initSymbols(MACHINE);
+		expect(app.symbols.getLabelForAddress(0x310, "main")).toBe("AFTER_EJECT");
+	});
+});
+
 describe("legacy import", () => {
 	const createLegacyDb = async () => {
 		const db = await openDB("vm6502_metadata", 4, {

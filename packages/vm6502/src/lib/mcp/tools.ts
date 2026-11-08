@@ -7,6 +7,8 @@ import { useMachine } from "@/composables/useMachine";
 import { useCommands } from "@/composables/useCommands";
 import { useBreakpoints } from "@/composables/useBreakpoints";
 import { useLogWindows } from "@/composables/useLogWindows";
+import { type InsertedDisk, useDiskDrive } from "@/composables/useDiskDrive";
+import type { StoredDisk } from "@/composables/useDiskStorage";
 import { parseAddress } from "@/lib/parse.utils";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import type { StopInfo } from "@/types/stopinfo.interface";
@@ -242,6 +244,39 @@ const describeLine = (vm: VirtualMachine, line: DisassemblyLine, length: number)
 		...(line.comment && { comment: line.comment }),
 		...(line.blockComment && { block_comment: line.blockComment }),
 	};
+};
+
+const describeDisk = (disk: InsertedDisk) => ({
+	key: String(disk.key),
+	name: disk.name,
+	type: disk.type,
+	size: disk.size,
+});
+
+/** The library disk named `wanted`: by key, else by name (exact, then ignoring case). */
+const findLibraryDisk = (disks: StoredDisk[], wanted: string) => {
+	const byKey = disks.find((d) => String(d.key) === wanted);
+	if (byKey) return byKey;
+	for (const same of [(n: string) => n === wanted, (n: string) => n.toLowerCase() === wanted.toLowerCase()]) {
+		const found = disks.filter((d) => same(d.name));
+		if (found.length > 1)
+			throw new Error(
+				`disk: ${found.length} disks named '${wanted}', use the key: ${found.map((d) => String(d.key)).join(", ")}`,
+			);
+		if (found[0]) return found[0];
+	}
+	throw new Error(`disk: no '${wanted}' in the library (list_disks shows what's there)`);
+};
+
+// Apple II: the reset handler cold-starts (and boots from the slots) when the power-up byte
+// PWREDUP ($3F4) isn't SOFTEV+1 ($3F3) EOR $A5, which is what Ctrl-OpenApple-Reset does.
+const PWREDUP = 0x3f4;
+const SOFTEV_HI = 0x3f3;
+const coldBoot = async (vm: VirtualMachine) => {
+	vm.writeDebug(PWREDUP, (vm.readDebug(SOFTEV_HI) ^ 0xa5 ^ 0xff) & 0xff);
+	await vm.reset();
+	vm.play();
+	await waitForRunning(true, 1000);
 };
 
 const hexdump = (start: number, bytes: Uint8Array) => {
@@ -645,6 +680,75 @@ export const MCP_TOOLS: McpTool[] = [
 			await vm.reset();
 			await waitForRunning(false, 1000); // the worker's `isRunning: false` comes before its reply
 			return json(readRegisters(vm));
+		},
+	},
+	{
+		name: "list_disks",
+		description:
+			"The disk library (images kept in the browser) and what is in the drive. Use a disk from here with " +
+			"load_disk rather than asking for the file again. Each disk: `key` (what load_disk takes; the file name, " +
+			"or the URL for a URL disk), `name` (display name, may have been renamed), `type` (`physical` = stored " +
+			"image, `url` = fetched when loaded), `size` (bytes; 0 for URL disks), `in_drive: true` for the inserted one.",
+		inputSchema: { type: "object", properties: {} },
+		annotations: { readOnlyHint: true },
+		async execute() {
+			const { inserted, listDisks } = useDiskDrive();
+			const inDrive = inserted.value;
+			const disks = (await listDisks()).map((d) => ({
+				key: String(d.key),
+				name: d.name,
+				type: d.type,
+				size: d.size,
+				...(d.path && d.path !== String(d.key) && d.path !== d.name && { path: d.path }),
+				...(inDrive && String(inDrive.key) === String(d.key) && { in_drive: true }),
+			}));
+			return json({ in_drive: inDrive ? describeDisk(inDrive) : null, count: disks.length, disks });
+		},
+	},
+	{
+		name: "load_disk",
+		description:
+			"Insert a disk from the library (see list_disks) into the drive, by `key` or name. Like the user loading it: " +
+			"its labels / data formats / notes become the current disk's, and it comes back at the next startup. " +
+			"Inserting doesn't restart the machine: `boot: true` then cold-boots (like Ctrl-OpenApple-Reset: the ROM " +
+			"scans the slots and boots the disk) and leaves it running; use run_until / screen_text to follow the boot. " +
+			"Returns the inserted disk.",
+		inputSchema: {
+			type: "object",
+			properties: {
+				disk: { type: "string", description: "Library key or disk name" },
+				boot: { type: "boolean", default: false, description: "Cold-boot after inserting" },
+			},
+			required: ["disk"],
+		},
+		async execute(input) {
+			const vm = await getVm();
+			if (!vm.machineConfig.disk) throw new Error(`${vm.machineConfig.name} has no disk drive`);
+			const { listDisks, insertFromLibrary } = useDiskDrive();
+			const found = findLibraryDisk(await listDisks(), toStr(input.disk, "disk").trim());
+			const disk = await insertFromLibrary(vm, found.key);
+			if (input.boot === true) await coldBoot(vm);
+			return json({
+				result: "inserted",
+				disk: describeDisk(disk),
+				...(input.boot === true && { booted: true, ...readRegisters(vm) }),
+			});
+		},
+	},
+	{
+		name: "eject_disk",
+		description:
+			'Eject the disk: the drive is empty (disk accesses fail with "no device"), and stays empty at the next ' +
+			"startup; labels / data formats / notes go back to the system ones. The machine keeps running what it " +
+			"was. `result`: `ejected` (with the disk) or `already_empty`.",
+		inputSchema: { type: "object", properties: {} },
+		async execute() {
+			const vm = await getVm();
+			const { inserted, eject } = useDiskDrive();
+			const disk = inserted.value;
+			if (!disk) return json({ result: "already_empty" });
+			await eject(vm);
+			return json({ result: "ejected", disk: describeDisk(disk) });
 		},
 	},
 	{
