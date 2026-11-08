@@ -27,7 +27,7 @@ import { VideoOutput, type VideoViewRect } from "@/virtualmachine/video/video.ou
 import { useMemoryMap } from "../composables/useMemoryMap";
 import { parseHexData } from "../lib/array.utils";
 import type { Breakpoint } from "../types/breakpoint.interface";
-import { executeHypercallCmd } from "./hypercall";
+import { applyHypercall } from "./hypercall";
 import type { StopInfo } from "@/types/stopinfo.interface";
 import type { EmulatorRegisters } from "@/types/emulatorstate.interface";
 import { logBus } from "./logbus.class";
@@ -103,7 +103,7 @@ export class VirtualMachine {
 		});
 
 		this.worker.onmessage = (event) => {
-			const { command, colors, type, history, buffer, address, channel, text, payload } = event.data;
+			const { command, colors, type, history, buffer, channel, text, payload } = event.data;
 
 			switch (type) {
 				case "audio":
@@ -125,8 +125,8 @@ export class VirtualMachine {
 					this.onmessage?.(event);
 					break;
 				case "hypercall":
-					// The worker stopped on `BRK <cmd>`: run it, move PC past it, resume if it was running.
-					executeHypercallCmd(this, this.read(address + 1), address, event.data.wasRunning);
+					// The worker ran `BRK <cmd>` (and stopped if the call asked to): apply its effect.
+					applyHypercall(event.data.call);
 					break;
 				case "break":
 					this.onmessage?.(event);

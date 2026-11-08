@@ -9,6 +9,7 @@ import { useBreakpoints } from "@/composables/useBreakpoints";
 import { parseAddress } from "@/lib/parse.utils";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import type { StopInfo } from "@/types/stopinfo.interface";
+import { HYPERCALL_NAMES } from "@/lib/hypercalls.lib";
 import {
 	FLAG_B_MASK,
 	FLAG_C_MASK,
@@ -127,6 +128,8 @@ const describeStop = (stop: StopInfo | undefined, target?: number): Record<strin
 		case "pause":
 		case "reset":
 			return { stopped: stop.reason };
+		case "hypercall":
+			return { stopped: "hypercall", command: HYPERCALL_NAMES[stop.cmd], address: hexAddr(stop.address) };
 		default:
 			return { stopped: stop.reason, address: hexAddr(stop.address) };
 	}
@@ -300,8 +303,9 @@ export const MCP_TOOLS: McpTool[] = [
 			"On timeout the machine is paused (unless pause_on_timeout is false). Returns the registers and `stopped`: " +
 			"`reached_address`, `breakpoint` (with its type and address; for read/write breakpoints the address is the " +
 			"memory accessed, PC is the instruction), `brk` (when break on BRK is on; resuming then executes it), `step` (step over/out done), `error` (unimplemented opcode), " +
-			"`pause` (paused by someone else), `reset`, or `timeout (paused)` / `cancelled (…)`. " +
-			"Hypercall BRKs (the machine resumes by itself) don't stop the wait.",
+			"`pause` (paused by someone else), `reset`, `hypercall` (a `BRK $8x` hypercall asked to stop: `command` " +
+			"and `address` of the call, PC is after it), or `timeout (paused)` / `cancelled (…)`. " +
+			"Hypercalls without the stop bit don't stop the machine.",
 		inputSchema: {
 			type: "object",
 			properties: {
@@ -340,14 +344,7 @@ export const MCP_TOOLS: McpTool[] = [
 						return json({ stopped: "did not start", ...readRegisters(vm) });
 					}
 				}
-				while (await waitForRunning(false, Math.max(0, deadline - Date.now()), signal)) {
-					// A hypercall BRK stops the CPU for a moment: the main thread runs it and resumes.
-					if (vm.lastStop?.reason === "hypercall") {
-						const left = deadline - Date.now();
-						if (left > 0 && (await waitForRunning(true, Math.min(1000, left), signal))) continue;
-					}
-					return report();
-				}
+				if (await waitForRunning(false, Math.max(0, deadline - Date.now()), signal)) return report();
 				const why = signal?.aborted ? "cancelled" : "timeout";
 				if (pauseOnTimeout) {
 					vm.pause();
