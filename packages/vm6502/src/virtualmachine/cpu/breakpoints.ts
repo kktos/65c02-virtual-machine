@@ -23,7 +23,8 @@ export const bankedBreakpoints = new Map<number, number>();
 
 export let stepBPAddress: number | null = null;
 export let stepAddedBreakpoint = false;
-export let breakOnBrk = false;
+// On by default: in a debugger, a BRK usually means the code ran into zeroed memory.
+export let breakOnBrk = true;
 
 export const setStepBPAddress = (address: number | null) => (stepBPAddress = address);
 export const setStepAddedBreakpoint = (added: boolean) => (stepAddedBreakpoint = added);

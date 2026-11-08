@@ -19,7 +19,13 @@ export function getHypercallArgs(readByte: (address: number) => number, stringAd
 	return args;
 }
 
+// Decode `BRK <cmd>` as a hypercall only on machines that run them (set when a machine is loaded),
+// so the disassembly matches what the CPU does.
+let hypercallsEnabled = false;
+export const setHypercallDisassembly = (enabled: boolean) => (hypercallsEnabled = enabled);
+
 export function runHypercall(readByte: (address: number) => number, pc: number) {
+	if (!hypercallsEnabled) return { line: undefined, pc };
 	const cmd = readByte(pc + 1);
 	let hypercallLine: DisassemblyLine | null = null;
 	let bytesConsumed = 0;

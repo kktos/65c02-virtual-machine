@@ -31,6 +31,7 @@ import {
 	REG_X_OFFSET,
 	REG_Y_OFFSET,
 } from "./shared-memory";
+import { HYPERCALL_COMMANDS } from "../hypercall.consts";
 
 const STACK_PAGE_HI = 0x0100;
 
@@ -65,7 +66,14 @@ const FLAG_D_MASK = 0x08;
 // const FLAG_B_MASK = 0x10;
 const FLAG_V_MASK = 0x40;
 
-const isHyperCallActive = true;
+// `BRK <cmd>` hypercalls, per machine (MachineConfig.hypercalls)
+let hypercallsEnabled = false;
+export const setHypercalls = (enabled: boolean) => (hypercallsEnabled = enabled);
+
+// PC of the BRK the CPU stopped on ("break on BRK"), so that resuming executes it instead of stopping again
+let stoppedOnBrkAt: number | null = null;
+export const isStoppedOnBrk = () =>
+	stoppedOnBrkAt !== null && stoppedOnBrkAt === registersView?.getUint16(REG_PC_OFFSET, true);
 
 // Re-export breakpoint functions for external use
 export { addBreakpoint, removeBreakpoint, clearBreakpoints, setBreakOnBrk };
@@ -466,16 +474,22 @@ export function executeInstruction(): number {
 		switch (opcode) {
 			// --- BRK ---
 			case 0x00: {
-				// BRK
-				if (isHyperCallActive || (breakOnBrk && isRunning)) {
+				// BRK. `pc` is on its signature byte, which is the hypercall command.
+				// Hypercalls run whether running or stepping; "break on BRK" only stops a running CPU,
+				// so stepping a BRK executes it.
+				const isHypercall = hypercallsEnabled && HYPERCALL_COMMANDS.has(bus.read(pc));
+				if (isHypercall || (breakOnBrk && isRunning)) {
 					const wasRunning = isRunning;
 					pc--; // Point back to the BRK instruction so the user sees it
 					const bank = bus.getBank?.(pc) ?? 0;
-					setRunning(false, { reason: "brk", address: (bank << 16) | pc });
-					self.postMessage({ type: "break", address: (bank << 16) | pc, wasRunning });
+					const address = (bank << 16) | pc;
+					stoppedOnBrkAt = isHypercall ? null : pc;
+					setRunning(false, { reason: isHypercall ? "hypercall" : "brk", address });
+					self.postMessage({ type: isHypercall ? "hypercall" : "break", address, wasRunning });
 					cycles = 0;
 					break;
 				}
+				stoppedOnBrkAt = null;
 
 				{
 					let s = registersView.getUint8(REG_SP_OFFSET);
@@ -489,8 +503,9 @@ export function executeInstruction(): number {
 					bus.write(STACK_PAGE_HI | s, lo);
 					s = (s - 1) & 0xff;
 
-					// PHP (Push Processor Status)
-					const status = registersView.getUint8(REG_STATUS_OFFSET) | FLAG_5_MASK;
+					// Push P with B set: that's how an IRQ handler tells a BRK from an IRQ
+					// (B isn't always set in the register, e.g. after reset).
+					const status = registersView.getUint8(REG_STATUS_OFFSET) | FLAG_5_MASK | FLAG_B_MASK;
 					bus.write(STACK_PAGE_HI | s, status);
 					s = (s - 1) & 0xff;
 

@@ -3,8 +3,6 @@ import { REG_A_OFFSET, REG_SP_OFFSET, REG_STATUS_OFFSET, REG_X_OFFSET, REG_Y_OFF
 import type { VirtualMachine } from "./virtualmachine.class";
 import { logBus } from "./logbus.class";
 
-export const HYPERCALL_COMMANDS = new Set([0x01, 0x02, 0x03, 0x04]);
-
 export function executeHypercallCmd(vm: VirtualMachine, cmd: number, pc: number, shouldResume = true) {
 	let offsetPC = 0;
 	switch (cmd) {

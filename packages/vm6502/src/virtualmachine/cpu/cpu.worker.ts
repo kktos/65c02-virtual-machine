@@ -8,10 +8,12 @@ import {
 	clearTrace,
 	getTrace,
 	initCPU,
+	isStoppedOnBrk,
 	removeBreakpoint,
 	resetCPU,
 	setBreakOnBrk,
 	setClockSpeed,
+	setHypercalls,
 	setRunning,
 	setTrace,
 	setTraceSize,
@@ -66,6 +68,7 @@ async function init(machine: MachineConfig) {
 	}
 
 	initCPU(bus, registersView, video, memoryView, stackMetadataView);
+	setHypercalls(!!machine.hypercalls);
 
 	bus.syncState?.();
 	console.log(`%cWorker:%c Initialized with "${machine.name}".`, COLORED_LOG, COLORDEFAULT_LOG);
@@ -88,8 +91,11 @@ self.onmessage = async (event: MessageEvent) => {
 			// before resuming execution to avoid getting stuck.
 			{
 				const pc = registersView.getUint16(REG_PC_OFFSET, true);
+				// Stopped on a BRK ("break on BRK"): resuming executes it (through $FFFE). Not also the
+				// breakpoint check below, which would step over a breakpoint set on the BRK handler.
+				if (isStoppedOnBrk()) stepInstruction();
 				// biome-ignore lint/style/noNonNullAssertion: <expected>
-				if (breakpointMap[pc]! & BP_PC) {
+				else if (breakpointMap[pc]! & BP_PC) {
 					// Fast check passed, now do detailed check
 					const bank = bus?.getBank?.(pc) ?? 0;
 					const physicalPC = (bank << 16) | pc;
