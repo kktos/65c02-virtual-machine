@@ -18,13 +18,13 @@
 		<button @click="vm?.stepOver" :disabled="isRunning" class="toolbar-btn" title="Step Over (F10)">
 			<RedoDot class="h-4 w-4" />
 		</button>
-		<button @click="vm?.step" :disabled="isRunning" class="toolbar-btn" title="Step Into (F11)">
+		<button @click="vm?.step()" :disabled="isRunning" class="toolbar-btn" title="Step Into (F11)">
 			<ArrowDownToDot class="h-4 w-4" />
 		</button>
 		<button @click="vm?.stepOut" :disabled="isRunning" class="toolbar-btn" title="Step Out (Shift+F11)">
 			<ArrowUpFromDot class="h-4 w-4" />
 		</button>
-		<button @click="vm?.reset" class="toolbar-btn group hover:bg-red-900/30" title="Reset the CPU and memory">
+		<button @click="vm?.reset()" class="toolbar-btn group hover:bg-red-900/30" title="Reset the CPU and memory">
 			<RotateCcw class="h-4 w-4 text-red-400 group-hover:text-red-300" />
 		</button>
 

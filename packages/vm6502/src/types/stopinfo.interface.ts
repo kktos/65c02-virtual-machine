@@ -8,7 +8,7 @@ export type StopInfo =
 	| { reason: "pause" | "reset" }
 	/** user breakpoint; for read/write/access breakpoints `address` is the memory address, PC is the instruction */
 	| { reason: "breakpoint"; breakpointType: string; address: number }
-	/** step over / step out finished */
+	/** a step finished (step into, over or out) */
 	| { reason: "step"; address: number }
 	/** BRK instruction, when "break on BRK" is on */
 	| { reason: "brk"; address: number }
@@ -19,3 +19,9 @@ export type StopInfo =
 	| { reason: "hypercall"; address: number; cmd: number }
 	/** unimplemented opcode */
 	| { reason: "error"; address: number; message: string };
+
+/**
+ * Result of a (multi-instruction) step: `executed` instructions, `address` the physical PC after them,
+ * `stop` why it ended before the count (error, hypercall with the stop bit, PC breakpoint).
+ */
+export type StepResult = { executed: number; address: number; stop?: StopInfo };

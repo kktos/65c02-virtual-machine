@@ -18,6 +18,7 @@ import {
 	setTrace,
 	setTraceSize,
 	stepInstruction,
+	stepInstructions,
 	stepOutInstruction,
 	stepOverInstruction,
 } from "./cpu.65c02";
@@ -75,6 +76,11 @@ async function init(machine: MachineConfig) {
 	self.postMessage({ type: "ready" });
 }
 
+/** Answers a request from the main thread (`VirtualMachine.request`): only when it carries an `id`. */
+const reply = (event: MessageEvent, data: object = {}) => {
+	if (event.data.id !== undefined) self.postMessage({ type: "reply", id: event.data.id, ...data });
+};
+
 self.onmessage = async (event: MessageEvent) => {
 	const { command, speed, machine, key, code } = event.data;
 
@@ -110,9 +116,11 @@ self.onmessage = async (event: MessageEvent) => {
 		case "pause":
 			setRunning(false, { reason: "pause" });
 			break;
-		case "step":
-			stepInstruction();
+		case "step": {
+			const result = stepInstructions(event.data.count ?? 1);
+			reply(event, result);
 			break;
+		}
 		case "stepOver":
 			stepOverInstruction();
 			break;
@@ -132,6 +140,7 @@ self.onmessage = async (event: MessageEvent) => {
 			video?.reset();
 			bus?.reset();
 			resetCPU();
+			reply(event);
 			break;
 		case "addBP":
 			addBreakpoint(event.data.type, event.data.address, event.data.endAddress);

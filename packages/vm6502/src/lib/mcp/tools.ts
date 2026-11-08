@@ -442,6 +442,40 @@ export const MCP_TOOLS: McpTool[] = [
 		},
 	},
 	{
+		name: "step",
+		description:
+			"Execute `count` instructions (default 1) on the paused machine, like the debugger's Step Into: BRKs and " +
+			"hypercalls execute, read/write breakpoints don't fire. Stops early after an error (unimplemented opcode), " +
+			"a hypercall with the stop bit (`BRK $8x`), or when the next instruction has a PC breakpoint. Returns " +
+			"`executed`, the registers and, if it stopped early, `stopped` (same values as run_until). " +
+			"The machine must be paused (call pause first). To step over a JSR, run_until the next instruction's address.",
+		inputSchema: {
+			type: "object",
+			properties: { count: { type: "integer", minimum: 1, maximum: 100_000, default: 1 } },
+		},
+		async execute(input) {
+			const vm = await getVm();
+			const count = toInt(input.count, "count", 1, 1, 100_000);
+			if (useMachine().isRunning.value) throw new Error("The machine is running: pause it first");
+			const { executed, stop } = await vm.step(count);
+			return json({ executed, ...(stop && describeStop(stop)), ...readRegisters(vm) });
+		},
+	},
+	{
+		name: "reset",
+		description:
+			"Reset the machine, like the Reset button: CPU (PC from the $FFFC vector, I set, SP=$FD), soft switches " +
+			"and video; memory is kept. The machine is left paused on the reset vector: call run_until to let it run " +
+			"(e.g. boot). Breakpoints are kept. Returns the registers.",
+		inputSchema: { type: "object", properties: {} },
+		async execute() {
+			const vm = await getVm();
+			await vm.reset();
+			await waitForRunning(false, 1000); // the worker's `isRunning: false` comes before its reply
+			return json(readRegisters(vm));
+		},
+	},
+	{
 		name: "set_breakpoint",
 		description:
 			"Set a breakpoint: `pc` stops before executing the instruction at `address`, `read` / `write` / `access` stop on a " +
