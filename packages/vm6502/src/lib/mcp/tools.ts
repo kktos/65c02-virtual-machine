@@ -16,6 +16,14 @@ import type { Breakpoint } from "@/types/breakpoint.interface";
 import { HYPERCALL_NAMES } from "@/lib/hypercalls.lib";
 import { disassemble } from "@/lib/disassembler";
 import { bytesToBase64 } from "@/lib/png.lib";
+import {
+	type MemoryCandidate,
+	type MemoryFilter,
+	type MemoryRange,
+	MemorySearch,
+	normalizeRanges,
+} from "@/lib/memorySearch.lib";
+import { useSymbols } from "@/composables/useSymbols";
 import type { DisassemblyLine } from "@/types/disassemblyline.interface";
 import {
 	INSTRUCTION_TRACE_DEFAULT_SIZE,
@@ -333,6 +341,81 @@ const hexdump = (start: number, bytes: Uint8Array) => {
 	return lines.join("\n");
 };
 
+// ─── Memory search (memory_snapshot / memory_diff) ────────────────────────────
+
+const SEARCH_DEFAULT_RANGE: MemoryRange = { start: 0x0000, end: 0xbfff }; // Apple II main RAM below the I/O
+const SEARCH_MAX_BYTES = 0x40000;
+const MEMORY_FILTERS = ["changed", "unchanged", "increased", "decreased", "equals", "not_equals"] as const;
+
+/** The search in progress: kept in the tab between calls. */
+let memorySearch: MemorySearch | undefined;
+
+/** For tests. */
+export const resetMemorySearch = () => {
+	memorySearch = undefined;
+};
+
+const toRange = (address: unknown, endAddress: unknown, field: string): MemoryRange => {
+	const start = toAddress(address, `${field}address`);
+	const end = endAddress === undefined || endAddress === null ? start : toAddress(endAddress, `${field}end_address`);
+	return { start, end };
+};
+
+const toSearchRanges = (input: ToolInput): MemoryRange[] => {
+	let ranges: MemoryRange[];
+	if (input.ranges !== undefined) {
+		if (input.address !== undefined) throw new Error("address: give `ranges` or `address`, not both");
+		if (!Array.isArray(input.ranges) || !input.ranges.length) throw new Error("ranges: non-empty array expected");
+		ranges = input.ranges.map((r, i) => {
+			if (!r || typeof r !== "object") throw new Error(`ranges[${i}]: { address, end_address } expected`);
+			const { address, end_address } = r as ToolInput;
+			if (end_address === undefined) throw new Error(`ranges[${i}].end_address: required`);
+			return toRange(address, end_address, `ranges[${i}].`);
+		});
+	} else if (input.address !== undefined) {
+		if (input.end_address === undefined) throw new Error("end_address: required with address");
+		ranges = [toRange(input.address, input.end_address, "")];
+	} else ranges = [SEARCH_DEFAULT_RANGE];
+	ranges = normalizeRanges(ranges);
+	const size = ranges.reduce((n, r) => n + r.end - r.start + 1, 0);
+	if (size > SEARCH_MAX_BYTES) throw new Error(`ranges: at most ${SEARCH_MAX_BYTES} bytes in all (${size} asked)`);
+	return ranges;
+};
+
+const toByte = (v: unknown, field: string): number => {
+	if (typeof v === "string") {
+		const m = v.trim().match(/^(?:\$|0x)([0-9a-f]{1,2})$/i);
+		if (m) return Number.parseInt(m[1] as string, 16);
+	}
+	return toInt(v, field, 0, 0, 255);
+};
+
+const toMemoryFilter = (input: ToolInput): MemoryFilter => {
+	const kind = input.filter as (typeof MEMORY_FILTERS)[number];
+	if (!MEMORY_FILTERS.includes(kind)) throw new Error(`filter: must be one of ${MEMORY_FILTERS.join(", ")}`);
+	if (kind === "equals" || kind === "not_equals") {
+		if (input.value === undefined) throw new Error(`value: required with ${kind}`);
+		return { kind, value: toByte(input.value, "value") };
+	}
+	if (input.value !== undefined) throw new Error(`value: only with equals / not_equals`);
+	if (kind === "increased" || kind === "decreased")
+		return input.by === undefined ? { kind } : { kind, by: toInt(input.by, "by", 1, 1, 255) };
+	if (input.by !== undefined) throw new Error("by: only with increased / decreased");
+	return { kind };
+};
+
+const describeRange = (r: MemoryRange) => ({ address: hexAddr(r.start), end_address: hexAddr(r.end) });
+
+const describeCandidate = (c: MemoryCandidate) => {
+	const label = c.address <= 0xffff ? useSymbols().getLabelForAddress(c.address) : undefined;
+	return {
+		address: hexAddr(c.address),
+		...(label && { label }),
+		previous: hex(c.previous, 2),
+		value: hex(c.value, 2),
+	};
+};
+
 // ─── Tools ────────────────────────────────────────────────────────────────────
 
 export const MCP_TOOLS: McpTool[] = [
@@ -561,6 +644,106 @@ export const MCP_TOOLS: McpTool[] = [
 					{ type: "text", text: json({ width: shot.width, height: shot.height, running: vm.isRunning }) },
 				],
 			};
+		},
+	},
+	{
+		name: "memory_snapshot",
+		description:
+			"Start a memory search (cheat-finder style): records the bytes of the ranges, and every byte becomes a " +
+			"candidate. Then let the program run (run_until, type_keys…) and call memory_diff to keep only the bytes " +
+			"that changed the way you expect (lives counter: `decreased` `by: 1` after losing a life, `unchanged` while " +
+			"nothing happens); repeat until a few remain, then confirm with write_memory or a write breakpoint. " +
+			"Default range: $0000-$BFFF (Apple II main RAM). `address` + `end_address`, or `ranges` ([{ address, " +
+			"end_address }], not overlapping): above $FFFF selects a bank (Apple II: $10000-$1BFFF = aux RAM); " +
+			"$D000-$FFFF reads what is currently mapped there. At most 256 KB in all. Debug reads (no I/O side " +
+			"effects), works running or paused. Replaces the search in progress. Byte-wise: a 16-bit or BCD " +
+			"counter shows as its bytes.",
+		inputSchema: {
+			type: "object",
+			properties: {
+				address: { ...addressSchema, description: "Start of a single range (with end_address)" },
+				end_address: { ...addressSchema, description: "Last address of the range (inclusive)" },
+				ranges: {
+					type: "array",
+					items: {
+						type: "object",
+						properties: { address: addressSchema, end_address: addressSchema },
+						required: ["address", "end_address"],
+					},
+					description: "Several ranges instead of address / end_address",
+				},
+			},
+		},
+		annotations: { readOnlyHint: true },
+		async execute(input) {
+			const vm = await getVm();
+			const ranges = toSearchRanges(input);
+			vm.syncBusState(); // language card banking decides what $D000-$FFFF holds
+			memorySearch = new MemorySearch(ranges, (a, n) => vm.readDebugRange(a, n));
+			return json({
+				ranges: ranges.map(describeRange),
+				candidates: memorySearch.count,
+				note: "Run the program, then call memory_diff with a filter",
+			});
+		},
+	},
+	{
+		name: "memory_diff",
+		description:
+			"Narrow the memory search started by memory_snapshot: compares each candidate's value now to its " +
+			"reference (its value at the snapshot, then at the previous memory_diff) and keeps those matching " +
+			"`filter`: `changed`, `unchanged`, `increased` / `decreased` (with `by`: by exactly that much, modulo 256, " +
+			"so $00 → $FF is decreased by 1; without: unsigned compare), `equals` / `not_equals` `value` (the value " +
+			"now; e.g. right after the snapshot when you know the lives count). The kept candidates' value now " +
+			"becomes their reference for the next call. Without `filter`, nothing is narrowed: lists the candidates " +
+			"with their reference (`previous`) and current `value`. Returns `before` / `remaining` counts, `round` " +
+			"and the first `count` candidates (default 50, max 500): `address`, `label`, `previous`, `value`; `more: " +
+			"true` when there are others. The search lives in the browser tab: a reload loses it.",
+		inputSchema: {
+			type: "object",
+			properties: {
+				filter: { type: "string", enum: [...MEMORY_FILTERS] },
+				value: {
+					type: ["integer", "string"],
+					description: 'Byte (0-255 or "$2A") for equals / not_equals',
+				},
+				by: {
+					type: "integer",
+					minimum: 1,
+					maximum: 255,
+					description: "For increased / decreased: exact change",
+				},
+				count: { type: "integer", minimum: 1, maximum: 500, default: 50, description: "Candidates listed" },
+			},
+		},
+		annotations: { readOnlyHint: true },
+		async execute(input) {
+			const vm = await getVm();
+			if (!memorySearch) throw new Error("No memory search: call memory_snapshot first");
+			const search = memorySearch;
+			const count = toInt(input.count, "count", 50, 1, 500);
+			const filter = input.filter === undefined ? undefined : toMemoryFilter(input);
+			vm.syncBusState();
+			const read = (a: number, n: number) => vm.readDebugRange(a, n);
+			const before = search.count;
+			const candidates = filter ? search.filter(filter, read, count) : search.list(read, count);
+			const head = {
+				...(filter && {
+					filter: filter.kind,
+					...("by" in filter && filter.by !== undefined && { by: filter.by }),
+					...("value" in filter && { value: hex(filter.value, 2) }),
+					before,
+				}),
+				round: search.rounds,
+				remaining: search.count,
+				...(search.count === 0 && { note: "No candidate left: start again with memory_snapshot" }),
+			};
+			return jsonWithList(
+				head,
+				"candidates",
+				candidates.map(describeCandidate),
+				search.count > candidates.length ? { more: true } : {},
+			);
 		},
 	},
 	{
