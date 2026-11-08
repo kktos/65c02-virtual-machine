@@ -11,6 +11,7 @@ export const labels_system = `
 		$03fe IRQLOC
 		$0400 TXT_SCRN_START
 		$07f8 MSLOT
+		$0800 BOOT1
 	END_LABELS
 	LABELS SYSTEM io
 		$c000 KBD

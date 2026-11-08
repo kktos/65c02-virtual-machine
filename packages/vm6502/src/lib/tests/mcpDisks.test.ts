@@ -72,6 +72,19 @@ describe("disk tools", () => {
 		expect(result.disks[2]).toEqual({ key: "https://x.org/d/game.po", name: "game.po", type: "url", size: 0 });
 	});
 
+	it("list_disks: an inserted URL disk has its fetched size in the library too", async () => {
+		inserted.value = { key: "https://x.org/d/game.po", name: "game.po", type: "url", size: 143360 };
+		const result = await call("list_disks");
+		expect(result.in_drive.size).toBe(143360);
+		expect(result.disks[2]).toEqual({
+			key: "https://x.org/d/game.po",
+			name: "game.po",
+			type: "url",
+			size: 143360,
+			in_drive: true,
+		});
+	});
+
 	it("list_disks: empty drive", async () => {
 		expect((await call("list_disks")).in_drive).toBeNull();
 	});
