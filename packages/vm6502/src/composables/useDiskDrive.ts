@@ -46,7 +46,7 @@ const urlFileName = (url: string) => {
 };
 
 export function useDiskDrive() {
-	const { saveDisk, saveUrlDisk, loadDisk, getAllDisks, deleteDisk } = useDiskStorage();
+	const { saveDisk, saveUrlDisk, loadDisk, getAllDisks, deleteDisk, renameDisk } = useDiskStorage();
 	const { addSymbolsFromText, setDiskKey: symbolsSetDiskKey } = useSymbols();
 	const { setDiskKey: formattingsSetDiskKey } = useFormatting();
 	const { setDiskKey: notesSetDiskKey } = useNotes();
@@ -123,10 +123,18 @@ export function useDiskDrive() {
 		await setMetadataDisk(NO_DISK);
 	};
 
+	/** Renames a library disk; the drive shows the new name if it is the one inserted. */
+	const rename = async (key: IDBValidKey, name: string) => {
+		await renameDisk(key, name);
+		if (inserted.value?.key !== key) return;
+		inserted.value = { ...inserted.value, name };
+		await loadDisk(key); // refreshes `lastLoadedDisk`
+	};
+
 	/** At startup: puts back the last disk inserted, unless it was ejected. */
 	const restoreLastDisk = async (vm: VirtualMachine) => {
 		const last = recalled();
-		if (last.url) return insertFromUrl(vm, last.url);
+		if (last.url) return insertFromUrl(vm, last.url, (await loadDisk(last.url))?.name);
 		if (last.key) {
 			const saved = await loadDisk(last.key);
 			if (saved?.type === "physical") await insertFromLibrary(vm, last.key);
@@ -148,6 +156,7 @@ export function useDiskDrive() {
 		insertFile,
 		insertUrl,
 		eject,
+		rename,
 		restoreLastDisk,
 	};
 }

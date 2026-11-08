@@ -23,6 +23,10 @@ vi.mock("@/composables/useDiskStorage", () => ({
 		saveUrlDisk: async (key: unknown, name: string, path: string) =>
 			library.set(key, { type: "url", name, path, size: 0 }),
 		deleteDisk: async (key: unknown) => library.delete(key),
+		renameDisk: async (key: unknown, name: string) => {
+			const rec = library.get(key);
+			if (rec) rec.name = name;
+		},
 	}),
 }));
 
@@ -117,5 +121,31 @@ describe("useDiskDrive", () => {
 	it("unknown library disk: error, drive unchanged", async () => {
 		await expect(drive.insertFromLibrary(asVm, "nope")).rejects.toThrow(/No disk 'nope'/);
 		expect(vm.insertDisk).not.toHaveBeenCalled();
+	});
+
+	it("renaming the inserted disk renames it in the drive too", async () => {
+		library.set("a.po", { type: "physical", name: "a.po", path: "a.po", size: 4, data: bytes(4) });
+		library.set("b.po", { type: "physical", name: "b.po", path: "b.po", size: 4, data: bytes(4) });
+		await drive.insertFromLibrary(asVm, "a.po");
+
+		await drive.rename("b.po", "Other");
+		expect(drive.inserted.value?.name).toBe("a.po");
+
+		await drive.rename("a.po", "My disk");
+		expect(library.get("a.po")?.name).toBe("My disk");
+		expect(drive.inserted.value).toMatchObject({ key: "a.po", name: "My disk" });
+	});
+
+	it("a renamed URL disk keeps its name when put back at startup", async () => {
+		const url = "https://example.com/game.po";
+		vi.stubGlobal("fetch", async (u: string) =>
+			u.endsWith(".sym") ? { ok: false } : { ok: true, arrayBuffer: async () => bytes(16), statusText: "" },
+		);
+		library.set(url, { type: "url", name: "My game", path: url, size: 0 });
+		storage.set("vm6502_active_disk_url", url);
+
+		await drive.restoreLastDisk(asVm);
+		expect(drive.inserted.value).toMatchObject({ key: url, name: "My game" });
+		expect(vm.insertDisk).toHaveBeenCalledWith(expect.any(Uint8Array), { slot: 5, name: "game.po" });
 	});
 });
