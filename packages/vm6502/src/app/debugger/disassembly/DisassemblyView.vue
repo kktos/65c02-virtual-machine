@@ -331,7 +331,7 @@ const handleKeyDown = (event: KeyboardEvent) => {
 scrollContainer;
 
 const readByte = (address: number, debug = true) => {
-	return (debug ? vm?.value.readDebug(address) : vm?.value.read(address)) ?? 0;
+	return (debug ? vm?.value.readDebug(address) : vm?.value.peek(address)) ?? 0;
 };
 
 watch(

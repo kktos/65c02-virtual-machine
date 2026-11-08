@@ -536,6 +536,11 @@ export class VirtualMachine {
 		return this.bus?.readDebug ? this.bus.readDebug(address, overrides) : this.read(address);
 	}
 
+	/** What the CPU would read at `address` (current banking), without I/O side effects. */
+	public peek(address: number): number {
+		return this.bus?.peek ? this.bus.peek(address) : this.readDebug(address);
+	}
+
 	public readDebugRange(address: number, length: number, overrides?: Dict | string): Uint8Array {
 		if (this.bus?.readDebugRange) return this.bus.readDebugRange(address, length, overrides);
 

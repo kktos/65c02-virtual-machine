@@ -47,6 +47,12 @@ export interface IBus {
 	/** Reads memory with optional overrides for debugging/inspection. */
 	readDebug?(address: number, overrides?: Dict | string): number;
 
+	/**
+	 * What the CPU would read at `address` with the current banking (ALTZP, RAMRD, 80STORE, language card…),
+	 * without side effects: no soft switch, no slot ROM switching. For the disassembler's operand values.
+	 */
+	peek?(address: number): number;
+
 	/** Reads a range of memory with optional overrides for debugging/inspection. */
 	readDebugRange?(address: number, length: number, overrides?: Dict | string): Uint8Array;
 
