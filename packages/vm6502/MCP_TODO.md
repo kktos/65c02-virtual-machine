@@ -47,7 +47,9 @@ Next:
 - [ ] `step(n)`, `reset`
 - [ ] `write_memory`
 - [ ] `disassemble(range)` — paginated, JSON
-- [ ] `set_breakpoint` / `remove_breakpoint` / list
+- [x] `set_breakpoint` / `remove_breakpoint` / `list_breakpoints` — JSON results; `set` is idempotent
+      (re-enables a disabled one, updates its `command`), `remove` answers `not_found` rather than failing,
+      `all: true` clears everything
 - [ ] labels / comments / data-format CRUD
 - [ ] `screenshot` (HIRES / GR) as image
 - [ ] memory snapshot + diff (cheat-finder)
@@ -68,6 +70,11 @@ Next:
       `run_until` returns `reached_address` / `breakpoint` (type + address) / `brk` / `step` / `error` /
       `pause` / `reset`, keeps waiting through hypercalls; `get_registers` adds `last_stop`.
 - [ ] a breakpoint whose command resumes the machine still ends `run_until` (it reports that breakpoint)
+- [x] hook commands never ran on range or `access` breakpoints: on a hit, `useMachine` looked the breakpoint up
+      by exact `{ type, address }`, but the worker reports `read` / `write` and the physical byte accessed.
+      `findHitBreakpoints(type, address)` (`useBreakpoints`) now returns the enabled ones covering it (`access`
+      answers both), most specific first (same type before `access`, then narrowest range): that one's command
+      runs, and every temporary one among them is removed.
 - [ ] `run_until` `cycles` limit (needs worker support)
 - [x] text screen decoder lived in the bridge; it's now the machine's: `IBus.getTextScreen({ page, cols })`,
       implemented by `AppleBus` (`src/machines/apple2/video/text.screen.ts`). `screen_text` asks the bus

@@ -74,9 +74,12 @@ const setupVmListeners = (targetVm: VirtualMachine) => {
 				break;
 			}
 			case "breakpointHit": {
-				const { getBreakpoint, removeBreakpoint } = useBreakpoints();
-				const bp = getBreakpoint({ type: breakpointType, address });
-				if (bp?.isTemporary) removeBreakpoint(bp, targetVm);
+				const { findHitBreakpoints, removeBreakpoint } = useBreakpoints();
+				// The hit may fall inside a range, or come from an `access` breakpoint (reported as read / write).
+				const hits = findHitBreakpoints(breakpointType, address);
+				for (const hit of hits) if (hit.isTemporary) removeBreakpoint(hit, targetVm);
+				// The most specific one decides: a plain breakpoint there stops, even inside a hooked range.
+				const bp = hits[0];
 				if (bp?.command) {
 					await executeCommand(bp?.command, targetVm);
 					break;
