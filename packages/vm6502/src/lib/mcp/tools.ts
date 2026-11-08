@@ -199,6 +199,10 @@ export const MCP_TOOLS: McpTool[] = [
 			"Run a line in the emulator's debugger console and return its output. " +
 			"The full command language is available (`help` lists commands, `help <name>` details one): " +
 			"disassembly, hexdump, labels, comments, breakpoints, hooks, routines, search, xref, etc. " +
+			"Breakpoints: `list bp` lists them all (hooks included); `list bp <address|start:end>` shows only those " +
+			"covering that address or overlapping that range, so use it to check whether one is set. " +
+			"`bp`/`bpr`/`bpw`/`bpa` add one (answers `already set` for a duplicate), `bc`/`bcr`/`bcw`/`bca` remove one " +
+			"(answers `No breakpoint …` if there was none). " +
 			"Several lines can be sent at once (newline-separated); multi-line commands (`asm`, `routine`…) " +
 			"must include their lines and terminator in the same call. " +
 			"Waits for its turn if another command is running. " +
