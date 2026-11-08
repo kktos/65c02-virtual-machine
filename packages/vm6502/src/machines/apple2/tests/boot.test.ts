@@ -5,9 +5,8 @@ import { initCPU, setRunning, stepInstruction } from "@/virtualmachine/cpu/cpu.6
 import { MEMORY_OFFSET, REG_PC_OFFSET, STACK_METADATA_OFFSET } from "@/virtualmachine/cpu/shared-memory";
 import { AppleBus } from "../apple.bus";
 import { apple2e } from "../apple.machine";
-import { RAM_OFFSET } from "../memory.consts";
 
-type Machine = { bus: AppleBus; regs: DataView; mem: Uint8Array; messages: { type: string }[] };
+type Machine = { bus: AppleBus; regs: DataView; messages: { type: string }[] };
 
 const boot = (): Machine => {
 	const messages: { type: string }[] = [];
@@ -24,7 +23,7 @@ const boot = (): Machine => {
 		bus.load(c.addr, typeof c.data === "string" ? parseHexData(c.data) : (c.data as Uint8Array), c.bank, c.tag);
 	initCPU(bus, regs, null, mem, new Uint8Array(buffer, STACK_METADATA_OFFSET, 256)); // resets the CPU
 	setRunning(false);
-	return { bus, regs, mem, messages };
+	return { bus, regs, messages };
 };
 
 const pc = (m: Machine) => m.regs.getUint16(REG_PC_OFFSET, true);
@@ -43,17 +42,8 @@ const runUntil = (m: Machine, until: () => boolean, maxSteps = 3_000_000) => {
 	throw new Error(`not reached after ${maxSteps} instructions (PC=$${pc(m).toString(16).toUpperCase()})`);
 };
 
-// Same decoding as the MCP screen_text tool (inverse/flashing shown as normal, $7F cursor as space).
-const decodeChar = (c: number) => {
-	let v = c & 0x7f;
-	if (c < 0x80) v = c & 0x3f;
-	if (v < 0x20) v += 0x40;
-	return v === 0x7f ? " " : String.fromCharCode(v);
-};
-const textLine = (m: Machine, row: number) => {
-	const base = 0x400 + (row & 7) * 0x80 + (row >> 3) * 0x28;
-	return Array.from(m.mem.subarray(RAM_OFFSET + base, RAM_OFFSET + base + 40), decodeChar).join("").trim();
-};
+// What the MCP screen_text tool returns.
+const textLine = (m: Machine, row: number) => m.bus.getTextScreen()[row]?.trim();
 
 const KEYIN_LOOP = 0xc28b; // //e enhanced KEYIN: LDA $C000 / BPL, waiting for a key
 

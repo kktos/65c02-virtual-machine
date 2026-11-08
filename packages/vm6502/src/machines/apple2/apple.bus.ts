@@ -1,5 +1,5 @@
 import type { Dict } from "@/types/dict.type";
-import type { IBus, MachineStateSpec } from "@/types/bus.interface";
+import type { IBus, MachineStateSpec, TextScreenOptions } from "@/types/bus.interface";
 import {
 	INPUT_ANALOG_0_OFFSET,
 	INPUT_ANALOG_1_OFFSET,
@@ -44,6 +44,7 @@ import type { ISlotCard } from "./slots/slotcard.interface";
 import { SmartPortCard } from "./slots/smartport.card";
 import { ThunderClockCard } from "./slots/thunderclock.card";
 import { Speaker } from "./speaker";
+import { readTextScreen } from "./video/text.screen";
 
 // IIgs default colors - white on blue
 const DEFAULT_TEXT_COLORS = 0xf2;
@@ -626,6 +627,10 @@ export class AppleBus implements IBus {
 
 		// Softswitches - return 0 to avoid side effects
 		return 0;
+	}
+
+	public getTextScreen(options?: TextScreenOptions): string[] {
+		return readTextScreen((address, length) => this.readDebugRange(address, length), options);
 	}
 
 	public readDebugRange(address: number, length: number, overrides?: MemScopeOverride | string): Uint8Array {
