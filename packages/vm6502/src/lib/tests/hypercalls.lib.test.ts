@@ -7,9 +7,10 @@ import {
 	setHypercallDisassembly,
 	type Hypercall,
 } from "../hypercalls.lib";
-import { applyHypercall } from "@/virtualmachine/hypercall";
+import { applyHypercall, routeHypercallLogs } from "@/virtualmachine/hypercall";
 import { logBus } from "@/virtualmachine/logbus.class";
 import { useMemoryMap } from "@/composables/useMemoryMap";
+import { useLogWindows } from "@/composables/useLogWindows";
 
 let memory: Uint8Array;
 const readByte = (address: number) => memory[address & 0xffff] ?? 0;
@@ -120,6 +121,16 @@ describe("applyHypercall (main thread)", () => {
 			["hyper", "A:2a X:01 Y:02 P:30 SP:ff"],
 		]);
 		emit.mockRestore();
+	});
+
+	it("log lines end up in the `hyper` log window, opened on the first one", () => {
+		const unsubscribe = routeHypercallLogs();
+		const { logWindows, getLines } = useLogWindows();
+		applyHypercall(call({ cmd: 0x01, stringAddr: 0x2000, message: "hello" }));
+		applyHypercall(call({ cmd: 0x02, regs: { A: 0x2a, X: 1, Y: 2, P: 0x30, SP: 0xff } }));
+		expect(logWindows.get("hyper")?.isVisible).toBe(true);
+		expect(getLines("hyper").map((l) => l.text)).toEqual(["hello", "A:2a X:01 Y:02 P:30 SP:ff"]);
+		unsubscribe();
 	});
 
 	it("adds and removes memory regions", () => {

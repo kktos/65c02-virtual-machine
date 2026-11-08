@@ -1,3 +1,4 @@
+import { useLogWindows } from "@/composables/useLogWindows";
 import { useMemoryMap } from "@/composables/useMemoryMap";
 import {
 	formatRegs,
@@ -31,3 +32,6 @@ export function applyHypercall(call: Hypercall) {
 		}
 	}
 }
+
+/** Hypercall log lines (LOG_STRING / LOG_REGS) are shown in the "hyper" log window. Call once. */
+export const routeHypercallLogs = () => logBus.on("hyper", (text) => useLogWindows().trace("hyper", text));

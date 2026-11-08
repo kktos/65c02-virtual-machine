@@ -91,6 +91,8 @@ Next:
 - [x] `exec_command("bogus")` returned `$00/000B: 00` instead of an error: unknown commands fall
       through to the mini-monitor, whose hex tokenizer read `bogus` as `$B` + `ogus` and hex-dumped $B.
       The monitor now throws `Unknown command: …` for any word other than `G` / `L`, a register or a label.
+- [ ] the agent can't read log windows (hypercall logs go to the `hyper` window, `log <name>` to
+      others): add a `read_log(name)` tool, e.g. returning the lines since the last read
 - [ ] WebMCP: try it for real (enable the flag), check how long-running `run_until` behaves
 - [ ] mark tools that change state (`write_memory`, …) with `consequentialHint` for WebMCP
 
