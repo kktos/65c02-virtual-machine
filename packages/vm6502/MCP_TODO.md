@@ -48,7 +48,10 @@ Next:
       (a worker command sent with an `id` gets a `reply` message). `step` runs up to n instructions in the worker
       (`stepInstructions`), each like Step Into, stopping early on a PC breakpoint, a stopping hypercall or an
       error; a step now sets `lastStop` (`step`, or why it stopped early)
-- [ ] `write_memory`
+- [x] `write_memory(address, bytes)` — debug write (`bytes`: array or hex string, max 4096), where read_memory
+      reads ($1xxxx = aux, $D000+ = the current LC read view, so ROM patches work); reads back and reports
+      `not_written` ranges (I/O, slot ROM space) and returns `previous` for undo. read_memory / write_memory
+      now sync the bus's soft switches first (they could be stale when the screen isn't rendering)
 - [ ] `disassemble(range)` — paginated, JSON
 - [x] `set_breakpoint` / `remove_breakpoint` / `list_breakpoints` — JSON results; `set` is idempotent
       (re-enables a disabled one, updates its `command`), `remove` answers `not_found` rather than failing,
