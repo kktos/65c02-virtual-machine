@@ -7,7 +7,7 @@ import { useMachine } from "@/composables/useMachine";
 import { useCommands } from "@/composables/useCommands";
 import { useBreakpoints } from "@/composables/useBreakpoints";
 import { useLogWindows } from "@/composables/useLogWindows";
-import { type InsertedDisk, useDiskDrive } from "@/composables/useDiskDrive";
+import { DISK_EXTENSIONS, type InsertedDisk, useDiskDrive } from "@/composables/useDiskDrive";
 import type { StoredDisk } from "@/composables/useDiskStorage";
 import { parseAddress } from "@/lib/parse.utils";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
@@ -15,7 +15,7 @@ import type { StopInfo } from "@/types/stopinfo.interface";
 import type { Breakpoint } from "@/types/breakpoint.interface";
 import { HYPERCALL_NAMES } from "@/lib/hypercalls.lib";
 import { disassemble } from "@/lib/disassembler";
-import { bytesToBase64 } from "@/lib/png.lib";
+import { base64ToBytes, bytesToBase64 } from "@/lib/png.lib";
 import {
 	type MemoryCandidate,
 	type MemoryFilter,
@@ -287,6 +287,27 @@ const findLibraryDisk = (disks: StoredDisk[], wanted: string) => {
 		if (found[0]) return found[0];
 	}
 	throw new Error(`disk: no '${wanted}' in the library (list_disks shows what's there)`);
+};
+
+/**
+ * Marks a string property as a file on the agent's machine: the vm6502-mcp server reads it and passes a
+ * `HostFile` in its place (a page can't read the agent's files). Other transports (WebMCP) pass the string.
+ */
+export const HOST_FILE_KEY = "x-vm6502-host-file";
+const hostFileSchema = (description: string) => ({ type: "string", description, [HOST_FILE_KEY]: true });
+
+/** What the vm6502-mcp server sends for a host file property. */
+export type HostFile = { name: string; path: string; size: number; data: string };
+
+const toHostFile = (v: unknown, field: string) => {
+	if (typeof v === "string")
+		throw new Error(
+			`${field}: files on the agent's machine are read by the vm6502-mcp server, not by this transport`,
+		);
+	const f = v as Partial<HostFile> | null;
+	if (!f || typeof f !== "object" || typeof f.name !== "string" || typeof f.data !== "string")
+		throw new Error(`${field}: file path expected`);
+	return { name: f.name, path: String(f.path ?? f.name), bytes: base64ToBytes(f.data) };
 };
 
 // Apple II: the reset handler cold-starts (and boots from the slots) when the power-up byte
@@ -957,29 +978,49 @@ export const MCP_TOOLS: McpTool[] = [
 	{
 		name: "load_disk",
 		description:
-			"Insert a disk from the library (see list_disks) into the drive, by `key` or name. Like the user loading it: " +
-			"its labels / data formats / notes become the current disk's, and it comes back at the next startup. " +
-			"Inserting doesn't restart the machine: `boot: true` then cold-boots (like Ctrl-OpenApple-Reset: the ROM " +
-			"scans the slots and boots the disk) and leaves it running; use run_until / screen_text to follow the boot. " +
-			"Returns the inserted disk.",
+			"Insert a disk into the drive: from the library (see list_disks) by `key` or name, or an image file on " +
+			"your machine by `path` (" +
+			DISK_EXTENSIONS.join(" ") +
+			"; read by the vm6502-mcp server: absolute, or relative to its working directory, `~` allowed; max 64 MB), " +
+			"which is added to the library under its file name (replacing a library disk with the same file name). " +
+			"Like the user loading it: its labels / data formats / notes become the current disk's, and it comes back " +
+			"at the next startup. Inserting doesn't restart the machine: `boot: true` then cold-boots (like " +
+			"Ctrl-OpenApple-Reset: the ROM scans the slots and boots the disk) and leaves it running; use run_until / " +
+			"screen_text to follow the boot. Returns the inserted disk.",
 		inputSchema: {
 			type: "object",
 			properties: {
 				disk: { type: "string", description: "Library key or disk name" },
+				path: hostFileSchema("Disk image file on the agent's machine, instead of `disk`"),
 				boot: { type: "boolean", default: false, description: "Cold-boot after inserting" },
 			},
-			required: ["disk"],
 		},
 		async execute(input) {
 			const vm = await getVm();
 			if (!vm.machineConfig.disk) throw new Error(`${vm.machineConfig.name} has no disk drive`);
-			const { listDisks, insertFromLibrary } = useDiskDrive();
-			const found = findLibraryDisk(await listDisks(), toStr(input.disk, "disk").trim());
-			const disk = await insertFromLibrary(vm, found.key);
+			if ((input.disk === undefined) === (input.path === undefined))
+				throw new Error("disk or path: give one of them");
+			const { listDisks, insertFromLibrary, insertFile } = useDiskDrive();
+
+			let disk: InsertedDisk;
+			let fromFile: Record<string, unknown> = {};
+			if (input.path !== undefined) {
+				const file = toHostFile(input.path, "path");
+				const lower = file.name.toLowerCase();
+				if (!DISK_EXTENSIONS.some((ext) => lower.endsWith(ext)))
+					throw new Error(`path: ${file.name} is not a disk image (${DISK_EXTENSIONS.join(", ")})`);
+				const replaced = (await listDisks()).some((d) => String(d.key) === file.name);
+				disk = await insertFile(vm, file.name, file.bytes.buffer);
+				fromFile = { path: file.path, added_to_library: true, ...(replaced && { replaced: true }) };
+			} else {
+				const found = findLibraryDisk(await listDisks(), toStr(input.disk, "disk").trim());
+				disk = await insertFromLibrary(vm, found.key);
+			}
 			if (input.boot === true) await coldBoot(vm);
 			return json({
 				result: "inserted",
 				disk: describeDisk(disk),
+				...fromFile,
 				...(input.boot === true && { booted: true, ...readRegisters(vm) }),
 			});
 		},

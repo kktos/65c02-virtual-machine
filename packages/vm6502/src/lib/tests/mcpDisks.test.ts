@@ -15,6 +15,11 @@ const drive = {
 		inserted.value = disk;
 		return disk;
 	}),
+	insertFile: vi.fn(async (_vm: unknown, fileName: string, data: ArrayBuffer) => {
+		const disk = { key: fileName, name: fileName, type: "physical" as const, size: data.byteLength };
+		inserted.value = disk;
+		return disk;
+	}),
 	eject: vi.fn(async () => {
 		inserted.value = null;
 	}),
@@ -35,9 +40,12 @@ const vm = {
 vi.mock("@/composables/useMachine", () => ({ useMachine: () => ({ vm: shallowRef(vm), isRunning }) }));
 vi.mock("@/composables/useCommands", () => ({ useCommands: () => ({}) }));
 vi.mock("@/composables/useSymbols", () => ({ useSymbols: () => ({ getAddressForLabel: () => undefined }) }));
-vi.mock("@/composables/useDiskDrive", () => ({ useDiskDrive: () => drive }));
+vi.mock("@/composables/useDiskDrive", () => ({
+	DISK_EXTENSIONS: [".po", ".2mg", ".dsk", ".hdv"],
+	useDiskDrive: () => drive,
+}));
 
-const { findTool } = await import("@/lib/mcp/tools");
+const { findTool, HOST_FILE_KEY } = await import("@/lib/mcp/tools");
 const call = (name: string, input: Record<string, unknown> = {}) =>
 	findTool(name)!
 		.execute(input, {})
@@ -114,6 +122,51 @@ describe("disk tools", () => {
 		expect(vm.reset).toHaveBeenCalled();
 		expect(vm.play).toHaveBeenCalled();
 		expect(result).toMatchObject({ result: "inserted", booted: true, running: true });
+	});
+
+	// What the vm6502-mcp server sends in place of the path it read.
+	const hostFile = (name: string, bytes: number[]) => ({
+		name,
+		path: `/home/me/disks/${name}`,
+		size: bytes.length,
+		data: btoa(String.fromCharCode(...bytes)),
+	});
+
+	it("load_disk path: the schema marks it as a host file for the relay", () => {
+		const schema = findTool("load_disk")!.inputSchema as unknown as {
+			properties: Record<string, Record<string, unknown>>;
+		};
+		expect(schema.properties.path?.[HOST_FILE_KEY]).toBe(true);
+		expect(schema.properties.disk?.[HOST_FILE_KEY]).toBeUndefined();
+	});
+
+	it("load_disk path: adds the file to the library and inserts it", async () => {
+		const result = await call("load_disk", { path: hostFile("Game.DSK", [1, 2, 0xff]) });
+		expect(drive.insertFile).toHaveBeenCalledWith(vm, "Game.DSK", expect.any(ArrayBuffer));
+		expect(new Uint8Array(drive.insertFile.mock.calls[0]![2])).toEqual(Uint8Array.of(1, 2, 0xff));
+		expect(result).toEqual({
+			result: "inserted",
+			disk: { key: "Game.DSK", name: "Game.DSK", type: "physical", size: 3 },
+			path: "/home/me/disks/Game.DSK",
+			added_to_library: true,
+		});
+		expect(drive.insertFromLibrary).not.toHaveBeenCalled();
+	});
+
+	it("load_disk path: says when it replaced a library disk, and can boot", async () => {
+		const result = await call("load_disk", { path: hostFile("conan.po", [0]), boot: true });
+		expect(result).toMatchObject({ replaced: true, booted: true, running: true });
+		expect(vm.reset).toHaveBeenCalled();
+	});
+
+	it("load_disk path: errors", async () => {
+		await expect(call("load_disk", {})).rejects.toThrow(/give one of them/);
+		await expect(call("load_disk", { disk: "conan.po", path: hostFile("a.po", [0]) })).rejects.toThrow(
+			/give one of them/,
+		);
+		await expect(call("load_disk", { path: "/tmp/a.po" })).rejects.toThrow(/read by the vm6502-mcp server/);
+		await expect(call("load_disk", { path: hostFile("notes.txt", [0]) })).rejects.toThrow(/not a disk image/);
+		expect(drive.insertFile).not.toHaveBeenCalled();
 	});
 
 	it("load_disk refuses on a machine without a drive", async () => {
