@@ -12,6 +12,8 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import type { StopInfo } from "@/types/stopinfo.interface";
 import type { Breakpoint } from "@/types/breakpoint.interface";
 import { HYPERCALL_NAMES } from "@/lib/hypercalls.lib";
+import { disassemble } from "@/lib/disassembler";
+import type { DisassemblyLine } from "@/types/disassemblyline.interface";
 import {
 	FLAG_B_MASK,
 	FLAG_C_MASK,
@@ -208,6 +210,40 @@ const waitForRunning = (value: boolean, ms: number, signal?: AbortSignal) =>
 		signal?.addEventListener("abort", onAbort);
 	});
 
+/** Pretty JSON, but each item of `list` on one line (a disassembly would otherwise take 8 lines per instruction). */
+const jsonWithList = (
+	head: Record<string, unknown>,
+	key: string,
+	list: unknown[],
+	tail: Record<string, unknown> = {},
+) => {
+	const placeholder = "\u0000list\u0000";
+	const items = list.length ? `[\n${list.map((item) => `    ${JSON.stringify(item)}`).join(",\n")}\n  ]` : "[]";
+	return JSON.stringify({ ...head, [key]: placeholder, ...tail }, null, 2).replace(
+		JSON.stringify(placeholder),
+		items,
+	);
+};
+
+const ZP_MODES = new Set(["ZP", "ZPX", "ZPY", "IDX", "IDY", "ZPI"]);
+const DISASM_BYTES_MAX = 16;
+
+/** A disassembled line for the agent; `length` comes from the next line's address (data lines truncate `bytes`). */
+const describeLine = (vm: VirtualMachine, line: DisassemblyLine, length: number) => {
+	const shown = vm.readDebugRange(line.addr, Math.min(length, DISASM_BYTES_MAX));
+	// The operand shows a label: give its value too.
+	const symbolic = line.opr && !/^\(?\$/.test(line.opr) && !["IMP", "ACC", "IMM"].includes(line.mode);
+	return {
+		address: hexAddr(line.addr),
+		bytes: hexBytes(shown) + (length > DISASM_BYTES_MAX ? ` ... (${length} bytes)` : ""),
+		...(line.label && { label: line.label }),
+		instruction: line.opr ? `${line.opc} ${line.opr}` : line.opc,
+		...(symbolic && { target: hex(line.oprn, ZP_MODES.has(line.mode) ? 2 : 4) }),
+		...(line.comment && { comment: line.comment }),
+		...(line.blockComment && { block_comment: line.blockComment }),
+	};
+};
+
 const hexdump = (start: number, bytes: Uint8Array) => {
 	const lines: string[] = [];
 	for (let i = 0; i < bytes.length; i += 16) {
@@ -323,6 +359,57 @@ export const MCP_TOOLS: McpTool[] = [
 				...(notWritten.length && { not_written: notWritten }),
 				previous: hexBytes(previous),
 			});
+		},
+	},
+	{
+		name: "disassemble",
+		description:
+			"Disassemble memory as JSON, one entry per instruction: `address`, `bytes`, `instruction` (operands use labels " +
+			"when there are some, `target` then gives the address), `label` of the line, `comment` / `block_comment` from " +
+			"the metadata. Data formats (`.BYTE` / `.WORD` / `.STR`) and hypercalls (`!!LOG_STRING`…) show as such. " +
+			"Paginated: at most `count` lines (default 32, max 256) from `address`, up to `end_address` (inclusive; " +
+			"default: the end of the address's 64K bank). `next_address` is where the next page starts (pass it back as " +
+			"`address`); it is absent once `end_address` is reached. Debug reads only (no I/O side effects); $D000-$FFFF " +
+			"shows what is currently mapped there (ROM or language card RAM).",
+		inputSchema: {
+			type: "object",
+			properties: {
+				address: addressSchema,
+				count: { type: "integer", minimum: 1, maximum: 256, default: 32, description: "Max lines" },
+				end_address: { ...addressSchema, description: "Last address to disassemble (inclusive)" },
+			},
+			required: ["address"],
+		},
+		annotations: { readOnlyHint: true },
+		async execute(input) {
+			const vm = await getVm();
+			const address = toAddress(input.address, "address");
+			const count = toInt(input.count, "count", 32, 1, 256);
+			const end =
+				input.end_address === undefined ? address | 0xffff : toAddress(input.end_address, "end_address");
+			if (end < address) throw new Error("end_address: must not be before address");
+
+			vm.syncBusState(); // language card banking decides what $D000-$FFFF holds
+			// One line more than asked: its address ends the last line and starts the next page.
+			const lines = await disassemble({
+				readByte: (a) => vm.readDebug(a) ?? 0,
+				scope: vm.getScope(address),
+				fromAddress: address,
+				lineCount: count + 1,
+			});
+			const page: ReturnType<typeof describeLine>[] = [];
+			for (let i = 0; i < count && i < lines.length - 1; i++) {
+				const line = lines[i] as DisassemblyLine;
+				if (line.addr > end) break;
+				page.push(describeLine(vm, line, (lines[i + 1] as DisassemblyLine).addr - line.addr));
+			}
+			const next = lines[page.length]?.addr;
+			return jsonWithList(
+				{ address: hexAddr(address), end_address: hexAddr(end) },
+				"lines",
+				page,
+				next !== undefined && next <= end ? { next_address: hexAddr(next) } : {},
+			);
 		},
 	},
 	{
