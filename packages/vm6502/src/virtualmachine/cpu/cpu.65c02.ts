@@ -31,7 +31,7 @@ import {
 	REG_X_OFFSET,
 	REG_Y_OFFSET,
 } from "./shared-memory";
-import { HYPERCALL_COMMANDS } from "../hypercall.consts";
+import { decodeHypercall } from "@/lib/hypercalls.lib";
 
 const STACK_PAGE_HI = 0x0100;
 
@@ -475,21 +475,38 @@ export function executeInstruction(): number {
 			// --- BRK ---
 			case 0x00: {
 				// BRK. `pc` is on its signature byte, which is the hypercall command.
-				// Hypercalls run whether running or stepping; "break on BRK" only stops a running CPU,
-				// so stepping a BRK executes it.
-				const isHypercall = hypercallsEnabled && HYPERCALL_COMMANDS.has(bus.read(pc));
-				if (isHypercall || (breakOnBrk && isRunning)) {
-					const wasRunning = isRunning;
+				stoppedOnBrkAt = null;
+
+				// Hypercall: run it here (decode, PC past it) and let the main thread apply its effect.
+				// Arguments are read without side effects (no soft switch triggered by a read).
+				if (hypercallsEnabled) {
+					const b = bus;
+					const peek = (address: number) => (b.readDebug ? b.readDebug(address) : b.read(address)) & 0xff;
+					const call = decodeHypercall(peek, pc - 1, registersView);
+					if (call) {
+						const bank = bus.getBank?.(call.address) ?? 0;
+						self.postMessage({ type: "hypercall", call });
+						pc = (call.address + call.length) & 0xffff;
+						cycles = 7;
+						// Stop bit: stop after the call (PC on the next instruction). When stepping, the CPU is
+						// already stopped. Posted after the call, so its effect (a log line) comes first.
+						if (call.stop && isRunning)
+							setRunning(false, { reason: "hypercall", address: (bank << 16) | call.address, cmd: call.cmd });
+						break;
+					}
+				}
+
+				// "break on BRK" only stops a running CPU, so stepping a BRK executes it.
+				if (breakOnBrk && isRunning) {
 					pc--; // Point back to the BRK instruction so the user sees it
 					const bank = bus.getBank?.(pc) ?? 0;
 					const address = (bank << 16) | pc;
-					stoppedOnBrkAt = isHypercall ? null : pc;
-					setRunning(false, { reason: isHypercall ? "hypercall" : "brk", address });
-					self.postMessage({ type: isHypercall ? "hypercall" : "break", address, wasRunning });
+					stoppedOnBrkAt = pc;
+					setRunning(false, { reason: "brk", address });
+					self.postMessage({ type: "break", address, wasRunning: true });
 					cycles = 0;
 					break;
 				}
-				stoppedOnBrkAt = null;
 
 				{
 					let s = registersView.getUint8(REG_SP_OFFSET);

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { addBreakpoint, breakOnBrk, clearBreakpoints, setBreakOnBrk } from "../breakpoints";
 import { initCPU, isStoppedOnBrk, setClockSpeed, setHypercalls, setRunning, stepInstruction } from "../cpu.65c02";
-import { REG_PC_OFFSET, REG_SP_OFFSET, REG_STATUS_OFFSET } from "../shared-memory";
+import { REG_A_OFFSET, REG_PC_OFFSET, REG_SP_OFFSET, REG_STATUS_OFFSET } from "../shared-memory";
 import { createMockBus } from "./cpu-test-helpers";
 
 // Read before any test changes it.
@@ -114,44 +114,96 @@ describe("CPU 65C02 - BRK", () => {
 	});
 
 	describe("hypercalls", () => {
-		it("BRK <cmd> stops as a hypercall when the machine enables them", () => {
-			setHypercalls(true);
-			memory[0x301] = 0x02; // LOG_REGS
+		const hypercallMessages = () => messages().filter((m) => m.type === "hypercall");
+
+		beforeEach(() => setHypercalls(true));
+
+		it("run without stopping: decoded in the worker, PC moved past, effect handed to the main thread", () => {
+			memory.set([0x00, 0x02], 0x300); // BRK $02: LOG_REGS
+			memory.set([0x00, 0x05], 0x302); // plain BRK, to end the run
+			registersView.setUint8(REG_A_OFFSET, 0x2a);
 			runFrom(0x300);
-			expect(stop()).toEqual({ reason: "hypercall", address: 0x300 });
-			expect(messages()).toContainEqual({ type: "hypercall", address: 0x300, wasRunning: true });
-			expect(pc()).toBe(0x300); // the main thread moves PC past it
-			expect(isStoppedOnBrk()).toBe(false); // resuming must not execute it as a BRK
+			expect(hypercallMessages()).toEqual([
+				{
+					type: "hypercall",
+					call: {
+						cmd: 0x02,
+						address: 0x300,
+						length: 2,
+						stop: false,
+						regs: { A: 0x2a, X: 0, Y: 0, P: FLAG_D, SP: 0xff },
+					},
+				},
+			]);
+			// the only stop is the plain BRK after it
+			expect(stop()).toEqual({ reason: "brk", address: 0x302 });
 		});
 
-		it("are handed over when stepping too", () => {
-			setHypercalls(true);
-			memory[0x301] = 0x01;
-			stepAt(0x300);
-			expect(messages()).toContainEqual({ type: "hypercall", address: 0x300, wasRunning: false });
-			expect(pc()).toBe(0x300);
+		it("LOG_STRING: the message is formatted in the worker, from memory at the time of the call", () => {
+			memory.set([0x00, 0x01, 0x00, 0x20, 0x2a], 0x300); // BRK $01 <$2000> <arg $2A>
+			memory.set([0xc1, 0xbd, 0x25, 0xe8, 0x00], 0x2000); // "A=%h" in high-bit ASCII
+			memory.set([0x00, 0x05], 0x305);
+			runFrom(0x300);
+			expect(hypercallMessages()[0].call).toMatchObject({ cmd: 0x01, message: "A=2a", length: 5 });
+			expect(stop()).toEqual({ reason: "brk", address: 0x305 });
 		});
 
-		it("run regardless of break on BRK", () => {
-			setHypercalls(true);
+		it("with the stop bit (BRK $82): stops after the call, PC on the next instruction", () => {
+			memory.set([0x00, 0x82], 0x300);
+			runFrom(0x300);
+			expect(stop()).toEqual({ reason: "hypercall", address: 0x300, cmd: 0x02 });
+			expect(pc()).toBe(0x302);
+			expect(isStoppedOnBrk()).toBe(false); // nothing to skip when resuming
+			// the effect is posted before the stop
+			const types = messages().map((m) => m.type);
+			expect(types.indexOf("hypercall")).toBeLessThan(types.indexOf("isRunning", 1));
+		});
+
+		it("stop bit regardless of break on BRK", () => {
 			setBreakOnBrk(false);
-			memory[0x301] = 0x03;
+			memory.set([0x00, 0x81, 0x00, 0x20], 0x300); // LOG_STRING, empty string
 			runFrom(0x300);
-			expect(stop()).toEqual({ reason: "hypercall", address: 0x300 });
+			expect(stop()).toEqual({ reason: "hypercall", address: 0x300, cmd: 0x01 });
+			expect(pc()).toBe(0x304);
 		});
 
-		it("BRK followed by another byte is a normal BRK", () => {
-			setHypercalls(true);
-			memory[0x301] = 0x05;
+		it("stepping runs the whole call, stop bit or not, without reporting a stop", () => {
+			memory.set([0x00, 0x82], 0x300);
+			stepAt(0x300);
+			expect(hypercallMessages()).toHaveLength(1);
+			expect(pc()).toBe(0x302);
+			expect(messages().some((m) => m.type === "isRunning")).toBe(false);
+		});
+
+		it("reads the call with the bus's side-effect-free read when it has one", () => {
+			const bus = createMockBus(memory);
+			const readDebug = vi.fn((address: number) => memory[address] ?? 0);
+			initCPU({ ...bus, readDebug }, registersView, null, memory, new Uint8Array(256));
+			setRunning(false);
+			memory.set([0x00, 0x81, 0x00, 0x20], 0x300);
+			memory.set([0xc8, 0xc9, 0x00], 0x2000); // "HI"
+			runFrom(0x300);
+			expect(hypercallMessages()[0].call.message).toBe("HI");
+			expect(readDebug).toHaveBeenCalledWith(0x2000);
+			expect(bus.read).not.toHaveBeenCalledWith(0x2000);
+		});
+
+		it("BRK followed by another byte is a normal BRK, stop bit or not", () => {
+			memory.set([0x00, 0x05], 0x300);
 			runFrom(0x300);
 			expect(stop()).toEqual({ reason: "brk", address: 0x300 });
+			memory.set([0x00, 0x85], 0x300);
+			runFrom(0x300);
+			expect(stop()).toEqual({ reason: "brk", address: 0x300 });
+			expect(hypercallMessages()).toHaveLength(0);
 		});
 
 		it("are plain BRKs on a machine without hypercalls", () => {
-			memory[0x301] = 0x01;
+			setHypercalls(false);
+			memory[0x301] = 0x81;
 			runFrom(0x300);
 			expect(stop()).toEqual({ reason: "brk", address: 0x300 });
-			expect(messages().some((m) => m.type === "hypercall")).toBe(false);
+			expect(hypercallMessages()).toHaveLength(0);
 
 			setRunning(false);
 			stepInstruction();

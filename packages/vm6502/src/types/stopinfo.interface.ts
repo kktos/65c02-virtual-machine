@@ -12,7 +12,10 @@ export type StopInfo =
 	| { reason: "step"; address: number }
 	/** BRK instruction, when "break on BRK" is on */
 	| { reason: "brk"; address: number }
-	/** BRK that is a hypercall (machine has `hypercalls` on): the main thread runs it and resumes */
-	| { reason: "hypercall"; address: number }
+	/**
+	 * Hypercall with the stop bit (`BRK $8x`): the program asked to stop after the call.
+	 * `address` is the call's BRK; PC is after the call. `cmd` without the stop bit.
+	 */
+	| { reason: "hypercall"; address: number; cmd: number }
 	/** unimplemented opcode */
 	| { reason: "error"; address: number; message: string };

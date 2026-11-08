@@ -71,13 +71,9 @@ describe("run_until stop reason", () => {
 		expect(await runUntil({})).toMatchObject({ stopped: "error", address: "$1234", message: "Unimplemented opcode 02" });
 	});
 
-	it("keeps waiting through a hypercall (the machine resumes by itself)", async () => {
-		script = [
-			{ after: 5, running: false, stop: { reason: "hypercall", address: 0x0800 } },
-			{ after: 5, running: true },
-			{ after: 5, running: false, stop: { reason: "brk", address: 0x0900 } },
-		];
-		expect(await runUntil({})).toMatchObject({ stopped: "brk", address: "$0900" });
+	it("returns on a hypercall that asked to stop (BRK $82), with its command", async () => {
+		script = [{ after: 5, running: false, stop: { reason: "hypercall", address: 0x0800, cmd: 0x02 } }];
+		expect(await runUntil({})).toMatchObject({ stopped: "hypercall", command: "LOG_REGS", address: "$0800" });
 	});
 
 	it("timeout: pauses and says so", async () => {
