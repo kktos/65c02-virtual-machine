@@ -83,6 +83,36 @@ const toStr = (v: unknown, field: string): string => {
 	return v;
 };
 
+/**
+ * Bytes as an array of 0-255 integers, or a hex string: "A9 00 8D 00 C0", "A9008D00C0", "$A9,$00".
+ * In a string, a 1-2 digit token is one byte; a longer one is read as pairs (so it needs an even length).
+ */
+const toBytes = (v: unknown, field: string, max: number): Uint8Array => {
+	let bytes: number[];
+	if (Array.isArray(v)) {
+		bytes = v.map((b, i) => {
+			if (typeof b !== "number" || !Number.isInteger(b) || b < 0 || b > 0xff)
+				throw new Error(`${field}[${i}]: byte (0-255) expected`);
+			return b;
+		});
+	} else if (typeof v === "string") {
+		bytes = [];
+		for (const token of v.split(/[\s,]+/).filter(Boolean)) {
+			const digits = token.replace(/^(\$|0x)/i, "");
+			if (!/^[0-9a-f]+$/i.test(digits)) throw new Error(`${field}: "${token}" is not hex`);
+			if (digits.length <= 2) bytes.push(Number.parseInt(digits, 16));
+			else if (digits.length % 2) throw new Error(`${field}: "${token}" has an odd number of digits`);
+			else for (let i = 0; i < digits.length; i += 2) bytes.push(Number.parseInt(digits.slice(i, i + 2), 16));
+		}
+	} else throw new Error(`${field}: array of bytes or hex string expected`);
+	if (!bytes.length) throw new Error(`${field}: no bytes`);
+	if (bytes.length > max) throw new Error(`${field}: at most ${max} bytes`);
+	return Uint8Array.from(bytes);
+};
+
+const hexBytes = (bytes: Uint8Array) =>
+	Array.from(bytes, (b) => b.toString(16).toUpperCase().padStart(2, "0")).join(" ");
+
 const addressSchema = {
 	type: ["string", "integer"],
 	description: 'Address: number, "$C000", "0xC000", or a label name. Above $FFFF selects a bank.',
@@ -237,7 +267,62 @@ export const MCP_TOOLS: McpTool[] = [
 			const vm = await getVm();
 			const address = toAddress(input.address, "address");
 			const length = toInt(input.length, "length", 256, 1, 4096);
+			vm.syncBusState(); // language card banking as it is now, even when the screen isn't rendering
 			return hexdump(address, vm.readDebugRange(address, length));
+		},
+	},
+	{
+		name: "write_memory",
+		description:
+			"Write bytes to memory (debug write: no I/O side effects, works running or paused). Writes where read_memory " +
+			"reads: above $FFFF selects a bank (Apple II: $1xxxx = aux memory); $D000-$FFFF goes to what is currently " +
+			"read there (ROM or language card RAM, so a ROM can be patched). `bytes`: array of 0-255 or a hex string " +
+			'("A9 00 8D 00 C0" / "A9008D00C0"), max 4096. Bytes are read back: `not_written` lists the ranges that ' +
+			"didn't take (I/O $C000-$C0FF, slot ROM space, or bytes the running program changed in between). " +
+			"Returns `previous` (the bytes before, hex: write them back to undo).",
+		inputSchema: {
+			type: "object",
+			properties: {
+				address: addressSchema,
+				bytes: {
+					type: ["array", "string"],
+					items: { type: "integer", minimum: 0, maximum: 255 },
+					description: 'Bytes to write: [169, 0] or "A9 00"',
+				},
+			},
+			required: ["address", "bytes"],
+		},
+		async execute(input) {
+			const vm = await getVm();
+			const address = toAddress(input.address, "address");
+			const bytes = toBytes(input.bytes, "bytes", 4096);
+			vm.syncBusState(); // language card banking decides where $D000-$FFFF goes
+			const previous = vm.readDebugRange(address, bytes.length);
+			bytes.forEach((b, i) => vm.writeDebug(address + i, b));
+			const after = vm.readDebugRange(address, bytes.length);
+
+			const notWritten: { address: string; end_address?: string }[] = [];
+			let written = 0;
+			for (let i = 0; i < bytes.length; i++) {
+				if (after[i] === bytes[i]) {
+					written++;
+					continue;
+				}
+				let end = i;
+				while (end + 1 < bytes.length && after[end + 1] !== bytes[end + 1]) end++;
+				notWritten.push({
+					address: hexAddr(address + i),
+					...(end > i && { end_address: hexAddr(address + end) }),
+				});
+				i = end;
+			}
+			return json({
+				address: hexAddr(address),
+				length: bytes.length,
+				written,
+				...(notWritten.length && { not_written: notWritten }),
+				previous: hexBytes(previous),
+			});
 		},
 	},
 	{
@@ -492,7 +577,7 @@ export const MCP_TOOLS: McpTool[] = [
 				address: addressSchema,
 				end_address: { ...addressSchema, description: "Last address of a range (inclusive). Not for `pc`." },
 				type: { type: "string", enum: BP_TYPES, default: "pc" },
-				command: { type: "string", description: "Command run when hit; `\"\"` removes it" },
+				command: { type: "string", description: 'Command run when hit; `""` removes it' },
 			},
 			required: ["address"],
 		},
@@ -516,7 +601,10 @@ export const MCP_TOOLS: McpTool[] = [
 				updateBreakpointCommand(bp, command);
 				changed = true;
 			}
-			return json({ result: changed ? "updated" : "unchanged", breakpoint: describeBreakpoint(getBreakpoint(bp)!) });
+			return json({
+				result: changed ? "updated" : "unchanged",
+				breakpoint: describeBreakpoint(getBreakpoint(bp)!),
+			});
 		},
 	},
 	{
@@ -530,7 +618,10 @@ export const MCP_TOOLS: McpTool[] = [
 				address: addressSchema,
 				end_address: { ...addressSchema, description: "Last address of the range, as set" },
 				type: { type: "string", enum: BP_TYPES, default: "pc" },
-				all: { type: "boolean", description: "Remove every breakpoint (hooks included); ignores the other fields" },
+				all: {
+					type: "boolean",
+					description: "Remove every breakpoint (hooks included); ignores the other fields",
+				},
 			},
 		},
 		async execute(input) {

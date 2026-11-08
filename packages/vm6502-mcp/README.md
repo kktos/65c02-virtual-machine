@@ -37,6 +37,7 @@ Then run `pnpm dev` and open `http://localhost:5173/?mcp`.
 | `status` | Is a tab connected, which machine |
 | `exec_command` | Run a debugger console line (the whole command language) and return its output |
 | `read_memory` | Hex dump, debug read (no I/O side effects), max 4 KB |
+| `write_memory` | Write bytes (array or hex string), debug write, max 4 KB; reports bytes that didn't take and the previous ones |
 | `get_registers` | CPU registers, flags, running state |
 | `screen_text` | Apple II text screen as text: the displayed one by default (page 1/2, 40/80 cols), with a header saying which |
 | `read_log` | Lines of a log window (`hyper` = hypercall logs), with a cursor to get only new lines |
