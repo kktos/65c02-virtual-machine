@@ -40,8 +40,13 @@ vi.mock("@/composables/useSymbols", () => ({ useSymbols: () => ({ getAddressForL
 
 const { findTool } = await import("@/lib/mcp/tools");
 const runUntil = (input: Record<string, unknown>) =>
-	findTool("run_until")!.execute(input, {}).then((r) => JSON.parse(r));
-const getRegisters = () => findTool("get_registers")!.execute({}, {}).then((r) => JSON.parse(r));
+	findTool("run_until")!
+		.execute(input, {})
+		.then((r) => JSON.parse(r as string));
+const getRegisters = () =>
+	findTool("get_registers")!
+		.execute({}, {})
+		.then((r) => JSON.parse(r as string));
 
 describe("run_until stop reason", () => {
 	beforeEach(() => {
@@ -56,7 +61,9 @@ describe("run_until stop reason", () => {
 	});
 
 	it("breakpoint elsewhere, with its type and address", async () => {
-		script = [{ after: 5, running: false, stop: { reason: "breakpoint", breakpointType: "write", address: 0x2000 } }];
+		script = [
+			{ after: 5, running: false, stop: { reason: "breakpoint", breakpointType: "write", address: 0x2000 } },
+		];
 		expect(await runUntil({ address: "$300" })).toMatchObject({
 			stopped: "breakpoint",
 			breakpoint: { type: "write", address: "$2000" },
@@ -67,8 +74,18 @@ describe("run_until stop reason", () => {
 		script = [{ after: 5, running: false, stop: { reason: "brk", address: 0x0003 } }];
 		expect(await runUntil({})).toMatchObject({ stopped: "brk", address: "$0003" });
 
-		script = [{ after: 5, running: false, stop: { reason: "error", address: 0x1234, message: "Unimplemented opcode 02" } }];
-		expect(await runUntil({})).toMatchObject({ stopped: "error", address: "$1234", message: "Unimplemented opcode 02" });
+		script = [
+			{
+				after: 5,
+				running: false,
+				stop: { reason: "error", address: 0x1234, message: "Unimplemented opcode 02" },
+			},
+		];
+		expect(await runUntil({})).toMatchObject({
+			stopped: "error",
+			address: "$1234",
+			message: "Unimplemented opcode 02",
+		});
 	});
 
 	it("returns on a hypercall that asked to stop (BRK $82), with its command", async () => {

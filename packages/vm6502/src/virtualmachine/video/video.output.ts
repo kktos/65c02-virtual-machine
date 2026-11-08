@@ -6,6 +6,24 @@ export interface VideoViewRect {
 	height: number;
 }
 
+/** The palette used until the machine sends its own: index i is gray level i (RGBA, 256 entries). */
+export function grayscalePalette() {
+	const palette = new Uint8Array(256 * 4);
+	for (let i = 0; i < 256; i++) palette.set([i, i, i, 255], i * 4);
+	return palette;
+}
+
+/** A copy of the `rect` part of a video buffer `bufferWidth` pixels wide, row after row. */
+export function cropVideoBuffer(buffer: Uint8Array, bufferWidth: number, rect: VideoViewRect) {
+	const { x, y, width, height } = rect;
+	const pixels = new Uint8Array(width * height);
+	for (let row = 0; row < height; row++) {
+		const from = (y + row) * bufferWidth + x;
+		pixels.set(buffer.subarray(from, from + width), row * width);
+	}
+	return pixels;
+}
+
 export class VideoOutput {
 	private canvas: HTMLCanvasElement;
 	private gl: WebGL2RenderingContext;
@@ -135,15 +153,7 @@ export class VideoOutput {
 
 	private initPalette() {
 		const gl = this.gl;
-		// Default grayscale palette
-		const palette = new Uint8Array(256 * 4);
-		for (let i = 0; i < 256; i++) {
-			const val = i;
-			palette[i * 4 + 0] = val;
-			palette[i * 4 + 1] = val;
-			palette[i * 4 + 2] = val;
-			palette[i * 4 + 3] = 255;
-		}
+		const palette = grayscalePalette();
 		this.paletteTexture = gl.createTexture();
 		gl.activeTexture(gl.TEXTURE1);
 		gl.bindTexture(gl.TEXTURE_2D, this.paletteTexture);

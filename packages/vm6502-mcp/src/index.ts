@@ -6,7 +6,12 @@
 
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { CallToolRequestSchema, ListToolsRequestSchema, type Tool } from "@modelcontextprotocol/sdk/types.js";
+import {
+	CallToolRequestSchema,
+	type CallToolResult,
+	ListToolsRequestSchema,
+	type Tool,
+} from "@modelcontextprotocol/sdk/types.js";
 import { BrowserBridge, log } from "./bridge.ts";
 
 const PORT = Number(process.env.VM6502_MCP_PORT ?? 6502);
@@ -42,7 +47,9 @@ server.setRequestHandler(CallToolRequestSchema, async ({ params }) => {
 	if (!bridge.tools.some((t) => t.name === params.name) && bridge.status.connected)
 		return text(`Unknown tool: ${params.name}`, true);
 	try {
-		return text(await bridge.callTool(params.name, params.arguments ?? {}));
+		const result = await bridge.callTool(params.name, params.arguments ?? {});
+		if (typeof result === "string") return text(result);
+		return { content: result.content as CallToolResult["content"], isError: false };
 	} catch (e) {
 		return text(e instanceof Error ? e.message : String(e), true);
 	}

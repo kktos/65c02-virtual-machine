@@ -19,7 +19,9 @@ const { findTool } = await import("@/lib/mcp/tools");
 const { useBreakpoints } = await import("@/composables/useBreakpoints");
 
 const call = (name: string, input: Record<string, unknown> = {}) =>
-	findTool(name)!.execute(input, {}).then((r) => JSON.parse(r));
+	findTool(name)!
+		.execute(input, {})
+		.then((r) => JSON.parse(r as string));
 const set = (input: Record<string, unknown>) => call("set_breakpoint", input);
 const remove = (input: Record<string, unknown>) => call("remove_breakpoint", input);
 const list = (input: Record<string, unknown> = {}) => call("list_breakpoints", input);

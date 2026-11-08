@@ -26,7 +26,7 @@ const { findTool } = await import("@/lib/mcp/tools");
 const call = (input: Record<string, unknown>) =>
 	findTool("write_memory")!
 		.execute(input, {})
-		.then((r) => JSON.parse(r));
+		.then((r) => JSON.parse(r as string));
 
 describe("write_memory tool", () => {
 	beforeEach(() => {

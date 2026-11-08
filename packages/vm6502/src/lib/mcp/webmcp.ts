@@ -3,14 +3,14 @@
 // Experimental (Chrome origin trial / flag). The entry point moved from `navigator.modelContext`
 // to `document.modelContext` in 2026; both are probed.
 
-import { MCP_TOOLS } from "./tools";
+import { MCP_TOOLS, type McpToolResult } from "./tools";
 
 type WebMcpTool = {
 	name: string;
 	description: string;
 	inputSchema: Record<string, unknown>;
 	annotations?: { readOnlyHint?: boolean };
-	execute: (input: Record<string, unknown>, ctx?: { signal?: AbortSignal }) => Promise<string>;
+	execute: (input: Record<string, unknown>, ctx?: { signal?: AbortSignal }) => Promise<McpToolResult>;
 };
 
 type ModelContext = {

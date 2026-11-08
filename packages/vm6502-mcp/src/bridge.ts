@@ -4,7 +4,8 @@
 // Protocol:
 //   page → server  { hello: { machine, tools } }   (on connect and on machine change)
 //   server → page  { id, method: "call_tool", params: { name, args } }
-//   page → server  { id, result: string } | { id, error: string }
+//   page → server  { id, result: string | { content: ContentBlock[] } } | { id, error: string }
+//                  (a string is text; `content` blocks, e.g. an image, are passed on to the agent as they are)
 //
 // The tools are defined by the page (src/lib/mcp/tools.ts in vm6502). The last advertised list is
 // cached on disk so the server can list tools before the tab connects (or while it reloads).
@@ -22,11 +23,24 @@ export type ToolDescriptor = {
 	annotations?: { readOnlyHint?: boolean };
 };
 
-type Pending = { resolve: (v: string) => void; reject: (e: Error) => void; timer: NodeJS.Timeout };
+/** An MCP content block as the page sends it (text, image…); checked by the SDK when sent to the agent. */
+export type ContentBlock = { type: string; [k: string]: unknown };
+
+/** A page tool's answer: text, or content blocks. */
+export type ToolResult = string | { content: ContentBlock[] };
+
+type Pending = { resolve: (v: ToolResult) => void; reject: (e: Error) => void; timer: NodeJS.Timeout };
 
 const CACHE_FILE = join(homedir(), ".cache", "vm6502-mcp", "tools.json");
 
 export const log = (...args: unknown[]) => console.error("[vm6502-mcp]", ...args); // stdout is the MCP channel
+
+const toToolResult = (result: unknown): ToolResult => {
+	const content = (result as { content?: unknown } | null)?.content;
+	if (Array.isArray(content) && content.every((c) => typeof (c as ContentBlock)?.type === "string"))
+		return { content: content as ContentBlock[] };
+	return typeof result === "string" ? result : String(result ?? "");
+};
 
 export class BrowserBridge extends EventEmitter<{ toolsChanged: []; connected: [] }> {
 	private client: WebSocket | null = null;
@@ -92,7 +106,7 @@ export class BrowserBridge extends EventEmitter<{ toolsChanged: []; connected: [
 		ws.on("message", (raw) => {
 			let msg: {
 				id?: number;
-				result?: string;
+				result?: unknown;
 				error?: string;
 				hello?: { machine: string; tools?: ToolDescriptor[] };
 			};
@@ -113,7 +127,7 @@ export class BrowserBridge extends EventEmitter<{ toolsChanged: []; connected: [
 			this.pending.delete(msg.id);
 			clearTimeout(p.timer);
 			if (msg.error !== undefined) p.reject(new Error(msg.error));
-			else p.resolve(String(msg.result ?? ""));
+			else p.resolve(toToolResult(msg.result));
 		});
 
 		ws.on("close", () => {
@@ -147,11 +161,11 @@ export class BrowserBridge extends EventEmitter<{ toolsChanged: []; connected: [
 	}
 
 	/** Calls a page tool. The timeout is a safety net: tools enforce their own (run_until ≤ 120s). */
-	async callTool(name: string, args: Record<string, unknown>, timeoutMs = 150_000): Promise<string> {
+	async callTool(name: string, args: Record<string, unknown>, timeoutMs = 150_000): Promise<ToolResult> {
 		const client = await this.waitForClient(10_000);
 
 		const id = this.nextId++;
-		return new Promise<string>((resolve, reject) => {
+		return new Promise<ToolResult>((resolve, reject) => {
 			const timer = setTimeout(() => {
 				this.pending.delete(id);
 				reject(new Error(`${name}: no answer from the emulator after ${timeoutMs}ms`));

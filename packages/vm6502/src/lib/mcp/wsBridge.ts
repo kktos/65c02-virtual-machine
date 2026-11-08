@@ -5,7 +5,8 @@
 // Protocol:
 //   page → server  { hello: { machine, tools: McpToolDescriptor[] } }   (on connect and on machine change)
 //   server → page  { id, method: "call_tool", params: { name, args } }
-//   page → server  { id, result: string } | { id, error: string }
+//   page → server  { id, result: string | { content: McpContent[] } } | { id, error: string }
+//                  (a string is text; `content` blocks, e.g. an image, are passed on to the agent as they are)
 
 import { watch } from "vue";
 import { useMachine } from "@/composables/useMachine";

@@ -17,7 +17,10 @@ vi.mock("@/composables/useCommands", () => ({ useCommands: () => ({}) }));
 vi.mock("@/composables/useSymbols", () => ({ useSymbols: () => ({ getAddressForLabel: () => undefined }) }));
 
 const { findTool } = await import("@/lib/mcp/tools");
-const screenText = (input: Record<string, unknown> = {}) => findTool("screen_text")!.execute(input, {});
+const screenText = (input: Record<string, unknown> = {}) =>
+	findTool("screen_text")!
+		.execute(input, {})
+		.then((r) => r as string);
 
 describe("screen_text", () => {
 	beforeEach(() => {

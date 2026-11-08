@@ -76,8 +76,14 @@ Still open, by priority (reviewed 2026-11-08: what blocks the use cases above):
 3. [ ] **Memory snapshot + diff** (cheat-finder): `snapshot`, then `diff({ filter: changed | inc | dec | = value })`
        with the candidates kept in the tab. Doable with read_memory today, but 48 KB = 12 calls of ~12 KB of hex
        per round.
-4. [ ] **`screenshot`** (HIRES / GR / DHGR) as an MCP image: the agent is blind as soon as a program leaves
-       text mode (most games). Probably simple (the canvas). Less important while the focus is text software.
+4. [x] **`screenshot`**: the screen as an MCP image (PNG), any mode, border included, at the video buffer's
+       resolution (//e: 640x480). Built from the shared video buffer (palette indices) + the palette and view rect
+       the machine's video sends (`vm.screenshot()`), not from the WebGL canvas: exact pixels, whatever the
+       canvas size or scaling. Paused, the frame is redrawn first (`refreshVideo` now answers the worker request).
+       The toolbar's Video Settings > Save Screenshot uses the same `vm.screenshot()` (it saved the first `<canvas>`
+       of the page as drawn: scaled, with the integer-scaling bands).
+       Encoded as an 8-bit indexed PNG by `src/lib/png.lib.ts` (no dependency, `CompressionStream`). Tools can now
+       answer MCP content blocks (`{ content: [...] }`) besides text; the WS bridge and the Node relay pass them on.
 5. [ ] **Full save states**: memory + CPU + soft switches + disk position, to make experiments repeatable
        (restore → patch → compare). `bus.saveState` only covers the soft switches today: the biggest job here.
 
