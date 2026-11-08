@@ -62,14 +62,18 @@ Next:
 
 Still open, by priority (reviewed 2026-11-08: what blocks the use cases above):
 
-1. [ ] **Loading software**. Done: `list_disks` (library + what's in the drive), `load_disk({ disk, boot? })` (by key
+1. [x] **Loading software**. Done: `list_disks` (library + what's in the drive), `load_disk({ disk, boot? })` (by key
        or name; `boot` cold-boots: PWREDUP invalidated + reset, like Ctrl-OpenApple-Reset), `eject_disk`, all through
        `useDiskDrive`, shared with the toolbar. `load_disk({ path })` (done): an image on the agent's machine. The tab's
        schema marks `path` with `"x-vm6502-host-file": true`; the Node relay reads the file (`hostFiles.ts`: absolute,
        `~`, or relative to its cwd; max 64 MB) and sends `{ name, path, size, data: base64 }` in its place; the tab
        checks the extension (`DISK_EXTENSIONS`, shared with the toolbar) and `insertFile` adds it to the library
        under its file name (`replaced: true` when one was there). Over WebMCP a plain path string is refused.
-       Still to do: `load_binary({ path, address })`, same mechanism.
+       `load_binary({ path, address?, set_pc? })` (done): same mechanism, any file; its bytes are written like
+       write_memory (`writeAndVerify`, shared: `not_written` ranges) and must fit in the address's 64K bank.
+       Without `address`, a CiderPress name gives it (`PROG#060800`: type $06 BIN, aux type = load address).
+       `set_pc: true` sets PC to it, paused machine only (the running worker keeps its own registers).
+       Raw bytes only: no DOS 3.3 header (address + length) or AppleSingle is decoded.
 2. [x] **Execution trace**: `get_trace({ enable?, size?, count? })`. The existing trace (`vm.getTrace`, `TraceView`)
        only logs JSR / JMP, so this is a new one: a ring buffer in the worker (`cpu/instructionTrace.ts`, 2 words per
        entry, default 4096, max 65536) of every executed instruction with A X Y P SP *before* it, recorded in

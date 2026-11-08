@@ -24,7 +24,8 @@ or MCP content blocks (`{ content: [...] }`, e.g. an image) that the server pass
 **Files on the agent's machine**: a page can't read them, so a tool marks a string property of its schema
 with `"x-vm6502-host-file": true` (`hostFileSchema` in `tools.ts`). The agent passes a path there; this
 server reads the file (absolute, `~/…`, or relative to its working directory; max 64 MB) and sends
-`{ name, path, size, data }` (data in base64) in its place (`src/hostFiles.ts`). `load_disk`'s `path` uses it.
+`{ name, path, size, data }` (data in base64) in its place (`src/hostFiles.ts`). `load_disk` and `load_binary`
+use it.
 
 ## Setup (Claude Code)
 
@@ -59,6 +60,7 @@ Then run `pnpm dev` and open `http://localhost:5173/?mcp`.
 | `get_trace` | Last executed instructions (disassembled, registers before each); `enable: true` starts recording |
 | `list_disks` | The disk library (images kept in the browser) and what is in the drive |
 | `load_disk` | Insert a library disk by key or name, or an image file from the agent's machine by `path` (added to the library); `boot: true` cold-boots it |
+| `load_binary` | Write a file from the agent's machine into memory (address given, or from a `NAME#06AAAA` name); `set_pc: true` sets PC there |
 | `eject_disk` | Empty the drive (stays empty at the next startup) |
 | `set_breakpoint` | Add a PC / read / write / access breakpoint (address or range, optional hook command); idempotent |
 | `remove_breakpoint` | Remove one (same type + address/range), or all with `all: true` |

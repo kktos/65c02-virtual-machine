@@ -138,6 +138,34 @@ const toBytes = (v: unknown, field: string, max: number): Uint8Array => {
 const hexBytes = (bytes: Uint8Array) =>
 	Array.from(bytes, (b) => b.toString(16).toUpperCase().padStart(2, "0")).join(" ");
 
+/**
+ * Debug-writes `bytes` at `address` and reads them back: `notWritten` lists the ranges that didn't take
+ * (I/O, slot ROM space, or bytes the running program changed in between). `previous`: the bytes before.
+ */
+const writeAndVerify = (vm: VirtualMachine, address: number, bytes: Uint8Array) => {
+	vm.syncBusState(); // language card banking decides where $D000-$FFFF goes
+	const previous = vm.readDebugRange(address, bytes.length);
+	bytes.forEach((b, i) => vm.writeDebug(address + i, b));
+	const after = vm.readDebugRange(address, bytes.length);
+
+	const notWritten: { address: string; end_address?: string }[] = [];
+	let written = 0;
+	for (let i = 0; i < bytes.length; i++) {
+		if (after[i] === bytes[i]) {
+			written++;
+			continue;
+		}
+		let end = i;
+		while (end + 1 < bytes.length && after[end + 1] !== bytes[end + 1]) end++;
+		notWritten.push({
+			address: hexAddr(address + i),
+			...(end > i && { end_address: hexAddr(address + end) }),
+		});
+		i = end;
+	}
+	return { written, notWritten, previous };
+};
+
 const addressSchema = {
 	type: ["string", "integer"],
 	description: 'Address: number, "$C000", "0xC000", or a label name. Above $FFFF selects a bank.',
@@ -308,6 +336,12 @@ const toHostFile = (v: unknown, field: string) => {
 	if (!f || typeof f !== "object" || typeof f.name !== "string" || typeof f.data !== "string")
 		throw new Error(`${field}: file path expected`);
 	return { name: f.name, path: String(f.path ?? f.name), bytes: base64ToBytes(f.data) };
+};
+
+/** CiderPress-style file name `NAME#06AAAA`: ProDOS type $06 (BIN), aux type = load address. */
+const binLoadAddress = (name: string) => {
+	const m = name.match(/#([0-9a-f]{2})([0-9a-f]{4})(?:\.[^.#]*)?$/i);
+	return m && (m[1] as string).toLowerCase() === "06" ? Number.parseInt(m[2] as string, 16) : undefined;
 };
 
 // Apple II: the reset handler cold-starts (and boots from the slots) when the power-up byte
@@ -511,26 +545,7 @@ export const MCP_TOOLS: McpTool[] = [
 			const vm = await getVm();
 			const address = toAddress(input.address, "address");
 			const bytes = toBytes(input.bytes, "bytes", 4096);
-			vm.syncBusState(); // language card banking decides where $D000-$FFFF goes
-			const previous = vm.readDebugRange(address, bytes.length);
-			bytes.forEach((b, i) => vm.writeDebug(address + i, b));
-			const after = vm.readDebugRange(address, bytes.length);
-
-			const notWritten: { address: string; end_address?: string }[] = [];
-			let written = 0;
-			for (let i = 0; i < bytes.length; i++) {
-				if (after[i] === bytes[i]) {
-					written++;
-					continue;
-				}
-				let end = i;
-				while (end + 1 < bytes.length && after[end + 1] !== bytes[end + 1]) end++;
-				notWritten.push({
-					address: hexAddr(address + i),
-					...(end > i && { end_address: hexAddr(address + end) }),
-				});
-				i = end;
-			}
+			const { written, notWritten, previous } = writeAndVerify(vm, address, bytes);
 			return json({
 				address: hexAddr(address),
 				length: bytes.length,
@@ -1039,6 +1054,57 @@ export const MCP_TOOLS: McpTool[] = [
 			if (!disk) return json({ result: "already_empty" });
 			await eject(vm);
 			return json({ result: "ejected", disk: describeDisk(disk) });
+		},
+	},
+	{
+		name: "load_binary",
+		description:
+			"Load a file from your machine into memory (e.g. code you assembled): its bytes are written from " +
+			"`address`, like write_memory (above $FFFF selects a bank, Apple II $1xxxx = aux; $D000-$FFFF goes to " +
+			"what is mapped there). The file is read by the vm6502-mcp server (`path`: absolute, or relative to its " +
+			"working directory, `~` allowed) and must fit in the address's 64K bank. Without `address`, a " +
+			"CiderPress-style name gives it: `PROG#060800` (type $06 BIN, load address $0800). `set_pc: true` then " +
+			"sets PC to `address` (machine paused only: pause first), ready for step / run_until. Raw bytes: no " +
+			"header is stripped. Returns `address`, `end_address`, `length`, `written` and `not_written` (ranges that " +
+			"didn't take: I/O $C000-$C0FF, slot ROM space, or bytes the running program changed).",
+		inputSchema: {
+			type: "object",
+			properties: {
+				path: hostFileSchema("File on the agent's machine"),
+				address: { ...addressSchema, description: "Load address (default: from a `#06AAAA` file name)" },
+				set_pc: { type: "boolean", default: false, description: "Set PC to address (paused machine only)" },
+			},
+			required: ["path"],
+		},
+		async execute(input) {
+			const vm = await getVm();
+			if (input.path === undefined) throw new Error("path: required");
+			const file = toHostFile(input.path, "path");
+			const address =
+				input.address !== undefined ? toAddress(input.address, "address") : binLoadAddress(file.name);
+			if (address === undefined)
+				throw new Error(`address: required (${file.name} has no #06AAAA suffix giving a load address)`);
+			if (!file.bytes.length) throw new Error(`path: ${file.name} is empty`);
+			const end = address + file.bytes.length - 1;
+			if (end >> 16 !== address >> 16)
+				throw new Error(
+					`path: ${file.name} (${file.bytes.length} bytes) doesn't fit in the bank from ${hexAddr(address)}`,
+				);
+			const setPc = input.set_pc === true;
+			if (setPc && useMachine().isRunning.value)
+				throw new Error("set_pc: the machine is running, pause it first");
+
+			const { written, notWritten } = writeAndVerify(vm, address, file.bytes);
+			if (setPc) vm.updateRegister("PC", address & 0xffff);
+			return json({
+				path: file.path,
+				address: hexAddr(address),
+				end_address: hexAddr(end),
+				length: file.bytes.length,
+				written,
+				...(notWritten.length && { not_written: notWritten }),
+				...(setPc && readRegisters(vm)),
+			});
 		},
 	},
 	{
