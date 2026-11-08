@@ -1,6 +1,20 @@
 # TODO
 
-### 2026-04-08
+### 2026-11-08
+
+Noticed while porting Karateka to a .po (its loader disassembled in the debugger):
+
+- disassembler, labels with an offset:
+  - `LDA $C08C,X` shows as `LDA LCBANK1_R+1,X`: indexed by the slot (X = $60), it's slot I/O (the Disk II
+    data latch), not the language card. No soft switch label on an `,X` / `,Y` operand in $C080-$C0FF?
+  - `STX STACK+-1`: `+-` when the offset is negative
+  - negative offsets to an unrelated label: `KBD-1` for `$BFFF`, `KBD-6` for `$BFFA`
+  - offsets in decimal and in hex side by side: `MSLOT-20` (= `$07E4`), `INPUTBUF+$0C`, `line72+5`
+  - a rule: `label+offset` only for an offset >= 0 and inside the symbol's size (when known), always in hex
+- disassembler: opcode `$02` shows as `COP` (65816) on the 65C02, where it's a 2-byte NOP
+- no Disk II card: an original disk (custom RWTS reading `$C08C,X` in slot 6) can't boot, only a block
+  device. A Disk II in slot 6 (.dsk / .do / .po, then .nib / .woz for nibble-level protections) would run them
+  as they are, and let their loaders be traced instead of read
 
 - the BPs should be saved for an image/machine and reset when a new machine/image is selected
 
