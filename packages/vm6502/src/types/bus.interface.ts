@@ -85,6 +85,9 @@ export interface IBus {
 	/** Inserts media (disk, tape, etc.) into the machine. Metadata can specify drive/slot. */
 	insertMedia?(data: Uint8Array, metadata?: Dict): void;
 
+	/** Removes the media inserted with the same metadata (drive/slot). */
+	ejectMedia?(metadata?: Dict): void;
+
 	initAudio?(sampleRate: number): void;
 	enableAudio?(isEnabled: boolean): void;
 

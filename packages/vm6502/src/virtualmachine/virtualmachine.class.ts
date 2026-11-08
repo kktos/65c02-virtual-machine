@@ -471,6 +471,7 @@ export class VirtualMachine {
 
 	public insertDisk = (data: Uint8Array, metadata: Dict = {}) =>
 		this.worker.postMessage({ command: "insertMedia", data, metadata });
+	public ejectDisk = (metadata: Dict = {}) => this.worker.postMessage({ command: "ejectMedia", metadata });
 
 	public setTrace = (enabled: boolean) => {
 		this.isTraceEnabled = enabled;

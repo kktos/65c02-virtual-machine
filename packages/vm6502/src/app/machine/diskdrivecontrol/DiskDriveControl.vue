@@ -6,7 +6,10 @@
 				<button class="toolbar-btn group" :title="`Disk Library (${fileName || 'no disk inserted'})`">
 					<svg
 						xmlns="http://www.w3.org/2000/svg"
-						class="h-4 w-4 text-yellow-400 group-hover:text-yellow-300"
+						class="h-4 w-4"
+						:class="
+							inserted ? 'text-yellow-400 group-hover:text-yellow-300' : 'text-gray-500 group-hover:text-gray-300'
+						"
 						fill="none"
 						viewBox="0 0 24 24"
 						stroke="currentColor"
@@ -19,6 +22,10 @@
 						/>
 					</svg>
 					<span
+						v-if="inserted"
+						class="absolute bottom-1 right-1 w-1.5 h-1.5 bg-green-500 rounded-full shadow-[0_0_4px_rgba(34,197,94,0.7)]"
+					></span>
+					<span
 						v-if="loggingEnabled"
 						class="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full animate-pulse shadow-[0_0_4px_rgba(239,68,68,0.6)]"
 					></span>
@@ -28,6 +35,20 @@
 				<div class="p-4 pb-2 border-b border-gray-800">
 					<h4 class="font-medium leading-none text-gray-100">Disk Drive Setup</h4>
 					<p class="text-xs text-gray-400 mt-1">Manage disks and drive settings.</p>
+					<div class="flex items-center justify-between gap-2 mt-3 text-xs">
+						<span class="truncate text-gray-300" :title="fileName || undefined">
+							<span class="text-gray-500">In drive:</span> {{ fileName || "empty" }}
+						</span>
+						<button
+							v-if="inserted"
+							@click="handleEject"
+							class="shrink-0 flex items-center gap-1 px-2 py-0.5 text-gray-300 hover:text-yellow-300 hover:bg-gray-800 rounded border border-gray-700 transition-colors"
+							title="Eject the disk (the machine then starts with an empty drive)"
+						>
+							<ArrowUpFromLine class="h-3.5 w-3.5" />
+							Eject
+						</button>
+					</div>
 				</div>
 
 				<ScrollArea class="h-[300px] p-4">
@@ -39,7 +60,8 @@
 						<div
 							v-for="disk in savedDisks"
 							:key="disk.key.toString()"
-							class="group relative flex items-center justify-between p-2 bg-gray-800 rounded border border-gray-700 hover:border-blue-800/50 transition-colors"
+							class="group relative flex items-center justify-between p-2 bg-gray-800 rounded border hover:border-blue-800/50 transition-colors"
+							:class="inserted?.key === disk.key ? 'border-cyan-700' : 'border-gray-700'"
 						>
 							<div class="overflow-hidden mr-2 flex-1 flex items-center gap-3">
 								<div class="shrink-0">
@@ -84,7 +106,7 @@
 								<Pencil class="h-4 w-4" />
 							</button>
 							<button
-								@click="handleLoadFromLibrary(disk.key)"
+								@click="handleLoadFromLibrary(disk)"
 								class="p-1 mr-2 text-green-400 hover:bg-gray-700 hover:text-green-300 rounded transition-colors"
 								title="Load"
 							>
@@ -215,7 +237,8 @@
 				diskConfig?.name || "Disk"
 			}}</span>
 			<div
-				class="text-xs font-mono truncate text-gray-300 cursor-help"
+				class="text-xs font-mono truncate cursor-help"
+				:class="inserted ? 'text-gray-300' : 'text-gray-500 italic'"
 				:title="fileName ? `Size: ${formatSize(fileSize)}` : 'No disk inserted'"
 			>
 				{{ fileName || "Empty" }}
@@ -225,32 +248,25 @@
 </template>
 
 <script lang="ts" setup>
-import { CirclePlay, FileText, Link, Pencil, Save, Upload } from "lucide-vue-next";
+import { ArrowUpFromLine, CirclePlay, FileText, Link, Pencil, Save, Upload } from "lucide-vue-next";
 import { computed, inject, type Ref, ref, watch } from "vue";
 
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { type StoredDisk, useDiskStorage } from "@/composables/useDiskStorage";
-import { useSymbols } from "@/composables/useSymbols";
+import { useDiskDrive } from "@/composables/useDiskDrive";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import DiskDriveLogs from "./DiskDriveLogs.vue";
-import { useFormatting } from "@/composables/useDataFormattings";
-import { useNotes } from "@/composables/useNotes";
-
-const ACTIVE_DISK_KEY = "vm6502_active_disk_name";
-const ACTIVE_DISK_URL_KEY = "vm6502_active_disk_url";
 
 const vm = inject<Ref<VirtualMachine>>("vm");
 
-const { addSymbolsFromText, setDiskKey: symbolsSetDiskKey } = useSymbols();
-const { setDiskKey: formattingsSetDiskKey } = useFormatting();
-const { setDiskKey: notesSetDiskKey } = useNotes();
-const { saveDisk, saveUrlDisk, loadDisk, getAllDisks, deleteDisk, renameDisk } = useDiskStorage();
+const { deleteDisk, renameDisk } = useDiskStorage();
+const { inserted, listDisks, insertFromLibrary, insertFile, insertUrl, eject, restoreLastDisk } = useDiskDrive();
 
 const diskConfig = computed(() => vm?.value?.machineConfig?.disk);
-const fileName = ref("");
-const fileSize = ref(0);
+const fileName = computed(() => inserted.value?.name ?? "");
+const fileSize = computed(() => inserted.value?.size ?? 0);
 const savedDisks: Ref<StoredDisk[]> = ref([]);
 const isLibraryOpen = ref(false);
 const isLogSheetOpen = ref(false);
@@ -259,8 +275,6 @@ const urlInput = ref("");
 const isLoading = ref(false);
 const urlError = ref<string | null>(null);
 const loggingEnabled = ref(false);
-
-const activeDiskKey: Ref<IDBValidKey | null> = ref(null);
 
 const editingId: Ref<IDBValidKey | null> = ref(null);
 const editingName = ref("");
@@ -296,114 +310,32 @@ const isValidUrl = computed(() => {
 	}
 });
 
-const SLOT = 5;
-
 const formatSize = (bytes: number) => {
 	if (bytes < 1024) return `${bytes} B`;
 	if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
 	return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 };
 
-const setActiveDisk = async (key: IDBValidKey) => {
-	activeDiskKey.value = key;
-	const disk = await loadDisk(key);
-
-	console.log("---setActiveDisk", disk);
-
-	symbolsSetDiskKey(key as string);
-	formattingsSetDiskKey(key as string);
-	notesSetDiskKey(key as string);
-};
-
 const refreshLibrary = async () => {
-	savedDisks.value = await getAllDisks();
-};
-
-const loadDiskToVM = async (name: string, data: ArrayBuffer) => {
-	fileName.value = name;
-	fileSize.value = data.byteLength;
-	vm?.value?.insertDisk(new Uint8Array(data), { slot: SLOT, name });
-};
-
-const loadFromUrl = async (url: string) => {
-	const response = await fetch(url);
-	if (!response.ok) throw new Error(`Failed to load disk: ${response.statusText}`);
-
-	const buffer = await response.arrayBuffer();
-	let name = url.split("/").pop() as string;
-	if (!name || name.trim() === "") throw new Error("Invalid disk name");
-	name = name.split("?")[0] as string;
-
-	await loadDiskToVM(name, buffer);
-
-	// Try to fetch symbols
-	try {
-		const parts = url.split(".");
-		let symUrl = `${url}.sym`;
-		if (parts.length > 1) {
-			parts.pop();
-			symUrl = `${parts.join(".")}.sym`;
-		}
-
-		const symRes = await fetch(symUrl);
-		if (symRes.ok) {
-			const symText = await symRes.text();
-			try {
-				addSymbolsFromText(symText);
-
-				// const fmtData = parseFormattingFromText(symText);
-				// addFormatting(fmtData);
-				console.log(`Loaded symbols from ${symUrl}`);
-			} catch {
-				console.warn(`Failed to parse symbols from ${symUrl} as JSON.`);
-			}
-		}
-	} catch (e) {
-		console.warn("Symbol fetch failed", e);
-	}
+	savedDisks.value = await listDisks();
 };
 
 const handleFileSelect = async (event: Event) => {
 	const input = event.target as HTMLInputElement;
-	if (input.files && input.files.length > 0) {
-		const file = input.files[0] as File;
-		const buffer = await file.arrayBuffer();
-
-		// Save to Library
-		await saveDisk(file.name, file.name, file.name, buffer);
-		await refreshLibrary();
-
-		// Load to VM
-		await loadDiskToVM(file.name, buffer);
-		localStorage.setItem(ACTIVE_DISK_KEY, file.name);
-		await setActiveDisk(file.name);
-		localStorage.removeItem(ACTIVE_DISK_URL_KEY);
-
-		// Reset input
-		input.value = "";
-	}
+	const file = input.files?.[0];
+	if (!file || !vm?.value) return;
+	await insertFile(vm.value, file.name, await file.arrayBuffer());
+	await refreshLibrary();
+	input.value = "";
 };
 
 const handleUrlLoad = async () => {
-	if (!isValidUrl.value) return;
+	if (!isValidUrl.value || !vm?.value) return;
 	isLoading.value = true;
 	urlError.value = null;
-
 	try {
-		const url = urlInput.value;
-		// Load first to verify it works
-		await loadFromUrl(url);
-
-		// If successful, save to library
-		let name = url.split("/").pop()?.split("?")[0] || url;
-		if (name.trim() === "") name = url;
-
-		await saveUrlDisk(url, name, url);
+		await insertUrl(vm.value, urlInput.value);
 		await refreshLibrary();
-
-		localStorage.setItem(ACTIVE_DISK_URL_KEY, url);
-		await setActiveDisk(url);
-		localStorage.removeItem(ACTIVE_DISK_KEY);
 		urlInput.value = "";
 		isLibraryOpen.value = false;
 	} catch (e) {
@@ -414,32 +346,22 @@ const handleUrlLoad = async () => {
 	}
 };
 
-const handleLoadFromLibrary = async (key: IDBValidKey) => {
-	const disk = await loadDisk(key);
-	if (disk) {
-		if (disk.type === "url") {
-			isLoading.value = true;
-			try {
-				await loadFromUrl(disk.path);
-				localStorage.setItem(ACTIVE_DISK_URL_KEY, disk.path);
-				localStorage.removeItem(ACTIVE_DISK_KEY);
-				isLibraryOpen.value = false;
-				await setActiveDisk(key);
-			} catch (e) {
-				console.error(e);
-				alert("Failed to load from URL. Check console for details.");
-			} finally {
-				isLoading.value = false;
-			}
-		} else {
-			// physical disk
-			await loadDiskToVM(disk.name, disk.data);
-			localStorage.setItem(ACTIVE_DISK_KEY, String(key));
-			localStorage.removeItem(ACTIVE_DISK_URL_KEY);
-			await setActiveDisk(key);
-			isLibraryOpen.value = false;
-		}
+const handleLoadFromLibrary = async (disk: StoredDisk) => {
+	if (!vm?.value) return;
+	isLoading.value = disk.type === "url";
+	try {
+		await insertFromLibrary(vm.value, disk.key);
+		isLibraryOpen.value = false;
+	} catch (e) {
+		console.error(e);
+		alert("Failed to load the disk. Check console for details.");
+	} finally {
+		isLoading.value = false;
 	}
+};
+
+const handleEject = async () => {
+	if (vm?.value) await eject(vm.value);
 };
 
 const handleDelete = async (key: IDBValidKey) => {
@@ -457,42 +379,16 @@ const openLogs = () => {
 watch(
 	() => vm?.value,
 	async (newVm) => {
-		if (newVm) {
-			await newVm.ready;
-			await refreshLibrary();
-
-			const lastUrl = localStorage.getItem(ACTIVE_DISK_URL_KEY);
-			if (lastUrl) {
-				isLoading.value = true;
-				try {
-					await loadFromUrl(lastUrl);
-					await setActiveDisk(lastUrl);
-				} catch (e) {
-					console.error("Failed to load last URL:", e);
-				} finally {
-					isLoading.value = false;
-				}
-			} else {
-				// Try to load last active disk
-				const lastDiskName = localStorage.getItem(ACTIVE_DISK_KEY);
-				if (lastDiskName) {
-					const saved = await loadDisk(lastDiskName);
-					if (saved?.type === "physical") {
-						await loadDiskToVM(saved.name, saved.data);
-						await setActiveDisk(lastDiskName);
-					}
-				} else {
-					// Fallback to legacy slot 5 if exists
-					const legacy = await loadDisk(5);
-					if (legacy?.type === "physical") {
-						await loadDiskToVM(legacy.name, legacy.data);
-						// Migrate to new system
-						await deleteDisk(5);
-						await saveDisk(legacy.name, legacy.name, legacy.name, legacy.data);
-						localStorage.setItem(ACTIVE_DISK_KEY, legacy.name);
-					}
-				}
-			}
+		if (!newVm) return;
+		await newVm.ready;
+		await refreshLibrary();
+		isLoading.value = true;
+		try {
+			await restoreLastDisk(newVm);
+		} catch (e) {
+			console.error("Failed to restore the last disk:", e);
+		} finally {
+			isLoading.value = false;
 		}
 	},
 	{ immediate: true },

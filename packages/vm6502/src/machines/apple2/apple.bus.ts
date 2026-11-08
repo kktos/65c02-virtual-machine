@@ -1082,6 +1082,10 @@ export class AppleBus implements IBus {
 		}
 	}
 
+	public ejectMedia(metadata?: Record<string, unknown>) {
+		if (metadata && typeof metadata.slot === "number") this.slots[metadata.slot]?.ejectMedia?.();
+	}
+
 	public getScope(address: number): string {
 		if (address < 0x0200) return this.altZp ? "aux" : "main";
 
