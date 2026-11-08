@@ -150,6 +150,8 @@ export const parseFormattingsText = (text: string): StoredFormat[] => {
 export function useFormatting() {
 	const setDiskKey = (newKey: string) => {
 		diskKey.value = newKey;
+		// The system set: no disk (as at startup), so no disk entries either.
+		if (newKey === SYSTEM_DISK) diskRules.value = {};
 		return store.enqueue(() => loadDisk(newKey)).then(() => undefined);
 	};
 

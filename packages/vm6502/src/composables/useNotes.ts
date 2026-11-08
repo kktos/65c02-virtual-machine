@@ -54,6 +54,8 @@ const findById = (id: number) =>
 export function useNotes() {
 	const setDiskKey = async (newKey: string) => {
 		diskKey.value = newKey;
+		// The system set: no disk (as at startup), so no disk entries either.
+		if (newKey === SYSTEM_DISK) diskDict.value = {};
 		await store.enqueue(() => loadDisk(newKey));
 	};
 

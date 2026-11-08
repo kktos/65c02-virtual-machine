@@ -47,6 +47,9 @@ Then run `pnpm dev` and open `http://localhost:5173/?mcp`.
 | `pause` | Pause and return registers |
 | `step` | Execute `count` instructions on the paused machine; stops early on a PC breakpoint, a stopping hypercall or an error |
 | `reset` | Reset (CPU, soft switches, video; memory kept), left paused on the reset vector |
+| `list_disks` | The disk library (images kept in the browser) and what is in the drive |
+| `load_disk` | Insert a library disk by key or name; `boot: true` cold-boots it |
+| `eject_disk` | Empty the drive (stays empty at the next startup) |
 | `set_breakpoint` | Add a PC / read / write / access breakpoint (address or range, optional hook command); idempotent |
 | `remove_breakpoint` | Remove one (same type + address/range), or all with `all: true` |
 | `list_breakpoints` | Breakpoints as JSON, optionally only those covering an address / overlapping a range |
