@@ -6,8 +6,11 @@
 export type StopInfo =
 	/** `pause` command / reset */
 	| { reason: "pause" | "reset" }
-	/** user breakpoint; for read/write/access breakpoints `address` is the memory address, PC is the instruction */
-	| { reason: "breakpoint"; breakpointType: string; address: number }
+	/**
+	 * user breakpoint; for read/write/access breakpoints `address` is the memory address, PC is the instruction.
+	 * `stepThrough`: a step over / out going through the breakpoints is under way: the main thread resumes it.
+	 */
+	| { reason: "breakpoint"; breakpointType: string; address: number; stepThrough?: true }
 	/** a step finished (step into, over or out) */
 	| { reason: "step"; address: number }
 	/** BRK instruction, when "break on BRK" is on */

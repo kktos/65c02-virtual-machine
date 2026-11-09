@@ -15,13 +15,23 @@
 			<Pause v-if="isRunning" class="h-4 w-4" />
 			<Play v-else class="h-4 w-4" />
 		</button>
-		<button @click="vm?.stepOver" :disabled="isRunning" class="toolbar-btn" title="Step Over (F10)">
+		<button
+			@click="vm?.stepOver($event.altKey)"
+			:disabled="isRunning"
+			class="toolbar-btn"
+			title="Step Over (F10)&#10;Alt: through the breakpoints (Alt+F10)"
+		>
 			<RedoDot class="h-4 w-4" />
 		</button>
 		<button @click="vm?.step()" :disabled="isRunning" class="toolbar-btn" title="Step Into (F11)">
 			<ArrowDownToDot class="h-4 w-4" />
 		</button>
-		<button @click="vm?.stepOut" :disabled="isRunning" class="toolbar-btn" title="Step Out (Shift+F11)">
+		<button
+			@click="vm?.stepOut($event.altKey)"
+			:disabled="isRunning"
+			class="toolbar-btn"
+			title="Step Out (Shift+F11)&#10;Alt: through the breakpoints (Alt+Shift+F11)"
+		>
 			<ArrowUpFromDot class="h-4 w-4" />
 		</button>
 		<button @click="vm?.reset()" class="toolbar-btn group hover:bg-red-900/30" title="Reset the CPU and memory">
@@ -46,7 +56,11 @@
 			class="toolbar-btn px-2"
 			:class="{ 'bg-purple-600 hover:bg-purple-500 text-white': traceEnabled }"
 			:aria-pressed="traceEnabled"
-			:title="vm?.traceOverflow?.value ? 'Execution tracing (JSR/JMP) — buffer overflow' : 'Enable execution tracing (JSR/JMP)'"
+			:title="
+				vm?.traceOverflow?.value
+					? 'Execution tracing (JSR/JMP) — buffer overflow'
+					: 'Enable execution tracing (JSR/JMP)'
+			"
 		>
 			<span
 				v-if="vm?.traceOverflow?.value"

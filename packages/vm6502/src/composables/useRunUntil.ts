@@ -11,9 +11,12 @@ import { useBreakpoints } from "./useBreakpoints";
  * The target is dropped when reached, on a reset, when its breakpoint is removed or turned off, and when a new
  * run until replaces it.
  *
+ * Step over / step out going through: the same, for the breakpoints met before the step's end. The worker keeps
+ * that step (and flags its breakpoint stops `stepThrough`); it resumes from here.
+ *
  * It also tells a stop from a stop the machine goes on from: on a breakpoint, the worker stops and the main
- * thread decides (a hook's command, which ends with `run`; a run until going through). `onSettledStop` only
- * hears the stops the machine stays stopped on.
+ * thread decides (a hook's command, which ends with `run`; a run until or a step going through). `onSettledStop`
+ * only hears the stops the machine stays stopped on.
  */
 export type RunUntilTarget = { address: number; through: boolean };
 
@@ -56,20 +59,25 @@ const startRunUntil = (vm: VirtualMachine, address: number, { through = false } 
 
 /**
  * Every stop goes through here, once the main thread is done with it: at once for most, after the hook's
- * command for a breakpoint. Resumes a run until going through a breakpoint; otherwise tells the listeners,
- * unless the machine was resumed (a hook).
+ * command for a breakpoint. Resumes a run until or a step going through a breakpoint; otherwise tells the
+ * listeners, unless the machine was resumed (a hook).
  */
 const handleStop = (vm: VirtualMachine, stop: StopInfo) => {
 	if (stop.reason === "reset") cancelRunUntil(vm);
-	const armed = getTarget();
-	if (armed) {
-		if (stop.reason === "breakpoint" && stop.breakpointType === "pc" && isSameAddress(stop.address, armed.address))
-			target = null; // reached (takeHit already removed the temporary breakpoint)
-		else if (stop.reason === "breakpoint" && armed.through) {
+	const onBreakpoint = stop.reason === "breakpoint";
+	// Reached: on `target`, not getTarget(), which drops it once takeHit has removed its temporary breakpoint
+	if (target && onBreakpoint && stop.breakpointType === "pc" && isSameAddress(stop.address, target.address))
+		target = null;
+	else {
+		const armed = getTarget();
+		if (onBreakpoint && (armed?.through || stop.stepThrough)) {
 			if (!vm.isRunningOrStarting) vm.play();
 			return;
-		} else armed.through = false;
+		}
+		if (armed) armed.through = false;
 	}
+	// Stays on a breakpoint a step went through (the run until's target): the step goes on honouring them
+	if (onBreakpoint && stop.stepThrough) vm.endStepThrough();
 	if (vm.isRunningOrStarting) return;
 	for (const cb of settledListeners) cb(stop);
 };

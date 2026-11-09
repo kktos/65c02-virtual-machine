@@ -52,8 +52,13 @@ Noticed while porting Karateka to a .po (its loader disassembled in the debugger
   - honour (default): the other breakpoints stop it on the way; the target stays armed, `run` goes on to it
   - through: they don't stop it, their hooks still run; until it stops for something else (pause, BRK...)
   - also: resuming from a read / write breakpoint runs the instruction (it stopped on the same access again)
-- step over / step out stop on a breakpoint inside the routine (they honour them, as run until does by default).
+- **DONE** step over / step out stop on a breakpoint inside the routine (they honour them, as run until does by default).
   A `through` for them too?
+  Alt+F10 / Alt+Shift+F11 (Alt+click on the buttons), `step over|out [through]`, MCP `step({ mode, breakpoints })`:
+  - honour: the step stays armed when a breakpoint stops it (step out too, now): `run` goes on to its end
+  - through: the worker flags its breakpoint stops `stepThrough`, the main thread resumes after the hook
+  - also: resuming from a PC breakpoint runs its instruction instead of stepping it (a step out ending on that RTS
+    still stops); step out started on a breakpoint doesn't stop there at once
 - **DONE** `set pc $300` fails: `params[0].match is not a function`
 - ⁠Add a command to set ROM/Memory data
   ⁠Add a command to load a file into mem (already there in MemView: composable)

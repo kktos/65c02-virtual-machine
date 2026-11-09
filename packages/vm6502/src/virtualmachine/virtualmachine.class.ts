@@ -358,15 +358,15 @@ export class VirtualMachine {
 		const target = event.target as HTMLElement;
 		if (target && (kbdElements.has(target.tagName) || target.isContentEditable)) return;
 
-		// Debugger Shortcuts
+		// Debugger Shortcuts; with Alt, step over / out go through the breakpoints
 		if (event.code === "F10") {
 			event.preventDefault();
-			this.stepOver();
+			this.stepOver(event.altKey);
 			return;
 		}
 		if (event.code === "F11") {
 			event.preventDefault();
-			if (event.shiftKey) this.stepOut();
+			if (event.shiftKey) this.stepOut(event.altKey);
 			else this.step();
 			return;
 		}
@@ -482,8 +482,22 @@ export class VirtualMachine {
 			this.worker.postMessage({ command, id, ...data });
 		});
 	}
-	public stepOut = () => this.worker.postMessage({ command: "stepOut" });
-	public stepOver = () => this.worker.postMessage({ command: "stepOver" });
+	/**
+	 * Step over (a JSR: runs to the instruction after it; else one step) / step out (runs until the routine returns).
+	 * `through`: the breakpoints on the way don't stop it (their hooks still run). Resolves with `running`, and
+	 * `step` (its result) for a step over that isn't on a JSR: that one is a single step.
+	 */
+	public stepOver = (through = false) => this.stepRun("stepOver", through);
+	/** The step over / out under way stops going through the breakpoints (it stays armed). */
+	public endStepThrough = () => this.worker.postMessage({ command: "endStepThrough" });
+	public stepOut = (through = false) => this.stepRun("stepOut", through);
+	private stepRun(command: "stepOver" | "stepOut", through: boolean) {
+		return this.request<{ running: boolean; step?: StepResult }>(command, { through }).then(({ running, step }) => {
+			// A step over not on a JSR: a single step, done (as `step` records it)
+			if (step?.executed) this.recordStop(step.stop ?? { reason: "step", address: step.address });
+			return { running, step };
+		});
+	}
 
 	public addBP = (type: Breakpoint["type"], address: number, endAddress?: number) =>
 		this.worker.postMessage({ command: "addBP", type, address, endAddress });
