@@ -2,7 +2,7 @@ import { defineCommand } from "@/composables/useCommands";
 
 export const sedCmd = defineCommand({
 	description: "Stream editor. Usage: `content` |> SED `pattern` `replacement`",
-	paramDef: ["regex", "string", "string"],
+	paramDef: ["regex", "string", "rest"],
 	group: "Streams",
 	fn: ({ params }) => {
 		const originalRegex = params[0] as RegExp;
