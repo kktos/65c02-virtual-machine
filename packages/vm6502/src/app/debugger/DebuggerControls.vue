@@ -96,6 +96,10 @@
 		>
 			<Terminal class="h-4 w-4" />
 		</button>
+
+		<div class="toolbar-sep"></div>
+
+		<LayoutPicker />
 	</div>
 </template>
 <script lang="ts" setup>
@@ -118,6 +122,7 @@ import { useElementBounding } from "@vueuse/core";
 import BreakpointsDrawer from "@/app/debugger/BreakpointsDrawer.vue";
 import MemoryMap from "@/app/debugger/memorymap/MemoryMap.vue";
 import MachineState from "@/app/debugger/MachineState.vue";
+import LayoutPicker from "@/app/layout/LayoutPicker.vue";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import { useCmdConsole } from "@/composables/useCmdConsole";
 import { useMachine } from "@/composables/useMachine";
