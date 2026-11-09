@@ -46,8 +46,15 @@ Noticed while porting Karateka to a .po (its loader disassembled in the debugger
 - **NOT_YET**
   Can we add a feature to highlight bytes that have changed since the last update in the Memory Viewer?
 - do we store the mods into a patch list... associated with the disk... patch manager ?
-- "Run Until" Feature
+- **DONE** "Run Until" Feature
   Enhance the run command (or create a new runUntil) to accept a target address. The VM would run and automatically pause when PC hits that address (effectively a temporary breakpoint).
+  `run [<address>] until <target> [through]` (MCP: `run_until({ address, breakpoints: "honour" | "through" })`):
+  - honour (default): the other breakpoints stop it on the way; the target stays armed, `run` goes on to it
+  - through: they don't stop it, their hooks still run; until it stops for something else (pause, BRK...)
+  - also: resuming from a read / write breakpoint runs the instruction (it stopped on the same access again)
+- step over / step out stop on a breakpoint inside the routine (they honour them, as run until does by default).
+  A `through` for them too?
+- `set pc $300` fails: `params[0].match is not a function`
 - ⁠Add a command to set ROM/Memory data
   ⁠Add a command to load a file into mem (already there in MemView: composable)
 - add some other options for disasm (like with or without comments) that we can set with the command

@@ -6,6 +6,7 @@ import { watch } from "vue";
 import { useMachine } from "@/composables/useMachine";
 import { useCommands } from "@/composables/useCommands";
 import { useBreakpoints } from "@/composables/useBreakpoints";
+import { isSameAddress, useRunUntil } from "@/composables/useRunUntil";
 import { useLogWindows } from "@/composables/useLogWindows";
 import { DISK_EXTENSIONS, type InsertedDisk, useDiskDrive } from "@/composables/useDiskDrive";
 import type { StoredDisk } from "@/composables/useDiskStorage";
@@ -173,9 +174,6 @@ const describeRegisters = (vm: VirtualMachine) => {
 };
 
 const hexAddr = (a: number) => hex(a, a > 0xffff ? 6 : 4);
-// `address` from the user may omit the bank; stop addresses are physical ((bank << 16) | addr).
-const isSameAddress = (physical: number, address: number) =>
-	physical === address || (address <= 0xffff && (physical & 0xffff) === address);
 
 /** Why the machine stopped, for the agent. `target`: run_until's address, reported as `reached_address`. */
 const describeStop = (stop: StopInfo | undefined, target?: number): Record<string, unknown> => {
@@ -236,6 +234,25 @@ const waitForRunning = (value: boolean, ms: number, signal?: AbortSignal) =>
 		const onAbort = () => done(false);
 		const timer = setTimeout(() => done(false), ms);
 		const stop = watch(isRunning, (v) => v === value && done(true));
+		signal?.addEventListener("abort", onAbort);
+	});
+
+/**
+ * Waits for a stop the machine stays stopped on (not one a hook or a run until going through resumes from).
+ * Resolves with it, or with undefined on timeout / abort.
+ */
+const waitForSettledStop = (ms: number, signal?: AbortSignal, accept: (stop: StopInfo) => boolean = () => true) =>
+	new Promise<StopInfo | undefined>((resolve) => {
+		const done = (stop: StopInfo | undefined) => {
+			clearTimeout(timer);
+			off();
+			signal?.removeEventListener("abort", onAbort);
+			resolve(stop);
+		};
+		const onAbort = () => done(undefined);
+		const timer = setTimeout(() => done(undefined), ms);
+		const off = useRunUntil().onSettledStop((stop) => accept(stop) && done(stop));
+		if (signal?.aborted) return done(undefined);
 		signal?.addEventListener("abort", onAbort);
 	});
 
@@ -614,13 +631,19 @@ export const MCP_TOOLS: McpTool[] = [
 		name: "get_registers",
 		description:
 			"CPU registers, flags (uppercase = set), whether the machine is running and, when it is not, " +
-			"why it last stopped (`last_stop`, same values as run_until's `stopped`).",
+			"why it last stopped (`last_stop`, same values as run_until's `stopped`), and the run until's target " +
+			"while it is armed (`pending_target`, see run_until).",
 		inputSchema: { type: "object", properties: {} },
 		annotations: { readOnlyHint: true },
 		async execute() {
 			const vm = await getVm();
 			const regs = describeRegisters(vm);
-			return json(regs.running || !vm.lastStop ? regs : { ...regs, last_stop: describeStop(vm.lastStop) });
+			const target = useRunUntil().getRunUntilTarget();
+			return json({
+				...regs,
+				...(!regs.running && vm.lastStop && { last_stop: describeStop(vm.lastStop) }),
+				...(target && { pending_target: hexAddr(target.address), ...(target.through && { through: true }) }),
+			});
 		},
 	},
 	{
@@ -860,7 +883,11 @@ export const MCP_TOOLS: McpTool[] = [
 		name: "run_until",
 		description:
 			"Resume the machine and block until it stops (breakpoint, BRK, pause) or the timeout expires. " +
-			"With `address`, a temporary PC breakpoint is set there first. " +
+			"With `address`, a temporary PC breakpoint is set there first (the run until's target). " +
+			"`breakpoints`: `honour` (default) lets the other breakpoints stop the machine on the way; the target then " +
+			"stays armed (`pending_target` in the result), so the next run / run_until goes on to it. `through` " +
+			"doesn't stop on them (their hooks still run) until the machine stops for something else. " +
+			"A hook (a breakpoint whose command resumes the machine) never ends the wait. " +
 			"On timeout the machine is paused (unless pause_on_timeout is false). Returns the registers and `stopped`: " +
 			"`reached_address`, `breakpoint` (with its type and address; for read/write breakpoints the address is the " +
 			"memory accessed, PC is the instruction), `brk` (when break on BRK is on; resuming then executes it), `step` (step over/out done), `error` (unimplemented opcode), " +
@@ -871,6 +898,7 @@ export const MCP_TOOLS: McpTool[] = [
 			type: "object",
 			properties: {
 				address: addressSchema,
+				breakpoints: { type: "string", enum: ["honour", "through"], default: "honour" },
 				timeout_ms: { type: "integer", minimum: 10, maximum: 120_000, default: 5000 },
 				pause_on_timeout: { type: "boolean", default: true },
 			},
@@ -880,45 +908,39 @@ export const MCP_TOOLS: McpTool[] = [
 			const address = input.address === undefined ? undefined : toAddress(input.address, "address");
 			const timeoutMs = toInt(input.timeout_ms, "timeout_ms", 5000, 10, 120_000);
 			const pauseOnTimeout = input.pause_on_timeout !== false;
-			const { isRunning } = useMachine();
-			const { getBreakpoint, addBreakpoint, removeBreakpoint } = useBreakpoints();
+			const mode = input.breakpoints ?? "honour";
+			if (mode !== "honour" && mode !== "through") throw new Error("breakpoints: must be honour or through");
+			if (mode === "through" && address === undefined) throw new Error("breakpoints: through needs an address");
+			const { startRunUntil, getRunUntilTarget } = useRunUntil();
 
-			// Only add (and later remove) the breakpoint if the user doesn't already have one there.
-			let tempBp: { type: "pc"; address: number; isTemporary: true } | undefined;
-			if (address !== undefined) {
-				const bp = { type: "pc" as const, address, isTemporary: true as const };
-				if (!getBreakpoint(bp)) {
-					addBreakpoint(bp, vm);
-					tempBp = bp;
-				}
+			// The target, if still armed: the machine stopped before it
+			const pending = () => {
+				const t = getRunUntilTarget();
+				return t ? { pending_target: hexAddr(t.address), ...(t.through && { through: true }) } : {};
+			};
+			// Only the stops after this call: one the main thread is still busy with (a hook) is not ours.
+			// The worker answers by message: no stop can come before the wait below is set.
+			const stopBefore = vm.lastStop;
+			if (address !== undefined) startRunUntil(vm, address, { through: mode === "through" });
+			else if (!vm.isRunningOrStarting) vm.play();
+			const stopped = waitForSettledStop(timeoutMs, signal, (stop) => stop !== stopBefore);
+			// Without `address`, an armed target is where it goes
+			const goal = address ?? getRunUntilTarget()?.address;
+
+			const stop = await stopped;
+			if (stop) return json({ ...describeStop(stop, goal), ...pending(), ...describeRegisters(vm) });
+
+			const why = signal?.aborted ? "cancelled" : "timeout";
+			if (pauseOnTimeout) {
+				const paused = waitForSettledStop(1000);
+				vm.pause();
+				await paused;
 			}
-
-			const deadline = Date.now() + timeoutMs;
-			const stopBefore = vm.lastStop; // each stop is a new object: tells a fresh stop from an old one
-			const report = () => json({ ...describeStop(vm.lastStop, address), ...describeRegisters(vm) });
-
-			try {
-				if (!isRunning.value) {
-					vm.play();
-					if (!(await waitForRunning(true, 1000, signal))) {
-						if (vm.lastStop !== stopBefore) return report(); // stopped before we saw it running
-						return json({ stopped: "did not start", ...describeRegisters(vm) });
-					}
-				}
-				if (await waitForRunning(false, Math.max(0, deadline - Date.now()), signal)) return report();
-				const why = signal?.aborted ? "cancelled" : "timeout";
-				if (pauseOnTimeout) {
-					vm.pause();
-					await waitForRunning(false, 1000);
-				}
-				return json({
-					stopped: `${why} (${pauseOnTimeout ? "paused" : "still running"})`,
-					...describeRegisters(vm),
-				});
-			} finally {
-				// A temporary BP that was hit is already removed by useMachine; this handles the other cases.
-				if (tempBp && getBreakpoint(tempBp)) removeBreakpoint(tempBp, vm);
-			}
+			return json({
+				stopped: `${why} (${pauseOnTimeout ? "paused" : "still running"})`,
+				...pending(),
+				...describeRegisters(vm),
+			});
 		},
 	},
 	{

@@ -71,6 +71,8 @@ export class VirtualMachine {
 	public busState: Dict = {};
 	private isRendering = false;
 	private _isRunning = false;
+	// `play()` was sent and the worker hasn't said it runs yet: the machine is about to run
+	private _playPending = false;
 	private _lastStop?: StopInfo;
 
 	public worker: Worker;
@@ -141,7 +143,8 @@ export class VirtualMachine {
 					break;
 				case "isRunning":
 					this._isRunning = event.data.isRunning;
-					if (!this._isRunning) this.recordStop(event.data.stop);
+					if (this._isRunning) this._playPending = false;
+					else this.recordStop(event.data.stop);
 					this.onmessage?.(event);
 					break;
 				case "hypercall":
@@ -287,6 +290,11 @@ export class VirtualMachine {
 
 	public get isRunning() {
 		return this._isRunning;
+	}
+
+	/** Running, or `play()` was sent and the worker hasn't answered yet: a stop seen now is about to end. */
+	public get isRunningOrStarting() {
+		return this._isRunning || this._playPending;
 	}
 
 	public initVideo(canvas: HTMLCanvasElement) {
@@ -447,8 +455,14 @@ export class VirtualMachine {
 	public setSpeed = (speed: number) => this.worker.postMessage({ command: "setSpeed", speed });
 	public getSpeed = () => this.sharedRegisters.getFloat64(REG_SPEED_OFFSET, true);
 	public setBreakOnBrk = (enabled: boolean) => this.worker.postMessage({ command: "setBreakOnBrk", enabled });
-	public play = () => this.worker.postMessage({ command: "run" });
-	public pause = () => this.worker.postMessage({ command: "pause" });
+	public play = () => {
+		this._playPending = true;
+		this.worker.postMessage({ command: "run" });
+	};
+	public pause = () => {
+		this._playPending = false;
+		this.worker.postMessage({ command: "pause" });
+	};
 	/** Resolves once the worker has reset (the machine is then stopped, PC on the reset vector). */
 	public reset = (): Promise<void> => this.request("reset").then(() => undefined);
 	/** Steps `count` instructions (fewer if something stops it, see `StepResult`); resolves when done. */

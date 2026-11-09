@@ -43,8 +43,9 @@ export function useBreakpoints(): UseBreakpointsResult {
 					enabled: bp.enabled ?? true,
 				}));
 
+				// The temporary ones (a run until's target, a JSR from the console) belonged to the last session
 				loaded.forEach((bp) => {
-					newMap.set(getBreakpointKey(bp), bp);
+					if (!bp.isTemporary) newMap.set(getBreakpointKey(bp), bp);
 				});
 			} catch (e) {
 				console.error("Failed to load breakpoints", e);
