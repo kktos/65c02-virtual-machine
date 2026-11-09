@@ -16,7 +16,7 @@ function listHooks() {
 	const rows = hooks.map((bp) => {
 		const type = bp.type.toUpperCase();
 		const addr = formatAddress(bp.address);
-		const state = bp.enabled ? "on" : "off";
+		const state = (bp.enabled ? "on" : "off") + (bp.once ? " (once)" : "");
 		const command = bp.command;
 		return `| ${type} | ${addr} | ${state} | ${command} |`;
 	});
@@ -25,7 +25,9 @@ function listHooks() {
 }
 
 const formatBreakpointRange = (bp: Breakpoint) =>
-	bp.endAddress !== undefined ? `${formatAddress(bp.address)}-${formatAddress(bp.endAddress)}` : formatAddress(bp.address);
+	bp.endAddress !== undefined
+		? `${formatAddress(bp.address)}-${formatAddress(bp.endAddress)}`
+		: formatAddress(bp.address);
 
 /** `filter` keeps the breakpoints covering an address, or overlapping a range. Labels resolve to their address. */
 function listBreakpoints(filter?: number | ParamListItemIdentifier | ParamListItemRange) {
@@ -42,7 +44,8 @@ function listBreakpoints(filter?: number | ParamListItemIdentifier | ParamListIt
 			where = ` in ${formatAddress(lo)}-${formatAddress(hi)}`;
 		} else {
 			const addr = isParamListItemIdentifier(filter) ? filter.value : filter;
-			if (typeof addr !== "number") throw new Error(`Unknown label '${(filter as ParamListItemIdentifier).text}'.`);
+			if (typeof addr !== "number")
+				throw new Error(`Unknown label '${(filter as ParamListItemIdentifier).text}'.`);
 			lo = hi = addr;
 			where = ` at ${formatAddress(addr)}`;
 		}
@@ -53,7 +56,7 @@ function listBreakpoints(filter?: number | ParamListItemIdentifier | ParamListIt
 
 	const header = "| Type | Address | State | Command |\n|---|---|---|---|";
 	const rows = list.map((bp) => {
-		const state = (bp.enabled ? "on" : "off") + (bp.isTemporary ? " (temp)" : "");
+		const state = (bp.enabled ? "on" : "off") + (bp.isTemporary ? " (temp)" : "") + (bp.once ? " (once)" : "");
 		return `| ${bp.type.toUpperCase()} | ${formatBreakpointRange(bp)} | ${state} | ${bp.command ?? ""} |`;
 	});
 
@@ -140,7 +143,8 @@ export const listCmd = defineCommand({
 				break;
 			case "ROUTINES": {
 				const routine = params.length > 1 ? params[1] : undefined;
-				if (routine !== undefined && !isParamListItemIdentifier(routine)) throw new Error("Expected a routine name.");
+				if (routine !== undefined && !isParamListItemIdentifier(routine))
+					throw new Error("Expected a routine name.");
 				content = listRoutines(routine);
 				break;
 			}
@@ -151,7 +155,9 @@ export const listCmd = defineCommand({
 				content = listBuffers().content;
 				break;
 			case "BREAKPOINTS":
-				content = listBreakpoints(params[1] as number | ParamListItemIdentifier | ParamListItemRange | undefined);
+				content = listBreakpoints(
+					params[1] as number | ParamListItemIdentifier | ParamListItemRange | undefined,
+				);
 				break;
 			default:
 				throw new Error("Invalid list name");

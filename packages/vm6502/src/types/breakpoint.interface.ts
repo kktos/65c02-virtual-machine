@@ -7,4 +7,6 @@ export interface Breakpoint {
 	enabled?: boolean;
 	command?: string;
 	isTemporary?: boolean;
+	/** Turned off (not removed) on its first hit: `ON <type> <address> once do ...` */
+	once?: boolean;
 }

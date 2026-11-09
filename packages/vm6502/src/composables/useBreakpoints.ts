@@ -20,9 +20,11 @@ type UseBreakpointsResult = {
 	updateBreakpointCommand: (bp: Breakpoint, newCommand: string) => void;
 	toggleBreakpoint: (bp: Breakpoint, vm?: VirtualMachine) => void;
 	toggleBreakpointEnable: (bp: Breakpoint, vm?: VirtualMachine) => void;
+	setBreakpointEnabled: (bp: Breakpoint, enabled: boolean, vm?: VirtualMachine) => boolean;
 	getBreakpoint: (bp: Breakpoint) => BreakpointState | undefined;
 	getBreakpointKey: (bp: Breakpoint) => string;
 	findHitBreakpoints: (type: string, address: number) => BreakpointState[];
+	takeHit: (type: string, address: number, vm?: VirtualMachine) => BreakpointState | undefined;
 	pcBreakpoints: ComputedRef<Map<number, boolean>>;
 };
 
@@ -70,14 +72,29 @@ export function useBreakpoints(): UseBreakpointsResult {
 		vm?.addBP(bp.type, bp.address, bp.endAddress);
 	};
 
+	/**
+	 * Takes a breakpoint out of the worker. The worker keeps one set of flags per address, not who set them: clearing
+	 * `bp`'s flags also clears those of the other enabled breakpoints overlapping it (a BPR inside a BPA range), so
+	 * they are set again. `bp` must already be out of the enabled ones.
+	 */
+	const unsetInVm = (bp: Breakpoint, vm?: VirtualMachine) => {
+		if (!vm) return;
+		vm.removeBP(bp.type, bp.address, bp.endAddress);
+		const lo = bp.address;
+		const hi = bp.endAddress ?? bp.address;
+		breakpoints.value.forEach((other) => {
+			if (other.enabled && other.address <= hi && (other.endAddress ?? other.address) >= lo)
+				vm.addBP(other.type, other.address, other.endAddress);
+		});
+	};
+
 	const removeBreakpoint = (bp: Breakpoint, vm?: VirtualMachine) => {
 		const key = getBreakpointKey(bp);
 		if (breakpoints.value.has(key)) {
-			// Always remove from VM to ensure sync, regardless of enabled state
-			vm?.removeBP(bp.type, bp.address, bp.endAddress);
-
 			breakpoints.value.delete(key);
 			saveBreakpoints();
+			// Always remove from VM to ensure sync, regardless of enabled state
+			unsetInVm(bp, vm);
 		}
 	};
 
@@ -97,16 +114,21 @@ export function useBreakpoints(): UseBreakpointsResult {
 		else addBreakpoint(bp, vm);
 	};
 
-	const toggleBreakpointEnable = (bp: Breakpoint, vm?: VirtualMachine) => {
+	/** Returns false when there is no such breakpoint, or it already was in that state. */
+	const setBreakpointEnabled = (bp: Breakpoint, enabled: boolean, vm?: VirtualMachine) => {
 		const key = getBreakpointKey(bp);
 		const item = breakpoints.value.get(key);
-		if (item) {
-			const updatedItem = { ...item, enabled: !item.enabled };
-			breakpoints.value.set(key, updatedItem);
-			saveBreakpoints();
-			if (updatedItem.enabled) vm?.addBP(item.type, item.address, item.endAddress);
-			else vm?.removeBP(item.type, item.address, item.endAddress);
-		}
+		if (!item || item.enabled === enabled) return false;
+		breakpoints.value.set(key, { ...item, enabled });
+		saveBreakpoints();
+		if (enabled) vm?.addBP(item.type, item.address, item.endAddress);
+		else unsetInVm(item, vm);
+		return true;
+	};
+
+	const toggleBreakpointEnable = (bp: Breakpoint, vm?: VirtualMachine) => {
+		const item = getBreakpoint(bp);
+		if (item) setBreakpointEnabled(item, !item.enabled, vm);
 	};
 
 	const getBreakpoint = (bp: Breakpoint): BreakpointState | undefined => {
@@ -125,9 +147,27 @@ export function useBreakpoints(): UseBreakpointsResult {
 		return Array.from(breakpoints.value.values())
 			.filter(
 				(bp) =>
-					bp.enabled && types.includes(bp.type) && bp.address <= address && (bp.endAddress ?? bp.address) >= address,
+					bp.enabled &&
+					types.includes(bp.type) &&
+					bp.address <= address &&
+					(bp.endAddress ?? bp.address) >= address,
 			)
 			.sort((a, b) => types.indexOf(a.type) - types.indexOf(b.type) || span(a) - span(b));
+	};
+
+	/**
+	 * The worker stopped on a breakpoint: returns the one that decides what happens (its command runs, or the machine
+	 * stays stopped), the most specific of those hit, so a plain breakpoint stops even inside a hooked range.
+	 * The temporary ones hit are removed; a `once` one is turned off if it is the one deciding, before its command
+	 * runs, so the `run` the hooks end with doesn't stop on it again.
+	 */
+	const takeHit = (type: string, address: number, vm?: VirtualMachine) => {
+		// The hit may fall inside a range, or come from an `access` breakpoint (reported as read / write).
+		const hits = findHitBreakpoints(type, address);
+		for (const hit of hits) if (hit.isTemporary) removeBreakpoint(hit, vm);
+		const bp = hits[0];
+		if (bp?.once) setBreakpointEnabled(bp, false, vm);
+		return bp;
 	};
 
 	// Computed map for efficient lookup of PC breakpoints (used in DisassemblyView)
@@ -148,8 +188,10 @@ export function useBreakpoints(): UseBreakpointsResult {
 		updateBreakpointCommand,
 		toggleBreakpoint,
 		toggleBreakpointEnable,
+		setBreakpointEnabled,
 		getBreakpoint,
 		findHitBreakpoints,
+		takeHit,
 		pcBreakpoints,
 	};
 

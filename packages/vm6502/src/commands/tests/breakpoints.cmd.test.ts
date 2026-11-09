@@ -11,7 +11,12 @@ const { execAddBP } = await import("../addBP.cmd");
 const { execRemoveBP } = await import("../removeBP.cmd");
 const { listCmd } = await import("../list.cmd");
 
-const vm = { addBP: vi.fn(), removeBP: vi.fn() } as unknown as VirtualMachine;
+// The registers are read when `pc` is parsed: it is one, as well as a breakpoint type.
+const vm = {
+	addBP: vi.fn(),
+	removeBP: vi.fn(),
+	sharedRegisters: { getUint8: () => 0, getUint16: () => 0 },
+} as unknown as VirtualMachine;
 const ctx = (...params: ParamList) => ({ vm, params }) as unknown as CommandContext;
 const list = async (...params: ParamList) => {
 	const res = await listCmd.fn(ctx({ text: "bp", value: undefined }, ...params));
@@ -117,5 +122,99 @@ describe("through the command parser", () => {
 		expect(await run("list bp $300:$3ff")).toBe("No breakpoint in $00:0300-$00:03FF.");
 		expect(await run("list bp")).toContain("| WRITE |");
 		expect(await run("list routines foo")).toBe("No routines defined."); // name still parses
+	});
+
+	it("BD / BE disable and enable, by type or across types, and say when there is nothing to do", async () => {
+		await run("bp $300");
+		await run("bpa $300");
+		await run("bpw $400:$7ff");
+
+		expect(await run("bd pc $300")).toBe("Breakpoint (pc) at $00:0300 disabled");
+		expect(await run("bd pc $300")).toBe("Breakpoint (pc) at $00:0300 already disabled");
+		expect(await run("list bp $300")).toContain("| PC | $00:0300 | off |");
+		expect(await run("list bp $300")).toContain("| ACCESS | $00:0300 | on |");
+
+		// No type: all those at exactly that address, not the ranges it falls in.
+		expect(await run("be $300")).toBe(
+			"Breakpoint (pc) at $00:0300 enabled\nBreakpoint (access) at $00:0300 already enabled",
+		);
+		expect(await run("bd $500")).toBe("No breakpoint at $00:0500");
+		expect(await run("bd write $400:$7ff")).toBe("Breakpoint (write) at $00:0400-$00:07FF disabled");
+		expect(await run("bd read $300")).toBe("No breakpoint (read) at $00:0300");
+	});
+
+	it("BD / BE all, but the temporary breakpoints", async () => {
+		expect(await run("bd all")).toBe("No breakpoints defined.");
+		await run("bp $300");
+		await run("bpr $c000");
+		useBreakpoints().addBreakpoint({ type: "pc", address: 0xffff, isTemporary: true });
+		expect(await run("bd all")).toBe(
+			"Breakpoint (pc) at $00:0300 disabled\nBreakpoint (read) at $00:C000 disabled",
+		);
+		expect(useBreakpoints().getBreakpoint({ type: "pc", address: 0xffff })?.enabled).toBe(true);
+		expect(await run("be all")).toContain("Breakpoint (read) at $00:C000 enabled");
+	});
+
+	it("BD takes a label for the address, and rejects an unknown type", async () => {
+		await expect(run("bd nope")).rejects.toThrow("Unknown label 'nope'");
+		await expect(run("bd foo $300")).rejects.toThrow("Unknown breakpoint type 'foo'");
+		await expect(run("bd all $300")).rejects.toThrow("Nothing expected after `all`");
+	});
+
+	it("ON sets a hook, with or without `do`; OFF turns it off and ON alone back on", async () => {
+		expect(await run('on access $c057 do "print 1"')).toBe("Hook set on ACCESS @ $00:C057");
+		expect(useBreakpoints().getBreakpoint({ type: "access", address: 0xc057 })?.command).toBe("print 1;run");
+		expect(await run('on pc $300 "regs"')).toBe("Hook set on PC @ $00:0300");
+
+		expect(await run("off access $c057")).toBe("Hook on ACCESS @ $00:C057 off");
+		expect(await run("off access $c057")).toBe("Hook on ACCESS @ $00:C057 already off");
+		const hook = useBreakpoints().getBreakpoint({ type: "access", address: 0xc057 });
+		expect(hook).toMatchObject({ enabled: false, command: "print 1;run" });
+
+		expect(await run("on access $c057")).toBe("Hook on ACCESS @ $00:C057 on");
+		expect(await run("on access $c057")).toBe("Hook on ACCESS @ $00:C057 already on");
+		// The hooks are breakpoints: BD / BE work on them too.
+		expect(await run("bd pc $300")).toBe("Breakpoint (pc) at $00:0300 disabled");
+	});
+
+	it("OFF on no hook is not an error; ON with no hook and no command is", async () => {
+		expect(await run("off pc $300")).toBe("No hook on PC @ $00:0300");
+		await run("bp $300"); // a plain breakpoint is not a hook
+		expect(await run("off pc $300")).toBe("No hook on PC @ $00:0300");
+		await expect(run("on pc $300")).rejects.toThrow("No hook on PC @ $00:0300 to turn on");
+		await expect(run("on pc $300 nop")).rejects.toThrow("Expected `once` or `do`, got 'nop'");
+		await expect(run("on pc $300 do")).rejects.toThrow("Missing command to execute after `do`");
+		await expect(run('on foo $300 "x"')).rejects.toThrow("Invalid hook type 'foo'");
+	});
+
+	it("ON ... once sets a hook turned off on its first hit, which ON turns back on", async () => {
+		expect(await run('on access $c057 once do "print 1"')).toBe("Hook set on ACCESS @ $00:C057 (once)");
+		expect(await run('on pc $300 once "regs"')).toBe("Hook set on PC @ $00:0300 (once)");
+		expect(await run("list bp $c057")).toContain("| ACCESS | $00:C057 | on (once) | print 1;run |");
+		expect(await run("list hooks")).toContain("| ACCESS | $00:C057 | on (once) | print 1;run |");
+
+		const { takeHit, getBreakpoint } = useBreakpoints();
+		expect(takeHit("read", 0xc057, vm)?.command).toBe("print 1;run");
+		expect(getBreakpoint({ type: "access", address: 0xc057 })).toMatchObject({ enabled: false, once: true });
+		expect(takeHit("write", 0xc057, vm)).toBeUndefined(); // off: no longer fires
+
+		// ON alone turns it back on, still once.
+		expect(await run("on access $c057")).toBe("Hook on ACCESS @ $00:C057 on (once)");
+		expect(takeHit("read", 0xc057, vm)).toBeDefined();
+		expect(getBreakpoint({ type: "access", address: 0xc057 })?.enabled).toBe(false);
+	});
+
+	it("ON with a command and no `once` sets an ordinary hook again; ON <type> <address> once makes it once", async () => {
+		await run('on pc $300 once "regs"');
+		expect(await run('on pc $300 "regs"')).toBe("Hook set on PC @ $00:0300");
+		expect(useBreakpoints().getBreakpoint({ type: "pc", address: 0x300 })?.once).toBeUndefined();
+
+		expect(await run("on pc $300 once")).toBe("Hook on PC @ $00:0300 on (once)");
+		expect(useBreakpoints().getBreakpoint({ type: "pc", address: 0x300 })).toMatchObject({
+			enabled: true,
+			once: true,
+			command: "regs;run",
+		});
+		await expect(run("on pc $300 once nop")).rejects.toThrow("Expected `do`, got 'nop'");
 	});
 });
