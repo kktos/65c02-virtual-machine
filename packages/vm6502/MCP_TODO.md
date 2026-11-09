@@ -211,6 +211,12 @@ Lower: exec_command already reaches them, or they are comfort.
       `save_binary({ path, address, length })`, the mirror of `load_binary` (the relay writes the file);
       and/or `compare_memory({ path, address })` returning the ranges that differ. The `WRITE` command saves
       in the browser, not on the agent's side
+- [ ] no way to have a key down at a given point while the machine is paused: `type_keys` refuses ("keys would
+      not be read"), and the console has no key command. Karateka (2026-11-09), testing "hold a key at boot for the
+      upside-down game": a key typed before `load_disk {boot}` is read and cleared before the check, and the boot
+      reaches it in a few ms. Worked around with `speed 0.05`, `load_disk {boot}`, `type_keys`, `speed 1`. Ideas:
+      `type_keys` while paused queues the key (latch set, strobe on, as if pressed now); `press_key` / `release_key`
+      to hold one (with the //e's AKD, see TODO.md); or a `key` console command usable from a hook
 - [ ] WebMCP: try it for real (enable the flag), check how long-running `run_until` behaves
 - [ ] mark tools that change state (`write_memory`, …) with `consequentialHint` for WebMCP
 

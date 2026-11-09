@@ -1,5 +1,14 @@
 # TODO
 
+### 2026-11-09
+
+Noticed while adding Karateka's upside-down mode (a key held at boot):
+
+- //e keyboard: reading `$C010` returns 0 (`apple.switches.ts`), where a //e gives AKD in bit 7 (1 = a key is
+  down now, the `consts` comment says so). Software that checks "a key held" through `$C010` never sees it.
+  Needs a key-down state from keydown / keyup (the worker gets both), and auto-repeat for a held key (the latch
+  set again while it stays down)
+
 ### 2026-11-08
 
 Noticed while porting Karateka to a .po (its loader disassembled in the debugger):
