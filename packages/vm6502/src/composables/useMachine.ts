@@ -39,6 +39,41 @@ const registers: EmulatorRegisters = reactive({
 });
 const virtualRegisters = ref<RegisterDescriptor[]>([]);
 
+// --- UI frame loop ---
+// The worker writes the registers to a SharedArrayBuffer, which Vue can't track: copy them into `registers`
+// once per animation frame, then run the per-frame callbacks (`onUiFrame`).
+// Paused, the registers only change on a step, a command or an edit: they're read on every frame, so the views
+// show the change at once. Running, they change all the time and can't be read at 60 Hz anyway: they're read
+// every RUNNING_SYNC_MS, which also spares the views (the disassembly first) a re-render on every frame.
+const RUNNING_SYNC_MS = 100;
+const uiFrameCallbacks = new Set<() => void>();
+let uiFrameRequest = 0;
+let lastRegistersSync = 0;
+
+const uiFrame = (now: number) => {
+	uiFrameRequest = requestAnimationFrame(uiFrame);
+	const machine = vm.value;
+	if (!machine) return;
+	if (!isRunning.value || now - lastRegistersSync >= RUNNING_SYNC_MS) {
+		// Only the values that changed trigger the views
+		Object.assign(registers, machine.getRegisters());
+		lastRegistersSync = now;
+	}
+	for (const cb of uiFrameCallbacks) cb();
+};
+
+const startUiLoop = () => {
+	if (!uiFrameRequest && typeof requestAnimationFrame === "function") uiFrameRequest = requestAnimationFrame(uiFrame);
+};
+
+/** Calls `cb` on every animation frame, after the registers are synced. Returns the unsubscribe function. */
+const onUiFrame = (cb: () => void) => {
+	uiFrameCallbacks.add(cb);
+	return () => {
+		uiFrameCallbacks.delete(cb);
+	};
+};
+
 const setupVmListeners = (targetVm: VirtualMachine) => {
 	const { executeCommand } = useCommands();
 
@@ -112,6 +147,7 @@ const loadMachine = async (newMachine?: MachineConfig) => {
 	vm.value = markRaw<VirtualMachine>(newVm);
 	setupVmListeners(newVm);
 	virtualRegisters.value = [];
+	startUiLoop();
 
 	if (videoCanvas.value) newVm.initVideo(videoCanvas.value);
 
@@ -183,7 +219,9 @@ export function useMachine() {
 		videoCanvas,
 		loadMachine,
 		vm,
-		registers,
+		/** The UI's copy of the CPU registers, synced by the frame loop: for the views. Code reads `vm.getRegisters()`. */
+		registers: readonly(registers),
+		onUiFrame,
 		virtualRegisters: readonly(virtualRegisters),
 		addVirtualRegister,
 		breakOnBrk: readonly(breakOnBrk),

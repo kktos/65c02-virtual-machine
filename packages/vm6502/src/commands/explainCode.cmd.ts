@@ -1,6 +1,5 @@
 import { defineCommand, isParamListItemRange } from "@/composables/useCommands";
 import { useGemini } from "@/composables/useGemini";
-import { useMachine } from "@/composables/useMachine";
 import { disassembleRange, formatDisassemblyAsText } from "@/lib/disassembler";
 
 export const explainCmd = defineCommand({
@@ -24,7 +23,7 @@ export const explainCmd = defineCommand({
 	fn: async ({ vm, progress, params, opts }) => {
 		const readByte = (address: number, debug = true) => (debug ? vm.readDebug(address) : vm.peek(address)) ?? 0;
 		vm.syncBusState(); // `peek` follows the banking soft switches: have them current
-		const { registers } = useMachine();
+		const registers = vm.getRegisters();
 		const { explainCode } = useGemini();
 
 		let source = "";

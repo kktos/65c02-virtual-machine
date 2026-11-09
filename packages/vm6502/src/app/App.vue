@@ -107,21 +107,6 @@ import ResizablePanelGroup from "../components/ui/resizable/ResizablePanelGroup.
 import { useDebuggerNav } from "../composables/useDebuggerNav";
 import { availableMachines } from "../machines";
 import type { MachineConfig } from "../types/machine.interface";
-import {
-	FLAG_B_MASK,
-	FLAG_C_MASK,
-	FLAG_D_MASK,
-	FLAG_I_MASK,
-	FLAG_N_MASK,
-	FLAG_V_MASK,
-	FLAG_Z_MASK,
-	REG_A_OFFSET,
-	REG_PC_OFFSET,
-	REG_SP_OFFSET,
-	REG_STATUS_OFFSET,
-	REG_X_OFFSET,
-	REG_Y_OFFSET,
-} from "../virtualmachine/cpu/shared-memory";
 import DebuggerControls from "./debugger/DebuggerControls.vue";
 import DisassemblyView from "./debugger/disassembly/DisassemblyView.vue";
 import MultiMemoryViewer from "./debugger/memoryview/MultiMemoryViewer.vue";
@@ -187,9 +172,6 @@ provide("vm", vm);
 
 onMounted(() => {
 	loadMachine(selectedMachine.value);
-
-	// Start the UI update loop
-	requestAnimationFrame(updateUiFromSharedBuffer);
 });
 
 // Wait for the canvas to be mounted by the ResizablePanel before setting it on the VM
@@ -201,46 +183,9 @@ watch(
 	{ once: true },
 );
 
-// --- UI Update Subscription ---
-// Allow child components to subscribe to the animation frame loop
-const uiUpdateSubscribers = new Set<() => void>();
-const subscribeToUiUpdates = (callback: () => void) => {
-	uiUpdateSubscribers.add(callback);
-};
-provide("subscribeToUiUpdates", subscribeToUiUpdates);
-
 onUnmounted(() => {
 	vm.value?.terminate();
 });
-
-const updateUiFromSharedBuffer = () => {
-	if (!vm.value) return requestAnimationFrame(updateUiFromSharedBuffer);
-	// This function will be called on every animation frame to update the UI
-	// It reads directly from the shared buffer and updates the reactive state.
-	registers.A = vm.value.sharedRegisters.getUint8(REG_A_OFFSET);
-	registers.X = vm.value.sharedRegisters.getUint8(REG_X_OFFSET);
-	registers.Y = vm.value.sharedRegisters.getUint8(REG_Y_OFFSET);
-	registers.SP = vm.value.sharedRegisters.getUint8(REG_SP_OFFSET);
-	registers.PC = vm.value.sharedRegisters.getUint16(REG_PC_OFFSET, true);
-
-	const status = vm.value.sharedRegisters.getUint8(REG_STATUS_OFFSET);
-	registers.P = status;
-	registers.C = (status & FLAG_C_MASK) !== 0;
-	registers.Z = (status & FLAG_Z_MASK) !== 0;
-	registers.I = (status & FLAG_I_MASK) !== 0;
-	registers.D = (status & FLAG_D_MASK) !== 0;
-	registers.B = (status & FLAG_B_MASK) !== 0;
-	registers.V = (status & FLAG_V_MASK) !== 0;
-	registers.N = (status & FLAG_N_MASK) !== 0;
-
-	// Notify subscribers
-	uiUpdateSubscribers.forEach((cb) => {
-		cb();
-	});
-
-	// Keep the loop going
-	requestAnimationFrame(updateUiFromSharedBuffer);
-};
 
 const handleMachineSelected = (newMachine: MachineConfig) => {
 	if (newMachine && newMachine.name !== vm.value?.machineConfig.name) loadMachine(newMachine);

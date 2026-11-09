@@ -30,7 +30,9 @@ Noticed while porting Karateka to a .po (its loader disassembled in the debugger
 
 ### 2026-03-31
 
-- REFACTO: registers in useMachine.... updated at everyframe in App.... Not sure it's the best way to do it
+- **DONE** REFACTO: registers in useMachine.... updated at everyframe in App.... Not sure it's the best way to do it:
+  the frame loop lives in useMachine (`onUiFrame` for per-frame callbacks), synced every frame when paused and
+  every 100 ms when running; code reads `vm.getRegisters()`, the reactive copy is for the views only
 - REFACTO: I don't like the handleJsrOutput in useCommands where it's a mini monitor thing
 
 ### 2026-03-23
