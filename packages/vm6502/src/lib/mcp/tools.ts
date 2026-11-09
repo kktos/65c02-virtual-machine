@@ -519,7 +519,7 @@ export const MCP_TOOLS: McpTool[] = [
 		async execute(input) {
 			const vm = await getVm();
 			// Queued behind any command already running (user's console, breakpoint command…).
-			const report = await useCommands().runCommand(toStr(input.command, "command"), vm, { standalone: true });
+			const report = await useCommands().runCommand(toStr(input.command, "command"), vm, { standalone: true, source: "mcp" });
 			if (!report.ok) throw new Error(report.error || "Command failed");
 			return report.output.map((o) => o.content).join("\n") || "(no output)";
 		},

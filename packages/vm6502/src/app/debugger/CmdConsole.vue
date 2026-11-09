@@ -219,7 +219,7 @@ const handleHistoryUp = () => {
 	}
 	if (historyIndex.value < commandHistory.value.length - 1) {
 		historyIndex.value++;
-		inputText.value = commandHistory.value[commandHistory.value.length - 1 - historyIndex.value] as string;
+		inputText.value = commandHistory.value[commandHistory.value.length - 1 - historyIndex.value]!.cmd;
 	}
 };
 
@@ -229,7 +229,7 @@ const handleHistoryDown = () => {
 		inputText.value = (
 			historyIndex.value === -1
 				? tempInput
-				: commandHistory.value[commandHistory.value.length - 1 - historyIndex.value]
+				: commandHistory.value[commandHistory.value.length - 1 - historyIndex.value]?.cmd
 		) as string;
 	}
 };
