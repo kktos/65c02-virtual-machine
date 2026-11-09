@@ -43,7 +43,28 @@ const shouldClose = ref(false);
 const multiLineSession = ref<MultiLineRequest | null>(null);
 const isMultiLine = computed(() => multiLineSession.value !== null);
 const multiLinePrompt = computed(() => multiLineSession.value?.prompt ?? "");
-const commandHistory = ref<string[]>(JSON.parse(localStorage.getItem(LS_KEY_HISTORY) || "[]") as string[]);
+/** Who ran a command: typed or clicked in the console, sent over MCP, a breakpoint's command, the machine init */
+export type HistorySource = "user" | "mcp" | "bp" | "init";
+/** `time` (ms since epoch) is missing on the entries saved before it was recorded */
+export type HistoryEntry = { cmd: string; source: HistorySource; time?: number };
+
+/** Reads the saved history. Entries saved as plain strings, before they had a source, were typed in the console. */
+export function parseStoredHistory(json: string | null): HistoryEntry[] {
+	let raw: unknown;
+	try {
+		raw = JSON.parse(json || "[]");
+	} catch {
+		return [];
+	}
+	if (!Array.isArray(raw)) return [];
+	return raw.flatMap((e): HistoryEntry[] => {
+		if (typeof e === "string") return [{ cmd: e, source: "user" }];
+		if (e && typeof e === "object" && typeof e.cmd === "string") return [e as HistoryEntry];
+		return [];
+	});
+}
+
+const commandHistory = ref<HistoryEntry[]>(parseStoredHistory(localStorage.getItem(LS_KEY_HISTORY)));
 const errorHistory = ref<string[]>([]);
 
 const { addBreakpoint } = useBreakpoints();
@@ -363,7 +384,21 @@ export type RunCommandOptions = {
 	 * (the lines would go into the user's session), and don't leave a multi-line session open.
 	 */
 	standalone?: boolean;
+	/** Who runs the command, recorded in the history (default: "user") */
+	source?: HistorySource;
 };
+
+/** The same command again from the same caller only refreshes the time of the last entry */
+function addToHistory(cmd: string, source: HistorySource, time: number) {
+	const history = commandHistory.value;
+	const lastEntry = history.at(-1);
+	if (lastEntry?.cmd === cmd && lastEntry.source === source) {
+		lastEntry.time = time;
+		return;
+	}
+	history.push({ cmd, source, time });
+	if (history.length > HISTORY_MAX_SIZE) history.splice(0, history.length - HISTORY_MAX_SIZE);
+}
 
 // Commands run one at a time, in call order, whoever the caller is (console, breakpoint command,
 // init, MCP): a call made while another one runs waits for its turn instead of being dropped.
@@ -375,8 +410,8 @@ function runCommand(cmdInput: string, vm: VirtualMachine | null, opts: RunComman
 	return run;
 }
 
-async function executeCommand(cmdInput: string, vm: VirtualMachine | null) {
-	return (await runCommand(cmdInput, vm)).ok;
+async function executeCommand(cmdInput: string, vm: VirtualMachine | null, opts: RunCommandOptions = {}) {
+	return (await runCommand(cmdInput, vm, opts)).ok;
 }
 
 async function runNow(cmdInput: string, vm: VirtualMachine | null, opts: RunCommandOptions): Promise<CommandReport> {
@@ -399,6 +434,7 @@ async function runNow(cmdInput: string, vm: VirtualMachine | null, opts: RunComm
 	success.value = [];
 	shouldClose.value = false;
 
+	const startedAt = Date.now();
 	let input = cmdInput;
 	const lines = input.split(/\r?\n/);
 
@@ -414,11 +450,7 @@ async function runNow(cmdInput: string, vm: VirtualMachine | null, opts: RunComm
 		}
 
 		const cleanInput = cmdInput.trim();
-		if (cleanInput && commandHistory.value[commandHistory.value.length - 1] !== cleanInput) {
-			commandHistory.value.push(cleanInput);
-			if (commandHistory.value.length > HISTORY_MAX_SIZE)
-				commandHistory.value.splice(0, commandHistory.value.length - HISTORY_MAX_SIZE);
-		}
+		if (cleanInput) addToHistory(cleanInput, opts.source ?? "user", startedAt);
 
 		const openSession = multiLineSession.value;
 		if (opts.standalone && openSession) {

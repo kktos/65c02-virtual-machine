@@ -85,16 +85,39 @@ function listRoutines(name?: ParamListItemIdentifier) {
 function listHistory() {
 	const { commandHistory } = useCommands();
 	if (commandHistory.value.length === 0) return "Command history is empty.";
-	const shortenString = (s: string) => {
-		s = s.replace("\n", " ");
-		if (s.length > 15) return s.slice(0, 15) + "...";
-		return s;
-	};
-	const historyList = commandHistory.value
-		.map((cmd, index) => `${(index + 1).toString().padStart(3, "\u00A0")}: ${shortenString(cmd)}`)
-		.join("  \n");
-	return `${historyList}\n`;
+	const header = "| # | Time | From | Command |\n|--:|---|---|---|";
+	const rows = commandHistory.value.map(
+		(entry, index) =>
+			`| ${index + 1} | ${formatHistoryTime(entry.time)} | ${entry.source} | ${tableCode(shortenCommand(entry.cmd))} |`,
+	);
+	return `${header}\n${rows.join("\n")}`;
 }
+
+const HISTORY_CMD_MAX_LENGTH = 40;
+
+/** On one line (a multi-line input shows its line breaks as \u21B5), cut at HISTORY_CMD_MAX_LENGTH */
+const shortenCommand = (cmd: string) => {
+	const line = cmd.replace(/\s*\r?\n\s*/g, " \u21B5 ");
+	return line.length > HISTORY_CMD_MAX_LENGTH ? `${line.slice(0, HISTORY_CMD_MAX_LENGTH)}\u2026` : line;
+};
+
+const pad2 = (n: number) => n.toString().padStart(2, "0");
+
+/** Local date and time; nothing for the entries saved before times were recorded */
+const formatHistoryTime = (time?: number) => {
+	if (time === undefined) return "";
+	const date = new Date(time);
+	const ymd = `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+	return `${ymd} ${pad2(date.getHours())}:${pad2(date.getMinutes())}:${pad2(date.getSeconds())}`;
+};
+
+/** A code span for a table cell: fenced longer than any run of backticks it holds, its pipes escaped for the table */
+const tableCode = (text: string) => {
+	const longestTicks = Math.max(0, ...(text.match(/`+/g) ?? []).map((run) => run.length));
+	const fence = "`".repeat(longestTicks + 1);
+	const pad = text.startsWith("`") || text.endsWith("`") ? " " : "";
+	return `${fence}${pad}${text.replaceAll("|", "\\|")}${pad}${fence}`;
+};
 
 // BUFFERS stays before BREAKPOINTS so that `LIST B` keeps meaning buffers.
 const LISTS = ["HOOKS", "ROUTINES", "HISTORY", "BUFFERS", "BREAKPOINTS"];

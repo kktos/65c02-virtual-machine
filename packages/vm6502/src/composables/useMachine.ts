@@ -81,7 +81,7 @@ const setupVmListeners = (targetVm: VirtualMachine) => {
 				// The most specific one decides: a plain breakpoint there stops, even inside a hooked range.
 				const bp = hits[0];
 				if (bp?.command) {
-					await executeCommand(bp?.command, targetVm);
+					await executeCommand(bp.command, targetVm, { source: "bp" });
 					break;
 				}
 				targetVm.refreshVideo();
@@ -149,7 +149,7 @@ const loadMachine = async (newMachine?: MachineConfig) => {
 				initScript
 					? async () => {
 							setRoutine("init", initScript, [], { readonly: true });
-							await executeCommand("do init", newVm);
+							await executeCommand("do init", newVm, { source: "init" });
 						}
 					: undefined,
 			);
