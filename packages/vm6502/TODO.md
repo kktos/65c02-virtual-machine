@@ -54,7 +54,7 @@ Noticed while porting Karateka to a .po (its loader disassembled in the debugger
   - also: resuming from a read / write breakpoint runs the instruction (it stopped on the same access again)
 - step over / step out stop on a breakpoint inside the routine (they honour them, as run until does by default).
   A `through` for them too?
-- `set pc $300` fails: `params[0].match is not a function`
+- **DONE** `set pc $300` fails: `params[0].match is not a function`
 - ⁠Add a command to set ROM/Memory data
   ⁠Add a command to load a file into mem (already there in MemView: composable)
 - add some other options for disasm (like with or without comments) that we can set with the command
