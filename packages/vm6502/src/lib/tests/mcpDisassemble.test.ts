@@ -37,6 +37,7 @@ vi.mock("@/composables/useSymbols", () => ({
 		findSymbolWithOffset: (addr: number) =>
 			LABELS[addr] ? { symbol: { label: LABELS[addr] }, offset: 0 } : undefined,
 		addManySymbols: vi.fn(),
+		hasRangeFlag: () => false,
 	}),
 }));
 vi.mock("@/composables/useComments", () => ({

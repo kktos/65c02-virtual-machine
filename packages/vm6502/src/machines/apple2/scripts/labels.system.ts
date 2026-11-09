@@ -1,7 +1,7 @@
 export const labels_system = `
 	LABELS SYSTEM
-		$0100 STACK
-		$0200 INPUTBUF
+		$0100:$01ff STACK
+		$0200:$02ff INPUTBUF
 		$03f0 BRKV
 		$03f2 SOFTEV
 		$03f4 PWREDUP
@@ -9,7 +9,7 @@ export const labels_system = `
 		$03f8 USRADR
 		$03fB NMI
 		$03fe IRQLOC
-		$0400 TXT_SCRN_START
+		$0400:$07ff TXT_SCRN_START
 		$07f8 MSLOT
 		$0800 BOOT1
 	END_LABELS
@@ -68,6 +68,9 @@ export const labels_system = `
 		$c089 ROMIN1
 		$c08a LCROMIN1
 		$c08b LCBANK1_R
+
+		; slot I/O: LDA $C08C,X with X = slot*16 is a card's register (Disk II latch...), not the language card
+		$c080:$c0ff [noindex]
 	END_LABELS
 	LABELS SYSTEM int_rom
 		$c300 card80col

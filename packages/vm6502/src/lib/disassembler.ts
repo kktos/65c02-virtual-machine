@@ -17,7 +17,7 @@ type FunctionGetScope = (address: number) => string;
 const DATA_REGION_MAX_BYTES = 5;
 
 const { getFormat } = useFormatting();
-const { getSymbolForAddress, getLabelForAddress, addManySymbols, findSymbolWithOffset } = useSymbols();
+const { getSymbolForAddress, getLabelForAddress, addManySymbols, findSymbolWithOffset, hasRangeFlag } = useSymbols();
 const { getBothComments } = useComments();
 
 async function findPreviousInstruction(
@@ -139,9 +139,22 @@ type DisassembleContext = {
 	lowercase?: boolean;
 };
 
-function offsetAsStr(offset: number) {
-	const off = Math.abs(offset);
-	return `${Math.sign(offset) === -1 ? "-" : "+"}${offset > 9 ? `$${toHex(offset)}` : off.toString(10)}`;
+/**
+ * An operand address as a label, `label+$offset` (offset in hex, never negative), or `$hex` without a label.
+ * `indexed`: the address is the base of an indexed access (`,X` / `,Y`): no label in a `[noindex]` range.
+ */
+function symbolOperand(
+	address: number,
+	ctx: DisassembleContext,
+	digits: 2 | 4,
+	indexed = false,
+): { text: string; symbol?: SymbolEntry } {
+	const raw = `$${toHex(address, digits)}`;
+	if (indexed && hasRangeFlag(address, "noindex", ctx.scope)) return { text: raw };
+	const match = findSymbolWithOffset(address, ctx.scope, digits === 2 ? 16 : 32);
+	if (!match) return { text: raw };
+	const { symbol, offset } = match;
+	return { text: offset === 0 ? symbol.label : `${symbol.label}+$${toHex(offset, 2)}`, symbol };
 }
 
 export async function disassemble(ctx: DisassembleContext) {
@@ -255,53 +268,20 @@ export async function disassemble(ctx: DisassembleContext) {
 				effectiveAddress = operandBytes[0] ?? 0;
 				line.oprn = effectiveAddress;
 				dbgComment = `$${toHex(effectiveAddress, 2)}: $${toHex(ctx.readByte(effectiveAddress, false))}`;
-				const match = findSymbolWithOffset(effectiveAddress, ctx.scope, 16);
-				if (!match) {
-					line.opr = `$${toHex(effectiveAddress, 2)}`;
-					break;
-				}
-				if (match.offset === 0) {
-					line.opr = match.symbol.label;
-				} else {
-					const offsetStr = match.offset > 9 ? `+$${toHex(match.offset, 2)}` : `+${match.offset}`;
-					line.opr = `${match.symbol.label}${offsetStr}`;
-				}
+				line.opr = symbolOperand(effectiveAddress, ctx, 2).text;
 				break;
 			}
 			case "ZPX": {
 				effectiveAddress = operandBytes[0] ?? 0;
 				line.oprn = effectiveAddress;
-				const match = findSymbolWithOffset(effectiveAddress, ctx.scope, 16);
-				let baseOpr: string;
-				if (match) {
-					if (match.offset === 0) {
-						baseOpr = match.symbol.label;
-					} else {
-						const offsetStr = match.offset > 9 ? `+$${toHex(match.offset, 2)}` : `+${match.offset}`;
-						baseOpr = `${match.symbol.label}${offsetStr}`;
-					}
-				} else {
-					baseOpr = `$${toHex(effectiveAddress, 2)}`;
-				}
-				line.opr = `${baseOpr},${ctx.lowercase ? "x" : "X"}`;
+				line.opr = `${symbolOperand(effectiveAddress, ctx, 2, true).text},${ctx.lowercase ? "x" : "X"}`;
 				if (ctx.registers) effectiveAddress = (effectiveAddress + ctx.registers.X) & 0xff;
 				break;
 			}
 			case "ZPY": {
 				let zpAddr = operandBytes[0] ?? 0;
 				line.oprn = zpAddr;
-				const match = findSymbolWithOffset(zpAddr, ctx.scope, 16);
-				let baseOpr: string;
-				if (match) {
-					if (match.offset === 0) {
-						baseOpr = match.symbol.label;
-					} else {
-						baseOpr = `${match.symbol.label}${offsetAsStr(match.offset)}`;
-					}
-				} else {
-					baseOpr = `$${toHex(zpAddr, 2)}`;
-				}
-				line.opr = `${baseOpr},Y`;
+				line.opr = `${symbolOperand(zpAddr, ctx, 2, true).text},${ctx.lowercase ? "y" : "Y"}`;
 				if (ctx.registers) zpAddr = (zpAddr + ctx.registers.Y) & 0xff;
 				dbgComment = `$${toHex(zpAddr, 2)}`;
 				break;
@@ -309,35 +289,18 @@ export async function disassemble(ctx: DisassembleContext) {
 			case "ABS": {
 				effectiveAddress = ((operandBytes[1] ?? 0) << 8) | (operandBytes[0] ?? 0);
 				line.oprn = effectiveAddress;
-				const match = findSymbolWithOffset(effectiveAddress, ctx.scope, 32);
-				if (match) {
-					if (match.symbol.scope) dbgComment = `[${match.symbol.scope}] `;
-					if (match.offset === 0) {
-						line.opr = match.symbol.label;
-					} else {
-						line.opr = `${match.symbol.label}${offsetAsStr(match.offset)}`;
-					}
+				const { text, symbol } = symbolOperand(effectiveAddress, ctx, 4);
+				line.opr = text;
+				if (symbol) {
+					if (symbol.scope) dbgComment = `[${symbol.scope}] `;
 					dbgComment += `$${toHex(effectiveAddress, 4)}`;
-				} else {
-					line.opr = `$${toHex(effectiveAddress, 4)}`;
-					effectiveAddress = null;
-				}
+				} else effectiveAddress = null;
 				break;
 			}
 			case "ABX": {
 				effectiveAddress = ((operandBytes[1] ?? 0) << 8) | (operandBytes[0] ?? 0);
 				line.oprn = effectiveAddress;
-				const match = findSymbolWithOffset(effectiveAddress, ctx.scope, 32);
-				let baseOpr: string;
-				if (match) {
-					if (match.offset === 0) {
-						baseOpr = match.symbol.label;
-					} else {
-						baseOpr = `${match.symbol.label}${offsetAsStr(match.offset)}`;
-					}
-				} else {
-					baseOpr = `$${toHex(effectiveAddress, 4)}`;
-				}
+				const baseOpr = symbolOperand(effectiveAddress, ctx, 4, true).text;
 				line.opr = `${baseOpr},${ctx.lowercase ? "x" : "X"}`;
 				if (ctx.registers) effectiveAddress = (effectiveAddress + ctx.registers.X) & 0xffff;
 				dbgComment = `$${toHex(effectiveAddress, 4)}: $${toHex(ctx.readByte(effectiveAddress, false))}`;
@@ -346,17 +309,7 @@ export async function disassemble(ctx: DisassembleContext) {
 			case "ABY": {
 				effectiveAddress = ((operandBytes[1] ?? 0) << 8) | (operandBytes[0] ?? 0);
 				line.oprn = effectiveAddress;
-				const match = findSymbolWithOffset(effectiveAddress, ctx.scope, 32);
-				let baseOpr: string;
-				if (match) {
-					if (match.offset === 0) {
-						baseOpr = match.symbol.label;
-					} else {
-						baseOpr = `${match.symbol.label}${offsetAsStr(match.offset)}`;
-					}
-				} else {
-					baseOpr = `$${toHex(effectiveAddress, 4)}`;
-				}
+				const baseOpr = symbolOperand(effectiveAddress, ctx, 4, true).text;
 				line.opr = `${baseOpr},${ctx.lowercase ? "y" : "Y"}`;
 				if (ctx.registers) effectiveAddress = (effectiveAddress + ctx.registers.Y) & 0xffff;
 				dbgComment = `$${toHex(effectiveAddress, 4)}: $${toHex(ctx.readByte(effectiveAddress, false))}`;
@@ -374,17 +327,7 @@ export async function disassemble(ctx: DisassembleContext) {
 			case "IND": {
 				const ind = ((operandBytes[1] ?? 0) << 8) | (operandBytes[0] ?? 0);
 				line.oprn = ind;
-				const match = findSymbolWithOffset(ind, ctx.scope, 32);
-				let baseOpr: string;
-				if (match) {
-					if (match.offset === 0) {
-						baseOpr = match.symbol.label;
-					} else {
-						baseOpr = `${match.symbol.label}${offsetAsStr(match.offset)}`;
-					}
-				} else {
-					baseOpr = `$${toHex(ind, 4)}`;
-				}
+				const baseOpr = symbolOperand(ind, ctx, 4).text;
 				line.opr = `(${baseOpr})`;
 				const lo = ctx.readByte(ind, false);
 				const hi = ctx.readByte((ind + 1) & 0xffff, false);
@@ -395,17 +338,7 @@ export async function disassemble(ctx: DisassembleContext) {
 				// (Absolute, X)
 				const iax = ((operandBytes[1] ?? 0) << 8) | (operandBytes[0] ?? 0);
 				line.oprn = iax;
-				const match = findSymbolWithOffset(iax, ctx.scope, 32);
-				let baseOpr: string;
-				if (match) {
-					if (match.offset === 0) {
-						baseOpr = match.symbol.label;
-					} else {
-						baseOpr = `${match.symbol.label}${offsetAsStr(match.offset)}`;
-					}
-				} else {
-					baseOpr = `$${toHex(iax, 4)}`;
-				}
+				const baseOpr = symbolOperand(iax, ctx, 4, true).text;
 				line.opr = `(${baseOpr},${ctx.lowercase ? "x" : "X"})`;
 				if (ctx.registers) {
 					const ptr = (iax + ctx.registers.X) & 0xffff;
@@ -419,17 +352,7 @@ export async function disassemble(ctx: DisassembleContext) {
 				// (Zero Page, X)
 				let addr = operandBytes[0] ?? 0;
 				line.oprn = addr;
-				const match = findSymbolWithOffset(addr, ctx.scope, 16);
-				let baseOpr: string;
-				if (match) {
-					if (match.offset === 0) {
-						baseOpr = match.symbol.label;
-					} else {
-						baseOpr = `${match.symbol.label}${offsetAsStr(match.offset)}`;
-					}
-				} else {
-					baseOpr = `$${toHex(addr, 2)}`;
-				}
+				const baseOpr = symbolOperand(addr, ctx, 2, true).text;
 				line.opr = `(${baseOpr},${ctx.lowercase ? "x" : "X"})`;
 				if (ctx.registers) {
 					addr = (addr + ctx.registers.X) & 0xff;
@@ -444,17 +367,7 @@ export async function disassemble(ctx: DisassembleContext) {
 				// (Zero Page), Y
 				let addr = operandBytes[0] ?? 0;
 				line.oprn = addr;
-				const match = findSymbolWithOffset(addr, ctx.scope, 16);
-				let baseOpr: string;
-				if (match) {
-					if (match.offset === 0) {
-						baseOpr = match.symbol.label;
-					} else {
-						baseOpr = `${match.symbol.label}${offsetAsStr(match.offset)}`;
-					}
-				} else {
-					baseOpr = `$${toHex(addr, 2)}`;
-				}
+				const baseOpr = symbolOperand(addr, ctx, 2).text;
 				line.opr = `(${baseOpr}),${ctx.lowercase ? "y" : "Y"}`;
 				if (ctx.registers) {
 					const lo = ctx.readByte(addr, false);
@@ -469,17 +382,7 @@ export async function disassemble(ctx: DisassembleContext) {
 				// (Zero Page)
 				const addr = operandBytes[0] ?? 0;
 				line.oprn = addr;
-				const match = findSymbolWithOffset(addr, ctx.scope, 16);
-				let baseOpr: string;
-				if (match) {
-					if (match.offset === 0) {
-						baseOpr = match.symbol.label;
-					} else {
-						baseOpr = `${match.symbol.label}${offsetAsStr(match.offset)}`;
-					}
-				} else {
-					baseOpr = `$${toHex(addr, 2)}`;
-				}
+				const baseOpr = symbolOperand(addr, ctx, 2).text;
 				line.opr = `(${baseOpr})`;
 				if (ctx.registers) {
 					const ptr = operandBytes[0];
