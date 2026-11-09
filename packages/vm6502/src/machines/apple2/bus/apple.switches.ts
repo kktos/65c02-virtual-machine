@@ -66,12 +66,10 @@ export function installSoftSwitches(bus: AppleBus) {
 	warnOnAccess("ZIPCHIP", SoftSwitches.ZIPCHIP_5F, true);
 
 	// --- Keyboard ---
-	onRead(SoftSwitches.KBD, () => bus.lastKey | (bus.keyStrobe ? 0x80 : 0x00));
-	onRead(SoftSwitches.KBDSTRB, () => {
-		bus.keyStrobe = false;
-		return 0;
-	});
-	onWrite(SoftSwitches.KBDSTRB, () => (bus.keyStrobe = false));
+	// $C000: the latch (and the next typed key, see AppleKeyboard); $C010: AKD (a key is down) and the latch
+	onRead(SoftSwitches.KBD, () => bus.keyboard.readData());
+	onRead(SoftSwitches.KBDSTRB, () => bus.keyboard.readStrobe());
+	onWrite(SoftSwitches.KBDSTRB, () => bus.keyboard.clearStrobe());
 
 	// --- Annunciator for Double Res Video ---
 	onAccess(SoftSwitches.SETAN3, () => {

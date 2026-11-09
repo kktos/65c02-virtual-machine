@@ -22,6 +22,9 @@ const isRunning = ref(false);
 // "Break on BRK": stop the CPU on a BRK instead of running it. On by default (the worker's default too);
 // kept here so it survives a machine change and the toolbar and the `brk` command agree.
 const breakOnBrk = ref(true);
+// Cycles after the program consumes a typed key before it gets the next one (the `key delay` command); null: the
+// machine's default. Kept here to survive a machine change. A program that eats typed keys needs a longer one.
+const keyDelay = ref<number | null>(null);
 const videoCanvas = ref<HTMLCanvasElement | null>(null);
 const vm = shallowRef<VirtualMachine | null>(null);
 const registers: EmulatorRegisters = reactive({
@@ -168,6 +171,7 @@ const loadMachine = async (newMachine?: MachineConfig) => {
 	newVm.ready.then(() => {
 		newVm.initAudio();
 		newVm.setBreakOnBrk(breakOnBrk.value);
+		if (keyDelay.value !== null && newVm.bus?.setKeyDelay) newVm.setKeyDelay(keyDelay.value).catch(() => undefined);
 	});
 
 	{
@@ -223,6 +227,11 @@ const setBreakOnBrk = (enabled: boolean) => {
 	vm.value?.setBreakOnBrk(enabled);
 };
 
+const setKeyDelay = async (cycles: number) => {
+	keyDelay.value = Math.max(0, Math.round(cycles));
+	return vm.value?.setKeyDelay(keyDelay.value);
+};
+
 export function useMachine() {
 	return {
 		selectedMachine,
@@ -237,5 +246,7 @@ export function useMachine() {
 		addVirtualRegister,
 		breakOnBrk: readonly(breakOnBrk),
 		setBreakOnBrk,
+		keyDelay: readonly(keyDelay),
+		setKeyDelay,
 	};
 }

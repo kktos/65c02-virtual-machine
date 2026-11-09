@@ -1,5 +1,5 @@
 import type { Dict } from "@/types/dict.type";
-import type { IBus, MachineStateSpec, TextMode, TextScreenOptions } from "@/types/bus.interface";
+import type { IBus, KeyboardState, MachineStateSpec, TextMode, TextScreenOptions } from "@/types/bus.interface";
 import {
 	INPUT_ANALOG_0_OFFSET,
 	INPUT_ANALOG_1_OFFSET,
@@ -12,6 +12,7 @@ import {
 	REG_TBCOLOR_OFFSET,
 } from "@/virtualmachine/cpu/shared-memory";
 import { generateApple2Assets } from "./bus/apple.assets";
+import { AppleKeyboard, type KeyboardSnapshot, textToKeyCodes } from "./bus/apple.keyboard";
 import { loadMemoryChunks } from "./bus/apple.loader";
 import { installSoftSwitches } from "./bus/apple.switches";
 import {
@@ -135,8 +136,9 @@ const allRegions: MemRegionSearch[] = [
 		bankTest: (b: number) => b > 0,
 	},
 ];
-// What a save state keeps of the bus, besides memory (shared buffer) and the cards. Not the live inputs
-// (joystick buttons, paddle positions: read from the shared registers at each tick) nor the speaker.
+// What a save state keeps of the bus, besides memory (shared buffer), the cards and the keyboard queue. Not the live
+// inputs (joystick buttons, paddle positions: read from the shared registers at each tick, the real keys down) nor
+// the speaker.
 const SNAPSHOT_FIELDS = [
 	"activeExpansionSlot",
 	"lcBank2",
@@ -175,6 +177,8 @@ type AppleBusSnapshot = {
 	fields: Record<SnapshotField, number | boolean>;
 	paddleTimers: [number, number, number, number];
 	cards: unknown[];
+	/** Absent from the states saved before the typed keys queue. */
+	keyboard?: KeyboardSnapshot;
 };
 
 export class AppleBus implements IBus {
@@ -235,8 +239,19 @@ export class AppleBus implements IBus {
 	public brdrColor = DEFAULT_TEXT_COLORS & 0x0f; // IIgs border color
 
 	// Keyboard State
-	public lastKey = 0x00;
-	public keyStrobe = false;
+	public keyboard = new AppleKeyboard(() => this.totalCycles);
+	get lastKey() {
+		return this.keyboard.latch;
+	}
+	set lastKey(value: number) {
+		this.keyboard.latch = value;
+	}
+	get keyStrobe() {
+		return this.keyboard.strobe;
+	}
+	set keyStrobe(value: boolean) {
+		this.keyboard.strobe = value;
+	}
 
 	// Game I/O / Pushbutton State
 	public kbd_pb0 = false; // Open Apple (from keyboard)
@@ -452,6 +467,7 @@ export class AppleBus implements IBus {
 		this.paddleValues.fill(127);
 		this.paddleTimers.fill(0);
 		this.totalCycles = 0;
+		this.keyboard.reset();
 
 		this.syncState();
 	}
@@ -931,45 +947,69 @@ export class AppleBus implements IBus {
 		let ascii = 0;
 		if (key.length === 1) {
 			ascii = key.charCodeAt(0);
-			if (ctrl) {
-				ascii = (ascii - 0x60) | 0x80;
-			}
+			if (ctrl) ascii &= 0x1f;
 		} else {
 			switch (key) {
 				case "Enter":
-					ascii = 13;
+					ascii = 0x0d;
 					break;
 				case "Backspace":
 				case "ArrowLeft":
-					ascii = 8; // Apple II Left is BS (8)
+					ascii = 0x08; // Apple II Left is BS (8)
 					break;
 				case "ArrowRight":
-					ascii = 21; // Apple II Right is NAK (21)
+					ascii = 0x15; // Apple II Right is NAK (21)
 					break;
 				case "ArrowUp":
-					ascii = 0x8b;
+					ascii = 0x0b;
 					break;
 				case "ArrowDown":
-					ascii = 0x8a;
+					ascii = 0x0a;
 					break;
 				case "Escape":
-					ascii = 0x9b;
+					ascii = 0x1b;
 					break;
 			}
 		}
 
-		if (ascii > 0) {
-			this.lastKey = ascii & 0x7f;
-			this.keyStrobe = true;
-		}
+		if (ascii > 0 && ascii < 0x80) this.keyboard.press(ascii, code ?? key);
 	}
 
-	public releaseKey(_key: string, code?: string) {
-		if (code === "AltLeft") {
+	public releaseKey(key?: string, code?: string) {
+		if (key === undefined && code === undefined) {
+			this.keyboard.releaseAll();
 			this.kbd_pb0 = false;
-		} else if (code === "AltRight") {
 			this.kbd_pb1 = false;
+			return;
 		}
+		if (code === "AltLeft") this.kbd_pb0 = false;
+		else if (code === "AltRight") this.kbd_pb1 = false;
+		else this.keyboard.release(code ?? (key as string));
+	}
+
+	public typeText(text: string) {
+		const { codes, skipped } = textToKeyCodes(text);
+		this.keyboard.type(codes);
+		return { queued: codes.length, skipped };
+	}
+
+	public holdKey(key: string | number | null) {
+		if (key === null) return this.keyboard.hold(-1);
+		const code = typeof key === "number" ? key & 0x7f : textToKeyCodes(key).codes[0];
+		if (code === undefined) throw new Error(`No key for ${JSON.stringify(key)}`);
+		this.keyboard.hold(code);
+	}
+
+	public clearKeys() {
+		this.keyboard.clear();
+	}
+
+	public setKeyDelay(cycles: number) {
+		this.keyboard.keyDelay = Math.max(0, Math.round(cycles));
+	}
+
+	public getKeyboardState(): KeyboardState {
+		return this.keyboard.state();
 	}
 
 	search(
@@ -1124,13 +1164,15 @@ export class AppleBus implements IBus {
 			fields: fields as Record<SnapshotField, number | boolean>,
 			paddleTimers: [...this.paddleTimers],
 			cards: this.slots.map((card) => card?.snapshot?.()),
+			keyboard: this.keyboard.snapshot(),
 		};
 	}
 
 	public restoreSnapshot(state: unknown) {
-		const { fields, paddleTimers, cards } = state as AppleBusSnapshot;
+		const { fields, paddleTimers, cards, keyboard } = state as AppleBusSnapshot;
 		Object.assign(this, fields);
 		this.paddleTimers = [...paddleTimers];
+		this.keyboard.restoreSnapshot(keyboard);
 		this.slots.forEach((card, slot) => {
 			if (cards[slot] !== undefined) card?.restoreSnapshot?.(cards[slot]);
 		});

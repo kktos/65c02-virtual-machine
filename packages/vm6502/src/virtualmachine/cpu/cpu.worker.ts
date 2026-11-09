@@ -118,6 +118,31 @@ const saveStateCommand = (command: string, data: { name?: string; meta?: Record<
 	}
 };
 
+/** The typed keys queue, the key held, the delay between typed keys: `{ state, queued?, skipped? }` or `{ error }`. */
+const keyboardCommand = (data: { action: string; text?: string; key?: string | number | null; cycles?: number }) => {
+	if (!bus?.getKeyboardState) return { error: "This machine has no keyboard queue" };
+	try {
+		let typed: { queued: number; skipped: number } | undefined;
+		switch (data.action) {
+			case "type":
+				typed = bus.typeText?.(data.text ?? "");
+				break;
+			case "hold":
+				bus.holdKey?.(data.key ?? null);
+				break;
+			case "clear":
+				bus.clearKeys?.();
+				break;
+			case "delay":
+				bus.setKeyDelay?.(data.cycles ?? 0);
+				break;
+		}
+		return { state: bus.getKeyboardState(), ...typed };
+	} catch (e) {
+		return { error: e instanceof Error ? e.message : String(e) };
+	}
+};
+
 /** Answers a request from the main thread (`VirtualMachine.request`): only when it carries an `id`. */
 const reply = (event: MessageEvent, data: object = {}) => {
 	if (event.data.id !== undefined) self.postMessage({ type: "reply", id: event.data.id, ...data });
@@ -209,6 +234,9 @@ self.onmessage = async (event: MessageEvent) => {
 			break;
 		case "keyup":
 			bus?.releaseKey?.(key, code);
+			break;
+		case "keyboard":
+			reply(event, keyboardCommand(event.data));
 			break;
 		case "setTrace":
 			setTrace(event.data.enabled);
