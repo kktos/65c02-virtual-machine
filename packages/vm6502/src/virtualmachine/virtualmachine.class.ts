@@ -23,6 +23,7 @@ import {
 	REG_STATUS_OFFSET,
 	REG_X_OFFSET,
 	REG_Y_OFFSET,
+	readRegisters,
 	STACK_METADATA_OFFSET,
 } from "@/virtualmachine/cpu/shared-memory";
 import {
@@ -611,6 +612,9 @@ export class VirtualMachine {
 		if (this.bus) this.bus.write(addr, value);
 		else this.sharedMemory[addr] = value;
 	}
+
+	/** The CPU registers as they are now in the shared buffer (the worker writes them as it runs). */
+	public getRegisters = () => readRegisters(this.sharedRegisters);
 
 	public saveRegisters() {
 		const state = [

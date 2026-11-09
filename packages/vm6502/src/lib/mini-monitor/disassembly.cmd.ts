@@ -1,11 +1,10 @@
-import { useMachine } from "@/composables/useMachine";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import { disassembleRange, disassemble, formatDisassemblyAsText } from "../disassembler";
 
 export async function runDisassembly(start: number, end: number | undefined, vm: VirtualMachine) {
-	const { registers } = useMachine();
 	const readByte = (address: number, debug = true) => (debug ? vm.readDebug(address) : vm.peek(address)) ?? 0;
 	vm.syncBusState(); // `peek` follows the banking soft switches: have them current
+	const registers = vm.getRegisters();
 
 	let lines = [];
 	if (end !== undefined) {

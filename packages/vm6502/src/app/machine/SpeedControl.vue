@@ -44,13 +44,13 @@
 
 <script lang="ts" setup>
 import { Check, ChevronDown } from "lucide-vue-next";
-import { computed, inject, onMounted, type Ref, ref, watch } from "vue";
+import { computed, inject, onUnmounted, type Ref, ref, watch } from "vue";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useEmulatorSpeed } from "@/composables/useEmulatorSpeed";
+import { useMachine } from "@/composables/useMachine";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 
 const vm = inject<Ref<VirtualMachine>>("vm");
-const subscribeToUiUpdates = inject<(callback: () => void) => void>("subscribeToUiUpdates");
 
 const open = ref(false);
 const speedMhz = ref(0);
@@ -94,9 +94,8 @@ watch(
 	{ immediate: true },
 );
 
-onMounted(() => {
-	subscribeToUiUpdates?.(() => {
-		speedMhz.value = vm?.value.getSpeed() ?? 0;
-	});
+const stopSpeedUpdates = useMachine().onUiFrame(() => {
+	speedMhz.value = vm?.value.getSpeed() ?? 0;
 });
+onUnmounted(stopSpeedUpdates);
 </script>

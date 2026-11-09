@@ -1,3 +1,5 @@
+import type { EmulatorRegisters } from "@/types/emulatorstate.interface";
+
 /**
  * Defines the layout of the SharedArrayBuffer used for communication
  * between the main thread (UI) and the CPU worker.
@@ -57,3 +59,23 @@ export const STACK_METADATA_OFFSET = 256; // 256 bytes for stack metadata
 // --- Memory Section ---
 // We'll leave some space for future expansion of the register/status section.
 export const MEMORY_OFFSET = 512; // Main memory starts at byte 512 (256 regs + 256 stack meta)
+
+/** The CPU registers as the shared registers view holds them now. */
+export const readRegisters = (view: DataView): EmulatorRegisters => {
+	const P = view.getUint8(REG_STATUS_OFFSET);
+	return {
+		A: view.getUint8(REG_A_OFFSET),
+		X: view.getUint8(REG_X_OFFSET),
+		Y: view.getUint8(REG_Y_OFFSET),
+		PC: view.getUint16(REG_PC_OFFSET, true),
+		SP: view.getUint8(REG_SP_OFFSET),
+		P,
+		C: (P & FLAG_C_MASK) !== 0,
+		Z: (P & FLAG_Z_MASK) !== 0,
+		I: (P & FLAG_I_MASK) !== 0,
+		D: (P & FLAG_D_MASK) !== 0,
+		B: (P & FLAG_B_MASK) !== 0,
+		V: (P & FLAG_V_MASK) !== 0,
+		N: (P & FLAG_N_MASK) !== 0,
+	};
+};

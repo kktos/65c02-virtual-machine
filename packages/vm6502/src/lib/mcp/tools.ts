@@ -32,21 +32,7 @@ import {
 	type TraceSnapshot,
 	unpackTraceEntries,
 } from "@/virtualmachine/cpu/instructionTrace";
-import {
-	FLAG_B_MASK,
-	FLAG_C_MASK,
-	FLAG_D_MASK,
-	FLAG_I_MASK,
-	FLAG_N_MASK,
-	FLAG_V_MASK,
-	FLAG_Z_MASK,
-	REG_A_OFFSET,
-	REG_PC_OFFSET,
-	REG_SP_OFFSET,
-	REG_STATUS_OFFSET,
-	REG_X_OFFSET,
-	REG_Y_OFFSET,
-} from "@/virtualmachine/cpu/shared-memory";
+import { readRegisters } from "@/virtualmachine/cpu/shared-memory";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -172,27 +158,17 @@ const addressSchema = {
 	description: 'Address: number, "$C000", "0xC000", or a label name. Above $FFFF selects a bank.',
 };
 
-const readRegisters = (vm: VirtualMachine) => {
-	const r = vm.sharedRegisters;
-	const P = r.getUint8(REG_STATUS_OFFSET);
-	const flags = [
-		["N", FLAG_N_MASK],
-		["V", FLAG_V_MASK],
-		["B", FLAG_B_MASK],
-		["D", FLAG_D_MASK],
-		["I", FLAG_I_MASK],
-		["Z", FLAG_Z_MASK],
-		["C", FLAG_C_MASK],
-	] as const;
+const describeRegisters = (vm: VirtualMachine) => {
+	const r = readRegisters(vm.sharedRegisters);
 	return {
 		running: useMachine().isRunning.value,
-		PC: hex(r.getUint16(REG_PC_OFFSET, true), 4),
-		A: hex(r.getUint8(REG_A_OFFSET), 2),
-		X: hex(r.getUint8(REG_X_OFFSET), 2),
-		Y: hex(r.getUint8(REG_Y_OFFSET), 2),
-		SP: hex(r.getUint8(REG_SP_OFFSET), 2),
-		P: hex(P, 2),
-		flags: flags.map(([name, mask]) => (P & mask ? name : name.toLowerCase())).join(""),
+		PC: hex(r.PC, 4),
+		A: hex(r.A, 2),
+		X: hex(r.X, 2),
+		Y: hex(r.Y, 2),
+		SP: hex(r.SP, 2),
+		P: hex(r.P, 2),
+		flags: (["N", "V", "B", "D", "I", "Z", "C"] as const).map((f) => (r[f] ? f : f.toLowerCase())).join(""),
 	};
 };
 
@@ -643,7 +619,7 @@ export const MCP_TOOLS: McpTool[] = [
 		annotations: { readOnlyHint: true },
 		async execute() {
 			const vm = await getVm();
-			const regs = readRegisters(vm);
+			const regs = describeRegisters(vm);
 			return json(regs.running || !vm.lastStop ? regs : { ...regs, last_stop: describeStop(vm.lastStop) });
 		},
 	},
@@ -919,14 +895,14 @@ export const MCP_TOOLS: McpTool[] = [
 
 			const deadline = Date.now() + timeoutMs;
 			const stopBefore = vm.lastStop; // each stop is a new object: tells a fresh stop from an old one
-			const report = () => json({ ...describeStop(vm.lastStop, address), ...readRegisters(vm) });
+			const report = () => json({ ...describeStop(vm.lastStop, address), ...describeRegisters(vm) });
 
 			try {
 				if (!isRunning.value) {
 					vm.play();
 					if (!(await waitForRunning(true, 1000, signal))) {
 						if (vm.lastStop !== stopBefore) return report(); // stopped before we saw it running
-						return json({ stopped: "did not start", ...readRegisters(vm) });
+						return json({ stopped: "did not start", ...describeRegisters(vm) });
 					}
 				}
 				if (await waitForRunning(false, Math.max(0, deadline - Date.now()), signal)) return report();
@@ -937,7 +913,7 @@ export const MCP_TOOLS: McpTool[] = [
 				}
 				return json({
 					stopped: `${why} (${pauseOnTimeout ? "paused" : "still running"})`,
-					...readRegisters(vm),
+					...describeRegisters(vm),
 				});
 			} finally {
 				// A temporary BP that was hit is already removed by useMachine; this handles the other cases.
@@ -953,7 +929,7 @@ export const MCP_TOOLS: McpTool[] = [
 			const vm = await getVm();
 			vm.pause();
 			await waitForRunning(false, 1000);
-			return json(readRegisters(vm));
+			return json(describeRegisters(vm));
 		},
 	},
 	{
@@ -973,7 +949,7 @@ export const MCP_TOOLS: McpTool[] = [
 			const count = toInt(input.count, "count", 1, 1, 100_000);
 			if (useMachine().isRunning.value) throw new Error("The machine is running: pause it first");
 			const { executed, stop } = await vm.step(count);
-			return json({ executed, ...(stop && describeStop(stop)), ...readRegisters(vm) });
+			return json({ executed, ...(stop && describeStop(stop)), ...describeRegisters(vm) });
 		},
 	},
 	{
@@ -987,7 +963,7 @@ export const MCP_TOOLS: McpTool[] = [
 			const vm = await getVm();
 			await vm.reset();
 			await waitForRunning(false, 1000); // the worker's `isRunning: false` comes before its reply
-			return json(readRegisters(vm));
+			return json(describeRegisters(vm));
 		},
 	},
 	{
@@ -1064,7 +1040,7 @@ export const MCP_TOOLS: McpTool[] = [
 				result: "inserted",
 				disk: describeDisk(disk),
 				...fromFile,
-				...(input.boot === true && { booted: true, ...readRegisters(vm) }),
+				...(input.boot === true && { booted: true, ...describeRegisters(vm) }),
 			});
 		},
 	},
@@ -1131,7 +1107,7 @@ export const MCP_TOOLS: McpTool[] = [
 				length: file.bytes.length,
 				written,
 				...(notWritten.length && { not_written: notWritten }),
-				...(setPc && readRegisters(vm)),
+				...(setPc && describeRegisters(vm)),
 			});
 		},
 	},
@@ -1195,7 +1171,7 @@ export const MCP_TOOLS: McpTool[] = [
 				result: "restored",
 				state: describeState(info),
 				...(diskNote && { disk_note: diskNote }),
-				...readRegisters(vm),
+				...describeRegisters(vm),
 			});
 		},
 	},
