@@ -68,7 +68,10 @@ function listRoutines(name?: ParamListItemIdentifier) {
 		if (!routineNames.includes(name.text)) throw new Error(`Routine '${name.text}' not found.`);
 		const r = getRoutine(name.text);
 		const args = r?.args.length ? ` ${r.args.map((arg) => `@${arg}`).join(" ")}` : "";
-		return `routine ${name.text}${args}\n\n${r?.lines.map((line) => `\u00A0\u00A0${line}\n`).join("\n")}\n\nend\n`;
+		// One paragraph, a hard break ("  \n") per line: no blank line between them.
+		// The leading nbsp keep markdown from reading a line as a heading, a list item...
+		const body = r?.lines.map((line) => `\u00A0\u00A0${line}`) ?? [];
+		return [`routine ${name.text}${args}`, ...body, "end"].join("  \n");
 	}
 	return routineNames
 		.map((name) => {
