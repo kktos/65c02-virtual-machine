@@ -5,7 +5,8 @@ import { defCode } from "./defCode.cmd";
 import { defLabel } from "./defLabel.cmd";
 import { font } from "./font.cmd";
 import { hideCmd } from "./hide.cmd";
-import { hook } from "./hook.cmd";
+import { hook, hookOff } from "./hook.cmd";
+import { execSetBPEnabled } from "./enableBP.cmd";
 import { brkCmd } from "./brk.cmd";
 import { labelsCmd } from "./labels.cmd";
 import { formatsCmd } from "./formats.cmd";
@@ -174,6 +175,7 @@ export const COMMANDDEF_LIST = {
 
 	HOOK: hook,
 	ON: "HOOK",
+	OFF: hookOff,
 
 	BP: {
 		description: "Add execution breakpoint",
@@ -221,6 +223,22 @@ export const COMMANDDEF_LIST = {
 		description: "Remove Mem Read breakpoint",
 		paramDef: ["range|address"],
 		fn: execRemoveBP("read"),
+		group: "Breakpoints",
+	},
+	BD: {
+		description:
+			"Disable breakpoints: kept, but they no longer stop (hooks included). " +
+			"Without a type, those of any type at exactly that address or range; `all` for all of them.",
+		paramDef: ["name|range|address", "range?|address"],
+		paramHelp: "[pc|read|write|access] <address|range> | all",
+		fn: execSetBPEnabled(false),
+		group: "Breakpoints",
+	},
+	BE: {
+		description: "Enable breakpoints disabled by BD: same forms.",
+		paramDef: ["name|range|address", "range?|address"],
+		paramHelp: "[pc|read|write|access] <address|range> | all",
+		fn: execSetBPEnabled(true),
 		group: "Breakpoints",
 	},
 	BRK: brkCmd,

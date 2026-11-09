@@ -21,10 +21,10 @@ Noticed while porting Karateka to a .po (its loader disassembled in the debugger
 
 ### 2026-04-01
 
-- need a cmd to desactivate a BP
+- **DONE** need a cmd to desactivate a BP: `BD` / `BE [type] <address|range> | all`
 - let's have a BP on ACCESS HIRES that triggers Game Scan to identify the game that's running
-- need to be triggered once; hence the need to desactivate a BP
-- same apply for a HOOK (ON) -> OFF ?
+- **DONE** need to be triggered once; hence the need to desactivate a BP: `ON <type> <address> once do "..."`
+- **DONE** same apply for a HOOK (ON) -> OFF ?: `OFF <type> <address>` turns it off, `ON <type> <address>` back on
 - ON PC = $300 do nop
 - ON ACCESS $C057 do "&identifyGame |> &applyPatch; run"
 

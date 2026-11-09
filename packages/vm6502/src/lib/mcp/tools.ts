@@ -242,6 +242,7 @@ const describeBreakpoint = (bp: Breakpoint & { enabled?: boolean }) => ({
 	...(bp.endAddress !== undefined && { end_address: hexAddr(bp.endAddress) }),
 	...(bp.enabled !== undefined && { enabled: bp.enabled }),
 	...(bp.isTemporary && { temporary: true }),
+	...(bp.once && { once: true }),
 	...(bp.command && { command: bp.command }),
 });
 
@@ -519,7 +520,10 @@ export const MCP_TOOLS: McpTool[] = [
 		async execute(input) {
 			const vm = await getVm();
 			// Queued behind any command already running (user's console, breakpoint command…).
-			const report = await useCommands().runCommand(toStr(input.command, "command"), vm, { standalone: true, source: "mcp" });
+			const report = await useCommands().runCommand(toStr(input.command, "command"), vm, {
+				standalone: true,
+				source: "mcp",
+			});
 			if (!report.ok) throw new Error(report.error || "Command failed");
 			return report.output.map((o) => o.content).join("\n") || "(no output)";
 		},

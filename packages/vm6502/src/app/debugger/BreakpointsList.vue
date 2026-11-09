@@ -26,7 +26,7 @@
 									inactiveClass(bp),
 								]"
 								:disabled="!bp.enabled"
-								:title="bp.command ? `Hook on ${bp.type}` : bp.type"
+								:title="bp.command ? `Hook on ${bp.type}${bp.once ? ' (once)' : ''}` : bp.type"
 							>
 								<span
 									class="tracking-wider uppercase flex flex-col items-center hover:scale-110 transition-transform"
