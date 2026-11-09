@@ -961,17 +961,75 @@ export const MCP_TOOLS: McpTool[] = [
 			"hypercalls execute, read/write breakpoints don't fire. Stops early after an error (unimplemented opcode), " +
 			"a hypercall with the stop bit (`BRK $8x`), or when the next instruction has a PC breakpoint. Returns " +
 			"`executed`, the registers and, if it stopped early, `stopped` (same values as run_until). " +
-			"The machine must be paused (call pause first). To step over a JSR, run_until the next instruction's address.",
+			"The machine must be paused (call pause first). " +
+			"`mode`: `into` (the default; the above), `over` (a JSR runs to the instruction after it, anything else " +
+			"is one step), `out` (runs until the current routine returns). Over a JSR and out run the machine and " +
+			"block like run_until (`timeout_ms`, `pause_on_timeout`); `stopped` is `step` at their end. " +
+			"`breakpoints`, for them: `honour` (default) lets the breakpoints on the way stop the machine; the step " +
+			"then stays armed, so the next run_until (without address) goes on to its end. `through` doesn't stop on " +
+			"them (their hooks still run) until the machine stops for something else.",
 		inputSchema: {
 			type: "object",
-			properties: { count: { type: "integer", minimum: 1, maximum: 100_000, default: 1 } },
+			properties: {
+				count: { type: "integer", minimum: 1, maximum: 100_000, default: 1 },
+				mode: { type: "string", enum: ["into", "over", "out"], default: "into" },
+				breakpoints: { type: "string", enum: ["honour", "through"], default: "honour" },
+				timeout_ms: { type: "integer", minimum: 10, maximum: 120_000, default: 5000 },
+				pause_on_timeout: { type: "boolean", default: true },
+			},
 		},
-		async execute(input) {
+		async execute(input, { signal }) {
 			const vm = await getVm();
-			const count = toInt(input.count, "count", 1, 1, 100_000);
+			const mode = input.mode ?? "into";
+			if (mode !== "into" && mode !== "over" && mode !== "out")
+				throw new Error("mode: must be into, over or out");
+			const breakpoints = input.breakpoints ?? "honour";
+			if (breakpoints !== "honour" && breakpoints !== "through")
+				throw new Error("breakpoints: must be honour or through");
+			if (mode !== "into" && input.count !== undefined) throw new Error("count: only with mode into");
+			if (mode === "into" && input.breakpoints !== undefined)
+				throw new Error("breakpoints: only with mode over / out");
 			if (useMachine().isRunning.value) throw new Error("The machine is running: pause it first");
-			const { executed, stop } = await vm.step(count);
-			return json({ executed, ...(stop && describeStop(stop)), ...describeRegisters(vm) });
+
+			if (mode === "into") {
+				const count = toInt(input.count, "count", 1, 1, 100_000);
+				const { executed, stop } = await vm.step(count);
+				return json({ executed, ...(stop && describeStop(stop)), ...describeRegisters(vm) });
+			}
+
+			const timeoutMs = toInt(input.timeout_ms, "timeout_ms", 5000, 10, 120_000);
+			const pauseOnTimeout = input.pause_on_timeout !== false;
+			// Set before the step: the worker's stop messages may come before its reply
+			const stopBefore = vm.lastStop;
+			const noRun = new AbortController();
+			const waitSignal = signal ? AbortSignal.any([signal, noRun.signal]) : noRun.signal;
+			const stopped = waitForSettledStop(timeoutMs, waitSignal, (stop) => stop !== stopBefore);
+			const through = breakpoints === "through";
+			const { running, step } = await (mode === "over" ? vm.stepOver(through) : vm.stepOut(through));
+			if (!running) {
+				noRun.abort();
+				if (!step) throw new Error("The machine is running: pause it first");
+				// Not on a JSR: a single step
+				return json({
+					executed: step.executed,
+					...(step.stop && describeStop(step.stop)),
+					...describeRegisters(vm),
+				});
+			}
+
+			const stop = await stopped;
+			if (stop) return json({ ...describeStop(stop), ...describeRegisters(vm) });
+
+			const why = signal?.aborted ? "cancelled" : "timeout";
+			if (pauseOnTimeout) {
+				const paused = waitForSettledStop(1000);
+				vm.pause();
+				await paused;
+			}
+			return json({
+				stopped: `${why} (${pauseOnTimeout ? "paused" : "still running"})`,
+				...describeRegisters(vm),
+			});
 		},
 	},
 	{

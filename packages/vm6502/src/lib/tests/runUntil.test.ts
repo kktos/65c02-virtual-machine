@@ -35,6 +35,10 @@ const vm = {
 	}),
 	addBP: vi.fn(),
 	removeBP: vi.fn(),
+	// Step over a JSR / step out: the worker runs, stops on the way as `stops` says
+	stepOver: vi.fn(async (_through: boolean) => (vm.play(), { running: true })),
+	stepOut: vi.fn(async (_through: boolean) => (vm.play(), { running: true })),
+	endStepThrough: vi.fn(),
 };
 
 const stopOn = (stop: StopInfo) => {
@@ -65,6 +69,12 @@ const bpStop = (address: number, breakpointType = "pc"): StopInfo => ({
 	reason: "breakpoint",
 	breakpointType,
 	address,
+});
+const stepThroughStop = (address: number): StopInfo => ({
+	reason: "breakpoint",
+	breakpointType: "pc",
+	address,
+	stepThrough: true,
 });
 const hasBp = (address: number) => !!useBreakpoints().getBreakpoint({ type: "pc", address });
 
@@ -176,5 +186,66 @@ describe("run_until", () => {
 		});
 		isRunning.value = true;
 		expect((await call("get_registers")).last_stop).toBeUndefined();
+	});
+});
+
+describe("step over / out", () => {
+	const step = (input: Record<string, unknown>) => call("step", input);
+
+	beforeEach(async () => {
+		isRunning.value = false;
+		vm.playPending = false;
+		vm.lastStop = undefined;
+		vm.play.mockClear();
+		vm.endStepThrough.mockClear();
+		stops = [];
+		hooks = {};
+		useRunUntil().cancelRunUntil();
+		await useBreakpoints().loadBreakpoints();
+	});
+
+	it("through: the main thread resumes from the breakpoints the worker flags", async () => {
+		useBreakpoints().addBreakpoint({ type: "pc", address: 0x1000 });
+		stops = [stepThroughStop(0x1000), { reason: "step", address: 0x303 }];
+		expect(await step({ mode: "over", breakpoints: "through" })).toMatchObject({
+			stopped: "step",
+			address: "$0303",
+		});
+		expect(vm.stepOver).toHaveBeenLastCalledWith(true);
+		expect(vm.play).toHaveBeenCalledTimes(2);
+		expect(vm.endStepThrough).not.toHaveBeenCalled();
+	});
+
+	it("honour: a breakpoint on the way stops it", async () => {
+		useBreakpoints().addBreakpoint({ type: "pc", address: 0x1000 });
+		stops = [bpStop(0x1000)];
+		expect(await step({ mode: "out" })).toMatchObject({
+			stopped: "breakpoint",
+			breakpoint: { type: "pc", address: "$1000" },
+		});
+		expect(vm.stepOut).toHaveBeenLastCalledWith(false);
+	});
+
+	it("through, stopping on a run until's target: the step goes on honouring the breakpoints", async () => {
+		vm.playPending = true; // armed only: the step is what runs
+		useRunUntil().startRunUntil(vm as never, 0x300);
+		vm.playPending = false;
+		stops = [stepThroughStop(0x300)];
+		expect(await step({ mode: "out", breakpoints: "through" })).toMatchObject({ stopped: "breakpoint" });
+		expect(vm.endStepThrough).toHaveBeenCalled();
+		expect(useRunUntil().getRunUntilTarget()).toBeNull();
+	});
+
+	it("over, not on a JSR: a single step, without waiting", async () => {
+		vm.stepOver.mockResolvedValueOnce({ running: false, step: { executed: 1, address: 0x304 } } as never);
+		const started = Date.now();
+		expect(await step({ mode: "over" })).toMatchObject({ executed: 1 });
+		expect(Date.now() - started).toBeLessThan(1000);
+	});
+
+	it("checks its arguments", async () => {
+		await expect(step({ mode: "sideways" })).rejects.toThrow("mode: must be into, over or out");
+		await expect(step({ mode: "over", count: 2 })).rejects.toThrow("count: only with mode into");
+		await expect(step({ breakpoints: "through" })).rejects.toThrow("breakpoints: only with mode over / out");
 	});
 });

@@ -38,7 +38,12 @@ const STACK_PAGE_HI = 0x0100;
 
 // --- Emulator State ---
 let isRunning = false;
+// Step out: stop on the RTS / RTI that brings SP back to (or above) this. Like the step over's breakpoint, it stays
+// armed when something else stops the machine on the way; dropped when reached, on reset / restore, by a new step.
 let stepOutTargetSP: number | null = null;
+// The step over / out under way goes through the breakpoints: they still stop the worker (the main thread runs
+// their hook), flagged `stepThrough` for the main thread to resume. Until the machine stops for something else.
+let stepThrough = false;
 let clockSpeedMhz = 1; // Default to 1 MHz
 let cyclesPerTimeslice = 10000; // Number of cycles to run before yielding
 
@@ -84,6 +89,12 @@ export const isStoppedOnBrk = () =>
 let stoppedOnAccessAt: number | null = null;
 export const isStoppedOnAccess = () =>
 	stoppedOnAccessAt !== null && stoppedOnAccessAt === registersView?.getUint16(REG_PC_OFFSET, true);
+
+// PC of the breakpoint the machine resumes from: the run executes that instruction without stopping on it again.
+// Run, not stepped: what it ends (a step out's RTS) stops the machine as it would anywhere else.
+let resumeFromBreakpointAt: number | null = null;
+/** Resuming from the PC breakpoint the machine is stopped on: the next run doesn't stop on it again at once. */
+export const skipBreakpointOnce = (pc: number) => (resumeFromBreakpointAt = pc);
 
 // Re-export breakpoint functions for external use
 export { addBreakpoint, removeBreakpoint, clearBreakpoints, setBreakOnBrk };
@@ -144,7 +155,7 @@ export function setRunning(running: boolean, stop?: StopInfo) {
 	isRunning = running;
 	if (running) stoppedOnAccessAt = null;
 	if (!running && stop) stepStop = stop;
-	if (!isRunning) stepOutTargetSP = null;
+	if (!running && stop?.reason !== "breakpoint") stepThrough = false;
 	self.postMessage({ type: "isRunning", isRunning: running, stop: running ? undefined : stop });
 	if (isRunning) {
 		lastPerfTime = performance.now();
@@ -164,8 +175,26 @@ export function prepareForRestore() {
 	stoppedOnBrkAt = null;
 	stoppedOnAccessAt = null;
 	if (isRunning) setRunning(false, { reason: "pause" });
-	stepOutTargetSP = null;
+	dropStep();
 }
+
+/** Forgets the step over / out under way (its breakpoint, its stack level). */
+function dropStep() {
+	if (stepBPAddress !== null) cleanStepBP();
+	stepOutTargetSP = null;
+	stepThrough = false;
+}
+
+/** The step over / out under way honours the breakpoints from now on (the main thread stays on one). */
+export const endStepThrough = () => (stepThrough = false);
+
+/** A breakpoint stop; flagged when a step over / out goes through it. */
+const breakpointStop = (breakpointType: string, address: number): StopInfo => ({
+	reason: "breakpoint",
+	breakpointType,
+	address,
+	...(stepThrough && { stepThrough: true }),
+});
 
 export function setClockSpeed(speed: number) {
 	if (speed >= 0) {
@@ -209,11 +238,14 @@ function updateCyclesPerTimeslice() {
 	}
 }
 
-export function stepOverInstruction() {
-	if (isRunning || !registersView || !bus) return;
+/**
+ * Steps over a JSR: runs to the instruction after it (undefined). Anything else is a single step: its result.
+ */
+export function stepOverInstruction(through = false): StepResult | undefined {
+	if (isRunning || !registersView || !bus) return stepInstructions(0); // nothing done, where it is
 
-	// Cleanup previous step over if it exists (e.g. interrupted)
-	if (stepBPAddress !== null) cleanStepBP();
+	// Replaces the step over / out still armed (stopped on the way)
+	dropStep();
 
 	const pc = registersView.getUint16(REG_PC_OFFSET, true);
 	const opcode = bus.read(pc, true);
@@ -231,20 +263,25 @@ export function stepOverInstruction() {
 		if (added) addBreakpoint("pc", physicalTarget);
 
 		stepInstruction();
+		stepThrough = through;
 		setRunning(true);
-	} else {
-		stepInstruction();
+		return undefined;
 	}
+	return stepInstructions(1);
 }
 
-export function stepOutInstruction() {
-	if (isRunning || !registersView || !bus) return;
+/** Runs until the current routine returns (an RTS / RTI back above the current stack level). False when it can't. */
+export function stepOutInstruction(through = false) {
+	if (isRunning || !registersView || !bus) return false;
 
-	// Cleanup previous step over if it exists (e.g. interrupted)
-	if (stepBPAddress !== null) cleanStepBP();
+	// Replaces the step over / out still armed (stopped on the way)
+	dropStep();
 
 	stepOutTargetSP = registersView.getUint8(REG_SP_OFFSET);
+	stepThrough = through;
+	skipBreakpointOnce(registersView.getUint16(REG_PC_OFFSET, true)); // started on a breakpoint: not stopped there
 	setRunning(true);
+	return true;
 }
 
 export function stepInstruction() {
@@ -322,7 +359,7 @@ export function resetCPU() {
 	// Stop execution
 	setRunning(false, { reason: "reset" });
 
-	if (stepBPAddress !== null) cleanStepBP();
+	dropStep();
 }
 
 function vblrun() {
@@ -502,7 +539,9 @@ export function executeInstruction(): number {
 
 	// Check for PC breakpoint before executing
 	// Only halt if we are in "run" mode. If we are single-stepping, we want to execute the instruction.
-	if (isRunning && breakpointMap[pc]! & BP_PC) {
+	const resumingFrom = resumeFromBreakpointAt;
+	resumeFromBreakpointAt = null;
+	if (isRunning && breakpointMap[pc]! & BP_PC && pc !== resumingFrom) {
 		const bank = bus.getBank?.(pc) ?? 0;
 		const physicalPC = (bank << 16) | pc;
 
@@ -516,9 +555,7 @@ export function executeInstruction(): number {
 			}
 			setRunning(
 				false,
-				type === "step"
-					? { reason: "step", address: physicalPC }
-					: { reason: "breakpoint", breakpointType: type, address: physicalPC },
+				type === "step" ? { reason: "step", address: physicalPC } : breakpointStop(type, physicalPC),
 			);
 
 			video?.tick();
@@ -1195,10 +1232,13 @@ export function executeInstruction(): number {
 				cycles = 6;
 
 				if (shouldStop) {
-					const bank = bus.getBank?.(pc) ?? 0;
-					const physicalPC = (bank << 16) | pc;
-					setRunning(false, { reason: "step", address: physicalPC });
-					self.postMessage({ type: "breakpointHit", breakpointType: "step", address: physicalPC });
+					stepOutTargetSP = null; // reached (a single step through it too)
+					if (isRunning) {
+						const bank = bus.getBank?.(pc) ?? 0;
+						const physicalPC = (bank << 16) | pc;
+						setRunning(false, { reason: "step", address: physicalPC });
+						self.postMessage({ type: "breakpointHit", breakpointType: "step", address: physicalPC });
+					}
 				}
 				break;
 			}
@@ -2138,10 +2178,13 @@ export function executeInstruction(): number {
 				cycles = 6;
 
 				if (shouldStop) {
-					const bank = bus.getBank?.(pc) ?? 0;
-					const physicalPC = (bank << 16) | pc;
-					setRunning(false, { reason: "step", address: physicalPC });
-					self.postMessage({ type: "breakpointHit", breakpointType: "step", address: physicalPC });
+					stepOutTargetSP = null; // reached (a single step through it too)
+					if (isRunning) {
+						const bank = bus.getBank?.(pc) ?? 0;
+						const physicalPC = (bank << 16) | pc;
+						setRunning(false, { reason: "step", address: physicalPC });
+						self.postMessage({ type: "breakpointHit", breakpointType: "step", address: physicalPC });
+					}
 				}
 				break;
 			}
@@ -2733,7 +2776,7 @@ export function executeInstruction(): number {
 		}
 	} catch (error) {
 		if (error instanceof BreakpointError) {
-			setRunning(false, { reason: "breakpoint", breakpointType: error.type, address: error.address });
+			setRunning(false, breakpointStop(error.type, error.address));
 			pc = startPC;
 			stoppedOnAccessAt = startPC;
 			self.postMessage({

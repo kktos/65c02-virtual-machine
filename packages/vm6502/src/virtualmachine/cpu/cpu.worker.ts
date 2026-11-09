@@ -22,6 +22,8 @@ import {
 	stepInstruction,
 	stepInstructions,
 	stepOutInstruction,
+	endStepThrough,
+	skipBreakpointOnce,
 	stepOverInstruction,
 } from "./cpu.65c02";
 import { loadBus } from "./loaders/bus.loader";
@@ -133,8 +135,8 @@ self.onmessage = async (event: MessageEvent) => {
 
 	switch (command) {
 		case "run":
-			// If we are paused at a breakpoint, step over the instruction first
-			// before resuming execution to avoid getting stuck.
+			// Paused at a PC breakpoint: the run doesn't stop on it again at once (run, not stepped, so a step out
+			// ending on that instruction still stops).
 			{
 				const pc = registersView.getUint16(REG_PC_OFFSET, true);
 				// Stopped on a BRK ("break on BRK"): resuming executes it (through $FFFE). Not also the
@@ -147,9 +149,7 @@ self.onmessage = async (event: MessageEvent) => {
 					const bank = bus?.getBank?.(pc) ?? 0;
 					const physicalPC = (bank << 16) | pc;
 					// biome-ignore lint/style/noNonNullAssertion: <expected>
-					if (bankedBreakpoints.get(physicalPC)! & BP_PC) {
-						stepInstruction();
-					}
+					if (bankedBreakpoints.get(physicalPC)! & BP_PC) skipBreakpointOnce(pc);
 				}
 			}
 			setRunning(true);
@@ -163,10 +163,16 @@ self.onmessage = async (event: MessageEvent) => {
 			break;
 		}
 		case "stepOver":
-			stepOverInstruction();
+			{
+				const step = stepOverInstruction(event.data.through === true);
+				reply(event, step ? { running: false, step } : { running: true });
+			}
+			break;
+		case "endStepThrough":
+			endStepThrough();
 			break;
 		case "stepOut":
-			stepOutInstruction();
+			reply(event, { running: stepOutInstruction(event.data.through === true) });
 			break;
 		case "setSpeed":
 			if (typeof speed === "number" && speed >= 0) {
