@@ -11,6 +11,8 @@ export type SymbolEntry = {
 	scope: string;
 	ns: string;
 	addr: number;
+	/** Bytes covered by the label (a LABELS range): `label+offset` is only used inside them */
+	size?: number;
 };
 export type SymbolDict = Record<number, Record<string, SymbolEntry>>;
 /** What is persisted: the disk is implied by the storage key */
@@ -25,6 +27,51 @@ export type SearchSuggestion = {
 };
 export type SearchProvider = (query: string) => Promise<SearchSuggestion[]> | SearchSuggestion[];
 
+/**
+ * Attributes on a range of addresses, declared in LABELS by a line with flags: `$C080:$C0FF [noindex]`.
+ * They are not persisted: the machine's init routine declares them again on every load.
+ */
+export type AddressRange = { ns: string; scope: string; start: number; end: number; flags: RangeFlag[] };
+/** noindex: an indexed operand (`,X` / `,Y`) whose base is in the range is shown as is, without a label */
+export const RANGE_FLAGS = ["noindex"] as const;
+export type RangeFlag = (typeof RANGE_FLAGS)[number];
+
+/** `end` is set for a range only (`$START:$END`), even a 1-byte one */
+export type LabelsLine = { label?: string; start: number; end?: number; flags: RangeFlag[] };
+
+const HEX_ADDR = "(?:\\$|0x)?([0-9A-Fa-f]+)";
+const LABELS_LINE_RE = new RegExp(
+	`^${HEX_ADDR}(?::${HEX_ADDR})?(?:\\s+([^\\s\\[;]+))?(?:\\s*\\[([^\\]]*)\\])?(?:\\s*;.*)?$`,
+);
+
+/**
+ * Parses a line of a LABELS block:
+ *   $ADDR label                 a label
+ *   $ADDR [flag, ...]           attributes on one address
+ *   $START:$END label           a label covering the range: its size is END-START+1
+ *   $START:$END [flag, ...]     attributes on the range (see RANGE_FLAGS)
+ *   $START:$END label [flag]    both
+ * A `; comment` may end the line. Returns an error message when the line is invalid.
+ */
+export const parseLabelsLine = (line: string): LabelsLine | string => {
+	const m = line.trim().match(LABELS_LINE_RE);
+	if (!m) return `invalid line "${line.trim()}"`;
+	const [, startStr, endStr, label, flagsStr] = m;
+	const start = parseInt(startStr!, 16);
+	const end = endStr === undefined ? undefined : parseInt(endStr, 16);
+	if (end !== undefined && end < start) return `invalid range "${startStr}:${endStr}": the end is before the start`;
+
+	const flags: RangeFlag[] = [];
+	for (const flag of (flagsStr ?? "").split(/[\s,]+/).filter(Boolean)) {
+		const lower = flag.toLowerCase();
+		if (!(RANGE_FLAGS as readonly string[]).includes(lower))
+			return `unknown flag "${flag}" (known: ${RANGE_FLAGS.join(", ")})`;
+		flags.push(lower as RangeFlag);
+	}
+	if (!label && flags.length === 0) return `no label nor flag on "${line.trim()}"`;
+	return { label, start, end, flags };
+};
+
 const SYSTEM_DISK = "*";
 const NAME_RE = /^[A-Za-z_][A-Za-z_0-9]*/;
 
@@ -33,6 +80,7 @@ const activeNamespaces = ref<Map<string, boolean>>(new Map());
 const systemDict = ref<SymbolDict>({});
 const diskDict = ref<SymbolDict>({});
 const scopeSearchPath = ref<string[]>([]);
+const addressRanges = ref<AddressRange[]>([]);
 const symbolsState = computed(() => ({
 	dictA: systemDict.value,
 	dictB: diskDict.value,
@@ -58,6 +106,7 @@ const makeEntry = (disk: string, s: StoredSymbol, id = nextId++): SymbolEntry =>
 	addr: s.addr,
 	scope: s.scope || "main",
 	src: s.src ?? "",
+	...(s.size !== undefined && { size: s.size }),
 });
 
 function* allEntries(dict: SymbolDict) {
@@ -68,12 +117,13 @@ function* allEntries(dict: SymbolDict) {
 const persist = (disk: string) =>
 	store.save<StoredSymbol>(
 		disk,
-		Array.from(allEntries(dictFor(disk).value), ({ ns, label, addr, scope, src }) => ({
+		Array.from(allEntries(dictFor(disk).value), ({ ns, label, addr, scope, src, size }) => ({
 			ns,
 			label,
 			addr,
 			scope,
 			src,
+			...(size !== undefined && { size }),
 		})),
 	);
 
@@ -138,8 +188,9 @@ export const parseSymbolsText = (text: string): StoredSymbol[] => {
 			continue;
 		}
 		if (inLabelsBlock) {
-			const m = line.match(/^(?:\$|0x)?([0-9A-Fa-f]+)\s+(\S+)/);
-			if (m) symbols.push({ ns, scope, label: m[2]!, addr: parseInt(m[1]!, 16), src: "" });
+			// Range attributes ([noindex]) belong to the machine, not to a disk: only the labels are imported
+			const parsed = parseLabelsLine(line);
+			if (typeof parsed !== "string" && parsed.label) symbols.push(labelsLineToSymbol(parsed, ns, scope));
 			continue;
 		}
 
@@ -164,6 +215,25 @@ export const parseSymbolsText = (text: string): StoredSymbol[] => {
 	return symbols;
 };
 
+/** The symbol of a LABELS line that has a label; a range gives it a size */
+export const labelsLineToSymbol = (line: LabelsLine, ns: string, scope: string): StoredSymbol => ({
+	ns,
+	scope,
+	label: line.label!,
+	addr: line.start,
+	src: "",
+	...(line.end !== undefined && { size: line.end - line.start + 1 }),
+});
+
+/** The scopes to search, in order: the given path, or the given scope followed by the SCOPEPATH */
+const resolveScopePath = (scopeOrPath?: string | string[]) =>
+	Array.isArray(scopeOrPath) ? scopeOrPath : ([scopeOrPath, ...scopeSearchPath.value].filter(Boolean) as string[]);
+
+/** Symbols with a size, for the ones covering an address beyond the lookback window */
+const sizedSymbols = computed(() =>
+	[...allEntries(systemDict.value), ...allEntries(diskDict.value)].filter((s) => s.size !== undefined),
+);
+
 export function useSymbols() {
 	const setDiskKey = (newKey: string) => {
 		symbolDiskKey.value = newKey;
@@ -186,6 +256,7 @@ export function useSymbols() {
 	const initSymbols = async (machineName: string, newSymbols?: SymbolDict) => {
 		store.setMachine(machineName);
 		activeNamespaces.value.clear();
+		addressRanges.value = [];
 		symbolDiskKey.value = SYSTEM_DISK;
 		diskDict.value = {};
 
@@ -366,7 +437,7 @@ export function useSymbols() {
 		if (!dict.value[address]) dict.value[address] = {};
 		dict.value[address]![namespace] = makeEntry(
 			disk,
-			{ ns: namespace, label, addr: address, scope, src: current.src },
+			{ ns: namespace, label, addr: address, scope, src: current.src, size: current.size },
 			id,
 		);
 		registerNamespace(namespace);
@@ -481,8 +552,10 @@ export function useSymbols() {
 
 			const scopeSuffix = scope && scope !== "main" ? ` ${scope}` : "";
 			output += `LABELS ${ns}${scopeSuffix}\n`;
-			for (const sym of entries)
-				output += `  $${sym.addr.toString(16).toUpperCase().padStart(4, "0")} ${sym.label}\n`;
+			for (const sym of entries) {
+				const end = sym.size !== undefined ? `:$${toHex(sym.addr + sym.size - 1, 4)}` : "";
+				output += `  $${toHex(sym.addr, 4)}${end} ${sym.label}\n`;
+			}
 			output += "END_LABELS\n\n";
 		}
 		return output.trim();
@@ -492,9 +565,7 @@ export function useSymbols() {
 	const addSymbolsFromText = (text: string) => upsertMany(parseSymbolsText(text));
 
 	const getSymbolForAddress = (address: number, scopeOrPath?: string | string[]) => {
-		let finalPath: string[];
-		if (Array.isArray(scopeOrPath)) finalPath = scopeOrPath;
-		else finalPath = [scopeOrPath, ...scopeSearchPath.value].filter(Boolean) as string[];
+		const finalPath = resolveScopePath(scopeOrPath);
 
 		const search = (dict: SymbolDict) => {
 			const namespaces = dict[address];
@@ -538,32 +609,60 @@ export function useSymbols() {
 		return null;
 	};
 
+	/**
+	 * The label of an address, as `label` (offset 0) or `label+offset`: the nearest label at or before it,
+	 * inside its size when it has one, or within `maxLookback` bytes when it has none.
+	 * Never a label after the address (no negative offset).
+	 */
 	const findSymbolWithOffset = (
 		address: number,
 		scopeOrPath?: string | string[],
 		maxLookback = 16,
 	): { symbol: SymbolEntry; offset: number } | null => {
-		// 1. Try exact match first
 		const sym = getSymbolForAddress(address, scopeOrPath);
 		if (sym) return { symbol: sym, offset: 0 };
 
-		// 2. Look backwards for a nearby label
-		for (let i = 1; i <= maxLookback; i++) {
-			const lookbackAddress = address - i;
-			if (lookbackAddress < 0) break;
-			const foundSym = getSymbolForAddress(lookbackAddress, scopeOrPath);
-			if (foundSym) return { symbol: foundSym, offset: i };
+		for (let i = 1; i <= maxLookback && address - i >= 0; i++) {
+			const found = getSymbolForAddress(address - i, scopeOrPath);
+			if (found && (found.size === undefined || i < found.size)) return { symbol: found, offset: i };
 		}
 
-		// 2. Look forwards for a nearby label
-		for (let i = 1; i <= maxLookback; i++) {
-			const lookbackAddress = address + i;
-			// if (lookbackAddress < 0) break;
-			const foundSym = getSymbolForAddress(lookbackAddress, scopeOrPath);
-			if (foundSym) return { symbol: foundSym, offset: -i };
+		// A sized label further away than the window, covering the address
+		let best: SymbolEntry | undefined;
+		for (const s of sizedSymbols.value) {
+			if (s.addr >= address - maxLookback || address >= s.addr + s.size!) continue;
+			if (best && s.addr <= best.addr) continue;
+			// The visible symbol there: the namespace may be off, or another scope may come first
+			const visible = getSymbolForAddress(s.addr, scopeOrPath);
+			if (visible?.size !== undefined && address < visible.addr + visible.size) best = visible;
 		}
+		return best ? { symbol: best, offset: address - best.addr } : null;
+	};
 
-		return null;
+	/** Declares attribute ranges (LABELS `$START:$END [flags]`); a range declared again gets the new flags */
+	const addAddressRanges = (ranges: AddressRange[]) => {
+		const list = addressRanges.value.filter(
+			(r) => !ranges.some((n) => n.ns === r.ns && n.scope === r.scope && n.start === r.start && n.end === r.end),
+		);
+		for (const r of ranges) {
+			list.push(r);
+			registerNamespace(r.ns);
+		}
+		addressRanges.value = list;
+	};
+
+	/** Whether an address is in a range with this flag, for an active namespace and a scope of the path */
+	const hasRangeFlag = (address: number, flag: RangeFlag, scopeOrPath?: string | string[]) => {
+		if (addressRanges.value.length === 0) return false;
+		const path = resolveScopePath(scopeOrPath);
+		return addressRanges.value.some(
+			(r) =>
+				address >= r.start &&
+				address <= r.end &&
+				r.flags.includes(flag) &&
+				activeNamespaces.value.get(r.ns) &&
+				path.includes(r.scope),
+		);
 	};
 
 	const getAddressForLabel = (label: string, namespace = "") => {
@@ -609,6 +708,8 @@ export function useSymbols() {
 		getSymbolForAddress,
 		findSymbolWithOffset,
 		getAddressForLabel,
+		addAddressRanges,
+		hasRangeFlag,
 
 		getNamespaceList,
 		toggleNamespace,

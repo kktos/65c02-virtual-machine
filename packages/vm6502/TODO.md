@@ -4,7 +4,8 @@
 
 Noticed while porting Karateka to a .po (its loader disassembled in the debugger):
 
-- disassembler, labels with an offset:
+- **FIXED** disassembler, labels with an offset: offsets >= 0 only, in hex (`+$0C`); LABELS takes sized labels
+  (`$0200:$02FF INPUTBUF`) and attribute ranges (`$C080:$C0FF [noindex]`: no label on an indexed operand there)
   - `LDA $C08C,X` shows as `LDA LCBANK1_R+1,X`: indexed by the slot (X = $60), it's slot I/O (the Disk II
     data latch), not the language card. No soft switch label on an `,X` / `,Y` operand in $C080-$C0FF?
   - `STX STACK+-1`: `+-` when the offset is negative
