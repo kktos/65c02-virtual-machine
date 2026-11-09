@@ -79,6 +79,12 @@ let stepStop: StopInfo | undefined;
 export const isStoppedOnBrk = () =>
 	stoppedOnBrkAt !== null && stoppedOnBrkAt === registersView?.getUint16(REG_PC_OFFSET, true);
 
+// PC of the instruction a read / write breakpoint stopped (it is run again from its start): resuming executes it
+// without the breakpoint check, or the same access would stop it again at once
+let stoppedOnAccessAt: number | null = null;
+export const isStoppedOnAccess = () =>
+	stoppedOnAccessAt !== null && stoppedOnAccessAt === registersView?.getUint16(REG_PC_OFFSET, true);
+
 // Re-export breakpoint functions for external use
 export { addBreakpoint, removeBreakpoint, clearBreakpoints, setBreakOnBrk };
 
@@ -136,6 +142,7 @@ export function initCPU(
 /** `stop` (why it stopped) is only meaningful when `running` is false. */
 export function setRunning(running: boolean, stop?: StopInfo) {
 	isRunning = running;
+	if (running) stoppedOnAccessAt = null;
 	if (!running && stop) stepStop = stop;
 	if (!isRunning) stepOutTargetSP = null;
 	self.postMessage({ type: "isRunning", isRunning: running, stop: running ? undefined : stop });
@@ -155,6 +162,7 @@ export function setRunning(running: boolean, stop?: StopInfo) {
  */
 export function prepareForRestore() {
 	stoppedOnBrkAt = null;
+	stoppedOnAccessAt = null;
 	if (isRunning) setRunning(false, { reason: "pause" });
 	stepOutTargetSP = null;
 }
@@ -560,7 +568,11 @@ export function executeInstruction(): number {
 						// Stop bit: stop after the call (PC on the next instruction). When stepping, the CPU is
 						// already stopped. Posted after the call, so its effect (a log line) comes first.
 						if (call.stop) {
-							const stop = { reason: "hypercall", address: (bank << 16) | call.address, cmd: call.cmd } as const;
+							const stop = {
+								reason: "hypercall",
+								address: (bank << 16) | call.address,
+								cmd: call.cmd,
+							} as const;
 							if (isRunning) setRunning(false, stop);
 							else stepStop = stop; // stepping: ends a multi-instruction step here
 						}
@@ -2001,7 +2013,8 @@ export function executeInstruction(): number {
 			}
 			case 0xde: {
 				// DEC Absolute,X
-				const addr = (bus.read(pc, true) | (bus.read(pc + 1, true) << 8)) + registersView.getUint8(REG_X_OFFSET);
+				const addr =
+					(bus.read(pc, true) | (bus.read(pc + 1, true) << 8)) + registersView.getUint8(REG_X_OFFSET);
 				pc += 2;
 				const value = bus.read(addr);
 				const result = (value - 1) & 0xff;
@@ -2046,7 +2059,8 @@ export function executeInstruction(): number {
 			}
 			case 0xfe: {
 				// INC Absolute,X
-				const addr = (bus.read(pc, true) | (bus.read(pc + 1, true) << 8)) + registersView.getUint8(REG_X_OFFSET);
+				const addr =
+					(bus.read(pc, true) | (bus.read(pc + 1, true) << 8)) + registersView.getUint8(REG_X_OFFSET);
 				pc += 2;
 				const value = bus.read(addr);
 				const result = (value + 1) & 0xff;
@@ -2721,6 +2735,7 @@ export function executeInstruction(): number {
 		if (error instanceof BreakpointError) {
 			setRunning(false, { reason: "breakpoint", breakpointType: error.type, address: error.address });
 			pc = startPC;
+			stoppedOnAccessAt = startPC;
 			self.postMessage({
 				type: "breakpointHit",
 				breakpointType: error.type,

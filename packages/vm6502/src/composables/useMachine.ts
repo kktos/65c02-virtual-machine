@@ -11,7 +11,9 @@ import { useBreakpoints } from "../composables/useBreakpoints";
 import type { EmulatorRegisters } from "@/types/emulatorstate.interface";
 import { useCommands } from "./useCommands";
 import { useRoutines } from "./useRoutines";
+import { useRunUntil } from "./useRunUntil";
 import type { RegisterDescriptor } from "@/types/registers";
+import type { StopInfo } from "@/types/stopinfo.interface";
 import { setHypercallDisassembly } from "@/lib/hypercalls.lib";
 
 // Initialize global state with the default machine (same default as App.vue used)
@@ -76,6 +78,7 @@ const onUiFrame = (cb: () => void) => {
 
 const setupVmListeners = (targetVm: VirtualMachine) => {
 	const { executeCommand } = useCommands();
+	const { handleStop } = useRunUntil();
 
 	targetVm.onmessage = async (event) => {
 		const { type, error, message, address, breakpointType } = event.data;
@@ -90,8 +93,11 @@ const setupVmListeners = (targetVm: VirtualMachine) => {
 			case "isRunning":
 				// Update the local isRunning ref based on the worker's state
 				isRunning.value = event.data.isRunning;
-				// if (!isRunning.value) targetVm.refreshVideo();
-
+				// A breakpoint (or the end of a step over / out) is done with on its `breakpointHit`, which follows
+				{
+					const stop = event.data.stop as StopInfo | undefined;
+					if (stop && stop.reason !== "breakpoint" && stop.reason !== "step") handleStop(targetVm, stop);
+				}
 				break;
 			case "break": {
 				isRunning.value = false;
@@ -109,13 +115,18 @@ const setupVmListeners = (targetVm: VirtualMachine) => {
 				break;
 			}
 			case "breakpointHit": {
-				const bp = useBreakpoints().takeHit(breakpointType, address, targetVm);
-				if (bp?.command) {
-					await executeCommand(bp.command, targetVm, { source: "bp" });
-					break;
+				// This hit's stop: the hook's command may run the machine into the next one before it's done
+				const stop = targetVm.lastStop;
+				try {
+					const bp = useBreakpoints().takeHit(breakpointType, address, targetVm);
+					if (bp?.command) await executeCommand(bp.command, targetVm, { source: "bp" });
+					else {
+						targetVm.refreshVideo();
+						targetVm.syncBusState();
+					}
+				} finally {
+					if (stop) handleStop(targetVm, stop);
 				}
-				targetVm.refreshVideo();
-				targetVm.syncBusState();
 				break;
 			}
 			default:

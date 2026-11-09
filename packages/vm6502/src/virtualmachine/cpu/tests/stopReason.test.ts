@@ -1,6 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { addBreakpoint, clearBreakpoints } from "../breakpoints";
-import { initCPU, resetCPU, setClockSpeed, setRunning, stepOutInstruction } from "../cpu.65c02";
+import {
+	initCPU,
+	isStoppedOnAccess,
+	resetCPU,
+	setClockSpeed,
+	setRunning,
+	stepInstruction,
+	stepOutInstruction,
+} from "../cpu.65c02";
 import { REG_PC_OFFSET, REG_SP_OFFSET } from "../shared-memory";
 import { createMockBus } from "./cpu-test-helpers";
 
@@ -10,7 +18,8 @@ describe("CPU 65C02 - stop reason", () => {
 	let registersView: DataView;
 	let postMessage: ReturnType<typeof vi.fn>;
 
-	const stopMessage = () => postMessage.mock.calls.map(([m]) => m).find((m) => m.type === "isRunning" && !m.isRunning);
+	const stopMessage = () =>
+		postMessage.mock.calls.map(([m]) => m).find((m) => m.type === "isRunning" && !m.isRunning);
 	// setRunning(true) runs a time slice synchronously (setTimeout / rAF are stubbed, so only one).
 	const runFrom = (pc: number) => {
 		registersView.setUint16(REG_PC_OFFSET, pc, true);
@@ -23,7 +32,10 @@ describe("CPU 65C02 - stop reason", () => {
 		vi.stubGlobal("self", { postMessage });
 		vi.stubGlobal("performance", { now: () => 0 });
 		// keep the run loop from actually running
-		vi.stubGlobal("requestAnimationFrame", vi.fn(() => 0));
+		vi.stubGlobal(
+			"requestAnimationFrame",
+			vi.fn(() => 0),
+		);
 		vi.stubGlobal("setTimeout", vi.fn());
 
 		memory = new Uint8Array(0x10000);
@@ -47,6 +59,23 @@ describe("CPU 65C02 - stop reason", () => {
 		runFrom(0x300);
 		expect(stopMessage()?.stop).toEqual({ reason: "breakpoint", breakpointType: "write", address: 0x2000 });
 		expect(registersView.getUint16(REG_PC_OFFSET, true)).toBe(0x300);
+	});
+
+	it("resuming after a write breakpoint runs the instruction instead of stopping on it again", () => {
+		memory.set([0x8d, 0x00, 0x20, 0xea], 0x300); // STA $2000; NOP
+		registersView.setUint8(0, 0x42); // A
+		addBreakpoint("write", 0x2000);
+		runFrom(0x300);
+		expect(isStoppedOnAccess()).toBe(true);
+		expect(memory[0x2000]).toBe(0);
+
+		// the worker's `run`
+		if (isStoppedOnAccess()) stepInstruction();
+		postMessage.mockClear();
+		setRunning(true);
+		expect(memory[0x2000]).toBe(0x42);
+		expect(registersView.getUint16(REG_PC_OFFSET, true)).not.toBe(0x300);
+		expect(isStoppedOnAccess()).toBe(false);
 	});
 
 	it("BRK", () => {

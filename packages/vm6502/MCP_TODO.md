@@ -136,11 +136,14 @@ Lower: exec_command already reaches them, or they are comfort.
       in the `isRunning: false` message; the VM keeps it as `vm.lastStop` (BRK + hypercall byte → `hypercall`).
       `run_until` returns `reached_address` / `breakpoint` (type + address) / `brk` / `step` / `error` /
       `pause` / `reset`, keeps waiting through hypercalls; `get_registers` adds `last_stop`.
-- [ ] a breakpoint whose command resumes the machine still ends `run_until` (it reports that breakpoint)
+- [x] a breakpoint whose command resumes the machine still ends `run_until` (it reports that breakpoint)
       Seen again (Karateka, 2026-11-08): hook `log loads … ;run` on `$0309`, `run_until $3F2E` returned
       `stopped: breakpoint $0309` while the machine went on running (the harness's results at `$3F57` were
       written after). The machine isn't stopped when the result says so: keep waiting when the hook resumes, or
-      say the hook resumed it
+      say the hook resumed it.
+      Fixed: `run_until` waits for a *settled* stop (`useRunUntil().onSettledStop`): a breakpoint's stop is only
+      final once the main thread is done with it (hook command run, not resumed). `run_until` also takes
+      `breakpoints: "honour" | "through"`, and an unreached target stays armed (`pending_target`)
 - [x] hook commands never ran on range or `access` breakpoints: on a hit, `useMachine` looked the breakpoint up
       by exact `{ type, address }`, but the worker reports `read` / `write` and the physical byte accessed.
       `findHitBreakpoints(type, address)` (`useBreakpoints`) now returns the enabled ones covering it (`access`

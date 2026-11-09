@@ -9,6 +9,7 @@ import {
 	getTrace,
 	initCPU,
 	isStoppedOnBrk,
+	isStoppedOnAccess,
 	prepareForRestore,
 	removeBreakpoint,
 	resetCPU,
@@ -138,7 +139,8 @@ self.onmessage = async (event: MessageEvent) => {
 				const pc = registersView.getUint16(REG_PC_OFFSET, true);
 				// Stopped on a BRK ("break on BRK"): resuming executes it (through $FFFE). Not also the
 				// breakpoint check below, which would step over a breakpoint set on the BRK handler.
-				if (isStoppedOnBrk()) stepInstruction();
+				// Same after a read / write breakpoint: the instruction is run again, without stopping on the access.
+				if (isStoppedOnBrk() || isStoppedOnAccess()) stepInstruction();
 				// biome-ignore lint/style/noNonNullAssertion: <expected>
 				else if (breakpointMap[pc]! & BP_PC) {
 					// Fast check passed, now do detailed check
