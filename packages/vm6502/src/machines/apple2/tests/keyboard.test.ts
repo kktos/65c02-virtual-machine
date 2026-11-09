@@ -193,4 +193,15 @@ describe("typed keys on the //e", () => {
 		expect(bus.read(0xc010) & 0x80).toBe(0);
 		expect(() => bus.holdKey("é")).toThrow("No key");
 	});
+
+	it("reads the latch in the low 7 bits of $C011-$C01F, the strobe untouched", () => {
+		bus.pressKey("A", "KeyA");
+		bus.releaseKey("A", "KeyA");
+		bus.text = true;
+		bus.hires = false;
+		expect(bus.read(0xc01a)).toBe(0xc1); // TEXT on
+		expect(bus.read(0xc01d)).toBe(0x41); // HIRES off
+		for (let addr = 0xc011; addr <= 0xc01f; addr++) expect(bus.read(addr) & 0x7f).toBe(0x41);
+		expect(bus.keyStrobe).toBe(true);
+	});
 });

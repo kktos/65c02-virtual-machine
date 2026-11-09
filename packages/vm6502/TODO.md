@@ -12,7 +12,8 @@ Noticed while adding Karateka's upside-down mode (a key held at boot):
     the key held by `key hold` / `hold_key` (repeating, ~0.5 s then 15/s), a typed key until it is consumed
   - typed keys (paste, `type_keys`, `key "text"`) are queued in the worker and given to the program as it reads
     `$C000`, `key delay <cycles>` after it consumed the previous one; paused, they wait
-- [ ] the //e's `$C011`-`$C01F` reads have the keyboard latch in their low 7 bits; ours read 0 there
+- **FIXED** the //e's `$C011`-`$C01F` reads have the keyboard latch in their low 7 bits; ours read 0 there
+  - `apple.switches.ts`: `flagWithLatch()` gives the status in bit 7 and the latch (no strobe) in bits 0-6
 
 ### 2026-11-08
 

@@ -71,6 +71,9 @@ export function installSoftSwitches(bus: AppleBus) {
 	onRead(SoftSwitches.KBDSTRB, () => bus.keyboard.readStrobe());
 	onWrite(SoftSwitches.KBDSTRB, () => bus.keyboard.clearStrobe());
 
+	// The //e's status reads ($C011-$C01F): the flag in bit 7, the keyboard latch in bits 0-6 (the strobe untouched)
+	const flagWithLatch = (isOn: boolean) => (isOn ? 0x80 : 0x00) | bus.keyboard.latch;
+
 	// --- Annunciator for Double Res Video ---
 	onAccess(SoftSwitches.SETAN3, () => {
 		bus.dblRes = false;
@@ -112,17 +115,17 @@ export function installSoftSwitches(bus: AppleBus) {
 	});
 
 	// --- Video State Reads ---
-	onRead(SoftSwitches.STORE80, () => (bus.store80 ? 0x80 : 0x00));
-	onRead(SoftSwitches.COL80, () => (bus.col80 ? 0x80 : 0x00));
-	onRead(SoftSwitches.ALTCHARSET, () => (bus.altChar ? 0x80 : 0x00));
-	onRead(SoftSwitches.TEXT, () => (bus.text ? 0x80 : 0x00));
-	onRead(SoftSwitches.MIXED, () => (bus.mixed ? 0x80 : 0x00));
-	onRead(SoftSwitches.PAGE2, () => (bus.page2 ? 0x80 : 0x00));
-	onRead(SoftSwitches.HIRES, () => (bus.hires ? 0x80 : 0x00));
+	onRead(SoftSwitches.STORE80, () => flagWithLatch(bus.store80));
+	onRead(SoftSwitches.COL80, () => flagWithLatch(bus.col80));
+	onRead(SoftSwitches.ALTCHARSET, () => flagWithLatch(bus.altChar));
+	onRead(SoftSwitches.TEXT, () => flagWithLatch(bus.text));
+	onRead(SoftSwitches.MIXED, () => flagWithLatch(bus.mixed));
+	onRead(SoftSwitches.PAGE2, () => flagWithLatch(bus.page2));
+	onRead(SoftSwitches.HIRES, () => flagWithLatch(bus.hires));
 	onRead(SoftSwitches.TBCOLOR, () => bus.tbColor);
 	onRead(SoftSwitches.CLOCKCTL, () => bus.brdrColor);
 
-	onRead(SoftSwitches.RDVBLBAR, () => (bus.fakingVBL ? 0x80 : 0x00));
+	onRead(SoftSwitches.RDVBLBAR, () => flagWithLatch(bus.fakingVBL));
 
 	// --- Video State Writes ---
 	onWrite(SoftSwitches.STORE80OFF, () => (bus.store80 = false));
@@ -145,13 +148,13 @@ export function installSoftSwitches(bus: AppleBus) {
 	onAccess(SoftSwitches.HIRESON, () => (bus.hires = true));
 
 	// --- Memory Management ---
-	onRead(SoftSwitches.RAMRD, () => (bus.ramRdAux ? 0x80 : 0x00));
-	onRead(SoftSwitches.RAMWRT, () => (bus.ramWrAux ? 0x80 : 0x00));
-	onRead(SoftSwitches.ALTZP, () => (bus.altZp ? 0x80 : 0x00));
-	onRead(SoftSwitches.INTCXROM, () => (bus.intCxRom ? 0x80 : 0x00));
-	onRead(SoftSwitches.SLOTC3ROM, () => (bus.slotC3Rom ? 0x80 : 0x00));
-	onRead(SoftSwitches.RDLCBNK2, () => (bus.lcBank2 ? 0x80 : 0x00));
-	onRead(SoftSwitches.RDLCRAM, () => (bus.lcReadRam ? 0x80 : 0x00));
+	onRead(SoftSwitches.RAMRD, () => flagWithLatch(bus.ramRdAux));
+	onRead(SoftSwitches.RAMWRT, () => flagWithLatch(bus.ramWrAux));
+	onRead(SoftSwitches.ALTZP, () => flagWithLatch(bus.altZp));
+	onRead(SoftSwitches.INTCXROM, () => flagWithLatch(bus.intCxRom));
+	onRead(SoftSwitches.SLOTC3ROM, () => flagWithLatch(bus.slotC3Rom));
+	onRead(SoftSwitches.RDLCBNK2, () => flagWithLatch(bus.lcBank2));
+	onRead(SoftSwitches.RDLCRAM, () => flagWithLatch(bus.lcReadRam));
 
 	onWrite(SoftSwitches.RAMRDOFF, () => (bus.ramRdAux = false));
 	onWrite(SoftSwitches.RAMRDON, () => (bus.ramRdAux = true));
