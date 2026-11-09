@@ -1,4 +1,4 @@
-import { defineCommand } from "@/composables/useCommands";
+import { defineCommand, isParamListItemIdentifier } from "@/composables/useCommands";
 import { toHex } from "@/lib/hex.utils";
 import type { CommandContext } from "@/types/command";
 import {
@@ -33,15 +33,17 @@ export const setCmd = defineCommand({
 	fn: ({ vm, params }: CommandContext) => {
 		const val = params[1] as number;
 
-		const isAddress = (params[0] as string).match(/^[0-9]+$/);
-		if (isAddress) {
-			const addr = parseInt(params[0] as string);
+		// `set pc $300` hands over the parsed name ({ text, value });
+		// `pc = $300` the text, and `$300 = 12` the address as a decimal string.
+		const dest = isParamListItemIdentifier(params[0]) ? params[0].text : String(params[0]);
+
+		if (/^[0-9]+$/.test(dest)) {
+			const addr = parseInt(dest);
 			vm.writeDebug(addr, val);
 			return `$${toHex(addr)} = $${toHex(val)}`;
 		}
 
-		const reg = (params[0] as string).toUpperCase() as Register;
-		if (!reg) throw new Error(`Invalid register: ${reg}`);
+		const reg = dest.toUpperCase() as Register;
 
 		if (reg in BYTE_REGISTERS) {
 			if (val > 0xff || val < 0) throw new Error(`Value out of range [0-255]`);
