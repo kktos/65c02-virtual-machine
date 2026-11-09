@@ -38,6 +38,9 @@ function tryParseToken(parser: ExpressionParser, allowedTypes: string[]): { matc
 
 	if (token.type === TokenType.EOF) return { matched: false };
 
+	// The rest of the command, as typed
+	if (allowedTypes.includes("raw")) return { matched: true, value: parser.rawRest() };
+
 	// 1. Special Handling: wbyte wildcard (??)
 	if (token.type === TokenType.DOUBLE_QUESTION && allowedTypes.includes("wbyte")) {
 		parser.consume();
@@ -173,7 +176,8 @@ export function parseCommandParams(
 		let matchesForThisDef = 0;
 
 		while (true) {
-			if (tryParseOption(cmdParser, cmdSpec.options, opts)) continue;
+			// What raw takes is not ours: its options belong to the command it holds.
+			if (!allowedTypes.includes("raw") && tryParseOption(cmdParser, cmdSpec.options, opts)) continue;
 
 			// Try to parse from token stream
 			const { matched, value } = tryParseToken(cmdParser, allowedTypes);

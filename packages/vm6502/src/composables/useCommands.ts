@@ -185,7 +185,7 @@ export async function executeSubQueue(
 				item.chain = chain;
 			}
 
-			cmdParser.reset(item.tokens);
+			cmdParser.reset(item.tokens, item.source);
 			if (cmdParser.matchIdentifier("IF")) {
 				handleIfCommand(cmdParser, item, subQueue);
 				continue;
@@ -227,7 +227,7 @@ export async function executeSubQueue(
 			let pipeValue: any = item.injectedPipe ?? undefined;
 
 			for (let i = 0; i < chain.length; i++) {
-				cmdParser.reset(chain[i]);
+				cmdParser.reset(chain[i], item.source);
 
 				const isLastInChain = i === chain.length - 1;
 				const currentSink: Sink = (output: CommandOutput | MiniMonitorCommandRequest | ErrorOutput) => {
