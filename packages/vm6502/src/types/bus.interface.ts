@@ -41,8 +41,25 @@ export interface IBus {
 	/** Optional method to handle keyboard input. */
 	pressKey?(key: string, code?: string, ctrl?: boolean, shift?: boolean, alt?: boolean, meta?: boolean): void;
 
-	/** Optional method to handle key release. */
-	releaseKey?(key: string, code?: string): void;
+	/** Optional method to handle key release. With no key, all the keys are up (the page lost the focus). */
+	releaseKey?(key?: string, code?: string): void;
+
+	/**
+	 * Keys typed by software (paste, `type_keys`, the `key` command): queued, and given to the program as it reads
+	 * them. Returns how many were queued, and skipped (no key for them).
+	 */
+	typeText?(text: string): { queued: number; skipped: number };
+
+	/** Holds a key down (the first character of `key`, or a key code), until `holdKey(null)`. */
+	holdKey?(key: string | number | null): void;
+
+	/** Empties the typed keys queue. */
+	clearKeys?(): void;
+
+	/** Cycles after a key is consumed before the next typed key is given (see AppleKeyboard). */
+	setKeyDelay?(cycles: number): void;
+
+	getKeyboardState?(): KeyboardState;
 
 	/** Reads memory with optional overrides for debugging/inspection. */
 	readDebug?(address: number, overrides?: Dict | string): number;
@@ -107,6 +124,19 @@ export interface IBus {
 	/** Returns the memory bank for address using MMU rules */
 	getBank?(address: number): number;
 }
+
+/**
+ * The keyboard: typed keys waiting, the key held (code), the delay between typed keys (cycles), the latch (the last
+ * key, 7 bits) and its strobe, and whether a key is down (the //e's AKD).
+ */
+export type KeyboardState = {
+	queued: number;
+	held: number | null;
+	delay: number;
+	latch: number;
+	strobe: boolean;
+	keyDown: boolean;
+};
 
 /** Which text screen `getTextScreen` reads. */
 export type TextScreenOptions = { page?: 1 | 2; cols?: 40 | 80 };

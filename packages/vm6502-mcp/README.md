@@ -52,7 +52,8 @@ Then run `pnpm dev` and open `http://localhost:5173/?mcp`.
 | `memory_snapshot` | Start a cheat-finder search: record memory ranges (default $0000-$BFFF), every byte a candidate |
 | `memory_diff` | Keep the candidates that changed / stayed / increased / decreased (`by`) / equal a value; lists them |
 | `read_log` | Lines of a log window (`hyper` = hypercall logs), with a cursor to get only new lines |
-| `type_keys` | Type on the emulated keyboard (`\n` = Return) |
+| `type_keys` | Type on the emulated keyboard (`\n` = Return): queued, the program gets the keys as it reads them; works paused |
+| `hold_key` | Hold a key down (AKD in `$C010`, auto-repeat) until called without a key; works paused |
 | `run_until` | Resume and **block** until a stop (BP, BRK, pause) or timeout; optional temp PC breakpoint |
 | `pause` | Pause and return registers |
 | `step` | Execute `count` instructions on the paused machine; stops early on a PC breakpoint, a stopping hypercall or an error |

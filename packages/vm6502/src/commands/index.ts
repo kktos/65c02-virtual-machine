@@ -24,6 +24,7 @@ import { refreshCmd } from "./refresh.cmd";
 import { showCmd } from "./show.cmd";
 import { setMemView, setMemViewFn } from "./setMemView.cmd";
 import { speed } from "./speed.cmd";
+import { keyCmd } from "./key.cmd";
 import { undefLabel } from "./undefLabel.cmd";
 import { routineCmd } from "./routine.cmd";
 import { explainCmd } from "./explainCode.cmd";
@@ -100,6 +101,7 @@ export const COMMANDDEF_LIST = {
 	RESET: reset,
 	REBOOT: reboot,
 	SPEED: speed,
+	KEY: keyCmd,
 
 	ASM: asmCmd,
 	COMMENT: commentCmd,

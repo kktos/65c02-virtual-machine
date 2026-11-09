@@ -865,7 +865,13 @@ export const MCP_TOOLS: McpTool[] = [
 	},
 	{
 		name: "type_keys",
-		description: "Type text on the emulated keyboard. Use \\n for Return. The machine must be running.",
+		description:
+			"Type text on the emulated keyboard: the keys are queued and the program gets them as it reads the " +
+			"keyboard ($C000), one at a time; paused, they wait (type, then boot or run). \\n is Return; other " +
+			"control keys as JSON escapes: \\u001b Esc, \\u0003 Ctrl-C, \\b ←, \\u0015 →. Returns how many were " +
+			"queued and the keyboard state (`queued`: still waiting). If a program eats keys (it flushes the keyboard " +
+			"after reading one), lengthen the delay between keys: exec_command `key delay <cycles>`; `key clear` " +
+			"empties the queue.",
 		inputSchema: {
 			type: "object",
 			properties: { text: { type: "string" } },
@@ -874,9 +880,34 @@ export const MCP_TOOLS: McpTool[] = [
 		async execute(input) {
 			const vm = await getVm();
 			const text = toStr(input.text, "text");
-			if (!useMachine().isRunning.value) throw new Error("The machine is paused: keys would not be read");
-			await vm.typeText(text);
-			return `Typed ${text.length} chars`;
+			const { queued, skipped, state } = await vm.typeText(text);
+			return json({
+				queued,
+				...(skipped && { skipped }),
+				keyboard: state,
+				...(!useMachine().isRunning.value && { note: "The machine is paused: the keys are read when it runs" }),
+			});
+		},
+	},
+	{
+		name: "hold_key",
+		description:
+			"Hold a key down on the emulated keyboard, as a finger would: latched now, it reads as down in $C010 " +
+			"bit 7 (AKD) and repeats (after ~0.5 s, then 15/s) until released. Works paused (hold, then boot: " +
+			'"a key held at boot"). `key`: a character, or a key code (0-127); omit it to release the key held.',
+		inputSchema: {
+			type: "object",
+			properties: { key: { type: ["string", "integer"] } },
+		},
+		async execute(input) {
+			const vm = await getVm();
+			let key: string | number | null = null;
+			if (typeof input.key === "string") {
+				if (input.key.length === 0) throw new Error("key: a character expected");
+				key = input.key;
+			} else if (input.key !== undefined && input.key !== null) key = toInt(input.key, "key", 0, 0, 127);
+			const { state } = await vm.holdKey(key);
+			return json({ keyboard: state });
 		},
 	},
 	{

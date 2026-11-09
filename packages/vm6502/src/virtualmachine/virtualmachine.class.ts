@@ -3,7 +3,7 @@ import type { TraceSnapshot } from "./cpu/instructionTrace";
 import type { SaveStateInfo, SaveStateMeta } from "./cpu/saveStates";
 import type { Dict } from "@/types/dict.type";
 import type { MachineConfig } from "@/types/machine.interface";
-import type { IBus } from "@/types/bus.interface";
+import type { IBus, KeyboardState } from "@/types/bus.interface";
 import {
 	FLAG_B_MASK,
 	FLAG_C_MASK,
@@ -95,6 +95,8 @@ export class VirtualMachine {
 	private keyHandler = this.handleKeyDown.bind(this);
 	private keyUpHandler = this.handleKeyUp.bind(this);
 	private pasteHandler = this.handlePaste.bind(this);
+	// The page loses the focus: the keyup of the keys down won't come
+	private blurHandler = () => this.worker.postMessage({ command: "keyup" });
 
 	private stateStack: number[][] = [];
 
@@ -196,6 +198,7 @@ export class VirtualMachine {
 		window.addEventListener("keydown", this.keyHandler);
 		window.addEventListener("keyup", this.keyUpHandler);
 		window.addEventListener("paste", this.pasteHandler);
+		window.addEventListener("blur", this.blurHandler);
 	}
 
 	private async loadCSS() {
@@ -412,23 +415,30 @@ export class VirtualMachine {
 		const text = event.clipboardData?.getData("text");
 		if (text) {
 			event.preventDefault();
-			this.typeText(text);
+			this.typeText(text).catch((e) => console.error("Paste:", e));
 		}
 	}
 
-	public async typeText(text: string) {
-		const normalized = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-		for (const char of normalized) {
-			if (!this.isRendering) break;
-			let key = char;
-			if (char === "\n") key = "Enter";
-
-			this.worker.postMessage({ command: "keydown", key });
-			await new Promise((resolve) => setTimeout(resolve, 5));
-			this.worker.postMessage({ command: "keyup", key });
-			await new Promise((resolve) => setTimeout(resolve, 5));
-		}
-	}
+	/**
+	 * Types `text` on the machine's keyboard: queued in the worker, and given to the program as it reads the keys
+	 * (paused, they wait). Resolves with how many were queued and skipped (no key for them), and the keyboard state.
+	 */
+	public typeText = (text: string) => this.keyboardRequest("type", { text });
+	/** Holds a key down (a character, or a key code) until `holdKey(null)`. */
+	public holdKey = (key: string | number | null) => this.keyboardRequest("hold", { key });
+	/** Empties the typed keys queue. */
+	public clearKeys = () => this.keyboardRequest("clear");
+	/** Cycles after the program consumes a typed key before it gets the next one. */
+	public setKeyDelay = (cycles: number) => this.keyboardRequest("delay", { cycles });
+	public getKeyboardState = () => this.keyboardRequest("state");
+	private keyboardRequest = async (action: string, data: object = {}) => {
+		const answer = await this.request<{ state?: KeyboardState; queued?: number; skipped?: number; error?: string }>(
+			"keyboard",
+			{ action, ...data },
+		);
+		if (answer.error) throw new Error(answer.error);
+		return answer as { state: KeyboardState; queued?: number; skipped?: number };
+	};
 
 	private handleTraceReceived(history: { type: string; source: number; target: number }[]) {
 		const newHead = history.length > 0 ? JSON.stringify(history[0]) : "";
@@ -764,6 +774,7 @@ export class VirtualMachine {
 		window.removeEventListener("keydown", this.keyHandler);
 		window.removeEventListener("keyup", this.keyUpHandler);
 		window.removeEventListener("paste", this.pasteHandler);
+		window.removeEventListener("blur", this.blurHandler);
 		// this.logListeners.length = 0;
 		this.stopTracePolling();
 
