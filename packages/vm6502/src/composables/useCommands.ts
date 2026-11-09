@@ -135,6 +135,11 @@ async function processMultilineSession(input: string) {
 	return result;
 }
 
+const isCommentOrBlank = (source: string) => {
+	const trimmed = source.trim();
+	return trimmed === "" || trimmed.startsWith(";");
+};
+
 export async function executeSubQueue(
 	subQueue: QueueItem[],
 	cmdParser: ExpressionParser,
@@ -147,6 +152,8 @@ export async function executeSubQueue(
 		while (subQueue.length > 0) {
 			const item = subQueue.shift()!;
 			if (item.type === "marker") continue;
+			// Routine lines come unfiltered (see expandRoutineLines): nothing to run on a comment or a blank line
+			if (isCommentOrBlank(item.source)) continue;
 
 			if (!item.tokens) {
 				const parser = new ExpressionParser(item.source, vm);
