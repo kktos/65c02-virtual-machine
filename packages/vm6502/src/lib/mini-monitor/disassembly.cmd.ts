@@ -32,5 +32,5 @@ export async function runDisassembly(start: number, end: number | undefined, vm:
 		asMarkdown: true,
 	});
 	const lastLine = lines.at(-1)!;
-	return { content: output, endAddr: lastLine.addr + lastLine.bytes.split(" ").length };
+	return { content: output, endAddr: lastLine.addr + lastLine.size };
 }

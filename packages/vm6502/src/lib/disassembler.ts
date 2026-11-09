@@ -118,6 +118,7 @@ function handleDataRegion(
 		opr: "",
 		oprn: 0,
 		bytes: rawBytesStr,
+		size: byteCount,
 
 		info: "",
 		comment,
@@ -215,6 +216,7 @@ export async function disassemble(ctx: DisassembleContext) {
 				opr: "",
 				oprn: 0,
 				bytes: toHex(opcodeByte, 2),
+				size: 1,
 
 				info: "",
 				comment: "",
@@ -240,6 +242,7 @@ export async function disassemble(ctx: DisassembleContext) {
 			oprn: 0,
 
 			bytes: "",
+			size: bytes,
 			info: "",
 			comment,
 			blockComment,
@@ -447,9 +450,7 @@ export async function disassembleRange(ctx: DisassembleRangeContext) {
 		for (const line of chunk) {
 			if (line.addr > end) break;
 			lines.push(line);
-			// Calculate next address based on byte count
-			const byteCount = line.bytes.trim().split(" ").length;
-			currentAddr = line.addr + byteCount;
+			currentAddr = line.addr + line.size;
 		}
 		// If the chunk didn't advance us (shouldn't happen), break to avoid infinite loop
 		if (chunk[0]?.addr === currentAddr) break;

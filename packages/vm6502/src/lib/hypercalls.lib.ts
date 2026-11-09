@@ -180,6 +180,7 @@ export function runHypercall(readByte: ReadByte, pc: number): { line: Disassembl
 		addr: pc,
 		opc: `!!${HYPERCALL_NAMES[call.cmd]}`,
 		bytes: raw.join(" ") + (call.length > 8 ? " ..." : ""),
+		size: call.length,
 		cycles: 7,
 		opr: call.stop ? "STOP" : "",
 		oprn: 0,

@@ -19,7 +19,10 @@ export interface DisassemblyLine {
 	opr: string;
 	oprn: number;
 	cycles: number;
+	/** display only: may be shortened ("...") for data blocks and long hypercalls */
 	bytes: string;
+	/** number of bytes the line covers: the next line starts at addr + size */
+	size: number;
 
 	info: string;
 	comment: string;

@@ -37,7 +37,9 @@ Noticed while porting Karateka to a .po (its loader disassembled in the debugger
 
 ### 2026-03-23
 
-- command `d` has a problem with range and data (pc is not updated ?); like `d $6300:$63ff` with `6300: .db <256>`
+- **FIXED** command `d` has a problem with range and data (pc is not updated ?); like `d $6300:$63ff` with `6300: .db <256>`:
+  the range resumed at `addr + <count of displayed bytes>`, shortened to `...` for data blocks (and long hypercalls),
+  so it went on 1 byte after the `.db` and decoded the data as code. Lines now carry their `size`
 
 ### 2026
 
