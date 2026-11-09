@@ -20,6 +20,7 @@ function parseSingleOrRest(raw: string): SingleParamDef | RestParamDef {
 		"regex",
 		"name",
 		"rest",
+		"raw",
 	]);
 
 	const { type, qty } = parseQuantifier(raw);
@@ -42,7 +43,7 @@ function parseParamDef(token: string): ParamDef {
 	// choice — must not contain "rest"
 	const choices = parts.map((p) => {
 		const parsed = parseSingleOrRest(p);
-		if (parsed.type === "rest") throw new Error(`"rest" cannot appear in a choice`);
+		if (parsed.type === "rest" || parsed.type === "raw") throw new Error(`"${parsed.type}" cannot appear in a choice`);
 		return parsed as SingleParamDef;
 	});
 
@@ -56,6 +57,9 @@ export function parseParamList(tokens: string[]): ParamDefList {
 	const restIndex = result.findIndex((p) => "type" in p && p.type === "rest");
 	if (restIndex !== -1 && restIndex !== result.length - 1)
 		throw new Error(`"rest" must be the last parameter (found at index ${restIndex})`);
+	const rawIndex = result.findIndex((p) => "type" in p && p.type === "raw");
+	if (rawIndex !== -1 && rawIndex !== result.length - 1)
+		throw new Error(`"raw" must be the last parameter (found at index ${rawIndex})`);
 
 	return result as ParamDefList;
 }

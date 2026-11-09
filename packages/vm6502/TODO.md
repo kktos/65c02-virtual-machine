@@ -25,7 +25,7 @@ Noticed while porting Karateka to a .po (its loader disassembled in the debugger
 - let's have a BP on ACCESS HIRES that triggers Game Scan to identify the game that's running
 - **DONE** need to be triggered once; hence the need to desactivate a BP: `ON <type> <address> once do "..."`
 - **DONE** same apply for a HOOK (ON) -> OFF ?: `OFF <type> <address>` turns it off, `ON <type> <address>` back on
-- ON PC = $300 do nop
+- **DONE** ON PC = $300 do nop: unquoted, `do` takes one command, up to `;` or `|>`; several commands go quoted, or in a routine (`do &routine`)
 - ON ACCESS $C057 do "&identifyGame |> &applyPatch; run"
 
 ### 2026-03-31

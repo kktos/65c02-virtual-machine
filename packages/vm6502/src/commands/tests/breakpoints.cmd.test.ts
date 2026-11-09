@@ -217,4 +217,38 @@ describe("through the command parser", () => {
 		});
 		await expect(run("on pc $300 once nop")).rejects.toThrow("Expected `do`, got 'nop'");
 	});
+
+	it("ON ... do takes one command unquoted, as typed; `;` and `|>` end it, as anywhere else", async () => {
+		const command = () => useBreakpoints().getBreakpoint({ type: "pc", address: 0x300 })?.command;
+
+		expect(await run("on pc $300 do nop")).toBe("Hook set on PC @ $00:0300");
+		expect(command()).toBe("nop;run");
+		await run("on pc $300 once do a=$10");
+		expect(command()).toBe("a=$10;run");
+		await run('on pc $300 DO print "a;b" --x');
+		expect(command()).toBe('print "a;b" --x;run');
+		await run("on pc $300 do &fix");
+		expect(command()).toBe("&fix;run");
+
+		// `bp $400` is not the hook's: it runs now.
+		expect(await run("on pc $300 do print 1; bp $400")).toBe(
+			"Hook set on PC @ $00:0300\nBreakpoint (pc) at $00:0400 added",
+		);
+		expect(command()).toBe("print 1;run");
+		await run("on pc $300 do regs |> nop");
+		expect(command()).toBe("regs;run");
+
+		// Several commands: quoted, in either quotes.
+		await run(`on pc $300 do 'print "x"; regs'`);
+		expect(command()).toBe('print "x"; regs;run');
+	});
+
+	it("ON ... do wants a command: a routine is run with &", async () => {
+		await expect(run("on pc $300 do myRoutine")).rejects.toThrow(
+			"Unknown command 'myRoutine' (a routine is run with &myRoutine)",
+		);
+		await expect(run('on pc $300 do "regs" "cls"')).rejects.toThrow(
+			`Nothing expected after the quoted command, got '"cls"'`,
+		);
+	});
 });

@@ -106,6 +106,8 @@ type TokenizeFn = (input: string) => Token[];
 export class ExpressionParser {
 	private tokenizeFn: TokenizeFn = defaultTokenizer;
 	private tokens: Token[] = [];
+	// The text the tokens come from, for rawRest(): their start/end index it.
+	private source: string;
 	public pos = 0;
 
 	private vm: VirtualMachine;
@@ -113,6 +115,7 @@ export class ExpressionParser {
 
 	constructor(input: string, vm: VirtualMachine, tokenizeFn?: TokenizeFn) {
 		this.vm = vm;
+		this.source = input;
 
 		if (tokenizeFn) this.tokenizeFn = tokenizeFn;
 		this.tokens = this.tokenizeFn(input);
@@ -121,9 +124,19 @@ export class ExpressionParser {
 		this.resolveSymbol = getAddressForLabel;
 	}
 
-	public reset(tokens?: Token[]) {
+	/** `source` is the text `tokens` were cut from, when they come from another parser. */
+	public reset(tokens?: Token[], source?: string) {
 		this.pos = 0;
 		if (tokens) this.tokens = tokens;
+		if (source !== undefined) this.source = source;
+	}
+
+	/** Consumes the remaining tokens and returns their text as typed, or undefined when there are none. */
+	public rawRest(): string | undefined {
+		const rest = this.tokens.slice(this.pos).filter((t) => t.type !== TokenType.EOF);
+		if (rest.length === 0) return undefined;
+		this.pos = this.tokens.length;
+		return this.source.slice(rest[0].start, rest[rest.length - 1].end);
 	}
 
 	public getTokens(from: number = 0): Token[] {

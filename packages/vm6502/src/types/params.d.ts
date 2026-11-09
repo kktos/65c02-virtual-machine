@@ -9,7 +9,9 @@ type ParamType =
 	| "bool"
 	| "regex"
 	| "name"
-	| "rest";
+	| "rest"
+	// The remaining tokens as typed, options included: for a command given as a parameter. Last, never in a choice.
+	| "raw";
 
 type Quantifier = "1" | "?" | "*" | "+";
 
