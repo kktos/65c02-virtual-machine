@@ -41,24 +41,18 @@ export async function handleDoCommand(
 	item.injectedPipe = undefined;
 }
 
+/**
+ * Comments and blank lines are kept: the executor skips them, but a multi-line command
+ * of the routine (e.g. a nested `routine ... end`) reads them as part of its body.
+ */
 function expandRoutineLines(routine: Routine, args: string[]) {
-	const expandedLines: QueueItem[] = [];
-
-	routine.lines
-		.filter((line) => !line.trim().startsWith(";") && line.trim() !== "")
-		.forEach((line) => {
-			let processed = line;
-			routine.args.forEach((argName, index) => {
-				processed = processed.replaceAll(`@${argName}`, args[index]);
-			});
-
-			expandedLines.push({
-				type: "line",
-				source: processed,
-			});
+	return routine.lines.map((line): QueueItem => {
+		let processed = line;
+		routine.args.forEach((argName, index) => {
+			processed = processed.replaceAll(`@${argName}`, args[index]);
 		});
-
-	return expandedLines;
+		return { type: "line", source: processed };
+	});
 }
 
 function parseRoutineArgs(cmdParser: ExpressionParser, pipeValue: unknown) {

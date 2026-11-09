@@ -17,7 +17,8 @@ export const formatsCmd = defineCommand({
 			prompt: `FORMATS ${group}|`,
 			terminator: "END_FORMATS",
 			onLine: async (line: string, lineIndex: number) => {
-				if (!line.trim()) return;
+				const trimmed = line.trim();
+				if (!trimmed || trimmed.startsWith(";")) return;
 
 				const parsed = parseFormatsLine(line);
 				if (typeof parsed === "string") return { error: `FORMATS: ${parsed} on line ${lineIndex}` };
