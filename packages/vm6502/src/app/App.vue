@@ -7,16 +7,10 @@
 		<SymbolManager @goto-address="gotoDisassembly" />
 		<FormattingManager @goto-address="gotoDisassembly" />
 	</template>
-	<ResizablePanelGroup
-		v-if="vm"
-		direction="horizontal"
-		class="h-screen bg-gray-900 text-white"
-		auto-save-id="appPanelLayout"
-	>
-		<ResizablePanel
-			class="flex flex-col bg-white bg-[conic-gradient(#000_0_25%,#333_0_50%,#000_0_75%,#333_0_100%)] [background-size:1rem_1rem] relative"
-		>
-			<!-- Toolbar: its width drives the @container breakpoints used inside the controls -->
+	<CmdConsole />
+	<AppLayout v-if="vm" class="bg-gray-900 text-white" :aspect="vm.videoAspect.value">
+		<!-- Toolbar: its width drives the @container breakpoints used inside the controls -->
+		<template #video-header>
 			<div class="@container flex flex-wrap items-center gap-1 p-1 bg-gray-800 border-b border-gray-700">
 				<MachineSelector
 					class="flex-1 basis-0 min-w-17"
@@ -36,63 +30,60 @@
 				<div class="hidden @[26rem]:block toolbar-sep"></div>
 				<SpeedControl />
 			</div>
-			<canvas ref="videoCanvas" class="border" style="image-rendering: pixelated"></canvas>
-			<CmdConsole />
-		</ResizablePanel>
+		</template>
 
-		<ResizableHandle />
+		<template #video>
+			<!-- VideoOutput sizes it to 100% x 100%, aspect ratio kept (object-fit) -->
+			<canvas ref="videoCanvas" class="absolute inset-0"></canvas>
+		</template>
 
-		<ResizablePanel>
-			<ResizablePanelGroup direction="vertical" auto-save-id="debuggerPanelLayout">
-				<ResizablePanel :default-size="41" class="grid grid-rows-[auto_1fr]" @resize="dbgTopPanelResize">
-					<DebuggerControls :isRunning="isRunning" />
+		<template #state>
+			<div class="grid h-full grid-rows-[auto_1fr]">
+				<DebuggerControls :isRunning="isRunning" />
 
-					<!--
-						The panel width drives the layout (container query):
-						- narrow: CPU strip (registers + flags) across the top, Stack | Trace below
-						- wide (>= 54rem): 3 columns, CPU stacked vertically | Stack | Trace
-						Breakpoints live in a drawer opened from the debugger toolbar.
-					-->
-					<div class="@container min-h-0 p-2">
+				<!--
+					The panel width drives the layout (container query):
+					- narrow: CPU strip (registers + flags) across the top, Stack | Trace below
+					- wide (>= 54rem): 3 columns, CPU stacked vertically | Stack | Trace
+					Breakpoints live in a drawer opened from the debugger toolbar.
+				-->
+				<div class="@container min-h-0 p-2">
+					<div
+						class="grid h-full gap-2 grid-cols-[16rem_minmax(0,1fr)] grid-rows-[auto_minmax(0,1fr)] [grid-template-areas:'cpu_cpu'_'stack_trace'] @[54rem]:grid-cols-[minmax(13rem,300px)_16rem_minmax(0,1fr)] @[54rem]:grid-rows-[minmax(0,1fr)] @[54rem]:[grid-template-areas:'cpu_stack_trace']"
+					>
+						<!-- Registers and flags: side by side (wrapping) when narrow, stacked when wide -->
 						<div
-							class="grid h-full gap-2 grid-cols-[16rem_minmax(0,1fr)] grid-rows-[auto_minmax(0,1fr)] [grid-template-areas:'cpu_cpu'_'stack_trace'] @[54rem]:grid-cols-[minmax(13rem,300px)_16rem_minmax(0,1fr)] @[54rem]:grid-rows-[minmax(0,1fr)] @[54rem]:[grid-template-areas:'cpu_stack_trace']"
+							class="[grid-area:cpu] flex flex-wrap gap-2 min-w-0 @[54rem]:flex-col @[54rem]:flex-nowrap"
 						>
-							<!-- Registers and flags: side by side (wrapping) when narrow, stacked when wide -->
-							<div
-								class="[grid-area:cpu] flex flex-wrap gap-2 min-w-0 @[54rem]:flex-col @[54rem]:flex-nowrap"
-							>
-								<RegistersView
-									class="flex-[1_1_15rem] min-w-0 @[54rem]:flex-none"
-									:registers="registers"
-									:virtual-registers="virtualRegisters"
-								/>
-								<StatusFlagsView class="shrink-0" :registers="registers" />
-							</div>
-
-							<StackView class="[grid-area:stack] min-h-0" :registers="registers" />
-
-							<TraceView class="[grid-area:trace] min-h-0 min-w-0" />
+							<RegistersView
+								class="flex-[1_1_15rem] min-w-0 @[54rem]:flex-none"
+								:registers="registers"
+								:virtual-registers="virtualRegisters"
+							/>
+							<StatusFlagsView class="shrink-0" :registers="registers" />
 						</div>
+
+						<StackView class="[grid-area:stack] min-h-0" :registers="registers" />
+
+						<TraceView class="[grid-area:trace] min-h-0 min-w-0" />
 					</div>
-				</ResizablePanel>
+				</div>
+			</div>
+		</template>
 
-				<ResizableHandle />
-
-				<ResizablePanel>
-					<TogglableDisplay id="disasm-mem-view" v-model:activeTab="debuggerTab">
-						<template #tab1-title> Disassembly </template>
-						<template #tab2-title> Memory Viewer </template>
-						<template #tab1-content>
-							<DisassemblyView :address="registers.PC" :memory="vm.sharedMemory" :registers="registers" />
-						</template>
-						<template #tab2-content>
-							<MultiMemoryViewer />
-						</template>
-					</TogglableDisplay>
-				</ResizablePanel>
-			</ResizablePanelGroup>
-		</ResizablePanel>
-	</ResizablePanelGroup>
+		<template #code>
+			<TogglableDisplay id="disasm-mem-view" v-model:activeTab="debuggerTab">
+				<template #tab1-title> Disassembly </template>
+				<template #tab2-title> Memory Viewer </template>
+				<template #tab1-content>
+					<DisassemblyView :address="registers.PC" :memory="vm.sharedMemory" :registers="registers" />
+				</template>
+				<template #tab2-content>
+					<MultiMemoryViewer />
+				</template>
+			</TogglableDisplay>
+		</template>
+	</AppLayout>
 </template>
 
 <script setup lang="ts">
@@ -101,9 +92,7 @@ import { Toaster } from "vue-sonner";
 import "vue-sonner/style.css";
 import TogglableDisplay from "../components/TogglableDisplay.vue";
 import { useMachine } from "../composables/useMachine";
-import ResizableHandle from "../components/ui/resizable/ResizableHandle.vue";
-import ResizablePanel from "../components/ui/resizable/ResizablePanel.vue";
-import ResizablePanelGroup from "../components/ui/resizable/ResizablePanelGroup.vue";
+import AppLayout from "./layout/AppLayout.vue";
 import { useDebuggerNav } from "../composables/useDebuggerNav";
 import { availableMachines } from "../machines";
 import type { MachineConfig } from "../types/machine.interface";
@@ -129,10 +118,6 @@ import RoutineEditor from "@/app/debugger/RoutineEditor.vue";
 import FormattingManager from "@/app/debugger/FormattingManager/FormattingManager.vue";
 import SymbolManager from "@/app/debugger/SymbolManager/SymbolManager.vue";
 import { useDisassembly } from "@/composables/useDisassembly";
-
-const dbgTopPanelResize = (_size: unknown) => {
-	// console.log('dbgTopPanelResize resized', size);
-};
 
 const { vm, registers, selectedMachine, isRunning, videoCanvas, loadMachine, virtualRegisters } = useMachine();
 const { showConsole } = useCmdConsole();
@@ -174,7 +159,7 @@ onMounted(() => {
 	loadMachine(selectedMachine.value);
 });
 
-// Wait for the canvas to be mounted by the ResizablePanel before setting it on the VM
+// Wait for the canvas to be mounted by the AppLayout before setting it on the VM
 watch(
 	videoCanvas,
 	(newCanvasEl) => {

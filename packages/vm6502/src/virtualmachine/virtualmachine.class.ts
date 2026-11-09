@@ -89,6 +89,8 @@ export class VirtualMachine {
 
 	public isTraceEnabled = false;
 	public traceOverflow = ref(false);
+	/** Width / height of the displayed frame (the view rect): the app layout sizes the video area from it */
+	public videoAspect = ref(4 / 3);
 	private lastTraceHead = "";
 	private tracePollInterval: number | undefined;
 
@@ -102,6 +104,7 @@ export class VirtualMachine {
 
 	constructor(machineConfig: MachineConfig) {
 		this.machineConfig = machineConfig;
+		if (machineConfig.video) this.videoAspect.value = machineConfig.video.width / machineConfig.video.height;
 
 		const { addRegion, clearRegions } = useMemoryMap();
 		clearRegions();
@@ -166,6 +169,8 @@ export class VirtualMachine {
 					} else if (command === "setViewRect") {
 						this.viewRect = event.data.rect;
 						this.videoOutput?.setViewRect(event.data.rect);
+						const { width, height } = event.data.rect;
+						if (width > 0 && height > 0) this.videoAspect.value = width / height;
 					} else {
 						this.onmessage?.(event);
 					}
