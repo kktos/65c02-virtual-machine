@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { HGR_HEIGHT, HGR_WIDTH, hgrLineOffset, renderHgr } from "@/lib/disk/hgrImage";
+import { HGR_HEIGHT, HGR_WIDTH, hgrLineOffset, renderHgr, renderHgrRows } from "@/lib/disk/hgrImage";
 import { HGR_COLORS } from "@/machines/apple2/video/hgr";
 
 const pixel = (rgba: Uint8ClampedArray, x: number, y: number) =>
@@ -59,5 +59,31 @@ describe("renderHgr", () => {
 		const rgba = renderHgr(page(0, 0, [0x81]), "mono");
 		expect(pixel(rgba, 0, 0)).toEqual(WHITE);
 		expect(pixel(rgba, 1, 0)).toEqual(BLACK);
+	});
+});
+
+describe("renderHgrRows", () => {
+	const at = (r: { rgba: Uint8ClampedArray; width: number }, x: number, y: number) =>
+		Array.from(r.rgba.subarray((y * r.width + x) * 4, (y * r.width + x) * 4 + 4));
+
+	it("lays the bytes out as rows of `columns` bytes, one after the other", () => {
+		// 2 bytes wide: row 0 = $01 $00 (dot 0), row 1 = $00 $40 (dot 13), row 2 = $03 (dots 0-1) and a missing byte
+		const sprite = renderHgrRows(new Uint8Array([0x01, 0x00, 0x00, 0x40, 0x03]), 2);
+		expect([sprite.width, sprite.height]).toEqual([14, 3]);
+		expect(at(sprite, 0, 0)).toEqual(VIOLET);
+		expect(at(sprite, 13, 1)).toEqual(GREEN);
+		expect(at(sprite, 0, 2)).toEqual(WHITE);
+		expect(at(sprite, 13, 2)).toEqual(BLACK);
+	});
+
+	it("skips bytes before the first row", () => {
+		const sprite = renderHgrRows(new Uint8Array([0xff, 0xff, 0x01]), 1, "mono", 2);
+		expect([sprite.width, sprite.height]).toEqual([7, 1]);
+		expect(at(sprite, 0, 0)).toEqual(WHITE);
+		expect(at(sprite, 1, 0)).toEqual(BLACK);
+	});
+
+	it("nothing left: no rows", () => {
+		expect(renderHgrRows(new Uint8Array(2), 3, "color", 2).height).toBe(0);
 	});
 });
