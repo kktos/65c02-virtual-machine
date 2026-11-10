@@ -63,6 +63,14 @@
 						</div>
 						<button
 							v-if="inserted"
+							@click="handleLookInside(inserted.key)"
+							class="icon-btn shrink-0"
+							title="Look inside (Disk Editor)"
+						>
+							<ScanSearch class="h-4 w-4" />
+						</button>
+						<button
+							v-if="inserted"
 							@click="handleEject"
 							class="shrink-0 flex items-center gap-1 px-2 py-1 text-xs text-gray-300 hover:text-cyan-300 hover:bg-gray-800 rounded border border-gray-700 transition-colors"
 							title="Eject the disk (the machine then starts with an empty drive)"
@@ -168,6 +176,13 @@
 										</button>
 									</template>
 									<template v-else>
+										<button
+											@click.stop="handleLookInside(disk.key)"
+											class="icon-btn"
+											title="Look inside (Disk Editor)"
+										>
+											<ScanSearch class="h-4 w-4" />
+										</button>
 										<button @click.stop="startRename(disk)" class="icon-btn" title="Rename">
 											<Pencil class="h-4 w-4" />
 										</button>
@@ -246,6 +261,7 @@ import {
 	Loader2,
 	Pencil,
 	Save,
+	ScanSearch,
 	Trash2,
 	X,
 } from "lucide-vue-next";
@@ -255,6 +271,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { type StoredDisk, useDiskStorage } from "@/composables/useDiskStorage";
 import { DISK_EXTENSIONS, useDiskDrive } from "@/composables/useDiskDrive";
+import { useDiskEditor } from "@/composables/useDiskEditor";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import DiskDriveLogs from "./DiskDriveLogs.vue";
 
@@ -422,6 +439,13 @@ const handleDelete = async (key: IDBValidKey) => {
 	pendingDeleteKey.value = null;
 	await deleteDisk(key);
 	await refreshLibrary();
+};
+
+const { openDisk } = useDiskEditor();
+/** The disk editor: the disk's catalog / sectors, without booting it */
+const handleLookInside = (key: IDBValidKey) => {
+	isLibraryOpen.value = false;
+	openDisk(key);
 };
 
 const openLogs = () => {

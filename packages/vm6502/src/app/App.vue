@@ -2,6 +2,7 @@
 	<Toaster rich-colors position="top-right" />
 	<LogWindow v-for="win in logWindows.values()" :key="win.id" :window-state="win" />
 	<RoutineEditor />
+	<DiskEditor />
 	<!-- Mounted here, not in the disassembly view: they must stay open when switching to the memory viewer tab -->
 	<template v-if="vm">
 		<SymbolManager @goto-address="gotoDisassembly" />
@@ -115,6 +116,7 @@ import { useCmdConsole } from "@/composables/useCmdConsole";
 import { useLogWindows } from "@/composables/useLogWindows";
 import LogWindow from "@/components/LogWindow.vue";
 import RoutineEditor from "@/app/debugger/RoutineEditor.vue";
+import DiskEditor from "@/app/diskeditor/DiskEditor.vue";
 import FormattingManager from "@/app/debugger/FormattingManager/FormattingManager.vue";
 import SymbolManager from "@/app/debugger/SymbolManager/SymbolManager.vue";
 import { useDisassembly } from "@/composables/useDisassembly";

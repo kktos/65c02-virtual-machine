@@ -2,13 +2,16 @@
 
 ### 2026-11-09
 
-- disk editor: a floating window (`useFloatingWindows.ts`) to look inside a disk image from the library
+- **DONE** disk editor: a floating window (`useFloatingWindows.ts`) to look inside a disk image from the library
   (`DiskDriveControl.vue` / `useDiskDrive.ts`), without booting it. The view depends on the disk's format:
   - DOS 3.3 with a catalog: VTOC, catalog, files (T/S lists), open a file's sectors
   - DOS 3.3 without a catalog (custom DOS, games): raw tracks / sectors (35 x 16 x 256)
   - ProDOS: volume directory, subdirectories, files (seedling / sapling / tree), raw blocks (512 bytes)
   - hex + ASCII dump (high-bit ASCII), track / sector or block navigation, the sector ordering (.dsk / .do / .po)
-  - later: disassemble a sector / block at an address, edit bytes and save the image
+  - `DiskEditor.vue` (`app/diskeditor/`), opened from a library disk's "look inside" button or `show disk_editor`;
+    parsing in `lib/disk/` (sector order detected, a .2mg header's taken; VTOC / bitmap maps show what holds each
+    sector / block)
+- disk editor, later: disassemble a sector / block at an address, edit bytes and save the image
 
 Noticed while adding Karateka's upside-down mode (a key held at boot):
 
