@@ -118,6 +118,27 @@ describe("useDiskDrive", () => {
 		expect(storage.get("vm6502_active_disk_url")).toBe("https://example.com/disks/game.po?x=1");
 	});
 
+	it("URL disk: its name is unescaped (%20 → space)", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async () => ({ ok: true, arrayBuffer: async () => bytes(16), statusText: "" })),
+		);
+		const url = "https://example.com/Apple%20DOS%203.3%20January%201983.dsk";
+		await drive.insertUrl(asVm, url);
+
+		expect(library.get(url)).toMatchObject({ type: "url", name: "Apple DOS 3.3 January 1983.dsk" });
+		expect(drive.inserted.value).toMatchObject({ key: url, name: "Apple DOS 3.3 January 1983.dsk" });
+	});
+
+	it("URL disk: a malformed escape keeps the name as written", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async () => ({ ok: true, arrayBuffer: async () => bytes(16), statusText: "" })),
+		);
+		await drive.insertUrl(asVm, "https://example.com/100%.dsk");
+		expect(drive.inserted.value).toMatchObject({ name: "100%.dsk" });
+	});
+
 	it("unknown library disk: error, drive unchanged", async () => {
 		await expect(drive.insertFromLibrary(asVm, "nope")).rejects.toThrow(/No disk 'nope'/);
 		expect(vm.insertDisk).not.toHaveBeenCalled();
