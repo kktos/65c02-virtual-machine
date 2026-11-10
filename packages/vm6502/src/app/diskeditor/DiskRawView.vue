@@ -70,6 +70,7 @@
 					<ChevronRight class="h-3.5 w-3.5" />
 				</button>
 			</template>
+			<DiskViewerSwitch class="ml-auto" />
 		</div>
 
 		<!-- Where it is, what it belongs to -->
@@ -95,7 +96,14 @@
 		</div>
 
 		<div class="flex-1 min-h-0 overflow-auto py-1">
-			<DiskHexDump :bytes="bytes" :label-width="view.kind === 'sector' ? 2 : 3" />
+			<template v-if="viewer === 'hgr'">
+				<p class="px-3 text-[11px] text-gray-500">
+					8K from here: {{ view.kind === "sector" ? "32 sectors (2 tracks)" : "16 blocks" }}, Page Up / Down
+					to move it
+				</p>
+				<DiskHgrView :bytes="pictureBytes" sticky />
+			</template>
+			<DiskHexDump v-else :bytes="bytes" :label-width="view.kind === 'sector' ? 2 : 3" />
 		</div>
 	</div>
 </template>
@@ -104,12 +112,15 @@
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-vue-next";
 import { computed } from "vue";
 import { useDiskEditor } from "@/composables/useDiskEditor";
-import { BLOCK_SIZE, type DiskImage, SECTORS_PER_TRACK, TRACKS } from "@/lib/disk/diskImage";
+import { BLOCK_SIZE, type DiskImage, SECTOR_SIZE, SECTORS_PER_TRACK, TRACKS } from "@/lib/disk/diskImage";
+import { HGR_SIZE } from "@/lib/disk/hgrImage";
 import { toHex } from "@/lib/hex.utils";
 import DiskHexDump from "./DiskHexDump.vue";
+import DiskHgrView from "./DiskHgrView.vue";
+import DiskViewerSwitch from "./DiskViewerSwitch.vue";
 
 const props = defineProps<{ image: DiskImage; hasFileSystem: boolean }>();
-const { view, ownerOfSector, ownerOfBlock } = useDiskEditor();
+const { view, viewer, ownerOfSector, ownerOfBlock } = useDiskEditor();
 
 const sectorCount = TRACKS * SECTORS_PER_TRACK;
 
@@ -118,6 +129,28 @@ const bytes = computed(() => {
 	if (v.kind === "sector") return props.image.readSector(v.track, v.sector);
 	if (v.kind === "block") return props.image.readBlock(v.block);
 	return new Uint8Array();
+});
+
+/** The HGR viewer: 8K from the sector / block shown, in track / sector or block order (up to the disk's end) */
+const pictureBytes = computed(() => {
+	const v = view.value;
+	const out = new Uint8Array(HGR_SIZE);
+	if (v.kind === "sector") {
+		const first = v.track * SECTORS_PER_TRACK + v.sector;
+		const count = Math.min(HGR_SIZE / SECTOR_SIZE, sectorCount - first);
+		for (let i = 0; i < count; i++) {
+			const index = first + i;
+			const sector = props.image.readSector(Math.floor(index / SECTORS_PER_TRACK), index % SECTORS_PER_TRACK);
+			out.set(sector, i * SECTOR_SIZE);
+		}
+		return out.subarray(0, count * SECTOR_SIZE);
+	}
+	if (v.kind === "block") {
+		const count = Math.min(HGR_SIZE / BLOCK_SIZE, props.image.blockCount - v.block);
+		for (let i = 0; i < count; i++) out.set(props.image.readBlock(v.block + i), i * BLOCK_SIZE);
+		return out.subarray(0, count * BLOCK_SIZE);
+	}
+	return out.subarray(0, 0);
 });
 
 const offset = computed(() => {

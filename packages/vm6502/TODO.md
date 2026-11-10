@@ -11,7 +11,14 @@
   - `DiskEditor.vue` (`app/diskeditor/`), opened from a library disk's "look inside" button or `show disk_editor`;
     parsing in `lib/disk/` (sector order detected, a .2mg header's taken; VTOC / bitmap maps show what holds each
     sector / block)
-- disk editor, later: disassemble a sector / block at an address, edit bytes and save the image
+- **DONE** disk editor, viewers: the bytes of a file / sector / block shown as a hex dump (default) or an HGR
+  picture (`DiskViewerSwitch.vue`, `DiskHgrView.vue`, rendering in `lib/disk/hgrImage.ts`): color or mono; a file
+  as loaded, raw sectors / blocks 8K from the one shown (Page Up / Down to align a picture)
+- **DONE** HGR viewer, RLE-packed pictures (`$FE` runs, Conan's `unpack.asm`): `lib/disk/hgrRle.ts` detects the
+  variant (`FE value count` / `FE count value`, by columns / by lines) and the height (183 for Conan's backgrounds);
+  unpacked on its own when shorter than a screen, or set by hand. Line by line, the height isn't detected (what
+  follows the picture shows below it). A picture inside a file (WELCOME.DATA's second one) isn't looked for
+- disk editor, later: a disassembler viewer (at the load address), edit bytes and save the image
 
 Noticed while adding Karateka's upside-down mode (a key held at boot):
 
