@@ -101,7 +101,7 @@
 					8K from here: {{ view.kind === "sector" ? "32 sectors (2 tracks)" : "16 blocks" }}, Page Up / Down
 					to move it
 				</p>
-				<DiskHgrView :bytes="pictureBytes" />
+				<DiskHgrView :bytes="pictureBytes" sticky />
 			</template>
 			<DiskHexDump v-else :bytes="bytes" :label-width="view.kind === 'sector' ? 2 : 3" />
 		</div>
