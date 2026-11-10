@@ -138,6 +138,13 @@ type DisassembleContext = {
 	registers?: EmulatorRegisters;
 	pivotLineIndex?: number;
 	lowercase?: boolean;
+	/**
+	 * Bytes that aren't the memory at those addresses (a file on a disk): no data formats, comments or hypercalls,
+	 * which belong to the memory there.
+	 */
+	detached?: boolean;
+	/** false: no labels, `$hex` addresses only */
+	labels?: boolean;
 };
 
 /**
@@ -151,6 +158,7 @@ function symbolOperand(
 	indexed = false,
 ): { text: string; symbol?: SymbolEntry } {
 	const raw = `$${toHex(address, digits)}`;
+	if (ctx.labels === false) return { text: raw };
 	if (indexed && hasRangeFlag(address, "noindex", ctx.scope)) return { text: raw };
 	const match = findSymbolWithOffset(address, ctx.scope, digits === 2 ? 16 : 32);
 	if (!match) return { text: raw };
@@ -179,10 +187,10 @@ export async function disassemble(ctx: DisassembleContext) {
 			// await scheduler.yield();
 		}
 
-		const symbol = getSymbolForAddress(pc, ctx.scope);
+		const symbol = ctx.labels === false ? undefined : getSymbolForAddress(pc, ctx.scope);
 
 		// Check for Custom Formatting (Data Directives)
-		const format = getFormat(pc);
+		const format = ctx.detached ? undefined : getFormat(pc);
 		if (format) {
 			const byteCount = handleDataRegion(format, pc, disassembly, ctx.readByte, symbol, ctx.lowercase);
 			pc += byteCount;
@@ -192,7 +200,7 @@ export async function disassemble(ctx: DisassembleContext) {
 		const opcodeByte = ctx.readByte(pc);
 
 		// Check for Hypercalls
-		if (opcodeByte === 0x00) {
+		if (opcodeByte === 0x00 && !ctx.detached) {
 			const result = runHypercall(ctx.readByte, pc);
 			if (result.line) {
 				if (ctx.lowercase) result.line.opc = result.line.opc.toLowerCase();
@@ -229,7 +237,7 @@ export async function disassemble(ctx: DisassembleContext) {
 		}
 
 		const { name, bytes, cycles, mode } = opcodeInfo;
-		const [comment, blockComment] = getBothComments(pc);
+		const [comment, blockComment] = ctx.detached ? ["", ""] : getBothComments(pc);
 		const line: DisassemblyLine = {
 			label: symbol?.label ?? "",
 			src: symbol?.src ?? "",
@@ -321,7 +329,7 @@ export async function disassemble(ctx: DisassembleContext) {
 			case "REL": {
 				const offset = operandBytes[0] ?? 0;
 				effectiveAddress = pc + 2 + (offset < 0x80 ? offset : offset - 0x100);
-				const label = getLabelForAddress(effectiveAddress, ctx.scope);
+				const label = ctx.labels === false ? undefined : getLabelForAddress(effectiveAddress, ctx.scope);
 				line.opr = `${label ?? `$${toHex(effectiveAddress, 4)}`}`;
 				line.oprn = effectiveAddress;
 				if (!label) effectiveAddress = null;
@@ -420,10 +428,12 @@ export type DisassembleRangeContext = {
 	toAddress: number;
 	registers?: EmulatorRegisters;
 	lowercase?: boolean;
+	detached?: boolean;
+	labels?: boolean;
 };
 
 export async function disassembleRange(ctx: DisassembleRangeContext) {
-	const { readByte, scope, fromAddress, toAddress, registers, lowercase } = ctx;
+	const { readByte, scope, fromAddress, toAddress, registers, lowercase, detached, labels } = ctx;
 	const lines: DisassemblyLine[] = [];
 	const start = Math.min(fromAddress, toAddress);
 	const end = Math.max(fromAddress, toAddress);
@@ -444,6 +454,8 @@ export async function disassembleRange(ctx: DisassembleRangeContext) {
 			lineCount: 20,
 			registers,
 			lowercase,
+			detached,
+			labels,
 		});
 		if (!chunk || chunk.length === 0) break;
 

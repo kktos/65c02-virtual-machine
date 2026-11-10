@@ -23,11 +23,12 @@ export type DiskEditorView =
 	| { kind: "prodosFile"; path: string; entry: ProdosEntry };
 
 /** How the bytes of a file / sector / block are shown */
-export type DiskViewer = "hex" | "hgr";
+export type DiskViewer = "hex" | "hgr" | "disasm";
 
 export const DISK_VIEWERS: { id: DiskViewer; label: string; title: string }[] = [
 	{ id: "hex", label: "Hex", title: "Hex + ASCII dump" },
 	{ id: "hgr", label: "HGR", title: "As an HGR picture (hi-res page, 8K)" },
+	{ id: "disasm", label: "Disasm", title: "65C02 disassembly, from the load address" },
 ];
 
 const source = shallowRef<{ key: IDBValidKey; name: string; path: string } | null>(null);
@@ -39,6 +40,7 @@ const error = ref<string | null>(null);
 /** The viewer picked: stays while moving around a disk, back to the hex dump for another disk */
 const viewer = ref<DiskViewer>("hex");
 const hgrMode = ref<HgrMode>("color");
+const disasmLabels = ref(true);
 /** ProDOS tree: the directories shown open, by path */
 const expanded = reactive(new Set<string>());
 
@@ -127,6 +129,7 @@ export function useDiskEditor() {
 		expanded,
 		viewer,
 		hgrMode,
+		disasmLabels,
 		orderOverride,
 		openDisk,
 		setOrder,

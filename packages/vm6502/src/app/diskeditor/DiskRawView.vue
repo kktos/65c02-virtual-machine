@@ -103,6 +103,12 @@
 				</p>
 				<DiskHgrView :bytes="pictureBytes" sticky />
 			</template>
+			<DiskDisasmView
+				v-else-if="viewer === 'disasm'"
+				:bytes="bytes"
+				:base="bootCode ? 0x800 : 0"
+				:skip="bootCode ? 1 : 0"
+			/>
 			<DiskHexDump v-else :bytes="bytes" :label-width="view.kind === 'sector' ? 2 : 3" />
 		</div>
 	</div>
@@ -115,6 +121,7 @@ import { useDiskEditor } from "@/composables/useDiskEditor";
 import { BLOCK_SIZE, type DiskImage, SECTOR_SIZE, SECTORS_PER_TRACK, TRACKS } from "@/lib/disk/diskImage";
 import { HGR_SIZE } from "@/lib/disk/hgrImage";
 import { toHex } from "@/lib/hex.utils";
+import DiskDisasmView from "./DiskDisasmView.vue";
 import DiskHexDump from "./DiskHexDump.vue";
 import DiskHgrView from "./DiskHgrView.vue";
 import DiskViewerSwitch from "./DiskViewerSwitch.vue";
@@ -129,6 +136,12 @@ const bytes = computed(() => {
 	if (v.kind === "sector") return props.image.readSector(v.track, v.sector);
 	if (v.kind === "block") return props.image.readBlock(v.block);
 	return new Uint8Array();
+});
+
+/** Track 0 sector 0 / block 0: the boot code, loaded at $0800 (its first byte: how many sectors to load) */
+const bootCode = computed(() => {
+	const v = view.value;
+	return (v.kind === "sector" && v.track === 0 && v.sector === 0) || (v.kind === "block" && v.block === 0);
 });
 
 /** The HGR viewer: 8K from the sector / block shown, in track / sector or block order (up to the disk's end) */
