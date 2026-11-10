@@ -22,6 +22,8 @@
   address (Org editable), labels on / off, jumps inside the bytes as links; boot sector / block 0 at $0800, code
   from $0801. The debugger's disassembler with `detached` (no data formats, comments, hypercalls: they belong to
   the memory at those addresses) and `labels: false`
+- **DONE** HGR viewer, sprites: a width in bytes (40, the default: the screen page, interleaved; less: rows one
+  after the other, as sprites are stored), bytes skipped before the first row, zoom x1-x8 (`renderHgrRows`)
 - disk editor, later: edit bytes and save the image
 
 Noticed while adding Karateka's upside-down mode (a key held at boot):
