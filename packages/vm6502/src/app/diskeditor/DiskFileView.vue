@@ -47,6 +47,7 @@
 		</div>
 		<div class="flex-1 min-h-0 overflow-auto py-1">
 			<DiskHgrView v-if="viewer === 'hgr'" :bytes="shown.bytes" />
+			<DiskDisasmView v-else-if="viewer === 'disasm'" :bytes="shown.bytes" :base="shown.base" />
 			<DiskHexDump v-else :bytes="shown.bytes" :base="shown.base" :label-width="shown.base ? 4 : 0" />
 		</div>
 	</div>
@@ -59,6 +60,7 @@ import type { TrackSector } from "@/lib/disk/diskImage";
 import { DOS33_TYPE_NAMES, readFile as readDosFile } from "@/lib/disk/dos33";
 import { fileTypeName, readFile as readProdosFile, STORAGE_TYPES } from "@/lib/disk/prodos";
 import { toHex } from "@/lib/hex.utils";
+import DiskDisasmView from "./DiskDisasmView.vue";
 import DiskHexDump from "./DiskHexDump.vue";
 import DiskHgrView from "./DiskHgrView.vue";
 import DiskViewerSwitch from "./DiskViewerSwitch.vue";

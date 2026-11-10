@@ -18,7 +18,11 @@
   variant (`FE value count` / `FE count value`, by columns / by lines) and the height (183 for Conan's backgrounds);
   unpacked on its own when shorter than a screen, or set by hand. Line by line, the height isn't detected (what
   follows the picture shows below it). A picture inside a file (WELCOME.DATA's second one) isn't looked for
-- disk editor, later: a disassembler viewer (at the load address), edit bytes and save the image
+- **DONE** disk editor, disassembler viewer (`DiskDisasmView.vue`, `lib/disk/disasmBytes.ts`): 65C02, from the load
+  address (Org editable), labels on / off, jumps inside the bytes as links; boot sector / block 0 at $0800, code
+  from $0801. The debugger's disassembler with `detached` (no data formats, comments, hypercalls: they belong to
+  the memory at those addresses) and `labels: false`
+- disk editor, later: edit bytes and save the image
 
 Noticed while adding Karateka's upside-down mode (a key held at boot):
 
