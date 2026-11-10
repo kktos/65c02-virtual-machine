@@ -34,6 +34,7 @@
 		</div>
 
 		<div class="flex items-center gap-3 px-3 py-1 border-b border-gray-800 text-gray-400">
+			<DiskViewerSwitch />
 			<span>{{ shown.bytes.length.toLocaleString() }} bytes</span>
 			<label v-if="file.loaded" class="flex items-center gap-1.5 cursor-pointer select-none">
 				<input
@@ -45,7 +46,8 @@
 			</label>
 		</div>
 		<div class="flex-1 min-h-0 overflow-auto py-1">
-			<DiskHexDump :bytes="shown.bytes" :base="shown.base" :label-width="shown.base ? 4 : 0" />
+			<DiskHgrView v-if="viewer === 'hgr'" :bytes="shown.bytes" />
+			<DiskHexDump v-else :bytes="shown.bytes" :base="shown.base" :label-width="shown.base ? 4 : 0" />
 		</div>
 	</div>
 </template>
@@ -58,12 +60,14 @@ import { DOS33_TYPE_NAMES, readFile as readDosFile } from "@/lib/disk/dos33";
 import { fileTypeName, readFile as readProdosFile, STORAGE_TYPES } from "@/lib/disk/prodos";
 import { toHex } from "@/lib/hex.utils";
 import DiskHexDump from "./DiskHexDump.vue";
+import DiskHgrView from "./DiskHgrView.vue";
+import DiskViewerSwitch from "./DiskViewerSwitch.vue";
 
 type Group = { label: string; cls: string; items: { label: string; view: DiskEditorView | null }[] };
 
 const MAX_CHIPS = 512;
 
-const { analysis, view } = useDiskEditor();
+const { analysis, view, viewer } = useDiskEditor();
 const asLoaded = ref(true);
 
 const ts = (t: TrackSector | null) =>

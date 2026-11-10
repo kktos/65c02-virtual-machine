@@ -11,7 +11,10 @@
   - `DiskEditor.vue` (`app/diskeditor/`), opened from a library disk's "look inside" button or `show disk_editor`;
     parsing in `lib/disk/` (sector order detected, a .2mg header's taken; VTOC / bitmap maps show what holds each
     sector / block)
-- disk editor, later: disassemble a sector / block at an address, edit bytes and save the image
+- **DONE** disk editor, viewers: the bytes of a file / sector / block shown as a hex dump (default) or an HGR
+  picture (`DiskViewerSwitch.vue`, `DiskHgrView.vue`, rendering in `lib/disk/hgrImage.ts`): color or mono; a file
+  as loaded, raw sectors / blocks 8K from the one shown (Page Up / Down to align a picture)
+- disk editor, later: a disassembler viewer (at the load address), edit bytes and save the image
 
 Noticed while adding Karateka's upside-down mode (a key held at boot):
 

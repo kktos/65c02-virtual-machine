@@ -7,6 +7,7 @@ import { useFloatingWindows } from "@/composables/useFloatingWindows";
 import { analyzeDisk } from "@/lib/disk/analyzeDisk";
 import { SECTORS_PER_TRACK, type SectorOrder } from "@/lib/disk/diskImage";
 import { sectorOwners } from "@/lib/disk/dos33";
+import type { HgrMode } from "@/lib/disk/hgrImage";
 import { blockOwners, type ProdosEntry, VOLUME_DIR_BLOCK } from "@/lib/disk/prodos";
 
 export const DISK_EDITOR_ID = "disk_editor";
@@ -21,12 +22,23 @@ export type DiskEditorView =
 	| { kind: "dir"; keyBlock: number; path: string }
 	| { kind: "prodosFile"; path: string; entry: ProdosEntry };
 
+/** How the bytes of a file / sector / block are shown */
+export type DiskViewer = "hex" | "hgr";
+
+export const DISK_VIEWERS: { id: DiskViewer; label: string; title: string }[] = [
+	{ id: "hex", label: "Hex", title: "Hex + ASCII dump" },
+	{ id: "hgr", label: "HGR", title: "As an HGR picture (hi-res page, 8K)" },
+];
+
 const source = shallowRef<{ key: IDBValidKey; name: string; path: string } | null>(null);
 const fileData = shallowRef<Uint8Array | null>(null);
 const orderOverride = ref<SectorOrder | null>(null);
 const view = ref<DiskEditorView>({ kind: "sector", track: 0, sector: 0 });
 const loading = ref(false);
 const error = ref<string | null>(null);
+/** The viewer picked: stays while moving around a disk, back to the hex dump for another disk */
+const viewer = ref<DiskViewer>("hex");
+const hgrMode = ref<HgrMode>("color");
 /** ProDOS tree: the directories shown open, by path */
 const expanded = reactive(new Set<string>());
 
@@ -96,6 +108,7 @@ const openDisk = async (key: IDBValidKey, show = true) => {
 		orderOverride.value = null;
 		expanded.clear();
 		view.value = homeView();
+		viewer.value = "hex";
 	} catch (e) {
 		console.error(e);
 		error.value = (e as Error)?.message || "Failed to load the disk";
@@ -112,6 +125,8 @@ export function useDiskEditor() {
 		loading,
 		error,
 		expanded,
+		viewer,
+		hgrMode,
 		orderOverride,
 		openDisk,
 		setOrder,
