@@ -41,9 +41,15 @@ const recalled = () => {
 	}
 };
 
-/** File name from a URL: last path segment, without the query. */
+/** File name from a URL: last path segment, without the query or fragment, percent-decoded ("%20" → " "). */
 const urlFileName = (url: string) => {
-	const name = url.split("/").pop()?.split("?")[0] ?? "";
+	const raw = url.split(/[?#]/)[0].split("/").pop() ?? "";
+	let name = raw;
+	try {
+		name = decodeURIComponent(raw);
+	} catch {
+		// malformed escape (a lone "%"): keep the name as written
+	}
 	if (!name.trim()) throw new Error("Invalid disk name");
 	return name;
 };
