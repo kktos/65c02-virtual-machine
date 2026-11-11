@@ -1,6 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { addBreakpoint, breakOnBrk, clearBreakpoints, setBreakOnBrk } from "../breakpoints";
-import { initCPU, isStoppedOnBrk, setClockSpeed, setHypercalls, setRunning, stepInstruction } from "../cpu.65c02";
+import {
+	initCPU,
+	isStoppedOnBrk,
+	setClockSpeed,
+	setHypercalls,
+	setRunning,
+	stepInstruction,
+	stepOutInstruction,
+} from "../cpu.65c02";
 import { REG_A_OFFSET, REG_PC_OFFSET, REG_SP_OFFSET, REG_STATUS_OFFSET } from "../shared-memory";
 import { createMockBus } from "./cpu-test-helpers";
 
@@ -99,6 +107,17 @@ describe("CPU 65C02 - BRK", () => {
 			stepInstruction();
 			expectRealBrk(0x300);
 			expect(isStoppedOnBrk()).toBe(false);
+		});
+
+		it("stepping out of the BRK it stopped on executes it, without stopping on it again", () => {
+			addBreakpoint("pc", 0xc000); // stop in the handler, to end the run
+			runFrom(0x300);
+			setRunning(false);
+			postMessage.mockClear();
+			expect(stepOutInstruction()).toBe(true);
+			expect(messages().some((m) => m.type === "break")).toBe(false);
+			expect(stop()).toEqual({ reason: "breakpoint", breakpointType: "pc", address: 0xc000 });
+			expectRealBrk(0x300);
 		});
 	});
 

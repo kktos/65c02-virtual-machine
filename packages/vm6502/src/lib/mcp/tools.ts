@@ -501,6 +501,7 @@ export const MCP_TOOLS: McpTool[] = [
 			"For breakpoints, prefer the set_breakpoint / remove_breakpoint / list_breakpoints tools (structured results). " +
 			"`brk on|off`: whether a BRK stops the machine (on by default, so a crash into zeroed memory stops " +
 			"there) or runs through the $FFFE vector like real hardware (e.g. into the Apple II monitor). " +
+			"`toasts`: lists the notifications on screen (a BRK stop's stays until closed), `toasts clear` closes them. " +
 			"Several lines can be sent at once (newline-separated); multi-line commands (`asm`, `routine`…) " +
 			"must include their lines and terminator in the same call. " +
 			"Waits for its turn if another command is running. " +

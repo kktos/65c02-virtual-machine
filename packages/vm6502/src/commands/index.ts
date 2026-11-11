@@ -51,6 +51,7 @@ import { disasmCmd } from "./disasm.cmd";
 import { disasmViewCmd } from "./disasmView.cmd";
 import { commentCmd } from "./comment.cmd";
 import { regsCmd } from "./regs.cmd";
+import { toastsCmd } from "./toasts.cmd";
 
 function d(g: string, d: string, p?: string[], ph?: string) {
 	return {
@@ -295,6 +296,7 @@ export const COMMANDDEF_LIST = {
 		},
 		group: "Console",
 	},
+	TOASTS: toastsCmd,
 
 	WRITE: writeCommand,
 	BUF: bufCmd,

@@ -279,7 +279,11 @@ export function stepOutInstruction(through = false) {
 
 	stepOutTargetSP = registersView.getUint8(REG_SP_OFFSET);
 	stepThrough = through;
-	skipBreakpointOnce(registersView.getUint16(REG_PC_OFFSET, true)); // started on a breakpoint: not stopped there
+	// Stopped on a BRK ("break on BRK") or by a read / write breakpoint: execute that instruction first, as `run`
+	// does, or the run would stop on it again at once (a second BRK stop for the same BRK). A BRK's handler
+	// returns with an RTI to this stack level, which doesn't end the step out: the routine's own RTS does.
+	if (isStoppedOnBrk() || isStoppedOnAccess()) stepInstruction();
+	else skipBreakpointOnce(registersView.getUint16(REG_PC_OFFSET, true)); // started on a breakpoint: not stopped there
 	setRunning(true);
 	return true;
 }

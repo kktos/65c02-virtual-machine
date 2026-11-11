@@ -78,6 +78,22 @@ describe("CPU 65C02 - stop reason", () => {
 		expect(isStoppedOnAccess()).toBe(false);
 	});
 
+	it("stepping out after a write breakpoint runs the instruction instead of stopping on it again", () => {
+		memory.set([0x8d, 0x00, 0x20, 0x60], 0x1000); // STA $2000; RTS
+		registersView.setUint8(0, 0x42); // A
+		registersView.setUint8(REG_SP_OFFSET, 0xfd);
+		memory[0x1fe] = 0x02; // return to $0203 (RTS adds 1)
+		memory[0x1ff] = 0x02;
+		addBreakpoint("write", 0x2000);
+		runFrom(0x1000);
+		expect(isStoppedOnAccess()).toBe(true);
+
+		postMessage.mockClear();
+		stepOutInstruction();
+		expect(memory[0x2000]).toBe(0x42);
+		expect(stopMessage()?.stop).toEqual({ reason: "step", address: 0x203 });
+	});
+
 	it("BRK", () => {
 		memory[0x300] = 0x00;
 		runFrom(0x300);
