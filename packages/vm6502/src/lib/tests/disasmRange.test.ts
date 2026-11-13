@@ -25,7 +25,7 @@ const { disassembleRange } = await import("@/lib/disassembler");
 const memory = new Uint8Array(0x10000);
 memory.fill(0x20, 0x6300, 0x6400); // would read as JSR $2020 if decoded as code
 memory.set([0xea, 0xea], 0x6400); // NOP NOP
-memory.set([...Buffer.from("HELLO, WORLD")], 0x6402);
+memory.set(new TextEncoder().encode("HELLO, WORLD"), 0x6402);
 memory.set([0x00, 0x10, 0x00, 0x20, 0x00, 0x30, 0x00, 0x40], 0x640e);
 memory[0x6416] = 0x60; // RTS
 
