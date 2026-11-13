@@ -1,5 +1,25 @@
 # TODO
 
+### 2026-11-13
+
+Noticed while chasing the speaker's sound (Conan late, Karateka silent):
+
+- **FIXED** speaker, sound lagging further and further behind the game (seconds, then minutes): the samples were
+  made from the emulated cycles at a fixed 1.023 MHz whatever the clock speed (at 2.8 MHz, ~2.7 s of sound per
+  second), and the main thread queued every chunk after the previous one, never dropping any. Karateka's title
+  music did toggle `$C030` (`$0D70` / `$0D86`), but played at the end of that queue: silent in practice
+  - `speaker.ts`: samples at the pace of the clock the CPU runs at (`setClockSpeed`, from the worker's `setSpeed`;
+    "Max" assumes 1.023 MHz). Faster than 1 MHz the pitch goes up, like an accelerator card with no slowdown
+  - `virtualmachine.class.ts`: at most 150 ms of sound queued ahead (the extra chunks dropped), 30 ms of
+    prebuffer after an underrun
+- speaker, later: slow down to 1 MHz on a speaker access, as the ZipChip / TransWarp do, so the sound keeps its
+  pitch at any speed?
+- a hook on a range breakpoint doesn't run: `access` `$C030`-`$C03F` with `log spk PC;run` (set via MCP
+  `set_breakpoint` on an existing plain one, "updated"): each hit stopped `run_until` as a plain breakpoint
+  (reported `read` `$C030`), the `spk` log window was never created
+- no console command lists the breakpoints: `bp list` takes `list` as the monitor's `LIST` label and quietly adds
+  a PC breakpoint at `$FE5E`. A `BL` (or `bp` alone) listing them, and/or a word that isn't an address refused?
+
 ### 2026-11-09
 
 - **DONE** disk editor: a floating window (`useFloatingWindows.ts`) to look inside a disk image from the library

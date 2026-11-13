@@ -3,10 +3,13 @@ import type { IBus } from "@/types/bus.interface";
 const HIGH_LEVEL = 0.25; // Lower volume to avoid clipping
 const LOW_LEVEL = -0.25;
 const CHUNK_SIZE = 512;
+// The clock used when the machine runs at "Max" speed (no fixed rate): the main thread drops what it can't play.
+const DEFAULT_CLOCK_HZ = 1_023_000;
 
 export class Speaker {
-	// private sampleRate = 44100;
-	private cyclesPerSample = 23; // ~1.023MHz / 44100
+	private sampleRate = 22050;
+	private clockHz = DEFAULT_CLOCK_HZ;
+	private cyclesPerSample = DEFAULT_CLOCK_HZ / 22050;
 	private speakerOn = false;
 	private accumulatedCycles = 0;
 
@@ -29,9 +32,23 @@ export class Speaker {
 	}
 
 	public init(sampleRate: number) {
-		// this.sampleRate = sampleRate;
-		this.cyclesPerSample = 1023000 / sampleRate;
+		this.sampleRate = sampleRate;
+		this.updateCyclesPerSample();
 		console.log(`Speaker: Initialized with SR ${sampleRate}Hz, ${this.cyclesPerSample.toFixed(2)} cycles/sample.`);
+	}
+
+	/**
+	 * The CPU clock, in MHz (0: "Max", no fixed rate). The samples are produced at the pace of the emulated
+	 * cycles: with the clock the CPU really runs at, one second of emulation is one second of sound. Otherwise
+	 * (e.g. 1.023 MHz assumed at 2.8 MHz) the sound is produced faster than it plays and lags further and further.
+	 */
+	public setClockSpeed(mhz: number) {
+		this.clockHz = mhz > 0 ? mhz * 1_000_000 : DEFAULT_CLOCK_HZ;
+		this.updateCyclesPerSample();
+	}
+
+	private updateCyclesPerSample() {
+		this.cyclesPerSample = this.clockHz / this.sampleRate;
 	}
 
 	public toggle() {

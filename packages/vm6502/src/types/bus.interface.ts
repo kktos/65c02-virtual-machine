@@ -115,6 +115,8 @@ export interface IBus {
 
 	initAudio?(sampleRate: number): void;
 	enableAudio?(isEnabled: boolean): void;
+	/** The CPU clock in MHz (0: "Max"), for what runs at the pace of the cycles (e.g. the sound). */
+	setClockSpeed?(mhz: number): void;
 
 	/** Returns the memory scope (e.g., "main", "aux", "rom", "lc_bank1") for the given address based on current state. */
 	getScope?(address: number): string;

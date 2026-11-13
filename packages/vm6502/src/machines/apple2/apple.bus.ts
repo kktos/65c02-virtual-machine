@@ -377,6 +377,10 @@ export class AppleBus implements IBus {
 		this.speaker.setEnabled(isEnabled);
 	}
 
+	public setClockSpeed(mhz: number): void {
+		this.speaker.setClockSpeed(mhz);
+	}
+
 	public setRegistersView(view: DataView) {
 		this.registers = view;
 		this.slots.forEach((card) => {

@@ -50,6 +50,10 @@ const kbdElements = new Set<string>(["INPUT", "TEXTAREA", "SELECT"]);
 // 1. Initialize AudioContext (Must be created after a user gesture like a click)
 let audioCtx: AudioContext | null = null;
 let nextStartTime = 0;
+// The sound queued ahead is kept between these (seconds): enough to absorb the jitter of the worker's
+// messages, never a growing lag (the main thread busy, the clock of the worker drifting from the audio's).
+const AUDIO_PREBUFFER = 0.03;
+const AUDIO_MAX_LATENCY = 0.15;
 
 /** The screen as a PNG image of `width` x `height` pixels. */
 export type Screenshot = { width: number; height: number; png: Uint8Array };
@@ -352,9 +356,10 @@ export class VirtualMachine {
 		// --- Scheduling Logic ---
 		const currentTime = audioCtx.currentTime;
 
-		// If nextStartTime is in the past, reset it to now. This can happen
-		// if there was a gap in audio data, preventing runaway playback.
-		if (nextStartTime < currentTime) nextStartTime = currentTime;
+		// Underrun (a gap in the audio data): restart a little ahead of now, so the next chunks join up.
+		// Too much queued (sound produced faster than played): drop the chunk rather than lag behind.
+		if (nextStartTime < currentTime) nextStartTime = currentTime + AUDIO_PREBUFFER;
+		else if (nextStartTime - currentTime > AUDIO_MAX_LATENCY) return;
 
 		source.start(nextStartTime);
 
