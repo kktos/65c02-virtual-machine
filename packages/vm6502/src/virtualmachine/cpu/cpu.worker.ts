@@ -50,6 +50,8 @@ let stackMetadataView: Uint8Array | null = null;
 let registersView: DataView | null = null;
 let video: Video | null = null;
 let bus: IBus | null = null;
+// The last speed asked for: it can come before the bus is loaded
+let clockSpeedMhz = 1;
 
 async function init(machine: MachineConfig) {
 	if (!(machine.memory.buffer instanceof SharedArrayBuffer)) {
@@ -67,6 +69,7 @@ async function init(machine: MachineConfig) {
 
 	// Give bus access to the registers view for state syncing
 	if (bus.setRegistersView) bus.setRegistersView(registersView);
+	bus.setClockSpeed?.(clockSpeedMhz);
 
 	if (machine.memory.chunks) {
 		for (const chunk of machine.memory.chunks) {
@@ -202,6 +205,8 @@ self.onmessage = async (event: MessageEvent) => {
 		case "setSpeed":
 			if (typeof speed === "number" && speed >= 0) {
 				setClockSpeed(speed);
+				clockSpeedMhz = speed;
+				bus?.setClockSpeed?.(speed);
 				console.log(`%cWorker:%c Clock speed set to ${speed} MHz.`, COLORED_LOG, COLORDEFAULT_LOG);
 			}
 			break;
