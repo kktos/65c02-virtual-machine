@@ -18,7 +18,9 @@ Noticed while chasing the speaker's sound (Conan late, Karateka silent):
   plain breakpoint: not the range, but `log` refusing a first arg that is a name (`log spk PC`, `log spk A X+1`:
   "Unknown subcommand"), so the `run` after it never ran
   - `log.cmd.ts`: a first arg that isn't `open` / `close` / `clear` is logged by its value, like the others
-- `log`: the values are logged in decimal (`log spk PC` gives `64098`), where the rest of the debugger shows hex
+- **FIXED** `log`: the values were logged in decimal (`log spk PC` gave `64098`), where the rest of the debugger
+  shows hex; and a first value of 0 (`log spk 0`) logged nothing, taken as no args (only opened the window)
+  - `log.cmd.ts`: whole numbers >= 0 in hex, by size (`$03`, `$FA62`, `$01C030`); the others as they are
 
 ### 2026-11-09
 
