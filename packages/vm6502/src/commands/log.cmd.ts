@@ -35,12 +35,12 @@ export const logCmd = defineCommand({
 				clear(name.text);
 				return `Log window '${name.text}' cleared.`;
 			}
-			throw new Error("Unknown subcommand");
+			// Not a subcommand: a first arg that is a name (a register, a label: `log spk PC`), logged by its value
 		}
 
 		const line = params
 			.slice(1)
-			.map((arg) => String(arg))
+			.map((arg) => String(arg && typeof arg === "object" && "text" in arg ? arg.value : arg))
 			.join(" ");
 		trace(name.text, line);
 

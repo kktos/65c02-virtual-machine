@@ -14,11 +14,11 @@ Noticed while chasing the speaker's sound (Conan late, Karateka silent):
     prebuffer after an underrun
 - speaker, later: slow down to 1 MHz on a speaker access, as the ZipChip / TransWarp do, so the sound keeps its
   pitch at any speed?
-- a hook on a range breakpoint doesn't run: `access` `$C030`-`$C03F` with `log spk PC;run` (set via MCP
-  `set_breakpoint` on an existing plain one, "updated"): each hit stopped `run_until` as a plain breakpoint
-  (reported `read` `$C030`), the `spk` log window was never created
-- no console command lists the breakpoints: `bp list` takes `list` as the monitor's `LIST` label and quietly adds
-  a PC breakpoint at `$FE5E`. A `BL` (or `bp` alone) listing them, and/or a word that isn't an address refused?
+- **FIXED** a hook `log spk PC;run` (on an `access` `$C030`-`$C03F` range) stopped the machine on each hit, as a
+  plain breakpoint: not the range, but `log` refusing a first arg that is a name (`log spk PC`, `log spk A X+1`:
+  "Unknown subcommand"), so the `run` after it never ran
+  - `log.cmd.ts`: a first arg that isn't `open` / `close` / `clear` is logged by its value, like the others
+- `log`: the values are logged in decimal (`log spk PC` gives `64098`), where the rest of the debugger shows hex
 
 ### 2026-11-09
 
