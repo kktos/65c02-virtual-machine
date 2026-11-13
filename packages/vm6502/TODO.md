@@ -21,6 +21,12 @@ Noticed while chasing the speaker's sound (Conan late, Karateka silent):
 - **FIXED** `log`: the values were logged in decimal (`log spk PC` gave `64098`), where the rest of the debugger
   shows hex; and a first value of 0 (`log spk 0`) logged nothing, taken as no args (only opened the window)
   - `log.cmd.ts`: whole numbers >= 0 in hex, by size (`$03`, `$FA62`, `$01C030`); the others as they are
+- **FIXED** stack view flickering: a JSR row (`$00:01F5 │ 34 │ $00:1234:JSR $00:5678`, ~270px) didn't fit the
+  16rem column, so the horizontal scrollbar came and went as return addresses showed up (every 250 ms tick)
+  - `StackView.vue`: addresses without the bank (`$01F5`, `$1234:JSR $5678`; the tooltips keep `$00:xxxx`),
+    horizontal overflow hidden
+- stack view: a setting to show / hide the bank (`$00:01F5` vs `$01F5`). Shown, the stack column needs ~18.5rem
+  (`App.vue`'s grid) to fit a JSR row
 
 ### 2026-11-09
 

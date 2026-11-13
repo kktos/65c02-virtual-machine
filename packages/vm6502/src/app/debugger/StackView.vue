@@ -4,14 +4,14 @@
 		<div ref="scrollContainer" class="flex flex-col h-full">
 			<!-- <DebuggerPanelTitle title="Stack ($0100 - $01FF)" /> -->
 			<div
-				class="font-mono text-xs overflow-y-auto flex-grow min-h-0 bg-gray-900 p-1.5 rounded-md"
+				class="font-mono text-xs overflow-y-auto overflow-x-hidden flex-grow min-h-0 bg-gray-900 p-1.5 rounded-md"
 				style="line-height: 1.4"
 				@wheel.prevent="handleScroll"
 			>
 				<table class="w-full">
 					<thead>
 						<tr class="text-gray-400 sticky top-0 bg-gray-900 border-b border-gray-700 shadow-md">
-							<th class="py-1 text-left px-2 w-[4.0rem]">Addr</th>
+							<th class="py-1 text-left px-2 w-[3.25rem]">Addr</th>
 							<th class="py-1 text-left">Value</th>
 						</tr>
 					</thead>
@@ -34,13 +34,17 @@
 							"
 						>
 							<td class="py-0.5 px-1 tabular-nums text-indigo-300">
-								{{ formatAddress(item.address) }}
+								{{ addr16(item.address) }}
 							</td>
 							<td class="p-0 relative">
 								<div class="flex items-center">
 									<input
 										type="text"
-										:value="isEditing && editingAddress === item.address ? editingValue : toHex(item.value ?? 0)"
+										:value="
+											isEditing && editingAddress === item.address
+												? editingValue
+												: toHex(item.value ?? 0)
+										"
 										@focus="startEdit(item.address, item.value, $event)"
 										@blur="cancelEdit"
 										@input="handleInput(item.address, $event)"
@@ -57,7 +61,7 @@
 											class="cursor-pointer hover:underline"
 											:title="`Jump to call site ${formatAddress(item.jsrSite ?? 0)}`"
 										>
-											{{ formatAddress(item.jsrSite ?? 0) }}
+											{{ addr16(item.jsrSite ?? 0) }}
 										</span>
 										<span>:JSR&nbsp;</span>
 										<span
@@ -65,7 +69,7 @@
 											class="cursor-pointer hover:underline"
 											:title="`Jump to subroutine ${formatAddress(item.subroutineAddr ?? 0)}`"
 										>
-											{{ formatAddress(item.subroutineAddr ?? 0) }}
+											{{ addr16(item.subroutineAddr ?? 0) }}
 										</span>
 									</div>
 								</div>
@@ -88,6 +92,10 @@ import { formatAddress, toHex } from "@/lib/hex.utils";
 import { useAddressHistory } from "@/composables/useAddressHistory.ts";
 
 const stackBase = 0x0100;
+
+// Stack and JSR addresses are 16-bit (bank is always 00): drop the bank so a
+// return-address row fits the fixed-width column without a horizontal scrollbar.
+const addr16 = (addr: number) => `$${toHex(addr, 4)}`;
 
 const vm = inject<Ref<VirtualMachine>>("vm");
 
