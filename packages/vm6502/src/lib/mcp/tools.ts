@@ -343,9 +343,14 @@ const binLoadAddress = (name: string) => {
 // PWREDUP ($3F4) isn't SOFTEV+1 ($3F3) EOR $A5, which is what Ctrl-OpenApple-Reset does.
 const PWREDUP = 0x3f4;
 const SOFTEV_HI = 0x3f3;
-const coldBoot = async (vm: VirtualMachine) => {
+/** Paused: left on the reset vector, the boot starts with the next run (as the `reset` tool). */
+const coldBoot = async (vm: VirtualMachine, paused: boolean) => {
 	vm.writeDebug(PWREDUP, (vm.readDebug(SOFTEV_HI) ^ 0xa5 ^ 0xff) & 0xff);
 	await vm.reset();
+	if (paused) {
+		await waitForRunning(false, 1000); // the worker's `isRunning: false` comes before its reply
+		return;
+	}
 	vm.play();
 	await waitForRunning(true, 1000);
 };
@@ -1117,13 +1122,20 @@ export const MCP_TOOLS: McpTool[] = [
 			"Like the user loading it: its labels / data formats / notes become the current disk's, and it comes back " +
 			"at the next startup. Inserting doesn't restart the machine: `boot: true` then cold-boots (like " +
 			"Ctrl-OpenApple-Reset: the ROM scans the slots and boots the disk) and leaves it running; use run_until / " +
-			"screen_text to follow the boot. Returns the inserted disk.",
+			"screen_text to follow the boot. Running, a fast boot can stop on a breakpoint before your next call, and " +
+			"run_until would resume past it: to catch a breakpoint in the boot, add `paused: true` (left paused on the " +
+			"reset vector, the breakpoints set; run_until starts the boot). Returns the inserted disk.",
 		inputSchema: {
 			type: "object",
 			properties: {
 				disk: { type: "string", description: "Library key or disk name" },
 				path: hostFileSchema("Disk image file on the agent's machine, instead of `disk`"),
 				boot: { type: "boolean", default: false, description: "Cold-boot after inserting" },
+				paused: {
+					type: "boolean",
+					default: false,
+					description: "With boot: stay paused on the reset vector; run_until starts the boot",
+				},
 			},
 		},
 		async execute(input) {
@@ -1131,6 +1143,7 @@ export const MCP_TOOLS: McpTool[] = [
 			if (!vm.machineConfig.disk) throw new Error(`${vm.machineConfig.name} has no disk drive`);
 			if ((input.disk === undefined) === (input.path === undefined))
 				throw new Error("disk or path: give one of them");
+			if (input.paused === true && input.boot !== true) throw new Error("paused: only with boot: true");
 			const { listDisks, insertFromLibrary, insertFile } = useDiskDrive();
 
 			let disk: InsertedDisk;
@@ -1147,7 +1160,7 @@ export const MCP_TOOLS: McpTool[] = [
 				const found = findLibraryDisk(await listDisks(), toStr(input.disk, "disk").trim());
 				disk = await insertFromLibrary(vm, found.key);
 			}
-			if (input.boot === true) await coldBoot(vm);
+			if (input.boot === true) await coldBoot(vm, input.paused === true);
 			return json({
 				result: "inserted",
 				disk: describeDisk(disk),

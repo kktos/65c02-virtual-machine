@@ -64,7 +64,7 @@ Then run `pnpm dev` and open `http://localhost:5173/?mcp`.
 | `delete_state` | Delete one, or all with `all: true` |
 | `get_trace` | Last executed instructions (disassembled, registers before each); `enable: true` starts recording |
 | `list_disks` | The disk library (images kept in the browser) and what is in the drive |
-| `load_disk` | Insert a library disk by key or name, or an image file from the agent's machine by `path` (added to the library); `boot: true` cold-boots it |
+| `load_disk` | Insert a library disk by key or name, or an image file from the agent's machine by `path` (added to the library); `boot: true` cold-boots it, `paused: true` with it stays on the reset vector (to catch a breakpoint in the boot) |
 | `load_binary` | Write a file from the agent's machine into memory (address given, or from a `NAME#06AAAA` name); `set_pc: true` sets PC there |
 | `eject_disk` | Empty the drive (stays empty at the next startup) |
 | `set_breakpoint` | Add a PC / read / write / access breakpoint (address or range, optional hook command); idempotent |

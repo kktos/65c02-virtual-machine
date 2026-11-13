@@ -124,6 +124,24 @@ describe("disk tools", () => {
 		expect(result).toMatchObject({ result: "inserted", booted: true, running: true });
 	});
 
+	it("load_disk boot paused: resets for a cold boot but stays paused on the reset vector", async () => {
+		memory[0x3f3] = 0xe0;
+		memory[0x3f4] = 0x45;
+		isRunning.value = false;
+		vm.play.mockClear();
+		const result = await call("load_disk", { disk: "conan.po", boot: true, paused: true });
+		expect(memory[0x3f4]).not.toBe(0xe0 ^ 0xa5);
+		expect(vm.reset).toHaveBeenCalled();
+		expect(vm.play).not.toHaveBeenCalled();
+		expect(result).toMatchObject({ result: "inserted", booted: true, running: false, PC: "$FA62" });
+	});
+
+	it("load_disk paused without boot is an error, before inserting", async () => {
+		drive.insertFromLibrary.mockClear();
+		await expect(call("load_disk", { disk: "conan.po", paused: true })).rejects.toThrow("paused: only with boot");
+		expect(drive.insertFromLibrary).not.toHaveBeenCalled();
+	});
+
 	// What the vm6502-mcp server sends in place of the path it read.
 	const hostFile = (name: string, bytes: number[]) => ({
 		name,
