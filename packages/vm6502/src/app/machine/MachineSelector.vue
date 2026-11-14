@@ -4,8 +4,9 @@
 			<PopoverTrigger as-child>
 				<!-- The machine name is part of the trigger (shown from 26rem): clicking it opens the menu too -->
 				<!-- min-w-0 / shrink / justify-start override toolbar-btn so the name can truncate -->
+				<!-- overflow-hidden: if the no-wrap row is ever too tight, the end of the trigger is clipped instead of spilling onto Power -->
 				<button
-					class="toolbar-btn group min-w-0 shrink justify-start px-1.5"
+					class="toolbar-btn group min-w-0 shrink justify-start gap-1 px-1.5 overflow-hidden"
 					:title="`Select Machine (${selectedMachine.name})`"
 				>
 					<Cpu class="h-4 w-4 shrink-0 text-cyan-400 group-hover:text-cyan-300" />
@@ -17,8 +18,8 @@
 							{{ selectedMachine.name }}
 						</span>
 					</span>
-					<!-- Chevron only on wide toolbars: between 26rem and 48rem the row has no room to spare -->
-					<ChevronDown class="hidden @[48rem]:block h-3 w-3 shrink-0 text-gray-400" />
+					<!-- Shown with the name: it is the cue that the trigger opens a menu -->
+					<ChevronDown class="hidden @[26rem]:block h-3 w-3 shrink-0 text-gray-400" />
 				</button>
 			</PopoverTrigger>
 			<PopoverContent class="w-[220px] p-0 bg-gray-800 border-gray-700" align="start">

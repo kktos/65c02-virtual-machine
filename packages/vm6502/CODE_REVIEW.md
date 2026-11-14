@@ -81,7 +81,7 @@ The toolbar is `flex-wrap`, and the separators show at widths of `@[26rem]` and 
 ### 8. ✅ DONE — [Nit] The machine selector button styles itself differently from the others
 `MachineSelector.vue` adds `bg-gray-700 hover:bg-gray-600` on top of `toolbar-btn`, so it is the only toolbar button with a background when idle. If that is meant to mark it as the main control, fine. If not, drop the extra classes.
 
-**Resolution:** extra classes dropped; it now looks like the other toolbar buttons. The machine name (and, from 48rem, a chevron) is now inside the trigger, so clicking the name opens the menu too.
+**Resolution:** extra classes dropped; it now looks like the other toolbar buttons. The machine name and a chevron (the menu cue) are now inside the trigger, so clicking the name opens the menu too.
 
 ---
 
