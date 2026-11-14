@@ -1,7 +1,8 @@
 // Boots the real PET 3032 (ROMs + PetBus, no video) in Node. Needs the ROMs: `npm run roms:pet`.
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { initCPU, setIrqLine, setRunning, stepInstruction, triggerNmi } from "@/virtualmachine/cpu/cpu.65c02";
+import { initCPU, resetCPU, setIrqLine, setRunning, stepInstruction, triggerNmi } from "@/virtualmachine/cpu/cpu.65c02";
 import { MEMORY_OFFSET, REG_PC_OFFSET, STACK_METADATA_OFFSET } from "@/virtualmachine/cpu/shared-memory";
+import { basicProgram, buildD64 } from "@/lib/tests/d64Builder";
 import { PetBus } from "../pet.bus";
 import { pet3032 } from "../pet.machine";
 
@@ -34,9 +35,10 @@ const boot = (): Machine => {
 const pc = (m: Machine) => m.regs.getUint16(REG_PC_OFFSET, true);
 const screen = (m: Machine) => m.bus.getTextScreen().map((line) => line.trimEnd());
 
+/** Checks `until` every 1000 instructions (reading the screen each one is slow) */
 const runUntil = (m: Machine, until: () => boolean, maxSteps = 5_000_000) => {
 	for (let i = 0; i < maxSteps; i++) {
-		if (until()) return;
+		if (i % 1000 === 0 && until()) return;
 		stepInstruction();
 	}
 	throw new Error(
@@ -86,5 +88,89 @@ describe.skipIf(!romsFetched)("PET 3032 boot (BASIC 2)", () => {
 		runUntil(m, () => m.bus.lowercase);
 		// The letters typed unshifted are lower case in this set
 		runUntil(m, () => screen(m).filter((line) => line === "ready.").length === 2);
+	});
+});
+
+describe.skipIf(!romsFetched)("PET 3032 with the 4040 drive (device 8)", () => {
+	// 10 PRINT"HI" : 20 PRINT 6*7
+	const hello = basicProgram([
+		{ number: 10, tokens: [0x99, 0x22, 0x48, 0x49, 0x22] },
+		{ number: 20, tokens: [0x99, 0x36, 0xac, 0x37] },
+	]);
+	let m: Machine;
+	const ready = (count: number) => () => screen(m).filter((line) => line === "READY.").length >= count;
+
+	beforeEach(() => {
+		m = boot();
+		m.bus.insertMedia(buildD64({ name: "PET GAMES", id: "PG", files: [{ name: "HELLO", data: hello }] }));
+		runUntil(m, ready(1));
+	});
+
+	it('lists the directory: LOAD"$",8 then LIST', () => {
+		m.bus.typeText('load"$",8\n');
+		runUntil(m, ready(2), 20_000_000);
+		m.bus.typeText("list\n");
+		runUntil(m, () => screen(m).some((line) => line.includes("BLOCKS FREE.")), 20_000_000);
+		expect(screen(m)).toEqual(
+			expect.arrayContaining([
+				' 0 "PET GAMES       " PG 2A', // the header line is in reverse video on the screen
+				' 1    "HELLO"            PRG',
+				" 663 BLOCKS FREE.",
+			]),
+		);
+	});
+
+	it("loads a program and runs it", () => {
+		m.bus.typeText('load"hello",8\n');
+		runUntil(m, ready(2), 20_000_000);
+		expect(screen(m)).toEqual(expect.arrayContaining(["SEARCHING FOR HELLO", "LOADING"]));
+		m.bus.typeText("run\n");
+		runUntil(m, () => screen(m).includes(" 42"), 20_000_000);
+		expect(screen(m)).toContain("HI");
+	});
+
+	/**
+	 * The drive sends nothing for a file it hasn't: BASIC 2's LOAD (unlike BASIC 4's) takes the time-out for "no
+	 * byte yet" and waits on, until RUN/STOP. The error channel says why.
+	 */
+	const loadsNothing = (name: string) => {
+		m.bus.typeText(`load"${name}",8\n`);
+		runUntil(m, () => screen(m).includes("LOADING"), 20_000_000);
+		for (let i = 0; i < 1_000_000; i++) stepInstruction(); // ~1 s: nothing comes
+		expect(screen(m).filter((line) => line === "READY.").length).toBe(1);
+		// RUN/STOP, held: the LOAD loop looks at it once per time-out (~65 ms)
+		m.bus.pressKey("Escape", "Escape");
+		for (let i = 0; i < 300_000; i++) stepInstruction();
+		m.bus.releaseKey("Escape", "Escape");
+		runUntil(m, ready(2), 20_000_000);
+	};
+	/** The error channel, by a program (INPUT# is not for direct mode) */
+	const status = (expected: string) => {
+		m.bus.typeText("new\n10 open1,8,15:input#1,a,b$:print a;b$:close1\nrun\n");
+		runUntil(m, () => screen(m).includes(expected), 20_000_000);
+	};
+
+	it("a file that isn't there: LOAD waits for it (RUN/STOP), the error channel says FILE NOT FOUND", () => {
+		loadsNothing("nope");
+		status(" 62 FILE NOT FOUND");
+	});
+
+	it("empty: LOAD waits too (DRIVE NOT READY); SAVE is refused (WRITE PROTECT ON)", () => {
+		m.bus.ejectMedia();
+		loadsNothing("hello");
+		status(" 74 DRIVE NOT READY");
+		m.bus.insertMedia(buildD64({ files: [] }));
+		m.bus.typeText('save"x",8\n');
+		runUntil(m, ready(4), 20_000_000);
+		m.bus.typeText('open1,8,15:input#1,a,b$:print a;b$:close1\n');
+		status(" 26 WRITE PROTECT ON");
+	});
+
+	it("types LOAD and RUN right after a reset: the keys wait for the editor (the bootKeys)", () => {
+		m.bus.reset();
+		resetCPU();
+		m.bus.typeText(pet3032.disk?.bootKeys as string);
+		runUntil(m, () => screen(m).includes(" 42"), 40_000_000);
+		expect(screen(m)).toEqual(expect.arrayContaining(['LOAD"*",8', "SEARCHING FOR *", "RUN", "HI"]));
 	});
 });

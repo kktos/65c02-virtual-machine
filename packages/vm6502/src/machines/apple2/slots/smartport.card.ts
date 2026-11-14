@@ -200,10 +200,8 @@ export class SmartPortCard implements ISlotCard {
 		this.registers = view;
 	}
 
-	public setDebugOverrides(overrides: { smartPortLogging?: boolean }) {
-		if (typeof overrides.smartPortLogging === "boolean") {
-			this.loggingEnabled = overrides.smartPortLogging;
-		}
+	public setDebugOverrides(overrides: { diskLogging?: boolean }) {
+		if (typeof overrides.diskLogging === "boolean") this.loggingEnabled = overrides.diskLogging;
 	}
 
 	readRom(offset: number): number {

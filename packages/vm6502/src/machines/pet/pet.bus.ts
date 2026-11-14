@@ -1,3 +1,5 @@
+import { CbmDrive, type CbmDriveSnapshot } from "@/machines/chips/cbm/cbm.drive";
+import { ATN, DAV, EOI, Ieee488Bus, NDAC, NRFD } from "@/machines/chips/cbm/ieee488";
 import { PIA6821, type PIASnapshot } from "@/machines/chips/pia6821";
 import { VIA6522, type VIASnapshot } from "@/machines/chips/via6522";
 import type { IBus, InterruptLines, KeyboardState, MachineStateSpec, TextMode } from "@/types/bus.interface";
@@ -40,16 +42,29 @@ type PetSnapshot = {
 	via: VIASnapshot;
 	keyboard: PetKeyboardSnapshot;
 	frameCycle: number;
+	drive: CbmDriveSnapshot;
 };
+
+// The IEEE-488 lines on the VIA's port B: NDAC in (PB0), NRFD out (PB1), ATN out (PB2), NRFD in (PB6), DAV in (PB7)
+const VIA_NDAC_IN = 0x01;
+const VIA_NRFD_OUT = 0x02;
+const VIA_ATN_OUT = 0x04;
+const VIA_RETRACE = 0x20;
+const VIA_NRFD_IN = 0x40;
+const VIA_DAV_IN = 0x80;
+const PIA1_EOI_IN = 0x40; // PIA1 port A
 
 /**
  * The Commodore PET 3032: 32K of RAM, the 40x25 screen at $8000, BASIC 2 at $C000, the editor at $E000, the
  * kernal at $F000, and the I/O page $E8xx where the address bits A4 / A5 / A6 select:
  * - PIA1 ($E810): keyboard (row out on port A bits 0-3, columns in on port B), the vertical retrace on CB1 (the
- *   60 Hz IRQ that scans the keyboard, updates the clock and blinks the cursor), cassette, diagnostic sense.
- * - PIA2 ($E820): the IEEE-488 data lines (no device here: "?DEVICE NOT PRESENT").
- * - VIA ($E840): IEEE-488 handshake, user port, retrace (PB5), timers, character set (CA2: POKE 59468,14 lower
- *   case, 12 graphics).
+ *   60 Hz IRQ that scans the keyboard, updates the clock and blinks the cursor), cassette, diagnostic sense,
+ *   IEEE-488 EOI (in: PA6, out: CA2).
+ * - PIA2 ($E820): the IEEE-488 data lines (in: port A, out: port B), NDAC out (CA2), DAV out (CB2).
+ * - VIA ($E840): IEEE-488 handshake (NDAC / NRFD / DAV in, NRFD / ATN out on port B), user port, retrace (PB5),
+ *   timers, character set (CA2: POKE 59468,14 lower case, 12 graphics).
+ *
+ * On the IEEE-488 bus: a 4040 disk drive, device 8, its drive 0 takes a D64 image (insertMedia).
  *
  * Unmapped addresses read as their high byte (the data bus floats).
  */
@@ -59,12 +74,16 @@ export class PetBus implements IBus {
 	private readonly pia2: PIA6821;
 	private readonly via: VIA6522;
 	private readonly keyboard = new PetKeyboard();
+	private readonly ieee = new Ieee488Bus();
+	private readonly drive: CbmDrive;
 	private lines: InterruptLines | null = null;
 	private irqActive = false;
 	private registers: DataView | null = null;
 
 	/** Cycles since the frame started (the end of the retrace). */
 	private frameCycle = 0;
+	/** The keyboard was read since the last retrace: the IRQ scans it (not yet at power-up, nor IRQs off) */
+	private keyboardScanned = false;
 	/** The character set, from the shared state (main thread). */
 	private lowercaseShown = false;
 
@@ -72,16 +91,49 @@ export class PetBus implements IBus {
 		this.memory = memory;
 		const updateIrq = () => this.updateIrq();
 		this.pia1 = new PIA6821({
-			readPortA: () => 0xff, // diagnostic sense high (no monitor at reset), no cassette key, EOI up
-			readPortB: () => this.keyboard.columns(this.pia1.outputA & 0x0f),
+			// diagnostic sense high (no monitor at reset), no cassette key
+			readPortA: () => (this.ieee.isAsserted(EOI) ? ~PIA1_EOI_IN & 0xff : 0xff),
+			readPortB: () => {
+				this.keyboardScanned = true;
+				return this.keyboard.columns(this.pia1.outputA & 0x0f);
+			},
 			irq: updateIrq,
 		});
-		this.pia2 = new PIA6821({ irq: updateIrq }); // IEEE-488 data in: all lines up
-		this.via = new VIA6522({
-			// IEEE handshake lines up (no device), PB5: low in the retrace
-			readPortB: () => (this.inRetrace ? 0xdf : 0xff),
+		this.pia2 = new PIA6821({
+			readPortA: () => ~this.ieee.data & 0xff, // the data lines are active low
 			irq: updateIrq,
 		});
+		this.via = new VIA6522({ readPortB: () => this.viaPortB(), irq: updateIrq });
+
+		this.drive = new CbmDrive(8, (text, payload) =>
+			self.postMessage({ type: "log", channel: "disk", text, payload: { name: "4040", ...payload } }),
+		);
+		this.ieee.attach(this.drive);
+	}
+
+	/** What the VIA's port B reads: the IEEE-488 handshake lines in, PB5 low in the retrace. */
+	private viaPortB() {
+		const lines = this.ieee.lines;
+		let value = 0xff;
+		if (lines & NDAC) value &= ~VIA_NDAC_IN;
+		if (lines & NRFD) value &= ~VIA_NRFD_IN;
+		if (lines & DAV) value &= ~VIA_DAV_IN;
+		if (this.inRetrace) value &= ~VIA_RETRACE;
+		return value;
+	}
+
+	/** The IEEE-488 lines the PET drives, from the chips' outputs: the devices follow. */
+	private updateIeee() {
+		const orb = this.via.peek(0x00);
+		const ddrb = this.via.peek(0x02);
+		const low = (bit: number) => (ddrb & bit) !== 0 && (orb & bit) === 0;
+		let lines = 0;
+		if (low(VIA_ATN_OUT)) lines |= ATN;
+		if (low(VIA_NRFD_OUT)) lines |= NRFD;
+		if (!this.pia2.ca2) lines |= NDAC;
+		if (!this.pia2.cb2) lines |= DAV;
+		if (!this.pia1.ca2) lines |= EOI;
+		this.ieee.setController(lines, ~this.pia2.portB & 0xff);
 	}
 
 	private get inRetrace() {
@@ -110,6 +162,7 @@ export class PetBus implements IBus {
 		this.pia1.reset();
 		this.pia2.reset();
 		this.via.reset();
+		this.ieee.reset(); // IFC is the reset line: the drive resets too
 		this.frameCycle = 0;
 		this.keyboard.reset();
 		this.updateIrq();
@@ -121,8 +174,11 @@ export class PetBus implements IBus {
 		const before = this.frameCycle;
 		this.frameCycle += cycles;
 		if (before < DISPLAY_CYCLES && this.frameCycle >= DISPLAY_CYCLES) {
+			// A typed key waits for the editor: its buffer empty, and its IRQ scanning the keyboard (typed during
+			// the boot, a key would come and go before the IRQ runs)
+			this.keyboard.frame(this.memory[KEY_COUNT] === 0 && this.keyboardScanned);
+			this.keyboardScanned = false;
 			this.pia1.pulseCB1();
-			this.keyboard.frame(this.memory[KEY_COUNT] === 0);
 		}
 		if (this.frameCycle >= FRAME_CYCLES) this.frameCycle -= FRAME_CYCLES;
 	}
@@ -152,6 +208,7 @@ export class PetBus implements IBus {
 			if (address & 0x10) this.pia1.write(address, value);
 			if (address & 0x20) this.pia2.write(address, value);
 			if (address & 0x40) this.via.write(address & 0x0f, value & 0xff);
+			this.updateIeee();
 		}
 	}
 
@@ -186,6 +243,28 @@ export class PetBus implements IBus {
 
 	load(address: number, data: Uint8Array, _bank?: number, _tag?: string) {
 		this.memory.set(data, address);
+	}
+
+	// --- The disk drive ---
+
+	/** A D64 image in the drive (device 8, drive 0). Not one: the drive is empty, "74,DRIVE NOT READY". */
+	insertMedia(data: Uint8Array, metadata?: Dict) {
+		try {
+			this.drive.insert(data);
+		} catch (e) {
+			console.warn(`4040: ${String(metadata?.name ?? "the disk")} isn't a D64 image`, e);
+			this.drive.insert(null);
+		}
+		this.ieee.settle();
+	}
+
+	ejectMedia() {
+		this.drive.insert(null);
+		this.ieee.settle();
+	}
+
+	setDebugOverrides(overrides: Dict) {
+		if (typeof overrides.diskLogging === "boolean") this.drive.logging = overrides.diskLogging;
 	}
 
 	ioWrite(_address: number, _value: number, _worker: Worker) {}
@@ -306,6 +385,7 @@ export class PetBus implements IBus {
 			via: this.via.snapshot(),
 			keyboard: this.keyboard.snapshot(),
 			frameCycle: this.frameCycle,
+			drive: this.drive.snapshot(),
 		};
 	}
 
@@ -316,6 +396,11 @@ export class PetBus implements IBus {
 		this.via.restoreSnapshot(s.via);
 		this.keyboard.restoreSnapshot(s.keyboard);
 		this.frameCycle = s.frameCycle;
+		// A state saved before the drive: the drive as at power-up, with the disk in it now
+		if (s.drive) this.drive.restoreSnapshot(s.drive);
+		else this.drive.reset();
+		this.updateIeee();
+		this.ieee.settle();
 		this.updateIrq();
 		this.syncState();
 	}

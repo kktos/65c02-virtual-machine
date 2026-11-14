@@ -5,7 +5,7 @@
 			class="bg-gray-900 border-gray-700 text-gray-100 w-[400px] flex flex-col h-full overflow-hidden"
 		>
 			<SheetHeader class="shrink-0">
-				<SheetTitle class="text-gray-100">SmartPort Logs</SheetTitle>
+				<SheetTitle class="text-gray-100">{{ drive?.name ?? "Disk" }} Logs</SheetTitle>
 				<SheetDescription class="text-gray-400"> Monitor disk read operations. </SheetDescription>
 			</SheetHeader>
 
@@ -19,15 +19,19 @@
 					<span class="text-green-500">[{{ log.type }}]</span>
 					<span class="text-gray-400"> Blk:</span>
 					<span class="text-yellow-500">{{ log.block }}</span>
-					<span class="text-gray-400"> Addr:</span>
-					<span class="text-cyan-500">${{ log.address.toString(16).padStart(4, "0") }}</span>
+					<template v-if="log.address !== undefined">
+						<span class="text-gray-400"> Addr:</span>
+						<span class="text-cyan-500">${{ log.address.toString(16).padStart(4, "0") }}</span>
+					</template>
 				</div>
 			</ScrollArea>
 
 			<div class="mt-4 border-t border-gray-800 pt-4 shrink-0">
 				<div class="flex justify-between items-center mb-2 px-1">
 					<h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Sector Map</h3>
-					<span class="text-[10px] text-gray-500 font-mono">{{ uniqueBlocks }} / {{ totalBlocks }} blocks</span>
+					<span class="text-[10px] text-gray-500 font-mono"
+						>{{ uniqueBlocks }} / {{ totalBlocks }} blocks</span
+					>
 				</div>
 				<div class="bg-black rounded border border-gray-800 p-1">
 					<canvas ref="mapCanvas" class="w-full h-auto block" style="image-rendering: pixelated"></canvas>
@@ -45,10 +49,11 @@ import { useDiskMapDrawing } from "@/composables/useDiskMapDrawing";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import { logBus } from "@/virtualmachine/logbus.class";
 
+/** `address`: where in memory the block went, for a drive that writes it there (the SmartPort) */
 type DiskLog = {
 	type: string;
 	block: number;
-	address: number;
+	address?: number;
 };
 
 const props = defineProps<{
@@ -64,13 +69,15 @@ const logs = ref<DiskLog[]>([]);
 const mapCanvas = ref<HTMLCanvasElement | null>(null);
 const { drawMap } = useDiskMapDrawing();
 
-const totalBlocks = computed(() => Math.ceil(props.fileSize / 512));
+const drive = computed(() => vm?.value?.machineConfig?.disk);
+const blockSize = computed(() => drive.value?.blockSize ?? 512);
+const totalBlocks = computed(() => Math.ceil(props.fileSize / blockSize.value));
 const uniqueBlocks = computed(() => new Set(logs.value.map((l) => l.block)).size);
 
 watch(
 	() => props.loggingEnabled,
 	(enabled) => {
-		vm?.value?.setDebugOverrides("bus", { slot: 5, smartPortLogging: enabled });
+		vm?.value?.setDebugOverrides("bus", { diskLogging: enabled });
 	},
 	{ immediate: true },
 );
@@ -84,20 +91,14 @@ watch(
 					mapCanvas.value,
 					props.fileSize,
 					logs.value.map((l) => ({ block: l.block })),
+					blockSize.value,
 				),
 			);
 	},
 	{ deep: true },
 );
 
-const handleLog = (
-	_text: string,
-	payload: {
-		type: string;
-		block: number;
-		address: number;
-	},
-) => {
+const handleLog = (_text: string, payload: DiskLog) => {
 	if (props.loggingEnabled) {
 		logs.value.push(payload);
 	}
@@ -113,7 +114,7 @@ watch(
 		if (newVm) {
 			logBus.on("disk", handleLog);
 			// newVm.onLog({ kind: "disk" }, handleLog);
-			newVm.setDebugOverrides("bus", { slot: 5, smartPortLogging: props.loggingEnabled });
+			newVm.setDebugOverrides("bus", { diskLogging: props.loggingEnabled });
 		}
 	},
 	{ immediate: true },

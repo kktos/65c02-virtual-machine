@@ -18,7 +18,7 @@ export const apple2e: MachineConfig = {
 		path: "apple2/video/apple.video",
 		hasTests: true,
 	},
-	disk: { enabled: true, name: "SPDisk" },
+	disk: { enabled: true, name: "SPDisk", extensions: [".po", ".2mg", ".dsk", ".hdv"] },
 	debug: {
 		options: debugOptionsConfig,
 	},

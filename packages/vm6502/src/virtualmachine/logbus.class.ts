@@ -5,7 +5,8 @@
 
 /** Extend this map to register new channels + their optional payload shape. */
 export interface LogPayloads {
-	disk: { type: string; block: number; address: number };
+	/** `name`: the drive; `address`: where the block went in memory, when the drive puts it there */
+	disk: { type: string; block: number; address?: number; name?: string };
 	trace: { pc: number; opcode: string; cycles: number };
 	shell: undefined;
 	script: undefined;

@@ -220,11 +220,11 @@
 							<Loader2 v-if="isFetchingUrl" class="h-4 w-4 animate-spin" />
 							<Download v-else class="h-4 w-4" />
 						</button>
-						<label class="add-btn cursor-pointer" title="Insert a local file (.po, .2mg, .dsk, .hdv)">
+						<label class="add-btn cursor-pointer" :title="`Insert a local file (${extensions.join(', ')})`">
 							<FolderOpen class="h-4 w-4" />
 							<input
 								type="file"
-								:accept="DISK_EXTENSIONS.join(',')"
+								:accept="extensions.join(',')"
 								@change="handleFileSelect"
 								class="hidden"
 							/>
@@ -270,7 +270,7 @@ import { computed, inject, nextTick, type Ref, ref, watch } from "vue";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { type StoredDisk, useDiskStorage } from "@/composables/useDiskStorage";
-import { DISK_EXTENSIONS, useDiskDrive } from "@/composables/useDiskDrive";
+import { diskExtensions, useDiskDrive } from "@/composables/useDiskDrive";
 import { useDiskEditor } from "@/composables/useDiskEditor";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import DiskDriveLogs from "./DiskDriveLogs.vue";
@@ -282,6 +282,8 @@ const { inserted, listDisks, insertFromLibrary, insertFile, insertUrl, eject, re
 	useDiskDrive();
 
 const diskConfig = computed(() => vm?.value?.machineConfig?.disk);
+/** The image files this machine's drive takes */
+const extensions = computed(() => (vm?.value ? diskExtensions(vm.value) : []));
 const fileName = computed(() => inserted.value?.name ?? "");
 const fileSize = computed(() => inserted.value?.size ?? 0);
 const savedDisks: Ref<StoredDisk[]> = ref([]);
@@ -360,7 +362,7 @@ const isValidUrl = computed(() => {
 });
 
 const refreshLibrary = async () => {
-	savedDisks.value = await listDisks();
+	if (vm?.value) savedDisks.value = await listDisks(vm.value);
 };
 
 const errorMessage = (e: unknown, fallback: string) => {
@@ -370,8 +372,8 @@ const errorMessage = (e: unknown, fallback: string) => {
 
 const insertLocalFile = async (file: File) => {
 	if (!vm?.value) return;
-	if (!DISK_EXTENSIONS.some((ext) => file.name.toLowerCase().endsWith(ext))) {
-		error.value = `Unsupported disk image: ${file.name} (expected ${DISK_EXTENSIONS.join(", ")})`;
+	if (!extensions.value.some((ext) => file.name.toLowerCase().endsWith(ext))) {
+		error.value = `Unsupported disk image: ${file.name} (expected ${extensions.value.join(", ")})`;
 		return;
 	}
 	error.value = null;

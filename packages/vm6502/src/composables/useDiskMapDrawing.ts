@@ -8,7 +8,13 @@ export function useDiskMapDrawing() {
 	const COLOR_BG = "#1f2937"; // gray-800
 	const COLOR_READ = "#34d399"; // emerald-400
 
-	const drawMap = (canvas: HTMLCanvasElement | null, fileSize: number, logs: { block: number }[]) => {
+	/** `bytesPerBlock`: what a block of the log is (512: ProDOS, 256: a CBM sector) */
+	const drawMap = (
+		canvas: HTMLCanvasElement | null,
+		fileSize: number,
+		logs: { block: number }[],
+		bytesPerBlock = 512,
+	) => {
 		if (!canvas) return;
 
 		const ctx = canvas.getContext("2d");
@@ -19,7 +25,7 @@ export function useDiskMapDrawing() {
 			return;
 		}
 
-		const totalBlocks = Math.ceil(fileSize / 512);
+		const totalBlocks = Math.ceil(fileSize / bytesPerBlock);
 
 		// Auto-scale grid based on disk size
 		let cols = HD_COLS;

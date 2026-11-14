@@ -8,7 +8,7 @@ import { useCommands } from "@/composables/useCommands";
 import { useBreakpoints } from "@/composables/useBreakpoints";
 import { isSameAddress, useRunUntil } from "@/composables/useRunUntil";
 import { useLogWindows } from "@/composables/useLogWindows";
-import { DISK_EXTENSIONS, type InsertedDisk, useDiskDrive } from "@/composables/useDiskDrive";
+import { diskExtensions, type InsertedDisk, isDiskFor, useDiskDrive } from "@/composables/useDiskDrive";
 import type { StoredDisk } from "@/composables/useDiskStorage";
 import { parseAddress } from "@/lib/parse.utils";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
@@ -339,14 +339,15 @@ const binLoadAddress = (name: string) => {
 	return m && (m[1] as string).toLowerCase() === "06" ? Number.parseInt(m[2] as string, 16) : undefined;
 };
 
-// Apple II: the reset handler cold-starts (and boots from the slots) when the power-up byte
-// PWREDUP ($3F4) isn't SOFTEV+1 ($3F3) EOR $A5, which is what Ctrl-OpenApple-Reset does.
-const PWREDUP = 0x3f4;
-const SOFTEV_HI = 0x3f3;
-/** Paused: left on the reset vector, the boot starts with the next run (as the `reset` tool). */
+/**
+ * A cold boot that starts the disk: a power-up reset (the Apple's ROM boots from the slots), then the machine's
+ * `bootKeys` if its ROM doesn't boot (the PET: LOAD"*",8 and RUN, typed once its editor reads the keyboard).
+ * Paused: left on the reset vector, the boot starts with the next run (as the `reset` tool).
+ */
 const coldBoot = async (vm: VirtualMachine, paused: boolean) => {
-	vm.writeDebug(PWREDUP, (vm.readDebug(SOFTEV_HI) ^ 0xa5 ^ 0xff) & 0xff);
-	await vm.reset();
+	await vm.reset({ cold: true });
+	const keys = vm.machineConfig.disk?.bootKeys;
+	if (keys) await vm.typeText(keys);
 	if (paused) {
 		await waitForRunning(false, 1000); // the worker's `isRunning: false` comes before its reply
 		return;
@@ -1086,7 +1087,8 @@ export const MCP_TOOLS: McpTool[] = [
 	{
 		name: "list_disks",
 		description:
-			"The disk library (images kept in the browser) and what is in the drive. Use a disk from here with " +
+			"The disk library (images kept in the browser) for this machine's drive (the images it takes, by their " +
+			"extension: each machine sees its own) and what is in the drive. Use a disk from here with " +
 			"load_disk rather than asking for the file again. Each disk: `key` (what load_disk takes; the file name, " +
 			"or the URL for a URL disk), `name` (display name, may have been renamed), `type` (`physical` = stored " +
 			"image, `url` = fetched when loaded), `size` (bytes; 0 for a URL disk not fetched yet), `in_drive: true` for " +
@@ -1094,9 +1096,11 @@ export const MCP_TOOLS: McpTool[] = [
 		inputSchema: { type: "object", properties: {} },
 		annotations: { readOnlyHint: true },
 		async execute() {
+			const vm = await getVm();
+			if (!vm.machineConfig.disk) throw new Error(`${vm.machineConfig.name} has no disk drive`);
 			const { inserted, listDisks } = useDiskDrive();
 			const inDrive = inserted.value;
-			const disks = (await listDisks()).map((d) => {
+			const disks = (await listDisks(vm)).map((d) => {
 				const isInDrive = !!inDrive && String(inDrive.key) === String(d.key);
 				return {
 					key: String(d.key),
@@ -1114,17 +1118,17 @@ export const MCP_TOOLS: McpTool[] = [
 	{
 		name: "load_disk",
 		description:
-			"Insert a disk into the drive: from the library (see list_disks) by `key` or name, or an image file on " +
-			"your machine by `path` (" +
-			DISK_EXTENSIONS.join(" ") +
-			"; read by the vm6502-mcp server: absolute, or relative to its working directory, `~` allowed; max 64 MB), " +
-			"which is added to the library under its file name (replacing a library disk with the same file name). " +
-			"Like the user loading it: its labels / data formats / notes become the current disk's, and it comes back " +
-			"at the next startup. Inserting doesn't restart the machine: `boot: true` then cold-boots (like " +
-			"Ctrl-OpenApple-Reset: the ROM scans the slots and boots the disk) and leaves it running; use run_until / " +
-			"screen_text to follow the boot. Running, a fast boot can stop on a breakpoint before your next call, and " +
-			"run_until would resume past it: to catch a breakpoint in the boot, add `paused: true` (left paused on the " +
-			"reset vector, the breakpoints set; run_until starts the boot). Returns the inserted disk.",
+			"Insert a disk into the machine's drive: from the library (see list_disks) by `key` or name, or an image " +
+			"file on your machine by `path` (an image the drive takes: Apple //e .po .2mg .dsk .hdv, PET .d64; read by " +
+			"the vm6502-mcp server: absolute, or relative to its working directory, `~` allowed; max 64 MB), which is " +
+			"added to the library under its file name (replacing a library disk with the same file name). Like the " +
+			"user loading it: its labels / data formats / notes become the current disk's, and it comes back at the " +
+			"next startup of this machine. Inserting doesn't restart the machine: `boot: true` then cold-boots and " +
+			'starts the disk (Apple: as Ctrl-OpenApple-Reset, the ROM boots it; PET: LOAD"*",8 and RUN are typed ' +
+			"once BASIC is up) and leaves it running; use run_until / screen_text to follow the boot. Running, a fast " +
+			"boot can stop on a breakpoint before your next call, and run_until would resume past it: to catch a " +
+			"breakpoint in the boot, add `paused: true` (left paused on the reset vector, the breakpoints set, the " +
+			"keys queued; run_until starts the boot). Returns the inserted disk.",
 		inputSchema: {
 			type: "object",
 			properties: {
@@ -1144,20 +1148,20 @@ export const MCP_TOOLS: McpTool[] = [
 			if ((input.disk === undefined) === (input.path === undefined))
 				throw new Error("disk or path: give one of them");
 			if (input.paused === true && input.boot !== true) throw new Error("paused: only with boot: true");
-			const { listDisks, insertFromLibrary, insertFile } = useDiskDrive();
+			const { listDisks, listAllDisks, insertFromLibrary, insertFile } = useDiskDrive();
 
 			let disk: InsertedDisk;
 			let fromFile: Record<string, unknown> = {};
 			if (input.path !== undefined) {
 				const file = toHostFile(input.path, "path");
 				const lower = file.name.toLowerCase();
-				if (!DISK_EXTENSIONS.some((ext) => lower.endsWith(ext)))
-					throw new Error(`path: ${file.name} is not a disk image (${DISK_EXTENSIONS.join(", ")})`);
-				const replaced = (await listDisks()).some((d) => String(d.key) === file.name);
+				if (!isDiskFor(vm, lower))
+					throw new Error(`path: ${file.name} is not a disk image (${diskExtensions(vm).join(", ")})`);
+				const replaced = (await listAllDisks()).some((d) => String(d.key) === file.name);
 				disk = await insertFile(vm, file.name, file.bytes.buffer);
 				fromFile = { path: file.path, added_to_library: true, ...(replaced && { replaced: true }) };
 			} else {
-				const found = findLibraryDisk(await listDisks(), toStr(input.disk, "disk").trim());
+				const found = findLibraryDisk(await listDisks(vm), toStr(input.disk, "disk").trim());
 				disk = await insertFromLibrary(vm, found.key);
 			}
 			if (input.boot === true) await coldBoot(vm, input.paused === true);
