@@ -1,7 +1,7 @@
 // What a disk image is: its sector order (from the .2mg header, from what is found on it, or from its extension)
 // and its file system (DOS 3.3, ProDOS, or none: a custom DOS / a game, raw tracks and sectors only).
 
-import { DiskImage, FLOPPY_SIZE, parse2mgHeader, type Header2mg, type SectorOrder } from "./diskImage";
+import { BLOCK_SIZE, DiskImage, FLOPPY_SIZE, parse2mgHeader, type Header2mg, type SectorOrder } from "./diskImage";
 import { type Dos33Catalog, readCatalog, readVtoc } from "./dos33";
 import { isProdosVolume, type ProdosDirectory, readDirectory } from "./prodos";
 
@@ -31,7 +31,12 @@ const detect = (image: DiskImage): DiskFormat => {
 	return "unknown";
 };
 
-export function analyzeDisk(file: Uint8Array, name: string, forcedOrder?: SectorOrder): DiskAnalysis {
+/** The image in the file and its sector order, without reading its catalog. */
+export function openDisk(
+	file: Uint8Array,
+	name: string,
+	forcedOrder?: SectorOrder,
+): Omit<DiskAnalysis, "dos33" | "prodos"> {
 	const warnings: string[] = [];
 	const header2mg = extension(name) === "2mg" || file.length % 256 !== 0 ? parse2mgHeader(file) : null;
 	let data = file;
@@ -76,11 +81,27 @@ export function analyzeDisk(file: Uint8Array, name: string, forcedOrder?: Sector
 		if (format !== "unknown") orderSource = "detected";
 	}
 
-	const image = new DiskImage(data, order);
-	const analysis: DiskAnalysis = { image, format, orderSource, header2mg, warnings };
+	return { image: new DiskImage(data, order), format, orderSource, header2mg, warnings };
+}
+
+export function analyzeDisk(file: Uint8Array, name: string, forcedOrder?: SectorOrder): DiskAnalysis {
+	const analysis: DiskAnalysis = openDisk(file, name, forcedOrder);
+	const { image, format } = analysis;
 	if (format === "dos33") {
 		const vtoc = readVtoc(image);
 		if (vtoc) analysis.dos33 = readCatalog(image, vtoc);
 	} else if (format === "prodos") analysis.prodos = readDirectory(image);
 	return analysis;
+}
+
+/**
+ * The image's blocks one after the other (ProDOS order), as a block device (SmartPort) reads them:
+ * a .2mg header stripped, a DOS-order floppy (most .dsk) reordered. Already in that order: the same bytes.
+ */
+export function toBlockOrder(file: Uint8Array, name: string): Uint8Array {
+	const { image } = openDisk(file, name);
+	if (image.order === "prodos" || !image.hasTracks) return image.data;
+	const blocks = new Uint8Array(image.data.length);
+	for (let block = 0; block < image.blockCount; block++) blocks.set(image.readBlock(block), block * BLOCK_SIZE);
+	return blocks;
 }
