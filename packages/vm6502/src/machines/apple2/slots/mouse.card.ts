@@ -121,7 +121,7 @@ export class MouseCard implements ISlotCard {
 		this.registers = view;
 	}
 
-	tick?(_cycles: number): Float32Array[] {
+	tick?(_cycles: number): void {
 		// Read Mouse Axes (Indices 2 & 3 -> Offsets +8 & +12)
 		const mx = this.registers.getFloat32(INPUT_ANALOG_0_OFFSET + 8, true);
 		const my = this.registers.getFloat32(INPUT_ANALOG_0_OFFSET + 12, true);
@@ -129,8 +129,6 @@ export class MouseCard implements ISlotCard {
 		const mb0 = (digital1 & 0b0000_0100) !== 0;
 		const mb1 = (digital1 & 0b0000_1000) !== 0;
 		this.setMouse(Math.max(0, Math.min(1, mx)) * 1023, Math.max(0, Math.min(1, my)) * 1023, mb0, mb1);
-
-		return [];
 	}
 
 	readRom(offset: number): number {
