@@ -2,11 +2,23 @@
 	<div class="flex items-center gap-0.5 min-w-0">
 		<Popover v-model:open="open">
 			<PopoverTrigger as-child>
+				<!-- The machine name is part of the trigger (shown from 26rem): clicking it opens the menu too -->
+				<!-- min-w-0 / shrink / justify-start override toolbar-btn so the name can truncate -->
 				<button
-					class="toolbar-btn group bg-gray-700 hover:bg-gray-600"
+					class="toolbar-btn group min-w-0 shrink justify-start px-1.5"
 					:title="`Select Machine (${selectedMachine.name})`"
 				>
-					<Cpu class="h-4 w-4 text-cyan-400 group-hover:text-cyan-300" />
+					<Cpu class="h-4 w-4 shrink-0 text-cyan-400 group-hover:text-cyan-300" />
+					<span class="hidden @[26rem]:flex flex-col items-start min-w-0 leading-tight">
+						<span class="hidden @[48rem]:block text-[10px] uppercase text-gray-400 font-bold tracking-wider">
+							Machine
+						</span>
+						<span class="max-w-full text-xs font-mono font-normal truncate text-gray-300">
+							{{ selectedMachine.name }}
+						</span>
+					</span>
+					<!-- Chevron only on wide toolbars: between 26rem and 48rem the row has no room to spare -->
+					<ChevronDown class="hidden @[48rem]:block h-3 w-3 shrink-0 text-gray-400" />
 				</button>
 			</PopoverTrigger>
 			<PopoverContent class="w-[220px] p-0 bg-gray-800 border-gray-700" align="start">
@@ -28,12 +40,6 @@
 				</Command>
 			</PopoverContent>
 		</Popover>
-		<div class="hidden @[26rem]:flex flex-col min-w-0 px-1.5 leading-tight">
-			<span class="hidden @[48rem]:block text-[10px] uppercase text-gray-400 font-bold tracking-wider">Machine</span>
-			<span class="text-xs font-mono truncate text-gray-300" :title="selectedMachine.name">
-				{{ selectedMachine.name }}
-			</span>
-		</div>
 		<button @click="$emit('power-cycle')" class="toolbar-btn group hover:bg-red-900/30" title="Hard Power Cycle">
 			<Power class="h-4 w-4 text-red-400 group-hover:text-red-300" />
 		</button>
@@ -41,7 +47,7 @@
 </template>
 
 <script setup lang="ts">
-import { Check, Cpu, Power } from "lucide-vue-next";
+import { Check, ChevronDown, Cpu, Power } from "lucide-vue-next";
 import { ref } from "vue";
 import { Command, CommandGroup, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";

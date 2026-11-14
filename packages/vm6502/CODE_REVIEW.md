@@ -19,7 +19,7 @@ Overall this is a clean simplification. It deletes more code than it adds, remov
 
 ## Findings
 
-### 1. [Medium] Clearing the custom speed field sets the clock to 0, which means *unlimited* on the 65C02 core
+### 1. ✅ DONE (`0f26d76`) — [Medium] Clearing the custom speed field sets the clock to 0, which means *unlimited* on the 65C02 core
 `src/app/machine/SpeedControl.vue` (`onCustomChange`)
 
 ```ts
@@ -39,39 +39,49 @@ if (raw !== "" && Number.isFinite(value) && value > 0) targetSpeed.value = value
 else (event.target as HTMLInputElement).value = String(targetSpeed.value);
 ```
 
-### 2. [Low] A rejected custom speed stays in the input
+### 2. ✅ DONE (`0f26d76`) — [Low] A rejected custom speed stays in the input
 `src/app/machine/SpeedControl.vue`
 
 The input is bound one way (`:value="targetSpeed"`). When `onCustomChange` rejects a value (for example a typed `-3`), `targetSpeed` does not change, so Vue never re-renders the field. The invalid text stays there and looks applied. The `else` branch in the fix for finding 1 also covers this.
 
-### 3. [Low / UX] Reset now sits right next to Step Out
+### 3. ✅ DONE — [Low / UX] Reset now sits right next to Step Out
 `src/app/debugger/DebuggerControls.vue`
 
 Reset ("Reset the CPU and memory") used to be in its own group after BRK and Trace. It is now the fifth button in the execution cluster, immediately after Step Out, at the same size and with no separator. While stepping quickly, one slip of the mouse wipes the machine state, and there is no confirmation. The red tint helps, but I'd suggest one of these:
 - Put a `toolbar-sep` before it, or move it to the end of the toolbar.
 - Require a confirmation, or a modifier key (for example Shift-click) to reset.
 
-### 4. [Low / UX] The speed trigger shows only the measured speed, not the target
+**Resolution:** Reset moved back to its own group after BRK / Trace, with a separator on each side.
+
+### 4. ⏭️ DROPPED (not important) — [Low / UX] The speed trigger shows only the measured speed, not the target
 `src/app/machine/SpeedControl.vue`
 
 The old UI showed the measured MHz next to the selected target. The new trigger shows only the measured `speedMhz`, so the target is visible only by opening the popover. Since `isManual` was removed, a custom target also has no indicator: no preset gets a check mark and the trigger looks the same. Consider showing the target in the trigger's `title`, for example `Clock Speed (target: 2.8 MHz)`, or marking the input row when the target isn't a preset.
 
-### 5. [Nit] Toggle state is exposed inconsistently
+### 5. ✅ DONE — [Nit] Toggle state is exposed inconsistently
 - `DebuggerControls.vue`: BRK and Trace now have `aria-pressed`, which is good. The console toggle (`isConsoleVisible`) does not, and its title still says "Open Command Interface" while the console is open.
 - `MemoryMap.vue` and `MouseControl.vue` are also on/off toggles without `aria-pressed`.
 
 Adding `:aria-pressed` to these would make all the toggles behave alike.
 
-### 6. [Nit] Unused `disabled:` classes in `MouseControl.vue`
+**Resolution:** the console, Memory Map and mouse-capture toggles now have `:aria-pressed`; the console title switches between "Open" and "Close Command Interface".
+
+### 6. ✅ DONE — [Nit] Unused `disabled:` classes in `MouseControl.vue`
 `class="toolbar-btn group disabled:opacity-50 disabled:cursor-not-allowed"`. The button never gets a `disabled` attribute, and `toolbar-btn` already defines disabled styling (`disabled:opacity-40`). These classes are unused and differ from the shared style. Remove them.
 
-### 7. [Nit] Separators can be left at the end of a wrapped row
+**Resolution:** removed; the button relies on `toolbar-btn` alone.
+
+### 7. ✅ DONE — [Nit] Separators can be left at the end of a wrapped row
 `src/app/App.vue`
 
 The toolbar is `flex-wrap`, and the separators show at widths of `@[26rem]` and up. Just above that width, the speed control can wrap to a second row and leave a `toolbar-sep` alone at the end of the first row. This only affects looks. Options are `flex-nowrap` above 26rem, or hiding the separators until a larger breakpoint.
 
-### 8. [Nit] The machine selector button styles itself differently from the others
+**Resolution:** the toolbar row is `@[26rem]:flex-nowrap` (inside a separate `@container` wrapper, since a container query cannot target the container itself), so it only wraps when the separators are hidden. The widest content fits: about 25rem with icons only (26–48rem), about 40rem with the video and disk labels (48rem and up).
+
+### 8. ✅ DONE — [Nit] The machine selector button styles itself differently from the others
 `MachineSelector.vue` adds `bg-gray-700 hover:bg-gray-600` on top of `toolbar-btn`, so it is the only toolbar button with a background when idle. If that is meant to mark it as the main control, fine. If not, drop the extra classes.
+
+**Resolution:** extra classes dropped; it now looks like the other toolbar buttons. The machine name (and, from 48rem, a chevron) is now inside the trigger, so clicking the name opens the menu too.
 
 ---
 

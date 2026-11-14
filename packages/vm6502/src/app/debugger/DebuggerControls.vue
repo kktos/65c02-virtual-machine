@@ -34,9 +34,6 @@
 		>
 			<ArrowUpFromDot class="h-4 w-4" />
 		</button>
-		<button @click="vm?.reset()" class="toolbar-btn group hover:bg-red-900/30" title="Reset the CPU and memory">
-			<RotateCcw class="h-4 w-4 text-red-400 group-hover:text-red-300" />
-		</button>
 
 		<div class="toolbar-sep"></div>
 
@@ -72,6 +69,13 @@
 
 		<div class="toolbar-sep"></div>
 
+		<!-- Reset: kept in its own group, away from the stepping buttons, so a slip while stepping can't wipe the machine -->
+		<button @click="vm?.reset()" class="toolbar-btn group hover:bg-red-900/30" title="Reset the CPU and memory">
+			<RotateCcw class="h-4 w-4 text-red-400 group-hover:text-red-300" />
+		</button>
+
+		<div class="toolbar-sep"></div>
+
 		<!-- Tools -->
 		<BreakpointsDrawer :top="toolbarBottom" />
 		<MemoryMap />
@@ -92,7 +96,8 @@
 			@click="toggleCommandInterface"
 			class="toolbar-btn"
 			:class="{ 'bg-gray-700 text-cyan-300': isConsoleVisible }"
-			title="Open Command Interface (Ctrl+Shift+D)"
+			:aria-pressed="isConsoleVisible"
+			:title="`${isConsoleVisible ? 'Close' : 'Open'} Command Interface (Ctrl+Shift+D)`"
 		>
 			<Terminal class="h-4 w-4" />
 		</button>
