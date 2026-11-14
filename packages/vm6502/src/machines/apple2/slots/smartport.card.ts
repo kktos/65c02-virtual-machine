@@ -1,3 +1,4 @@
+import { toBlockOrder } from "@/lib/disk/formats/apple2/analyzeDisk";
 import type { IBus } from "@/types/bus.interface";
 import {
 	FLAG_C_MASK,
@@ -23,15 +24,13 @@ export class SmartPortCard implements ISlotCard {
 		this.initRom();
 	}
 
+	/**
+	 * Blocks are read as 512-byte runs of the image, so it is kept in ProDOS order: a .2mg header stripped
+	 * (https://gswv.apple2.org.za/a2zine/Docs/DiskImage_2MG_Info.txt), a DOS-order floppy (most .dsk) reordered.
+	 * `metadata.name`: the file name, whose extension tells the order.
+	 */
 	public insertMedia(data: Uint8Array, metadata?: Record<string, unknown>) {
-		if (metadata) {
-			// https://gswv.apple2.org.za/a2zine/Docs/DiskImage_2MG_Info.txt
-			if ((metadata.name as string).match(/\.2mg$/)) {
-				this.diskData = data.subarray(64);
-				return;
-			}
-		}
-		this.diskData = data;
+		this.diskData = toBlockOrder(data, String(metadata?.name ?? ""));
 	}
 
 	/**
