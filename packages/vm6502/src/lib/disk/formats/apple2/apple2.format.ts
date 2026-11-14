@@ -3,12 +3,13 @@
 // sectors only). `analyzeDisk` finds out which; this shows it to the editor.
 
 import { toHex } from "@/lib/hex.utils";
-import { analyzeDisk, type DiskAnalysis } from "./analyzeDisk";
 import type {
+	DiskCopyResult,
 	DiskDirectory,
 	DiskEditorView,
 	DiskEntry,
 	DiskFile,
+	DiskFileCopy,
 	DiskFormat,
 	DiskLayout,
 	DiskLink,
@@ -16,8 +17,16 @@ import type {
 	OpenedDisk,
 } from "../../diskFormat.type";
 import { tsLink } from "../../diskLayout.utils";
+import { analyzeDisk, type DiskAnalysis, openDisk } from "./analyzeDisk";
 import { BLOCK_SIZE, type DiskImage, type SectorOrder, SECTORS_PER_TRACK, TRACKS } from "./diskImage";
-import { DOS33_TYPE_NAMES, type Dos33Catalog, readFile as readDosFile, sectorOwners, VTOC } from "./dos33";
+import {
+	DOS33_TYPE_NAMES,
+	type Dos33Catalog,
+	readFile as readDosFile,
+	sectorOwners,
+	toProdosFile,
+	VTOC,
+} from "./dos33";
 import {
 	blockOwners,
 	fileTypeName,
@@ -29,6 +38,7 @@ import {
 	readFile as readProdosFile,
 	STORAGE_TYPES,
 } from "./prodos";
+import { addFile, formatVolume, prodosName } from "./prodos.write";
 
 const CATALOG_ID = "catalog";
 const MAX_DEPTH = 16;
@@ -156,6 +166,11 @@ function dos33(image: DiskImage, catalog: Dos33Catalog, layout: DiskLayout) {
 		map: { kind: "tracks", free: (track, sector) => vtoc.free[track]?.[sector] ?? false },
 	});
 
+	const exportFile = (id: string): DiskFileCopy | null => {
+		const f = catalog.files[Number(id)];
+		return f && !f.deleted ? { name: f.name, locked: f.locked, ...toProdosFile(image, f) } : null;
+	};
+
 	return {
 		root: { id: CATALOG_ID, label: "Catalog" },
 		volume: { label: "VTOC · sector map", read: readVolume },
@@ -167,6 +182,8 @@ function dos33(image: DiskImage, catalog: Dos33Catalog, layout: DiskLayout) {
 			const names = image.blockSectors(block).map(({ track, sector }) => ownerOfSector(track, sector) ?? "free");
 			return names[0] === names[1] ? names[0] : names.join(" / ");
 		},
+		exportFile,
+		readOnlyReason: "DOS 3.3 disks aren't written to: copy to a ProDOS volume",
 	};
 }
 
@@ -322,6 +339,45 @@ function prodos(image: DiskImage, volume: ProdosDirectory) {
 		};
 	};
 
+	const exportFile = (id: string): DiskFileCopy | null => {
+		const e = findEntry(id);
+		if (!e || isDirectory(e) || e.storageType > 5) return null;
+		return {
+			name: e.name,
+			data: readProdosFile(image, e).data.slice(),
+			fileType: e.fileType,
+			auxType: e.auxType,
+			locked: (e.access & 0xc2) !== 0xc2,
+		};
+	};
+
+	/** The directories, the volume's first, each followed by its subdirectories */
+	const dirs = () => {
+		const list: { id: string; label: string }[] = [];
+		const walk = (dir: ProdosDirectory, id: string, depth: number) => {
+			list.push({ id, label: id });
+			if (depth >= MAX_DEPTH) return;
+			for (const e of dir.entries)
+				if (isDirectory(e) && e.keyPointer > 0 && e.keyPointer < image.blockCount)
+					walk(readDirAt(e.keyPointer), `${id}/${e.name}`, depth + 1);
+		};
+		walk(volume, rootId, 0);
+		return list;
+	};
+
+	const addFiles = (dirId: string, files: DiskFileCopy[]): DiskCopyResult[] => {
+		const dir = findDir(dirId);
+		const now = new Date();
+		return files.map((file) => {
+			if (!dir) return { from: file.name, error: `No directory ${dirId}` };
+			try {
+				return { from: file.name, to: `${dirId}/${addFile(image, dir.keyBlock, file, now)}` };
+			} catch (e) {
+				return { from: file.name, error: (e as Error).message };
+			}
+		});
+	};
+
 	return {
 		root: { id: rootId, label: rootId },
 		volume: { label: "Volume · block map", read: readVolume },
@@ -330,6 +386,8 @@ function prodos(image: DiskImage, volume: ProdosDirectory) {
 		readFile,
 		ownerOfBlock,
 		ownerOfSector: (track: number, sector: number) => ownerOfBlock(image.sectorBlock(track, sector).block),
+		exportFile,
+		target: { dirs, addFiles },
 	};
 }
 
@@ -338,6 +396,9 @@ const BADGES: Record<DiskAnalysis["format"], OpenedDisk["badge"]> = {
 	prodos: { label: "ProDOS", tone: "blue" },
 	unknown: { label: "Unknown format", tone: "gray" },
 };
+
+/** The blank ProDOS volumes, by kind: their size in blocks */
+const NEW_DISK_BLOCKS: Record<string, number> = { prodos140k: 280, prodos800k: 1600, prodos32m: 65535 };
 
 export const apple2Format: DiskFormat = {
 	id: "apple2",
@@ -370,6 +431,7 @@ export const apple2Format: DiskFormat = {
 			readFile: () => null,
 			ownerOfSector: () => undefined,
 			ownerOfBlock: () => undefined,
+			readOnlyReason: "No file system found: nothing to copy files into",
 		};
 
 		return {
@@ -398,4 +460,24 @@ export const apple2Format: DiskFormat = {
 					: null,
 		};
 	},
+	newDisks: [
+		{ id: "prodos140k", label: 'ProDOS 5.25" floppy · 140K', extension: ".po" },
+		{ id: "prodos800k", label: 'ProDOS 3.5" disk · 800K', extension: ".po" },
+		{ id: "prodos32m", label: "ProDOS hard disk · 32MB", extension: ".hdv" },
+	],
+	/** `boot`: its blocks 0-1, the ProDOS boot loader (that loads the PRODOS file of the volume) */
+	create(kind, volume, boot) {
+		const blocks = NEW_DISK_BLOCKS[kind];
+		if (!blocks) throw new Error(`No new disk '${kind}'`);
+		let bootBlocks: Uint8Array | undefined;
+		if (boot) {
+			const { image } = openDisk(boot.file, boot.name);
+			if (image.blockCount < 2) throw new Error(`${boot.name}: no boot blocks`);
+			bootBlocks = new Uint8Array(2 * BLOCK_SIZE);
+			bootBlocks.set(image.readBlock(0), 0);
+			bootBlocks.set(image.readBlock(1), BLOCK_SIZE);
+		}
+		return formatVolume(blocks, volume, new Date(), bootBlocks);
+	},
+	volumeName: prodosName,
 };

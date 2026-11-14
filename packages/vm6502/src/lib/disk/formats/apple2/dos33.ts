@@ -226,3 +226,30 @@ export function sectorOwners(image: DiskImage, catalog: Dos33Catalog): Map<numbe
 	}
 	return owners;
 }
+
+/**
+ * A DOS 3.3 file as ProDOS has it: B -> BIN at its address, A -> BAS at $0801, I -> INT, T -> TXT, R -> REL, the
+ * others untyped. The header DOS adds (B: address and length, A / I: length) is taken out, the bytes cut to the
+ * length it gives; a text file ends at its first $00 (a random-access one keeps only its first record).
+ */
+export function toProdosFile(image: DiskImage, file: Dos33File) {
+	const c = readFile(image, file);
+	const bytes = (from: number, length = c.data.length - from) =>
+		c.data.slice(from, Math.min(c.data.length, from + length));
+	switch (file.type) {
+		case "B":
+			return { data: bytes(4, c.length), fileType: 0x06, auxType: c.address ?? 0 };
+		case "A":
+			return { data: bytes(2, c.length), fileType: 0xfc, auxType: 0x0801 };
+		case "I":
+			return { data: bytes(2, c.length), fileType: 0xfa, auxType: 0 };
+		case "T": {
+			const end = c.data.indexOf(0);
+			return { data: bytes(0, end < 0 ? undefined : end), fileType: 0x04, auxType: 0 };
+		}
+		case "R":
+			return { data: bytes(0), fileType: 0xfe, auxType: 0 };
+		default:
+			return { data: bytes(0), fileType: 0x00, auxType: 0 };
+	}
+}

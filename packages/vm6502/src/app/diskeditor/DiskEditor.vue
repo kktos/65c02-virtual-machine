@@ -18,7 +18,7 @@
 			<Disc3 class="h-4 w-4 text-gray-300" />
 		</template>
 
-		<div class="flex flex-col h-full min-h-0 text-gray-200">
+		<div class="relative flex flex-col h-full min-h-0 text-gray-200">
 			<!-- The disk looked at, what it is -->
 			<div class="flex flex-wrap items-center gap-2 px-2 py-1.5 border-b border-gray-700 bg-gray-900/60 text-xs">
 				<select
@@ -50,6 +50,14 @@
 					<span class="text-gray-500">{{ analysis.size }}</span>
 					<span v-for="w in analysis.warnings" :key="w" class="text-amber-400">{{ w }}</span>
 				</template>
+				<button
+					v-if="canCreate"
+					class="new-btn ml-auto"
+					title="A blank disk, in the library"
+					@click="panel = { kind: 'new' }"
+				>
+					<FilePlus2 class="h-3.5 w-3.5" /> New disk
+				</button>
 			</div>
 
 			<div v-if="error || formatError" class="flex items-center gap-1.5 px-3 py-2 text-xs text-red-400">
@@ -120,12 +128,22 @@
 					<DiskFileView v-else :disk="analysis" />
 				</ResizablePanel>
 			</ResizablePanelGroup>
+
+			<!-- Making a disk, copying files: over the editor, inside its window -->
+			<div
+				v-if="panel"
+				class="absolute inset-0 z-30 flex items-start justify-center bg-black/60 pt-12 px-4"
+				@click.self="panel = null"
+			>
+				<DiskNewPanel v-if="panel.kind === 'new'" />
+				<DiskCopyPanel v-else-if="analysis" />
+			</div>
 		</div>
 	</FloatingWindow>
 </template>
 
 <script lang="ts" setup>
-import { Boxes, CircleAlert, Disc3, FolderOpen, Grid3x3, Loader2, Map as MapIcon } from "lucide-vue-next";
+import { Boxes, CircleAlert, Disc3, FilePlus2, FolderOpen, Grid3x3, Loader2, Map as MapIcon } from "lucide-vue-next";
 import { computed, ref, shallowRef, watch } from "vue";
 import FloatingWindow from "@/components/FloatingWindow.vue";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
@@ -134,18 +152,24 @@ import { useDiskDrive } from "@/composables/useDiskDrive";
 import type { StoredDisk } from "@/composables/useDiskStorage";
 import { useMachine } from "@/composables/useMachine";
 import type { OpenedDisk } from "@/lib/disk/diskFormat.type";
+import DiskCopyPanel from "./DiskCopyPanel.vue";
 import DiskDirectoryView from "./DiskDirectoryView.vue";
 import DiskFileView from "./DiskFileView.vue";
+import DiskNewPanel from "./DiskNewPanel.vue";
 import DiskRawView from "./DiskRawView.vue";
 import DiskTree from "./DiskTree.vue";
 import DiskVolumeView from "./DiskVolumeView.vue";
 
-const { source, analysis, formatError, view, loading, error, reading, openDisk, setReading } = useDiskEditor();
+const { source, analysis, formatError, view, loading, error, reading, panel, openDisk, setReading, machineFormats } =
+	useDiskEditor();
 const { inserted, listDisks } = useDiskDrive();
 const { vm } = useMachine();
 
 const windowRef = ref<InstanceType<typeof FloatingWindow> | null>(null);
 const library = shallowRef<StoredDisk[]>([]);
+
+/** The machine's disk formats make blank disks */
+const canCreate = computed(() => machineFormats().some((f) => f.newDisks?.length && f.create));
 
 const isInserted = (key: IDBValidKey) => inserted.value?.key === key;
 
@@ -202,6 +226,9 @@ const refreshLibrary = async () => {
 	}
 };
 
+// A disk made by the editor is new to the library: the picker lists it
+watch(source, refreshLibrary);
+
 /** Opened with no disk (SHOW, or open at startup): the disk in the drive */
 const onOpen = async () => {
 	await refreshLibrary();
@@ -229,6 +256,27 @@ watch(
 }
 .disk-editor .field {
 	@apply bg-gray-800 border border-gray-700 text-gray-200 text-xs rounded px-1.5 py-0.5 focus:outline-none focus:border-cyan-500;
+}
+.disk-editor .new-btn {
+	@apply flex items-center gap-1 px-1.5 py-0.5 rounded border border-gray-700 text-gray-300 hover:border-cyan-500 hover:text-cyan-200 transition-colors;
+}
+.disk-editor .panel-card {
+	@apply w-full max-w-md flex flex-col gap-2 p-3 rounded-lg border border-gray-700 bg-gray-900 shadow-2xl text-xs text-gray-300;
+}
+.disk-editor .panel-head {
+	@apply flex items-center gap-2 text-sm font-semibold text-gray-100;
+}
+.disk-editor .panel-row {
+	@apply flex items-center gap-2;
+}
+.disk-editor .panel-label {
+	@apply w-20 shrink-0 text-gray-400;
+}
+.disk-editor .panel-btn {
+	@apply px-2 py-0.5 rounded border border-gray-700 text-gray-200 hover:border-cyan-500 disabled:opacity-40 disabled:hover:border-gray-700;
+}
+.disk-editor .panel-btn-primary {
+	@apply bg-cyan-800/60 border-cyan-700 text-cyan-50 hover:bg-cyan-700/60;
 }
 .disk-editor .badge {
 	@apply px-1.5 py-px rounded text-[10px] font-bold uppercase tracking-wider;

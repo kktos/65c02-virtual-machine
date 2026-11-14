@@ -6,7 +6,7 @@
 import { computed, reactive, ref, shallowRef } from "vue";
 import { useDiskStorage } from "@/composables/useDiskStorage";
 import { useFloatingWindows } from "@/composables/useFloatingWindows";
-import type { DiskEditorView, OpenedDisk } from "@/lib/disk/diskFormat.type";
+import type { DiskEditorView, DiskFormat, OpenedDisk } from "@/lib/disk/diskFormat.type";
 import { DISK_FORMATS } from "@/lib/disk/formats";
 import type { HgrMode } from "@/lib/disk/hgrImage.utils";
 import type { MachineConfig } from "@/types/machine.interface";
@@ -32,32 +32,47 @@ const hgrMode = ref<HgrMode>("color");
 const disasmLabels = ref(true);
 /** The directories shown open in the tree, by id */
 const expanded = reactive(new Set<string>());
+/** The files ticked in the directory shown, by id: to copy */
+const selected = reactive(new Set<string>());
+/** A panel over the editor: making a blank disk, copying files (by id) to another disk */
+export type DiskEditorPanel = { kind: "new" } | { kind: "copy"; ids: string[] };
+const panel = shallowRef<DiskEditorPanel | null>(null);
 
 /** The machine's viewers (ids), as its config lists them */
 const viewers = computed(() => machine.value?.disk?.viewers ?? []);
 
-/** The disk opened by the first of the machine's formats that takes it; else why none does */
+/** The machine's formats, as its config names them */
+const machineFormats = (): DiskFormat[] =>
+	(machine.value?.disk?.formats ?? []).flatMap((id) => {
+		const format = DISK_FORMATS[id];
+		if (!format) console.warn(`Disk editor: no disk format '${id}'`);
+		return format ? [format] : [];
+	});
+
+/** A disk opened by the first of the machine's formats that takes it; else why none does */
+const openWithFormats = (
+	data: Uint8Array,
+	src: { name: string; path: string },
+	how: string | null = null,
+): { disk: OpenedDisk | null; error: string | null } => {
+	const formats = machineFormats();
+	for (const format of formats) {
+		const disk = format.open(data, src.path || src.name, how);
+		if (disk) return { disk, error: null };
+	}
+	return {
+		disk: null,
+		error: formats.length
+			? `${src.name}: not a disk the editor reads as ${formats.map((f) => f.name).join(" / ")}`
+			: `The ${machine.value?.name ?? "machine"} has no disk format the editor reads`,
+	};
+};
+
 const opened = computed((): { disk: OpenedDisk | null; error: string | null } => {
 	const data = fileData.value;
 	const src = source.value;
 	if (!data || !src) return { disk: null, error: null };
-	const ids = machine.value?.disk?.formats ?? [];
-	for (const id of ids) {
-		const format = DISK_FORMATS[id];
-		if (!format) {
-			console.warn(`Disk editor: no disk format '${id}'`);
-			continue;
-		}
-		const disk = format.open(data, src.path || src.name, reading.value);
-		if (disk) return { disk, error: null };
-	}
-	const names = ids.flatMap((id) => DISK_FORMATS[id]?.name ?? []);
-	return {
-		disk: null,
-		error: names.length
-			? `${src.name}: not a disk the editor reads as ${names.join(" / ")}`
-			: `The ${machine.value?.name ?? "machine"} has no disk format the editor reads`,
-	};
+	return openWithFormats(data, src, reading.value);
 });
 
 const analysis = computed(() => opened.value.disk);
@@ -72,10 +87,12 @@ const homeView = (): DiskEditorView => analysis.value?.home ?? { kind: "sector",
 const setReading = (value: string | null) => {
 	reading.value = value;
 	expanded.clear();
+	selected.clear();
 	view.value = homeView();
 };
 
-const fetchData = async (key: IDBValidKey) => {
+/** A library disk's bytes: stored, or fetched for a URL disk */
+const fetchDiskData = async (key: IDBValidKey) => {
 	const { loadDisk } = useDiskStorage();
 	const disk = await loadDisk(key);
 	if (!disk) throw new Error(`No disk '${String(key)}' in the library`);
@@ -96,12 +113,14 @@ const openDisk = async (key: IDBValidKey, show = true) => {
 	loading.value = true;
 	error.value = null;
 	try {
-		const { disk, data } = await fetchData(key);
+		const { disk, data } = await fetchDiskData(key);
 		if (loadGeneration !== generation) return;
 		source.value = { key, name: disk.name, path: disk.path };
 		fileData.value = data;
 		reading.value = null;
 		expanded.clear();
+		selected.clear();
+		panel.value = null;
 		view.value = homeView();
 		viewer.value = HEX;
 	} catch (e) {
@@ -111,6 +130,13 @@ const openDisk = async (key: IDBValidKey, show = true) => {
 	} finally {
 		if (loadGeneration === generation) loading.value = false;
 	}
+};
+
+/** The disk looked at changed in the library (files copied to it): read again, staying where the editor is */
+const refreshDisk = async (key: IDBValidKey) => {
+	if (source.value?.key !== key) return;
+	const { data } = await fetchDiskData(key);
+	if (source.value?.key === key) fileData.value = data;
 };
 
 /**
@@ -124,6 +150,8 @@ const closeDisk = () => {
 	fileData.value = null;
 	reading.value = null;
 	expanded.clear();
+	selected.clear();
+	panel.value = null;
 	view.value = { kind: "sector", track: 0, sector: 0 };
 	viewer.value = HEX;
 	loading.value = false;
@@ -146,12 +174,18 @@ export function useDiskEditor() {
 		loading,
 		error,
 		expanded,
+		selected,
+		panel,
 		viewer,
 		viewers,
 		hgrMode,
 		disasmLabels,
 		reading,
 		openDisk,
+		refreshDisk,
+		fetchDiskData,
+		openWithFormats,
+		machineFormats,
 		closeDisk,
 		setMachine,
 		setReading,

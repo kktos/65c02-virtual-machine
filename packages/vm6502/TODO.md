@@ -2,6 +2,21 @@
 
 ### 2026-11-14
 
+- **DONE** disk editor, new disk and copying files: a DOS 3.3 disk doesn't boot (no Disk II, on purpose), its files
+  copied to a ProDOS volume do
+  - "New disk": a blank ProDOS volume (140K / 800K .po, 32MB .hdv), its boot blocks from a library disk or none;
+    in the library, opened (`DiskNewPanel.vue`, the format's `newDisks` / `create`)
+  - files ticked in a directory (or a file's "Copy to…"), to a library disk and one of its directories
+    (`DiskCopyPanel.vue`): the source's `exportFile` gives the bytes and a ProDOS type, the target's
+    `target.addFiles` writes them; saved to the library, the editor reads it again
+  - `prodos.write.ts`: blank volume, seedling / sapling / tree files, a full subdirectory grows a block; names made
+    ProDOS ones (`SOUND EDITOR 3.0` -> `SOUND.EDITOR.3`); a name taken, a full disk: refused, nothing written
+  - DOS 3.3 -> ProDOS: B -> BIN at its address, A -> BAS $0801, I -> INT, T -> TXT (to the first $00), R -> REL
+  - checked: PRODOS + BASIC.SYSTEM + a DOS 3.3 Applesoft HELLO copied to a new volume, it boots, CAT / LIST fine
+- disk editor, later: write to DOS 3.3 disks; copy a whole directory, make one, delete / rename a file; the
+  MCP tools for it (`create_disk`, `copy_files`)
+- disk editor, a disk in the drive copied to: the machine sees it once inserted again (the panel offers it)
+
 - **DONE** disk editor, machine agnostic: it knew only Apple disks (DOS 3.3, ProDOS, 35 x 16 sectors) and showed
   every viewer, HGR on a PET too. The machine's config now names them (`disk.formats`, `disk.viewers`)
   - `lib/disk/diskFormat.type.ts`: what the editor shows of a disk (`OpenedDisk`): raw layout (tracks from 0 or 1,
