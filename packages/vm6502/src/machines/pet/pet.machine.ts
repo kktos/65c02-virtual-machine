@@ -21,7 +21,6 @@ export const pet3032: MachineConfig = {
 	disk: {
 		enabled: true,
 		name: "4040",
-		extensions: [".d64"],
 		blockSize: 256,
 		bootKeys: 'LOAD"*",8\nRUN\n',
 		formats: ["cbm"],

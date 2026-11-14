@@ -120,6 +120,11 @@ export interface OpenedDisk {
 export interface DiskFormat {
 	id: string;
 	name: string;
+	/**
+	 * The image files the format reads (".d64"), lower case: what a drive of the machines whose disks are in this
+	 * format takes (the open dialog, the library). The code that reads them decides: one more is code, not config.
+	 */
+	extensions: string[];
 	/** null: not an image of this format. `reading`: a value of `OpenedDisk.reading`, null for auto. */
 	open(file: Uint8Array, name: string, reading: string | null): OpenedDisk | null;
 }

@@ -33,7 +33,7 @@ const vm = {
 	ready: Promise.resolve(),
 	machineConfig: {
 		name: "Apple //e",
-		disk: { enabled: true, name: "SPDisk", extensions: [".po", ".2mg", ".dsk", ".hdv"] } as DiskConfig,
+		disk: { enabled: true, name: "SPDisk", formats: ["apple2"] } as DiskConfig,
 	},
 	sharedRegisters: new DataView(new ArrayBuffer(64)),
 	readDebug: (a: number) => memory[a] ?? 0,
@@ -46,8 +46,9 @@ const vm = {
 vi.mock("@/composables/useMachine", () => ({ useMachine: () => ({ vm: shallowRef(vm), isRunning }) }));
 vi.mock("@/composables/useCommands", () => ({ useCommands: () => ({}) }));
 vi.mock("@/composables/useSymbols", () => ({ useSymbols: () => ({ getAddressForLabel: () => undefined }) }));
-vi.mock("@/composables/useDiskDrive", () => {
-	const diskExtensions = (v: typeof vm) => v.machineConfig.disk?.extensions ?? [];
+vi.mock("@/composables/useDiskDrive", async () => {
+	const { formatExtensions } = await import("@/lib/disk/formats");
+	const diskExtensions = (v: typeof vm) => formatExtensions(v.machineConfig.disk?.formats ?? []);
 	return {
 		diskExtensions,
 		isDiskFor: (v: typeof vm, file: string) => diskExtensions(v).some((ext) => file.toLowerCase().endsWith(ext)),
@@ -145,14 +146,16 @@ describe("disk tools", () => {
 		const apple = vm.machineConfig;
 		vm.machineConfig = {
 			name: "Commodore PET 3032",
-			disk: { enabled: true, name: "4040", extensions: [".d64"], bootKeys: 'LOAD"*",8\nRUN\n' },
+			disk: { enabled: true, name: "4040", formats: ["cbm"], bootKeys: 'LOAD"*",8\nRUN\n' },
 		};
 		library.push({ key: "games.d64", name: "games.d64", type: "physical", size: 174848, path: "games.d64" });
 		try {
 			await call("load_disk", { disk: "games.d64", boot: true, paused: true });
 			expect(vm.reset).toHaveBeenCalledWith({ cold: true });
 			expect(vm.typeText).toHaveBeenCalledWith('LOAD"*",8\nRUN\n');
-			expect(vm.reset.mock.invocationCallOrder[0]).toBeLessThan(vm.typeText.mock.invocationCallOrder[0] as number);
+			expect(vm.reset.mock.invocationCallOrder[0]).toBeLessThan(
+				vm.typeText.mock.invocationCallOrder[0] as number,
+			);
 			await expect(call("load_disk", { path: hostFile("conan.po", [0]) })).rejects.toThrow(/\(\.d64\)/);
 		} finally {
 			vm.machineConfig = apple;
