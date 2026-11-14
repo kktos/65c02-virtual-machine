@@ -95,6 +95,33 @@ export type DiskReading = {
 	choices: { value: string; label: string }[];
 };
 
+/**
+ * A file taken off a disk to go on another: its bytes (a header the file system adds taken out, as a DOS 3.3 B
+ * file's address and length) and its type as ProDOS has it, the common ground of the Apple file systems: a format
+ * maps its own types to it, and from it.
+ */
+export type DiskFileCopy = {
+	/** Its name on the disk it comes from: the target makes a name of it its file system takes */
+	name: string;
+	data: Uint8Array;
+	fileType: number;
+	/** A binary's load address, a BASIC program's start... */
+	auxType: number;
+	locked: boolean;
+};
+
+/** What became of a file copied: the name it got, else why it wasn't */
+export type DiskCopyResult = { from: string; to?: string; error?: string };
+
+/** A disk files can be written to: where they can go, writing them (on the bytes given to `DiskFormat.open`) */
+export type DiskTarget = {
+	dirs(): { id: string; label: string }[];
+	addFiles(dirId: string, files: DiskFileCopy[]): DiskCopyResult[];
+};
+
+/** A blank disk a format makes */
+export type NewDiskKind = { id: string; label: string; extension: string };
+
 export interface OpenedDisk {
 	badge: { label: string; tone: "green" | "blue" | "amber" | "gray" };
 	size: string;
@@ -115,6 +142,11 @@ export interface OpenedDisk {
 	ownerOfBlock(block: number): string | undefined;
 	/** A sector / block the ROM boots from: where its code loads, and the data bytes before the code */
 	bootCode?(view: DiskEditorView): { base: number; skip: number } | null;
+	/** The file as it is copied to another disk; null: not one that can be (a deleted file, a directory) */
+	exportFile?(id: string): DiskFileCopy | null;
+	/** Files can be written to it; none: why not (a file system the format doesn't write) */
+	target?: DiskTarget;
+	readOnlyReason?: string;
 }
 
 export interface DiskFormat {
@@ -127,4 +159,10 @@ export interface DiskFormat {
 	extensions: string[];
 	/** null: not an image of this format. `reading`: a value of `OpenedDisk.reading`, null for auto. */
 	open(file: Uint8Array, name: string, reading: string | null): OpenedDisk | null;
+	/** The blank disks it makes */
+	newDisks?: NewDiskKind[];
+	/** A blank disk of a kind of `newDisks`, named `volume`; `boot`: an image whose boot sectors it gets */
+	create?(kind: string, volume: string, boot?: { file: Uint8Array; name: string }): Uint8Array;
+	/** The volume name as `create` writes it */
+	volumeName?(name: string): string;
 }

@@ -6,6 +6,14 @@
 				<span class="text-gray-400">{{ file.typeLabel }}</span>
 				<span v-if="file.locked" class="text-amber-400">locked</span>
 				<span v-if="file.deleted" class="text-red-400">deleted</span>
+				<button
+					v-if="fileId && disk.exportFile?.(fileId)"
+					class="copy-btn ml-auto"
+					title="Copy this file to another disk"
+					@click="panel = { kind: 'copy', ids: [fileId] }"
+				>
+					<Copy class="h-3 w-3" /> Copy to…
+				</button>
 			</div>
 			<div class="flex flex-wrap gap-x-4 gap-y-0.5 text-gray-400">
 				<span v-for="[label, value] in file.fields" :key="label" class="whitespace-nowrap">
@@ -52,6 +60,7 @@
 </template>
 
 <script lang="ts" setup>
+import { Copy } from "lucide-vue-next";
 import { computed, ref } from "vue";
 import { useDiskEditor } from "@/composables/useDiskEditor";
 import type { OpenedDisk } from "@/lib/disk/diskFormat.type";
@@ -62,7 +71,7 @@ import { useCurrentViewer } from "./viewers";
 const MAX_CHIPS = 512;
 
 const props = defineProps<{ disk: OpenedDisk }>();
-const { view } = useDiskEditor();
+const { view, panel } = useDiskEditor();
 const current = useCurrentViewer();
 const asLoaded = ref(true);
 
@@ -70,6 +79,8 @@ const file = computed(() => {
 	const v = view.value;
 	return v.kind === "file" ? props.disk.readFile(v.id) : null;
 });
+
+const fileId = computed(() => (view.value.kind === "file" ? view.value.id : null));
 
 const shown = computed(() => {
 	const f = file.value;
@@ -81,6 +92,9 @@ const shown = computed(() => {
 <style scoped>
 @reference "@/style.css";
 
+.copy-btn {
+	@apply flex items-center gap-1 px-1.5 py-px rounded border border-gray-700 text-gray-300 hover:border-cyan-500 hover:text-cyan-200;
+}
 .chip {
 	@apply px-1 rounded font-mono text-[10px] leading-4 transition-colors;
 }

@@ -120,6 +120,20 @@ export class DiskImage {
 		return out;
 	}
 
+	/** Writes a block (512 bytes, fewer: the rest zeroed) where it is in the image, whatever the order. */
+	writeBlock(block: number, bytes: Uint8Array) {
+		if (block < 0 || block >= this.blockCount) throw new Error(`No block $${block.toString(16)}`);
+		const full = new Uint8Array(BLOCK_SIZE);
+		full.set(bytes.subarray(0, BLOCK_SIZE));
+		if (this.order === "prodos" || !this.hasTracks) {
+			this.data.set(full, block * BLOCK_SIZE);
+			return;
+		}
+		const [lo, hi] = this.blockSectors(block);
+		this.data.set(full.subarray(0, SECTOR_SIZE), this.sectorOffset(lo.track, lo.sector));
+		this.data.set(full.subarray(SECTOR_SIZE), this.sectorOffset(hi.track, hi.sector));
+	}
+
 	/** The same disk in the other order (same bytes moved around). */
 	withOrder(order: SectorOrder): DiskImage {
 		return order === this.order ? this : new DiskImage(this.data, order);

@@ -185,6 +185,11 @@ export function useDiskStorage() {
 		return updateDisk(key, { name: newName });
 	};
 
+	/** New bytes for a library disk (files copied to it); its labels, formats and notes kept */
+	const updateDiskData = async (key: IDBValidKey, data: ArrayBuffer) => {
+		return updateDisk(key, { data, size: data.byteLength } as Partial<StoredDisk>);
+	};
+
 	const updateDiskFormatting = async (key: IDBValidKey, formatting: Record<string, DataBlock>) => {
 		return updateDisk(key, { formatting });
 	};
@@ -196,6 +201,7 @@ export function useDiskStorage() {
 		getAllDisks,
 		deleteDisk,
 		renameDisk,
+		updateDiskData,
 		updateDiskFormatting,
 		lastLoadedDisk,
 	};

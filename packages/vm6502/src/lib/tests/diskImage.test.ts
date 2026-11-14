@@ -272,6 +272,26 @@ describe("apple2 format", () => {
 		]);
 		expect(disk.ownerOfSector(0x11, 0)).toBe("VTOC");
 		expect(disk.bootCode?.({ kind: "sector", track: 0, sector: 0 })).toEqual({ base: 0x800, skip: 1 });
+		// Copied: a BIN at its address, the 4 header bytes out, cut to the length
+		expect(disk.exportFile?.("0")).toEqual({
+			name: "HELLO",
+			locked: true,
+			data: new Uint8Array([0xa9, 0xc1, 0x60, 0, 0]),
+			fileType: 0x06,
+			auxType: 0x0300,
+		});
+		expect(disk.exportFile?.("1")).toBeNull();
+		expect(disk.target).toBeUndefined();
+	});
+
+	it("ProDOS: a subdirectory is a place to copy to, a directory isn't a file to copy", () => {
+		const disk = open(prodosDisk("dos"), "vol.dsk");
+		expect(disk.target?.dirs().map((d) => d.id)).toEqual(["/TEST", "/TEST/SUB"]);
+		expect(disk.exportFile?.("/TEST/SUB")).toBeNull();
+		expect(disk.exportFile?.("/TEST/SUB/INNER")).toMatchObject({
+			fileType: 0xff,
+			data: new Uint8Array([0x4c, 0, 0x20]),
+		});
 	});
 
 	it("ProDOS: directories and files by path, from the volume", () => {
