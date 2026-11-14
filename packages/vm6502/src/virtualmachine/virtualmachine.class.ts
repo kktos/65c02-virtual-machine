@@ -2,7 +2,7 @@ import { ref } from "vue";
 import type { TraceSnapshot } from "./cpu/instructionTrace";
 import type { SaveStateInfo, SaveStateMeta } from "./cpu/saveStates";
 import type { Dict } from "@/types/dict.type";
-import type { MachineConfig } from "@/types/machine.interface";
+import type { MachineConfig, MemoryChunk } from "@/types/machine.interface";
 import type { IBus, KeyboardState } from "@/types/bus.interface";
 import {
 	FLAG_B_MASK,
@@ -54,6 +54,21 @@ let nextStartTime = 0;
 // messages, never a growing lag (the main thread busy, the clock of the worker drifting from the audio's).
 const AUDIO_PREBUFFER = 0.03;
 const AUDIO_MAX_LATENCY = 0.15;
+
+/** A memory chunk's bytes: its `data` (hex text parsed), or its `src` file fetched. */
+async function chunkData(chunk: MemoryChunk): Promise<Uint8Array> {
+	if (chunk.src === undefined)
+		return typeof chunk.data === "string" ? parseHexData(chunk.data) : (chunk.data ?? new Uint8Array());
+	const url = new URL(chunk.src, document.baseURI);
+	const response = await fetch(url).catch(() => undefined);
+	// The dev server answers a missing file with index.html
+	if (!response?.ok || response.headers.get("content-type")?.includes("text/html"))
+		throw new Error(`Missing ROM file ${chunk.src}`);
+	const data = new Uint8Array(await response.arrayBuffer());
+	if (chunk.size !== undefined && data.length !== chunk.size)
+		throw new Error(`${chunk.src}: ${data.length} bytes, expected ${chunk.size}`);
+	return data;
+}
 
 /** The screen as a PNG image of `width` x `height` pixels. */
 export type Screenshot = { width: number; height: number; png: Uint8Array };
@@ -254,10 +269,9 @@ export class VirtualMachine {
 		if (this.bus.prepareWorkerPayloads) payloads = await this.bus.prepareWorkerPayloads();
 
 		// 4. Initialize the worker with the prepared buffer, config, and payloads
-		const chunks = this.machineConfig.memory.chunks?.map((chunk) => ({
-			...chunk,
-			data: typeof chunk.data === "string" ? parseHexData(chunk.data) : chunk.data,
-		}));
+		const chunks = await Promise.all(
+			(this.machineConfig.memory.chunks ?? []).map(async (chunk) => ({ ...chunk, data: await chunkData(chunk) })),
+		);
 
 		this.worker.postMessage({
 			command: "init",

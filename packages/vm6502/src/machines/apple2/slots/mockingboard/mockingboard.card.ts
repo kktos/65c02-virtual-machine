@@ -1,7 +1,7 @@
 import type { IBus } from "@/types/bus.interface";
 import type { ISlotCard } from "../slotcard.interface";
 import { AY38910 } from "./ay38910";
-import { VIA6522 } from "./via6522";
+import { VIA6522 } from "@/machines/chips/via6522";
 
 export class MockingboardCard implements ISlotCard {
 	private via1: VIA6522;
