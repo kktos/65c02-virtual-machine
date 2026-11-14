@@ -54,11 +54,15 @@ let video: Video | null = null;
 let bus: IBus | null = null;
 // The last speed asked for: it can come before the bus is loaded
 let clockSpeedMhz = 1;
+// The UI sends commands as soon as the VM object exists (a component's immediate watcher), before the
+// worker has the machine: they wait here until `init` is done, then run in the order they came.
+let initState: "pending" | "ready" | "failed" = "pending";
+const pendingMessages: MessageEvent[] = [];
 
-async function init(machine: MachineConfig) {
+async function init(machine: MachineConfig): Promise<boolean> {
 	if (!(machine.memory.buffer instanceof SharedArrayBuffer)) {
 		console.error("Worker: Did not receive a SharedArrayBuffer.");
-		return;
+		return false;
 	}
 
 	sharedBuffer = machine.memory.buffer;
@@ -67,7 +71,7 @@ async function init(machine: MachineConfig) {
 	stackMetadataView = new Uint8Array(sharedBuffer, STACK_METADATA_OFFSET, 256);
 
 	bus = await loadBus(machine.bus, memoryView);
-	if (!bus) return;
+	if (!bus) return false;
 
 	// Give bus access to the registers view for state syncing
 	if (bus.setRegistersView) bus.setRegistersView(registersView);
@@ -82,7 +86,7 @@ async function init(machine: MachineConfig) {
 
 	if (machine.video) {
 		video = await loadVideo(machine.video, registersView, memoryView);
-		if (!video) return;
+		if (!video) return false;
 		if (machine.video.hasTests) video.setupTests?.(bus);
 	}
 
@@ -93,7 +97,7 @@ async function init(machine: MachineConfig) {
 
 	bus.syncState?.();
 	console.log(`%cWorker:%c Initialized with "${machine.name}".`, COLORED_LOG, COLORDEFAULT_LOG);
-	self.postMessage({ type: "ready" });
+	return true;
 }
 
 /** Save state commands: `{ result }` or `{ error }`. Restoring stops the machine (as paused) first. */
@@ -156,14 +160,30 @@ const reply = (event: MessageEvent, data: object = {}) => {
 };
 
 self.onmessage = async (event: MessageEvent) => {
-	const { command, speed, machine, key, code } = event.data;
-
-	if (command === "init") return init(machine);
-
-	if (!sharedBuffer || !registersView || !memoryView) {
-		console.error(`Worker: Not initialized. Send 'init' command with buffer first. ${JSON.stringify(event.data)}`);
+	if (event.data.command === "init") {
+		if (!(await init(event.data.machine))) {
+			initState = "failed";
+			for (const pending of pendingMessages.splice(0)) notInitialized(pending);
+			return;
+		}
+		// Still "pending" while the queue drains: what comes meanwhile goes after it
+		while (pendingMessages.length) await handleMessage(pendingMessages.shift() as MessageEvent);
+		initState = "ready";
+		self.postMessage({ type: "ready" });
 		return;
 	}
+
+	if (initState === "pending") pendingMessages.push(event);
+	else if (initState === "failed") notInitialized(event);
+	else await handleMessage(event);
+};
+
+const notInitialized = (event: MessageEvent) =>
+	console.error(`Worker: Not initialized (init failed). Dropped ${JSON.stringify(event.data)}`);
+
+async function handleMessage(event: MessageEvent) {
+	const { command, speed, key, code } = event.data;
+	if (!registersView || !memoryView) return;
 
 	switch (command) {
 		case "run":
@@ -299,4 +319,4 @@ self.onmessage = async (event: MessageEvent) => {
 			bus?.write(event.data.address, event.data.value);
 			break;
 	}
-};
+}

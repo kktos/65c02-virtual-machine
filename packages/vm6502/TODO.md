@@ -16,6 +16,23 @@
   NMOS 6502. The CPU should come from the machine: a `cpu` in `MachineConfig` (there's none today), or a parameter
   of the viewer in the machine's `disk.viewers`
 
+Noticed while running `mock mini prodos T.dsk` (asimov `images/sound/`, a Mockingboard sample player: silent):
+
+- **FIXED** console, `Worker: Not initialized` on each power on (`setDebugOverrides`, `setTraceSize`, `getTrace`):
+  `DiskDriveLogs.vue` / `TraceView.vue` send them from an immediate watcher on `vm`, before the worker has its
+  `init` (sent once the bus is loaded on the main thread), so they were dropped. Harmless as the values sent were the
+  defaults, but a disk logging switched on at mount was lost. And a command coming while `init` was still loading
+  the bus passed the check (`sharedBuffer` was set) and hit a `null` bus
+  - `cpu.worker.ts`: what comes before `init` is done is queued, run in order once it is, then `ready` is posted;
+    an `init` that failed drops the queue and refuses what comes after
+- Mockingboard slot: the card is in slot 7 (`MOCKINGBOARD_SLOT`, `apple.bus.ts`) because the mouse
+  (`MouseCard`) is in slot 4, the Mockingboard's usual one. Software written for slot 4 doesn't find the card
+  - the disk's player (`V15`, at $758A) has `$C4` hard-coded in 23 `STA` / `STY $C4xx` (both VIAs, $C400 / $C480);
+    the BASIC's `POKE 30117,4` isn't the slot but the T1 latch low byte. Patched to `$C7` (23 POKEs of 199 after the
+    `BLOAD V15`), its IRQ runs (the sample pointer moves) — whether it is heard there was not checked
+  - to decide: the Mockingboard in slot 4 and the mouse moved (slot 7? what expects the mouse in 4?), or the slots
+    as a machine setting (which card in which slot), or several Mockingboard slots selectable in the UI
+
 ### 2026-11-13
 
 Noticed while chasing the speaker's sound (Conan late, Karateka silent):
