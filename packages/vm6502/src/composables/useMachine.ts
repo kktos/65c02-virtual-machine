@@ -155,9 +155,10 @@ const loadMachine = async (newMachine?: MachineConfig) => {
 	isRunning.value = false;
 	vm.value?.terminate();
 
-	// Another machine: the disk editor's disk isn't in its library, its file systems and viewers aren't its own
-	if (newMachine && newMachine.name !== selectedMachine.value.name) useDiskEditor().closeDisk();
 	if (newMachine) selectedMachine.value = newMachine;
+	// The disk editor reads the machine's disk formats, shows its viewers. Another machine closes its disk: it
+	// isn't in that machine's library, its file systems and viewers aren't its own
+	useDiskEditor().setMachine(selectedMachine.value);
 
 	console.log(`Main: Loading machine ${selectedMachine.value.name}`);
 

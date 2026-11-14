@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { analyzeDisk } from "@/lib/disk/analyzeDisk";
-import { DiskImage, FLOPPY_SIZE, type SectorOrder } from "@/lib/disk/diskImage";
-import { readFile as readDosFile, sectorOwners } from "@/lib/disk/dos33";
-import { blockOwners, readBitmap, readDirectory, readFile as readProdosFile } from "@/lib/disk/prodos";
+import { analyzeDisk } from "@/lib/disk/formats/apple2/analyzeDisk";
+import { apple2Format } from "@/lib/disk/formats/apple2/apple2.format";
+import { DiskImage, FLOPPY_SIZE, type SectorOrder } from "@/lib/disk/formats/apple2/diskImage";
+import { readFile as readDosFile, sectorOwners } from "@/lib/disk/formats/apple2/dos33";
+import { blockOwners, readBitmap, readDirectory, readFile as readProdosFile } from "@/lib/disk/formats/apple2/prodos";
 
 const writeSector = (image: DiskImage, track: number, sector: number, bytes: ArrayLike<number>, at = 0) =>
 	image.data.set(bytes, image.sectorOffset(track, sector) + at);
@@ -242,5 +243,66 @@ describe("ProDOS", () => {
 		expect(disk.format).toBe("unknown");
 		expect(disk.image.order).toBe("dos");
 		expect(disk.orderSource).toBe("extension");
+	});
+});
+
+describe("apple2 format", () => {
+	const open = (image: DiskImage, name: string, reading: string | null = null) => {
+		const disk = apple2Format.open(image.data, name, reading);
+		if (!disk) throw new Error("not opened");
+		return disk;
+	};
+
+	it("DOS 3.3: the catalog is the root, files by catalog index, T/S in hex", () => {
+		const disk = open(dos33Disk("dos"), "game.dsk");
+		expect(disk.badge.label).toBe("DOS 3.3");
+		expect(disk.home).toEqual({ kind: "dir", id: "catalog" });
+		expect(disk.layout.tracks).toMatchObject({ first: 0, count: 35, hex: true });
+		const dir = disk.readDir("catalog");
+		expect(dir.title).toBe("Catalog · 1 files");
+		expect(dir.entries.map((e) => [e.id, e.name.trim(), e.type, e.locked, e.deleted])).toEqual([
+			["0", "HELLO", "B", true, false],
+			["1", "OLD", "B", false, true],
+		]);
+		const hello = disk.readFile("0");
+		expect(hello?.loaded).toEqual({ address: 0x0300, bytes: new Uint8Array([0xa9, 0xc1, 0x60, 0, 0]) });
+		expect(hello?.groups.map((g) => [g.label, g.items.map((i) => i.label)])).toEqual([
+			["T/S list", ["T12 SF"]],
+			["Data", ["T12 SE", "T12 SD"]],
+		]);
+		expect(disk.ownerOfSector(0x11, 0)).toBe("VTOC");
+		expect(disk.bootCode?.({ kind: "sector", track: 0, sector: 0 })).toEqual({ base: 0x800, skip: 1 });
+	});
+
+	it("ProDOS: directories and files by path, from the volume", () => {
+		const disk = open(prodosDisk("prodos"), "vol.po");
+		expect(disk.badge.label).toBe("ProDOS");
+		expect(disk.root).toEqual({ id: "/TEST", label: "/TEST" });
+		expect(disk.readDir("/TEST").entries.map((e) => [e.id, e.isDir])).toEqual([
+			["/TEST/HELLO", false],
+			["/TEST/BIG", false],
+			["/TEST/SUB", true],
+		]);
+		expect(disk.readDir("/TEST/SUB").entries.map((e) => e.id)).toEqual(["/TEST/SUB/INNER"]);
+		expect(disk.readFile("/TEST/SUB/INNER")?.loaded?.address).toBe(0x2000);
+		expect(disk.readFile("/TEST/SUB")).toBeNull();
+		expect(disk.readFile("/TEST/NOPE")).toBeNull();
+		expect(disk.readDir("/OTHER").error).toBe("No such directory");
+		expect(disk.ownerOfBlock(12)).toBe("/SUB/INNER");
+	});
+
+	it("the reading picks the sector order; unknown disks are raw sectors", () => {
+		const forced = open(dos33Disk("dos"), "game.dsk", "prodos");
+		expect(forced.reading?.autoLabel).toBe("Auto");
+		// T$11 S0 (the VTOC) is in the same place in both orders, the file's sectors aren't
+		expect(forced.readFile("0")?.loaded?.bytes).not.toEqual(
+			open(dos33Disk("dos"), "game.dsk").readFile("0")?.loaded?.bytes,
+		);
+		const auto = open(dos33Disk("dos"), "game.dsk");
+		expect(auto.reading?.autoLabel).toBe("Auto: DOS order (detected)");
+
+		const raw = open(new DiskImage(new Uint8Array(FLOPPY_SIZE), "dos"), "blank.dsk");
+		expect(raw.root).toBeUndefined();
+		expect(raw.home).toEqual({ kind: "sector", track: 0, sector: 0 });
 	});
 });

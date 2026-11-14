@@ -209,7 +209,7 @@ export function useDiskDrive() {
 	return {
 		inserted: shallowReadonly(inserted),
 		listDisks,
-		/** The whole library (the disk editor looks at any image) */
+		/** The whole library, every machine's disks */
 		listAllDisks: getAllDisks,
 		insertFromLibrary,
 		insertFile,

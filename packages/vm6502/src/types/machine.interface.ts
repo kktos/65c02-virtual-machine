@@ -73,6 +73,16 @@ export interface DiskConfig {
 	 * (the PET: `LOAD"*",8` and `RUN`). Without it, the cold boot boots the disk.
 	 */
 	bootKeys?: string;
+	/**
+	 * The disk editor: the formats the machine's disks are in, tried in order (ids of `lib/disk/formats`:
+	 * "apple2", "cbm"). None: the editor reads none of its disks.
+	 */
+	formats?: string[];
+	/**
+	 * The disk editor: the viewers of a file / sector's bytes, in the order of their buttons (ids of
+	 * `app/diskeditor/viewers/index.ts`: "hex", "hgr", "disasm"). The hex dump is always there.
+	 */
+	viewers?: string[];
 }
 
 export interface MachineInputControl {

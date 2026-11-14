@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { HGR_HEIGHT, HGR_WIDTH, hgrLineOffset, renderHgr, renderHgrRows } from "@/lib/disk/hgrImage";
+import { HGR_HEIGHT, HGR_WIDTH, hgrLineOffset, renderHgr, renderHgrRows } from "@/lib/disk/hgrImage.utils";
 import { HGR_COLORS } from "@/machines/apple2/video/hgr";
 
 const pixel = (rgba: Uint8ClampedArray, x: number, y: number) =>

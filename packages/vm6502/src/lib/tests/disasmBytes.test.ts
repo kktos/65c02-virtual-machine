@@ -18,7 +18,7 @@ vi.mock("@/composables/useSymbols", () => ({
 	}),
 }));
 
-const { disassembleBytes } = await import("@/lib/disk/disasmBytes");
+const { disassembleBytes } = await import("@/lib/disk/disasmBytes.utils");
 
 // $0300: LDA #$C1 / JSR COUT / BNE $0300 / BRK $00 / JMP $0300 / JMP $1234 / LDA $12 (cut: 1 byte of 2)
 const code = new Uint8Array([

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { hgrLineOffset } from "@/lib/disk/hgrImage";
-import { detectHgrRle, expandRle, type RleLayout, type RleOrder, unpackHgrRle } from "@/lib/disk/hgrRle";
+import { hgrLineOffset } from "@/lib/disk/hgrImage.utils";
+import { detectHgrRle, expandRle, type RleLayout, type RleOrder, unpackHgrRle } from "@/lib/disk/hgrRle.utils";
 
 /** A level-like picture, `lines` high: floors, posts, a violet hill */
 function picture(lines: number) {

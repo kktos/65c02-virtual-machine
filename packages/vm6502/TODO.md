@@ -1,5 +1,21 @@
 # TODO
 
+### 2026-11-14
+
+- **DONE** disk editor, machine agnostic: it knew only Apple disks (DOS 3.3, ProDOS, 35 x 16 sectors) and showed
+  every viewer, HGR on a PET too. The machine's config now names them (`disk.formats`, `disk.viewers`)
+  - `lib/disk/diskFormat.type.ts`: what the editor shows of a disk (`OpenedDisk`): raw layout (tracks from 0 or 1,
+    sectors per track, blocks or not), a tree of directories / files by ids, a volume map, what each sector holds
+  - `lib/disk/formats/`: `apple2` (what `analyzeDisk` found, the sector order as a "reading" choice) and `cbm`
+    (D64: BAM, flat directory, PRG load address, PETSCII names, decimal T/S)
+  - `app/diskeditor/viewers/index.ts`: hex (always there), hgr, disasm; a viewer can ask for more than a sector (HGR: 8K)
+  - the editor lists the library disks of the machine's drive only
+- disk editor, viewers to add: PETSCII text, CBM BASIC listing, Applesoft listing; a default viewer by file type
+  (a PRG at $0401, an `A` file)
+- disk editor, disassembler viewer: always a 65C02 (`DiskDisasmView.vue`, "65C02 disassembly"), where the PET has an
+  NMOS 6502. The CPU should come from the machine: a `cpu` in `MachineConfig` (there's none today), or a parameter
+  of the viewer in the machine's `disk.viewers`
+
 ### 2026-11-13
 
 Noticed while chasing the speaker's sound (Conan late, Karateka silent):
@@ -40,13 +56,13 @@ Noticed while chasing the speaker's sound (Conan late, Karateka silent):
     parsing in `lib/disk/` (sector order detected, a .2mg header's taken; VTOC / bitmap maps show what holds each
     sector / block)
 - **DONE** disk editor, viewers: the bytes of a file / sector / block shown as a hex dump (default) or an HGR
-  picture (`DiskViewerSwitch.vue`, `DiskHgrView.vue`, rendering in `lib/disk/hgrImage.ts`): color or mono; a file
+  picture (`DiskViewerSwitch.vue`, `DiskHgrView.vue`, rendering in `lib/disk/hgrImage.utils.ts`): color or mono; a file
   as loaded, raw sectors / blocks 8K from the one shown (Page Up / Down to align a picture)
-- **DONE** HGR viewer, RLE-packed pictures (`$FE` runs, Conan's `unpack.asm`): `lib/disk/hgrRle.ts` detects the
+- **DONE** HGR viewer, RLE-packed pictures (`$FE` runs, Conan's `unpack.asm`): `lib/disk/hgrRle.utils.ts` detects the
   variant (`FE value count` / `FE count value`, by columns / by lines) and the height (183 for Conan's backgrounds);
   unpacked on its own when shorter than a screen, or set by hand. Line by line, the height isn't detected (what
   follows the picture shows below it). A picture inside a file (WELCOME.DATA's second one) isn't looked for
-- **DONE** disk editor, disassembler viewer (`DiskDisasmView.vue`, `lib/disk/disasmBytes.ts`): 65C02, from the load
+- **DONE** disk editor, disassembler viewer (`DiskDisasmView.vue`, `lib/disk/disasmBytes.utils.ts`): 65C02, from the load
   address (Org editable), labels on / off, jumps inside the bytes as links; boot sector / block 0 at $0800, code
   from $0801. The debugger's disassembler with `detached` (no data formats, comments, hypercalls: they belong to
   the memory at those addresses) and `labels: false`

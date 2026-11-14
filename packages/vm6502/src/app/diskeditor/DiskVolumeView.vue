@@ -1,129 +1,99 @@
 <template>
 	<div class="p-3 space-y-4 text-xs text-gray-300 overflow-auto h-full">
-		<!-- DOS 3.3: the VTOC and its free sector map -->
-		<template v-if="vtoc">
-			<section>
-				<h3 class="title">
-					VTOC
-					<button class="link font-mono" @click="view = { kind: 'sector', track: 0x11, sector: 0 }">
-						T11 S0
-					</button>
-				</h3>
-				<dl class="fields">
-					<dt>Catalog</dt>
+		<section>
+			<h3 class="title">
+				{{ volume.title }}
+				<button v-if="volume.titleLink?.view" class="link font-mono" @click="view = volume.titleLink.view">
+					{{ volume.titleLink.label }}
+				</button>
+			</h3>
+			<dl class="fields">
+				<template v-for="field in volume.fields" :key="field.label">
+					<dt>{{ field.label }}</dt>
 					<dd>
-						<button class="link font-mono" @click="view = { kind: 'sector', ...vtoc.catalog }">
-							T{{ toHex(vtoc.catalog.track) }} S{{ toHex(vtoc.catalog.sector, 1) }}
-						</button>
-					</dd>
-					<dt>DOS release</dt>
-					<dd>{{ vtoc.dosVersion }}</dd>
-					<dt>Volume</dt>
-					<dd>{{ vtoc.volume }} (${{ toHex(vtoc.volume) }})</dd>
-					<dt>T/S pairs a list</dt>
-					<dd>{{ vtoc.maxTsPairs }}</dd>
-					<dt>Last track allocated</dt>
-					<dd>${{ toHex(vtoc.lastTrackAllocated) }} ({{ vtoc.direction > 0 ? "+1" : vtoc.direction }})</dd>
-					<dt>Geometry</dt>
-					<dd>
-						{{ vtoc.tracks }} tracks x {{ vtoc.sectorsPerTrack }} sectors x {{ vtoc.bytesPerSector }} bytes
-					</dd>
-					<dt>Free</dt>
-					<dd>{{ vtoc.freeSectors }} sectors ({{ ((vtoc.freeSectors * 256) / 1024).toFixed(1) }} KB)</dd>
-				</dl>
-			</section>
-			<section>
-				<h3 class="title">Sector map <span class="legend">tracks across, sectors down; click to open</span></h3>
-				<div class="inline-grid gap-px" :style="{ gridTemplateColumns: `1.5rem repeat(${TRACKS}, 0.75rem)` }">
-					<span></span>
-					<span v-for="t in TRACKS" :key="t" class="axis">{{ (t - 1) % 5 === 0 ? toHex(t - 1) : "" }}</span>
-					<template v-for="s in SECTORS_PER_TRACK" :key="s">
-						<span class="axis text-right pr-1">{{ toHex(s - 1, 1) }}</span>
+						{{ field.value }}
 						<button
-							v-for="t in TRACKS"
-							:key="t"
-							class="cell"
-							:class="sectorCellClass(t - 1, s - 1)"
-							:title="sectorTitle(t - 1, s - 1)"
-							@click="view = { kind: 'sector', track: t - 1, sector: s - 1 }"
-						></button>
-					</template>
-				</div>
-				<MapLegend />
-			</section>
-		</template>
-
-		<!-- ProDOS: the volume header and its bitmap -->
-		<template v-else-if="volume">
-			<section>
-				<h3 class="title">
-					Volume /{{ volume.name }}
-					<button class="link font-mono" @click="view = { kind: 'block', block: volume.keyBlock }">
-						block {{ volume.keyBlock }}
-					</button>
-				</h3>
-				<dl class="fields">
-					<dt>Created</dt>
-					<dd>{{ volume.created ?? "-" }}</dd>
-					<dt>Files</dt>
-					<dd>{{ volume.fileCount }} in the volume directory</dd>
-					<dt>Blocks</dt>
-					<dd>{{ volume.totalBlocks }} ({{ ((volume.totalBlocks ?? 0) / 2).toFixed(0) }} KB)</dd>
-					<dt>Bitmap</dt>
-					<dd>
-						<button
-							v-for="b in bitmap?.blocks ?? []"
-							:key="b"
-							class="link mr-2"
-							@click="view = { kind: 'block', block: b }"
+							v-for="(link, i) in field.links ?? []"
+							:key="i"
+							class="link font-mono mr-2"
+							:disabled="!link.view"
+							@click="link.view && (view = link.view)"
 						>
-							block {{ b }}
+							{{ link.label }}
 						</button>
 					</dd>
-					<dt>Free</dt>
-					<dd v-if="bitmap">{{ bitmap.freeBlocks }} blocks ({{ (bitmap.freeBlocks / 2).toFixed(1) }} KB)</dd>
-					<dd v-else>no bitmap</dd>
-				</dl>
-			</section>
-			<section v-if="bitmap">
-				<h3 class="title">Block map <span class="legend">click to open</span></h3>
-				<div
-					v-if="bitmap.free.length <= MAX_MAP"
-					class="grid gap-px"
-					:style="{ gridTemplateColumns: `repeat(${columns}, 0.75rem)` }"
-				>
-					<button
-						v-for="(free, block) in bitmap.free"
-						:key="block"
-						class="cell"
-						:class="blockCellClass(block, free)"
-						:title="blockTitle(block, free)"
-						@click="view = { kind: 'block', block }"
-					></button>
-				</div>
-				<p v-else class="text-gray-500">{{ bitmap.free.length }} blocks: too many to draw.</p>
-				<MapLegend />
-			</section>
-		</template>
+				</template>
+			</dl>
+		</section>
+
+		<!-- Tracks across, sectors down (as many as the track has) -->
+		<section v-if="map?.kind === 'tracks' && tracks">
+			<h3 class="title">Sector map <span class="legend">tracks across, sectors down; click to open</span></h3>
+			<div class="inline-grid gap-px" :style="{ gridTemplateColumns: `1.5rem repeat(${tracks.count}, 0.75rem)` }">
+				<span></span>
+				<span v-for="t in trackNumbers" :key="t" class="axis">{{ trackAxis(t) }}</span>
+				<template v-for="s in maxSectors" :key="s">
+					<span class="axis text-right pr-1">{{ num(s - 1, 1) }}</span>
+					<template v-for="t in trackNumbers" :key="t">
+						<button
+							v-if="s - 1 < tracks.sectors(t)"
+							class="cell"
+							:class="sectorCellClass(t, s - 1)"
+							:title="sectorTitle(t, s - 1)"
+							@click="view = { kind: 'sector', track: t, sector: s - 1 }"
+						></button>
+						<span v-else></span>
+					</template>
+				</template>
+			</div>
+			<MapLegend />
+		</section>
+
+		<section v-else-if="map?.kind === 'blocks'">
+			<h3 class="title">Block map <span class="legend">click to open</span></h3>
+			<div
+				v-if="map.count <= MAX_MAP"
+				class="grid gap-px"
+				:style="{ gridTemplateColumns: `repeat(${map.columns}, 0.75rem)` }"
+			>
+				<button
+					v-for="block in map.count"
+					:key="block"
+					class="cell"
+					:class="blockCellClass(block - 1)"
+					:title="blockTitle(block - 1)"
+					@click="view = { kind: 'block', block: block - 1 }"
+				></button>
+			</div>
+			<p v-else class="text-gray-500">{{ map.count }} blocks: too many to draw.</p>
+			<MapLegend />
+		</section>
 	</div>
 </template>
 
 <script lang="ts" setup>
 import { computed, defineComponent, h } from "vue";
 import { useDiskEditor } from "@/composables/useDiskEditor";
-import { SECTORS_PER_TRACK, TRACKS } from "@/lib/disk/diskImage";
-import { readBitmap } from "@/lib/disk/prodos";
+import type { OpenedDisk } from "@/lib/disk/diskFormat.type";
+import { tsLabel } from "@/lib/disk/diskLayout.utils";
 import { toHex } from "@/lib/hex.utils";
 
 const MAX_MAP = 4096;
 
-const { analysis, view, ownerOfSector, ownerOfBlock } = useDiskEditor();
+const props = defineProps<{ disk: OpenedDisk }>();
+const { view } = useDiskEditor();
 
-const vtoc = computed(() => analysis.value?.dos33?.vtoc);
-const volume = computed(() => analysis.value?.prodos);
-const bitmap = computed(() => (analysis.value && volume.value ? readBitmap(analysis.value.image, volume.value) : null));
-/** A 5.25" floppy: a row a track (8 blocks) is too narrow, 2 tracks a row */
-const columns = computed(() => ((bitmap.value?.free.length ?? 0) <= 280 ? 16 : 32));
+const volume = computed(() => props.disk.volume?.read() ?? { title: "No volume", fields: [], map: null });
+const map = computed(() => volume.value.map);
+const tracks = computed(() => props.disk.layout.tracks);
+const trackNumbers = computed(() =>
+	Array.from({ length: tracks.value?.count ?? 0 }, (_, i) => (tracks.value?.first ?? 0) + i),
+);
+const maxSectors = computed(() => Math.max(0, ...trackNumbers.value.map((t) => tracks.value?.sectors(t) ?? 0)));
+
+const num = (n: number, pad: number) => (tracks.value?.hex ? toHex(n, pad) : String(n));
+/** A label every 5 tracks, and on the first one */
+const trackAxis = (t: number) => (t % 5 === 0 || t === tracks.value?.first ? num(t, 2) : "");
 
 /** Free / used, and used but not by a file found (or free but in use: a damaged disk) */
 const cellClass = (free: boolean, owner: string | undefined) => {
@@ -131,14 +101,17 @@ const cellClass = (free: boolean, owner: string | undefined) => {
 	return owner ? "bg-cyan-600" : "bg-amber-600";
 };
 
+const sectorFree = (track: number, sector: number) =>
+	map.value?.kind === "tracks" ? map.value.free(track, sector) : false;
 const sectorCellClass = (track: number, sector: number) =>
-	cellClass(vtoc.value?.free[track]?.[sector] ?? false, ownerOfSector(track, sector));
+	cellClass(sectorFree(track, sector), props.disk.ownerOfSector(track, sector));
 const sectorTitle = (track: number, sector: number) =>
-	`T${toHex(track)} S${toHex(sector, 1)}: ${ownerOfSector(track, sector) ?? (vtoc.value?.free[track]?.[sector] ? "free" : "used, no file")}`;
+	`${tsLabel(props.disk.layout, track, sector)}: ${props.disk.ownerOfSector(track, sector) ?? (sectorFree(track, sector) ? "free" : "used, no file")}`;
 
-const blockCellClass = (block: number, free: boolean) => cellClass(free, ownerOfBlock(block));
-const blockTitle = (block: number, free: boolean) =>
-	`Block ${block} ($${toHex(block, 4)}): ${ownerOfBlock(block) ?? (free ? "free" : "used, no file")}`;
+const blockFree = (block: number) => (map.value?.kind === "blocks" ? map.value.free(block) : false);
+const blockCellClass = (block: number) => cellClass(blockFree(block), props.disk.ownerOfBlock(block));
+const blockTitle = (block: number) =>
+	`Block ${block} ($${toHex(block, 4)}): ${props.disk.ownerOfBlock(block) ?? (blockFree(block) ? "free" : "used, no file")}`;
 
 const MapLegend = defineComponent(() => () => {
 	const item = (cls: string, text: string) =>
