@@ -50,6 +50,26 @@ Noticed while running `mock mini prodos T.dsk` (asimov `images/sound/`, a Mockin
   slot; the inputs could follow the cards
 - slots, later: a generic ROM card ($Cn00 ROM, $C800 expansion ROM, a user file or `rom/slotN.rom.ts`)
 
+Noticed while chasing the squares shown instead of `@` on a page refresh (//e, text renderer "Font"):
+
+- **FIXED** text, "Font" renderer: on a refresh the screen showed missing glyph boxes instead of `@`, often, and for
+  good (a redraw seconds later still drew them). The worker loads its own `PrintChar21` / `PRNumber3`
+  (`loadFont`, `apple.video.ts`), not awaited, so the first frame (the machine paused at reset) set `ctx.font` before
+  they were in: the OffscreenCanvas context resolved it to a fallback font, which has no glyph for the private use
+  code points of `appleCharCodeToUnicode` ($00 -> U+E140), and kept it once the fonts were loaded (cached by
+  context and font string). Not the main thread: its atlas (`generateApple2Assets`) was fine every time
+  - `text.ts`: `render40WithFont` / `render80WithFont` draw nothing until `setFontsReady()`
+  - `apple.video.ts`: `loadFont` returns its promise; once both are in, `setFontsReady()` then a redraw (`tick()`)
+- text, "Bitmap" renderer: `render40Bitmap` / `render80Bitmap` draw into the OffscreenCanvas but never call
+  `copyToBuffer()`, so nothing of it reaches the screen (unlike the "Font" ones). Broken, or left unfinished?
+- `loadFont` (`apple.video.ts`): the font URL is built from `import.meta.url.match(/http:\/\/[^/]+/)`, http only.
+  Served over https, `baseurl` is undefined and `new URL("undefined/fonts/...")` throws in the `AppleVideo`
+  constructor. `new URL(`fonts/${name}.ttf`, self.location.href)`? (Vite's `base` is `./`)
+- `virtualmachine.class.ts`: `loadCSS()` (the `@font-face` of `fonts.css`) isn't awaited before `loadBus()`, which
+  draws the 40/80 column atlases (`generateApple2Assets`, `document.fonts.load(...)`). If the CSS came last,
+  `fonts.load` would find no face and resolve at once, drawing the atlas with a fallback font. Always in order so
+  far, by luck: await `loadCSS()` before the payloads
+
 ### 2026-11-13
 
 Noticed while chasing the speaker's sound (Conan late, Karateka silent):
