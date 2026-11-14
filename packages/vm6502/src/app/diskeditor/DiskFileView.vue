@@ -21,7 +21,7 @@
 					v-for="(item, i) in group.items.slice(0, MAX_CHIPS)"
 					:key="i"
 					class="chip"
-					:class="[group.cls, item.view ? '' : 'opacity-40 cursor-default']"
+					:class="[`chip-${group.kind}`, item.view ? '' : 'opacity-40 cursor-default']"
 					:disabled="!item.view"
 					@click="item.view && (view = item.view)"
 				>
@@ -46,105 +46,29 @@
 			</label>
 		</div>
 		<div class="flex-1 min-h-0 overflow-auto py-1">
-			<DiskHgrView v-if="viewer === 'hgr'" :bytes="shown.bytes" />
-			<DiskDisasmView v-else-if="viewer === 'disasm'" :bytes="shown.bytes" :base="shown.base" />
-			<DiskHexDump v-else :bytes="shown.bytes" :base="shown.base" :label-width="shown.base ? 4 : 0" />
+			<component :is="current.component" :bytes="shown.bytes" :base="shown.base" />
 		</div>
 	</div>
 </template>
 
 <script lang="ts" setup>
 import { computed, ref } from "vue";
-import { type DiskEditorView, useDiskEditor } from "@/composables/useDiskEditor";
-import type { TrackSector } from "@/lib/disk/diskImage";
-import { DOS33_TYPE_NAMES, readFile as readDosFile } from "@/lib/disk/dos33";
-import { fileTypeName, readFile as readProdosFile, STORAGE_TYPES } from "@/lib/disk/prodos";
+import { useDiskEditor } from "@/composables/useDiskEditor";
+import type { OpenedDisk } from "@/lib/disk/diskFormat.type";
 import { toHex } from "@/lib/hex.utils";
-import DiskDisasmView from "./DiskDisasmView.vue";
-import DiskHexDump from "./DiskHexDump.vue";
-import DiskHgrView from "./DiskHgrView.vue";
 import DiskViewerSwitch from "./DiskViewerSwitch.vue";
-
-type Group = { label: string; cls: string; items: { label: string; view: DiskEditorView | null }[] };
+import { useCurrentViewer } from "./viewers";
 
 const MAX_CHIPS = 512;
 
-const { analysis, view, viewer } = useDiskEditor();
+const props = defineProps<{ disk: OpenedDisk }>();
+const { view } = useDiskEditor();
+const current = useCurrentViewer();
 const asLoaded = ref(true);
-
-const ts = (t: TrackSector | null) =>
-	t
-		? { label: `T${toHex(t.track)} S${toHex(t.sector, 1)}`, view: { kind: "sector" as const, ...t } }
-		: { label: "hole", view: null };
-const blk = (b: number) =>
-	b ? { label: String(b), view: { kind: "block" as const, block: b } } : { label: "sparse", view: null };
 
 const file = computed(() => {
 	const v = view.value;
-	const disk = analysis.value;
-	if (!disk) return null;
-
-	if (v.kind === "dosFile" && disk.dos33) {
-		const f = disk.dos33.files[v.index];
-		if (!f) return null;
-		const c = readDosFile(disk.image, f);
-		const fields: [string, string][] = [
-			["Catalog", `T${toHex(f.entry.track)} S${toHex(f.entry.sector, 1)} #${f.entry.index}`],
-			["Sectors", String(f.sectorCount)],
-		];
-		if (c.address !== undefined) fields.push(["Address", `$${toHex(c.address, 4)}`]);
-		if (c.length !== undefined) fields.push(["Length", `$${toHex(c.length, 4)} (${c.length})`]);
-		const isBinary = f.type.toUpperCase() === "B" && c.address !== undefined && c.length !== undefined;
-		return {
-			name: f.name,
-			typeLabel: `${f.type} · ${DOS33_TYPE_NAMES[f.type] ?? `$${toHex(f.typeByte)}`}`,
-			locked: f.locked,
-			deleted: f.deleted,
-			fields,
-			error: c.error,
-			data: c.data,
-			// B: 4 bytes of address and length, then the bytes loaded there
-			loaded: isBinary ? { address: c.address!, bytes: c.data.subarray(4, 4 + c.length!) } : null,
-			groups: [
-				{ label: "T/S list", cls: "chip-index", items: c.tsListSectors.map(ts) },
-				{ label: "Data", cls: "chip-data", items: c.dataSectors.map(ts) },
-			] as Group[],
-		};
-	}
-
-	if (v.kind === "prodosFile") {
-		const e = v.entry;
-		const c = readProdosFile(disk.image, e);
-		const fields: [string, string][] = [
-			["Aux", `$${toHex(e.auxType, 4)}`],
-			["EOF", `$${toHex(e.eof, 4)} (${e.eof})`],
-			["Blocks", String(e.blocksUsed)],
-			["Key", String(e.keyPointer)],
-			["Access", `$${toHex(e.access)}`],
-			["Created", e.created ?? "-"],
-			["Modified", e.modified ?? "-"],
-		];
-		const groups: Group[] = [
-			{ label: "Index", cls: "chip-index", items: c.indexBlocks.map(blk) },
-			{ label: "Data", cls: "chip-data", items: c.dataBlocks.map(blk) },
-		];
-		if (c.resourceBlocks)
-			groups.push({ label: "Resource fork", cls: "chip-index", items: c.resourceBlocks.map(blk) });
-		// BIN and SYS: the aux type is the load address
-		const loadAddress = e.fileType === 0x06 ? e.auxType : e.fileType === 0xff ? 0x2000 : null;
-		return {
-			name: v.path,
-			typeLabel: `${fileTypeName(e.fileType)} · ${STORAGE_TYPES[e.storageType] ?? e.storageType}`,
-			locked: (e.access & 0xc2) !== 0xc2,
-			deleted: false,
-			fields,
-			error: c.error,
-			data: c.data,
-			loaded: loadAddress !== null ? { address: loadAddress, bytes: c.data } : null,
-			groups: groups.filter((g) => g.items.length),
-		};
-	}
-	return null;
+	return v.kind === "file" ? props.disk.readFile(v.id) : null;
 });
 
 const shown = computed(() => {

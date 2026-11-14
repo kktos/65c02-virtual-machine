@@ -61,13 +61,17 @@
 import { Loader2 } from "lucide-vue-next";
 import { computed, nextTick, ref, shallowRef, watch } from "vue";
 import { useDiskEditor } from "@/composables/useDiskEditor";
-import { type DiskDisasmLine, disassembleBytes } from "@/lib/disk/disasmBytes";
+import { type DiskDisasmLine, disassembleBytes } from "@/lib/disk/disasmBytes.utils";
 import { toHex } from "@/lib/hex.utils";
 
-/** base: where the bytes load (a file's load address), the org to start with; skip: data bytes before the code */
-const props = withDefaults(defineProps<{ bytes: Uint8Array; base?: number; skip?: number }>(), {
+/**
+ * A viewer (`viewers.ts`). base: where the bytes load (a file's load address), the org to start with; skip: data
+ * bytes before the code; raw: nothing to a disassembly
+ */
+const props = withDefaults(defineProps<{ bytes: Uint8Array; base?: number; skip?: number; raw?: boolean }>(), {
 	base: 0,
 	skip: 0,
+	raw: false,
 });
 const { disasmLabels } = useDiskEditor();
 

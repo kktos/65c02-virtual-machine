@@ -7,7 +7,7 @@
 // next column: Conan's backgrounds, 183 lines) or line by line (40 bytes per line). Nothing in the data says which
 // variant it is, nor how many lines: detectHgrRle() tries them and keeps the one whose picture holds together.
 
-import { HGR_SIZE, hgrLineOffset } from "./hgrImage";
+import { HGR_SIZE, hgrLineOffset } from "./hgrImage.utils";
 
 export const RLE_MARKER = 0xfe;
 

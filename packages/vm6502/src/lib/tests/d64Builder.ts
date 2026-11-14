@@ -1,5 +1,5 @@
 // Builds D64 images for the tests: a formatted 35-track disk with files, as the DOS would write them.
-import { sectorsPerTrack } from "@/lib/disk/d64";
+import { sectorsPerTrack } from "@/lib/disk/formats/cbm/d64";
 
 export type BuiltFile = { name: string; data: Uint8Array | number[]; typeByte?: number; blocks?: number };
 

@@ -126,7 +126,7 @@ import {
 	type HgrMode,
 	renderHgr,
 	renderHgrRows,
-} from "@/lib/disk/hgrImage";
+} from "@/lib/disk/hgrImage.utils";
 import {
 	detectHgrRle,
 	RLE_MARKER,
@@ -134,11 +134,16 @@ import {
 	type RleOrder,
 	type RleVariant,
 	unpackHgrRle,
-} from "@/lib/disk/hgrRle";
+} from "@/lib/disk/hgrRle.utils";
 import { toHex } from "@/lib/hex.utils";
 
-/** sticky: the unpack settings stay when the bytes change (raw sectors stepped through), else back to detected */
-const props = defineProps<{ bytes: Uint8Array; sticky?: boolean }>();
+/**
+ * A viewer (`viewers.ts`). raw: the bytes are raw sectors / blocks stepped through, the unpack settings stay when
+ * they change; else (another file) back to detected. The base / skip viewers get are nothing to a picture (and
+ * `skip` here is the sprite's): not props, and not passed on to the DOM.
+ */
+defineOptions({ inheritAttrs: false });
+const props = defineProps<{ bytes: Uint8Array; raw?: boolean }>();
 const { hgrMode } = useDiskEditor();
 
 const MODES: { id: HgrMode; label: string; title: string }[] = [
@@ -167,7 +172,7 @@ const zoom = ref(4);
 watch(
 	() => props.bytes,
 	() => {
-		if (props.sticky) return;
+		if (props.raw) return;
 		unpack.value = null;
 		override.value = null;
 		width.value = SCREEN_COLUMNS;

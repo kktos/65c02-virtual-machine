@@ -16,7 +16,7 @@
 				>
 			</span>
 			<span class="border-l border-gray-700 pl-3">
-				<span v-for="(b, i) in line.bytes" :key="i" :class="charClass(b)">{{ appleChar(b) }}</span>
+				<span v-for="(b, i) in line.bytes" :key="i" :class="charClass(b)">{{ textChar(b) }}</span>
 			</span>
 		</div>
 		<button
@@ -31,13 +31,20 @@
 
 <script lang="ts" setup>
 import { computed, ref, watch } from "vue";
-import { appleChar } from "@/lib/disk/diskImage";
+import { useDiskEditor } from "@/composables/useDiskEditor";
+import { petsciiChar } from "@/lib/disk/formats/cbm/d64";
+import { appleChar } from "@/lib/disk/formats/apple2/diskImage";
 import { toHex } from "@/lib/hex.utils";
 
-const props = withDefaults(defineProps<{ bytes: Uint8Array; base?: number; labelWidth?: number }>(), {
+/** A viewer (`viewers.ts`). raw: offsets in the sector / block, whatever its base (the boot code's $0800) */
+const props = withDefaults(defineProps<{ bytes: Uint8Array; base?: number; skip?: number; raw?: boolean }>(), {
 	base: 0,
-	labelWidth: 0,
+	skip: 0,
+	raw: false,
 });
+const { analysis } = useDiskEditor();
+const base = computed(() => (props.raw ? 0 : props.base));
+const petscii = computed(() => analysis.value?.charset === "petscii");
 
 /** Big files render a part at a time */
 const FIRST = 4096;
@@ -50,9 +57,8 @@ watch(
 	},
 );
 
-const width = computed(
-	() => props.labelWidth || Math.max(2, (props.base + props.bytes.length - 1).toString(16).length),
-);
+/** Offsets in a sector / block as short as they go; addresses (bytes loaded somewhere) on 4 digits at least */
+const width = computed(() => Math.max(base.value ? 4 : 2, (base.value + props.bytes.length - 1).toString(16).length));
 
 const lines = computed(() => {
 	const out: { offset: number; label: string; bytes: number[] }[] = [];
@@ -60,16 +66,22 @@ const lines = computed(() => {
 	for (let i = 0; i < end; i += 16)
 		out.push({
 			offset: i,
-			label: toHex(props.base + i, width.value),
+			label: toHex(base.value + i, width.value),
 			bytes: Array.from(props.bytes.subarray(i, Math.min(i + 16, props.bytes.length))),
 		});
 	return out;
 });
 
-const byteTitle = (offset: number, b: number) => `$${toHex(props.base + offset, width.value)}: $${toHex(b)} (${b})`;
+const byteTitle = (offset: number, b: number) => `$${toHex(base.value + offset, width.value)}: $${toHex(b)} (${b})`;
 
-/** High-bit ASCII is the normal Apple II text; low-bit printable characters (inverse / flash) stand out */
+const textChar = (b: number) => (petscii.value ? petsciiChar(b) : appleChar(b));
+
+/**
+ * Apple: high-bit ASCII is the normal text, low-bit printable characters (inverse / flash) stand out.
+ * PETSCII: what reads as text, the rest (controls, graphics) dimmed.
+ */
 const charClass = (b: number) => {
+	if (petscii.value) return petsciiChar(b) === "." && b !== 0x2e ? "text-gray-600" : "text-green-300";
 	const c = b & 0x7f;
 	if (c < 0x20 || c === 0x7f) return "text-gray-600";
 	return b & 0x80 ? "text-green-300" : "text-amber-300/80";

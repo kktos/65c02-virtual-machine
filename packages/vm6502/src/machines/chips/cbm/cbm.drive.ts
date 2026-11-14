@@ -1,4 +1,4 @@
-import { D64Image, directoryListing } from "@/lib/disk/d64";
+import { D64Image, directoryListing } from "@/lib/disk/formats/cbm/d64";
 import { IeeeDeviceBase, type IeeeDeviceState, type SecondaryKind } from "./ieee488";
 
 /** Channel 15: commands in, the status (the error channel) out. 0: LOAD, 1: SAVE, 2-14: data files. */

@@ -7,6 +7,8 @@
 // - ProDOS order (.po): block b at b * 512, a block being 2 ProDOS logical sectors of track b / 8
 // Bigger images (.hdv, 800K .po / .2mg) have no tracks: blocks only.
 
+import type { TrackSector } from "../../diskFormat.type";
+
 export type SectorOrder = "dos" | "prodos";
 
 export const SECTOR_SIZE = 256;
@@ -30,7 +32,7 @@ const invert = (table: number[]) => {
 const PHYS_TO_DOS = invert(DOS_TO_PHYS);
 const PHYS_TO_PRODOS = invert(PRODOS_TO_PHYS);
 
-export type TrackSector = { track: number; sector: number };
+export type { TrackSector };
 
 export type Header2mg = {
 	creator: string;

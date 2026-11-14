@@ -1,88 +1,76 @@
-// The disk editor's state: the library disk looked at (not the one in the drive: nothing is booted),
-// what it is (sector order, file system), and what the window shows.
+// The disk editor's state: the library disk looked at (not the one in the drive: nothing is booted), what it is
+// (opened by one of the machine's disk formats), and what the window shows. The machine's config says which
+// formats its disks are in and which viewers make sense (`disk.formats`, `disk.viewers`): nothing here knows
+// of a DOS or a machine.
 
 import { computed, reactive, ref, shallowRef } from "vue";
 import { useDiskStorage } from "@/composables/useDiskStorage";
 import { useFloatingWindows } from "@/composables/useFloatingWindows";
-import { analyzeDisk } from "@/lib/disk/analyzeDisk";
-import { SECTORS_PER_TRACK, type SectorOrder } from "@/lib/disk/diskImage";
-import { sectorOwners } from "@/lib/disk/dos33";
-import type { HgrMode } from "@/lib/disk/hgrImage";
-import { blockOwners, type ProdosEntry, VOLUME_DIR_BLOCK } from "@/lib/disk/prodos";
+import type { DiskEditorView, OpenedDisk } from "@/lib/disk/diskFormat.type";
+import { DISK_FORMATS } from "@/lib/disk/formats";
+import type { HgrMode } from "@/lib/disk/hgrImage.utils";
+import type { MachineConfig } from "@/types/machine.interface";
+
+export type { DiskEditorView };
 
 export const DISK_EDITOR_ID = "disk_editor";
 
-export type DiskEditorView =
-	| { kind: "sector"; track: number; sector: number }
-	| { kind: "block"; block: number }
-	/** DOS 3.3 VTOC / ProDOS volume header and bitmap */
-	| { kind: "volume" }
-	| { kind: "catalog" }
-	| { kind: "dosFile"; index: number }
-	| { kind: "dir"; keyBlock: number; path: string }
-	| { kind: "prodosFile"; path: string; entry: ProdosEntry };
+const HEX = "hex";
 
-/** How the bytes of a file / sector / block are shown */
-export type DiskViewer = "hex" | "hgr" | "disasm";
-
-export const DISK_VIEWERS: { id: DiskViewer; label: string; title: string }[] = [
-	{ id: "hex", label: "Hex", title: "Hex + ASCII dump" },
-	{ id: "hgr", label: "HGR", title: "As an HGR picture (hi-res page, 8K)" },
-	{ id: "disasm", label: "Disasm", title: "65C02 disassembly, from the load address" },
-];
-
+/** The machine whose disks are looked at */
+const machine = shallowRef<Pick<MachineConfig, "name" | "disk"> | null>(null);
 const source = shallowRef<{ key: IDBValidKey; name: string; path: string } | null>(null);
 const fileData = shallowRef<Uint8Array | null>(null);
-const orderOverride = ref<SectorOrder | null>(null);
+/** How the image is read, a choice of `OpenedDisk.reading` (an Apple floppy's sector order); null: auto */
+const reading = ref<string | null>(null);
 const view = ref<DiskEditorView>({ kind: "sector", track: 0, sector: 0 });
 const loading = ref(false);
 const error = ref<string | null>(null);
 /** The viewer picked: stays while moving around a disk, back to the hex dump for another disk */
-const viewer = ref<DiskViewer>("hex");
+const viewer = ref<string>(HEX);
 const hgrMode = ref<HgrMode>("color");
 const disasmLabels = ref(true);
-/** ProDOS tree: the directories shown open, by path */
+/** The directories shown open in the tree, by id */
 const expanded = reactive(new Set<string>());
 
-const analysis = computed(() => {
-	if (!fileData.value || !source.value) return null;
-	return analyzeDisk(fileData.value, source.value.path || source.value.name, orderOverride.value ?? undefined);
+/** The machine's viewers (ids), as its config lists them */
+const viewers = computed(() => machine.value?.disk?.viewers ?? []);
+
+/** The disk opened by the first of the machine's formats that takes it; else why none does */
+const opened = computed((): { disk: OpenedDisk | null; error: string | null } => {
+	const data = fileData.value;
+	const src = source.value;
+	if (!data || !src) return { disk: null, error: null };
+	const ids = machine.value?.disk?.formats ?? [];
+	for (const id of ids) {
+		const format = DISK_FORMATS[id];
+		if (!format) {
+			console.warn(`Disk editor: no disk format '${id}'`);
+			continue;
+		}
+		const disk = format.open(data, src.path || src.name, reading.value);
+		if (disk) return { disk, error: null };
+	}
+	const names = ids.flatMap((id) => DISK_FORMATS[id]?.name ?? []);
+	return {
+		disk: null,
+		error: names.length
+			? `${src.name}: not a disk the editor reads as ${names.join(" / ")}`
+			: `The ${machine.value?.name ?? "machine"} has no disk format the editor reads`,
+	};
 });
 
-/** What each sector (DOS 3.3, by track * 16 + sector) or block (ProDOS) holds */
-const owners = computed(() => {
-	const disk = analysis.value;
-	if (disk?.dos33) return sectorOwners(disk.image, disk.dos33);
-	if (disk?.prodos) return blockOwners(disk.image, disk.prodos);
-	return new Map<number, string>();
-});
+const analysis = computed(() => opened.value.disk);
+const formatError = computed(() => opened.value.error);
 
-const ownerOfSector = (track: number, sector: number) => {
-	const disk = analysis.value;
-	if (!disk) return undefined;
-	if (disk.format === "prodos") return owners.value.get(disk.image.sectorBlock(track, sector).block);
-	return owners.value.get(track * SECTORS_PER_TRACK + sector);
-};
+const ownerOfSector = (track: number, sector: number) => analysis.value?.ownerOfSector(track, sector);
+const ownerOfBlock = (block: number) => analysis.value?.ownerOfBlock(block);
 
-const ownerOfBlock = (block: number) => {
-	const disk = analysis.value;
-	if (!disk) return undefined;
-	if (disk.format !== "dos33") return owners.value.get(block);
-	const names = disk.image.blockSectors(block).map(({ track, sector }) => ownerOfSector(track, sector) ?? "free");
-	return names[0] === names[1] ? names[0] : names.join(" / ");
-};
+/** Where a disk opens: its catalog / root directory, else its first sector (or block) */
+const homeView = (): DiskEditorView => analysis.value?.home ?? { kind: "sector", track: 0, sector: 0 };
 
-/** Where a disk opens: its catalog / volume directory, else track 0 sector 0 (or block 0) */
-const homeView = (): DiskEditorView => {
-	const disk = analysis.value;
-	if (disk?.format === "dos33") return { kind: "catalog" };
-	if (disk?.format === "prodos") return { kind: "dir", keyBlock: VOLUME_DIR_BLOCK, path: `/${disk.prodos?.name}` };
-	if (disk?.image.hasTracks) return { kind: "sector", track: 0, sector: 0 };
-	return { kind: "block", block: 0 };
-};
-
-const setOrder = (order: SectorOrder | null) => {
-	orderOverride.value = order;
+const setReading = (value: string | null) => {
+	reading.value = value;
 	expanded.clear();
 	view.value = homeView();
 };
@@ -112,10 +100,10 @@ const openDisk = async (key: IDBValidKey, show = true) => {
 		if (loadGeneration !== generation) return;
 		source.value = { key, name: disk.name, path: disk.path };
 		fileData.value = data;
-		orderOverride.value = null;
+		reading.value = null;
 		expanded.clear();
 		view.value = homeView();
-		viewer.value = "hex";
+		viewer.value = HEX;
 	} catch (e) {
 		if (loadGeneration !== generation) return;
 		console.error(e);
@@ -134,29 +122,39 @@ const closeDisk = () => {
 	useFloatingWindows().close(DISK_EDITOR_ID);
 	source.value = null;
 	fileData.value = null;
-	orderOverride.value = null;
+	reading.value = null;
 	expanded.clear();
 	view.value = { kind: "sector", track: 0, sector: 0 };
-	viewer.value = "hex";
+	viewer.value = HEX;
 	loading.value = false;
 	error.value = null;
 };
 
+/** The machine started: its formats and viewers. Another machine than the one before closes the disk. */
+const setMachine = (config: Pick<MachineConfig, "name" | "disk">) => {
+	if (machine.value && machine.value.name !== config.name) closeDisk();
+	machine.value = config;
+};
+
 export function useDiskEditor() {
 	return {
+		machine,
 		source,
 		analysis,
+		formatError,
 		view,
 		loading,
 		error,
 		expanded,
 		viewer,
+		viewers,
 		hgrMode,
 		disasmLabels,
-		orderOverride,
+		reading,
 		openDisk,
 		closeDisk,
-		setOrder,
+		setMachine,
+		setReading,
 		homeView,
 		ownerOfSector,
 		ownerOfBlock,

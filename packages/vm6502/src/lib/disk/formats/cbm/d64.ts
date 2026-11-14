@@ -33,7 +33,25 @@ export type D64Entry = {
 	sector: number;
 	/** As the directory says (the DOS counts them when it writes the file) */
 	blocks: number;
+	/** Where the entry is: its directory sector, its slot there (0-7) */
+	at: { track: number; sector: number; slot: number };
 };
+
+/**
+ * A PETSCII byte as text, the way a CBM shows a file name: $20-$5F as ASCII (but £ ↑ ←), the shifted letters
+ * ($C1-$DA) in lowercase, the shifted space as a space, "." for the rest (controls, graphics).
+ */
+export const petsciiChar = (byte: number) => {
+	if (byte === 0x5c) return "£";
+	if (byte === 0x5e) return "↑";
+	if (byte === 0x5f) return "←";
+	if (byte >= 0x20 && byte < 0x60) return String.fromCharCode(byte);
+	if (byte >= 0xc1 && byte <= 0xda) return String.fromCharCode(byte - 0xc1 + 0x61);
+	if (byte === 0xa0) return " ";
+	return ".";
+};
+
+export const petsciiText = (bytes: Uint8Array) => Array.from(bytes, petsciiChar).join("");
 
 export type ChainRead = {
 	data: Uint8Array;
@@ -76,15 +94,57 @@ export class D64Image {
 		return (this.trackOffsets[track] as number) / D64_SECTOR_SIZE + sector;
 	}
 
+	/** The track and sector of a linear index (the other way of `linearSector`); null past the last sector. */
+	trackSector(index: number): { track: number; sector: number } | null {
+		if (index < 0) return null;
+		for (let track = 1; track <= this.tracks; track++) {
+			const first = (this.trackOffsets[track] as number) / D64_SECTOR_SIZE;
+			if (index < first + sectorsPerTrack(track)) return { track, sector: index - first };
+		}
+		return null;
+	}
+
+	/** Where the sector is in the image; -1: no such sector. */
+	sectorOffset(track: number, sector: number) {
+		if (!this.isValid(track, sector)) return -1;
+		return (this.trackOffsets[track] as number) + sector * D64_SECTOR_SIZE;
+	}
+
 	/** The sector's 256 bytes (a view on the image), or null if there's no such sector. */
 	sector(track: number, sector: number): Uint8Array | null {
-		if (!this.isValid(track, sector)) return null;
-		const offset = (this.trackOffsets[track] as number) + sector * D64_SECTOR_SIZE;
-		return this.data.subarray(offset, offset + D64_SECTOR_SIZE);
+		const offset = this.sectorOffset(track, sector);
+		return offset < 0 ? null : this.data.subarray(offset, offset + D64_SECTOR_SIZE);
 	}
 
 	private get bam() {
 		return this.sector(DIRECTORY_TRACK, 0) as Uint8Array;
+	}
+
+	/**
+	 * The sector is free in the BAM (a bit a sector, after the track's free count). Tracks 36-40 aren't in the
+	 * BAM of a 1541 / 4040: undefined there.
+	 */
+	isFree(track: number, sector: number): boolean | undefined {
+		if (!this.isValid(track, sector) || track > 35) return undefined;
+		return ((this.bam[track * 4 + 1 + (sector >> 3)] as number) & (1 << (sector & 7))) !== 0;
+	}
+
+	/** The directory's sectors, in order (the chain from the BAM's link). */
+	directorySectors(): { track: number; sector: number }[] {
+		const sectors: { track: number; sector: number }[] = [];
+		const seen = new Set<number>();
+		let track = this.bam[0] as number;
+		let sector = this.bam[1] as number;
+		while (track !== 0) {
+			const index = this.linearSector(track, sector);
+			const bytes = this.sector(track, sector);
+			if (!bytes || seen.has(index)) break;
+			seen.add(index);
+			sectors.push({ track, sector });
+			track = bytes[0] as number;
+			sector = bytes[1] as number;
+		}
+		return sectors;
 	}
 
 	/** The disk name, PETSCII, without its padding. */
@@ -107,15 +167,8 @@ export class D64Image {
 	/** The files, in directory order (the empty slots left out, the scratched ones too). */
 	directory(): D64Entry[] {
 		const entries: D64Entry[] = [];
-		const start = this.bam;
-		let track = start[0] as number;
-		let sector = start[1] as number;
-		const seen = new Set<number>();
-		while (track !== 0) {
-			const index = this.linearSector(track, sector);
-			const bytes = this.sector(track, sector);
-			if (!bytes || seen.has(index)) break;
-			seen.add(index);
+		for (const { track, sector } of this.directorySectors()) {
+			const bytes = this.sector(track, sector) as Uint8Array;
 			for (let slot = 0; slot < 8; slot++) {
 				const e = bytes.subarray(slot * 32, slot * 32 + 32);
 				const typeByte = e[2] as number;
@@ -130,10 +183,9 @@ export class D64Image {
 					track: e[3] as number,
 					sector: e[4] as number,
 					blocks: (e[30] as number) | ((e[31] as number) << 8),
+					at: { track, sector, slot },
 				});
 			}
-			track = bytes[0] as number;
-			sector = bytes[1] as number;
 		}
 		return entries;
 	}

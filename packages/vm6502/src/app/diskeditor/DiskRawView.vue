@@ -2,13 +2,12 @@
 	<div class="flex flex-col min-h-0 h-full outline-none" tabindex="0" @keydown="onKeydown">
 		<!-- Navigation: track / sector or block -->
 		<div class="flex flex-wrap items-center gap-2 px-2 py-1.5 border-b border-gray-800 text-xs">
-			<div class="flex rounded border border-gray-700 overflow-hidden">
+			<div v-if="tracks && blocks" class="flex rounded border border-gray-700 overflow-hidden">
 				<button
-					v-if="image.hasTracks"
 					class="seg"
 					:class="{ 'seg-on': view.kind === 'sector' }"
 					@click="toSectors"
-					title="DOS 3.3 sectors: 35 tracks x 16 sectors x 256 bytes"
+					:title="tracks.title"
 				>
 					T/S
 				</button>
@@ -16,14 +15,14 @@
 					class="seg"
 					:class="{ 'seg-on': view.kind === 'block' }"
 					@click="toBlocks"
-					title="ProDOS blocks: 512 bytes"
+					:title="blocks.title"
 				>
 					Block
 				</button>
 			</div>
 
-			<template v-if="view.kind === 'sector'">
-				<button class="nav-btn" @click="step(-SECTORS_PER_TRACK)" title="Previous track">
+			<template v-if="view.kind === 'sector' && tracks">
+				<button class="nav-btn" @click="stepTrack(-1)" title="Previous track">
 					<ChevronsLeft class="h-3.5 w-3.5" />
 				</button>
 				<button class="nav-btn" @click="step(-1)" title="Previous sector (Page Up)">
@@ -33,7 +32,8 @@
 					>T
 					<input
 						class="num-input"
-						:value="toHex(view.track)"
+						:value="num(view.track, 2)"
+						:title="numTitle"
 						@change="setTs(($event.target as HTMLInputElement).value, null)"
 					/>
 				</label>
@@ -41,18 +41,19 @@
 					>S
 					<input
 						class="num-input"
-						:value="toHex(view.sector, 1)"
+						:value="num(view.sector, 1)"
+						:title="numTitle"
 						@change="setTs(null, ($event.target as HTMLInputElement).value)"
 					/>
 				</label>
 				<button class="nav-btn" @click="step(1)" title="Next sector (Page Down)">
 					<ChevronRight class="h-3.5 w-3.5" />
 				</button>
-				<button class="nav-btn" @click="step(SECTORS_PER_TRACK)" title="Next track">
+				<button class="nav-btn" @click="stepTrack(1)" title="Next track">
 					<ChevronsRight class="h-3.5 w-3.5" />
 				</button>
 			</template>
-			<template v-else-if="view.kind === 'block'">
+			<template v-else-if="view.kind === 'block' && blocks">
 				<button class="nav-btn" @click="step(-1)" title="Previous block (Page Up)">
 					<ChevronLeft class="h-3.5 w-3.5" />
 				</button>
@@ -65,7 +66,7 @@
 						title="Decimal, or hex with $"
 					/>
 				</label>
-				<span class="text-gray-500">/ {{ image.blockCount - 1 }}</span>
+				<span class="text-gray-500">/ {{ blocks.count - 1 }}</span>
 				<button class="nav-btn" @click="step(1)" title="Next block (Page Down)">
 					<ChevronRight class="h-3.5 w-3.5" />
 				</button>
@@ -76,40 +77,37 @@
 		<!-- Where it is, what it belongs to -->
 		<div class="px-2 py-1 text-[11px] text-gray-400 border-b border-gray-800 flex flex-wrap gap-x-4">
 			<span>Image offset <span class="text-gray-200 font-mono">${{ toHex(offset, 5) }}</span></span>
-			<span v-if="view.kind === 'sector'">
+			<span v-if="sectorBlock">
 				Block
 				<button class="link" @click="view = { kind: 'block', block: sectorBlock.block }">
 					{{ sectorBlock.block }}</button
 				>, {{ sectorBlock.half ? "second" : "first" }} half
 			</span>
-			<span v-else-if="view.kind === 'block' && image.hasTracks">
+			<span v-else-if="blockSectors.length">
 				Sectors
 				<template v-for="(ts, i) in blockSectors" :key="i">
 					<button class="link font-mono" @click="view = { kind: 'sector', ...ts }">
-						T{{ toHex(ts.track) }} S{{ toHex(ts.sector, 1) }}</button
-					><span v-if="i === 0">, </span>
+						{{ tsLabel(disk.layout, ts.track, ts.sector) }}</button
+					><span v-if="i < blockSectors.length - 1">, </span>
 				</template>
 			</span>
-			<span v-if="hasFileSystem">
+			<span v-if="disk.root">
 				Holds <span class="text-cyan-300">{{ owner ?? "nothing (free / unused)" }}</span>
 			</span>
 		</div>
 
 		<div class="flex-1 min-h-0 overflow-auto py-1">
-			<template v-if="viewer === 'hgr'">
-				<p class="px-3 text-[11px] text-gray-500">
-					8K from here: {{ view.kind === "sector" ? "32 sectors (2 tracks)" : "16 blocks" }}, Page Up / Down
-					to move it
-				</p>
-				<DiskHgrView :bytes="pictureBytes" sticky />
-			</template>
-			<DiskDisasmView
-				v-else-if="viewer === 'disasm'"
-				:bytes="bytes"
-				:base="bootCode ? 0x800 : 0"
-				:skip="bootCode ? 1 : 0"
+			<p v-if="current.span" class="px-3 text-[11px] text-gray-500">
+				{{ spanLabel }} from here: {{ units }} {{ view.kind === "sector" ? "sectors" : "blocks" }}, Page Up /
+				Down to move it
+			</p>
+			<component
+				:is="current.component"
+				:bytes="shownBytes"
+				:base="boot?.base ?? 0"
+				:skip="boot?.skip ?? 0"
+				raw
 			/>
-			<DiskHexDump v-else :bytes="bytes" :label-width="view.kind === 'sector' ? 2 : 3" />
 		</div>
 	</div>
 </template>
@@ -118,72 +116,80 @@
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-vue-next";
 import { computed } from "vue";
 import { useDiskEditor } from "@/composables/useDiskEditor";
-import { BLOCK_SIZE, type DiskImage, SECTOR_SIZE, SECTORS_PER_TRACK, TRACKS } from "@/lib/disk/diskImage";
-import { HGR_SIZE } from "@/lib/disk/hgrImage";
+import type { OpenedDisk } from "@/lib/disk/diskFormat.type";
+import { sectorIndex, tsLabel } from "@/lib/disk/diskLayout.utils";
 import { toHex } from "@/lib/hex.utils";
-import DiskDisasmView from "./DiskDisasmView.vue";
-import DiskHexDump from "./DiskHexDump.vue";
-import DiskHgrView from "./DiskHgrView.vue";
 import DiskViewerSwitch from "./DiskViewerSwitch.vue";
+import { useCurrentViewer } from "./viewers";
 
-const props = defineProps<{ image: DiskImage; hasFileSystem: boolean }>();
-const { view, viewer, ownerOfSector, ownerOfBlock } = useDiskEditor();
+const props = defineProps<{ disk: OpenedDisk }>();
+const { view, ownerOfSector, ownerOfBlock } = useDiskEditor();
+const current = useCurrentViewer();
 
-const sectorCount = TRACKS * SECTORS_PER_TRACK;
+const tracks = computed(() => props.disk.layout.tracks);
+const blocks = computed(() => props.disk.layout.blocks);
+const sectors = computed(() => sectorIndex(props.disk.layout));
 
-const bytes = computed(() => {
+const num = (n: number, pad: number) => (tracks.value?.hex ? toHex(n, pad) : String(n));
+const numTitle = computed(() => (tracks.value?.hex ? "Hex" : "Decimal, or hex with $"));
+
+const SECTOR_SIZE = 256;
+
+const readSector = (index: number) => {
+	const { track, sector } = sectors.value.fromIndex(index);
+	return props.disk.layout.readSector(track, sector);
+};
+
+/**
+ * What the viewer is given: the sector / block shown, or `span` bytes from it for a viewer that wants more
+ * (a picture: 8K), in track / sector or block order, up to the disk's end
+ */
+const shown = computed(() => {
 	const v = view.value;
-	if (v.kind === "sector") return props.image.readSector(v.track, v.sector);
-	if (v.kind === "block") return props.image.readBlock(v.block);
-	return new Uint8Array();
-});
-
-/** Track 0 sector 0 / block 0: the boot code, loaded at $0800 (its first byte: how many sectors to load) */
-const bootCode = computed(() => {
-	const v = view.value;
-	return (v.kind === "sector" && v.track === 0 && v.sector === 0) || (v.kind === "block" && v.block === 0);
-});
-
-/** The HGR viewer: 8K from the sector / block shown, in track / sector or block order (up to the disk's end) */
-const pictureBytes = computed(() => {
-	const v = view.value;
-	const out = new Uint8Array(HGR_SIZE);
-	if (v.kind === "sector") {
-		const first = v.track * SECTORS_PER_TRACK + v.sector;
-		const count = Math.min(HGR_SIZE / SECTOR_SIZE, sectorCount - first);
-		for (let i = 0; i < count; i++) {
-			const index = first + i;
-			const sector = props.image.readSector(Math.floor(index / SECTORS_PER_TRACK), index % SECTORS_PER_TRACK);
-			out.set(sector, i * SECTOR_SIZE);
-		}
-		return out.subarray(0, count * SECTOR_SIZE);
+	const layout = props.disk.layout;
+	const span = current.value.span ?? 0;
+	if (v.kind === "sector" && tracks.value) {
+		const first = sectors.value.toIndex(v.track, v.sector);
+		const count = Math.max(1, Math.min(Math.ceil(span / SECTOR_SIZE), sectors.value.count - first));
+		if (!span) return { bytes: layout.readSector(v.track, v.sector), count };
+		const out = new Uint8Array(count * SECTOR_SIZE);
+		for (let i = 0; i < count; i++) out.set(readSector(first + i), i * SECTOR_SIZE);
+		return { bytes: out, count };
 	}
-	if (v.kind === "block") {
-		const count = Math.min(HGR_SIZE / BLOCK_SIZE, props.image.blockCount - v.block);
-		for (let i = 0; i < count; i++) out.set(props.image.readBlock(v.block + i), i * BLOCK_SIZE);
-		return out.subarray(0, count * BLOCK_SIZE);
+	if (v.kind === "block" && blocks.value) {
+		const size = blocks.value.size;
+		const count = Math.max(1, Math.min(Math.ceil(span / size), blocks.value.count - v.block));
+		if (!span) return { bytes: layout.readBlock(v.block), count };
+		const out = new Uint8Array(count * size);
+		for (let i = 0; i < count; i++) out.set(layout.readBlock(v.block + i), i * size);
+		return { bytes: out, count };
 	}
-	return out.subarray(0, 0);
+	return { bytes: new Uint8Array(), count: 0 };
 });
+const shownBytes = computed(() => shown.value.bytes);
+const units = computed(() => shown.value.count);
+const spanLabel = computed(() => {
+	const span = current.value.span ?? 0;
+	return span % 1024 === 0 ? `${span / 1024}K` : `${span} bytes`;
+});
+
+/** A boot sector / block: its code's load address, the data bytes before it */
+const boot = computed(() => props.disk.bootCode?.(view.value) ?? null);
 
 const offset = computed(() => {
 	const v = view.value;
-	if (v.kind === "sector") return props.image.sectorOffset(v.track, v.sector);
-	if (v.kind === "block") {
-		if (props.image.order === "prodos" || !props.image.hasTracks) return v.block * BLOCK_SIZE;
-		const [first] = props.image.blockSectors(v.block);
-		return props.image.sectorOffset(first.track, first.sector);
-	}
+	if (v.kind === "sector") return props.disk.layout.sectorOffset(v.track, v.sector);
+	if (v.kind === "block") return props.disk.layout.blockOffset(v.block);
 	return 0;
 });
 
 const sectorBlock = computed(() => {
 	const v = view.value;
-	return v.kind === "sector" ? props.image.sectorBlock(v.track, v.sector) : { block: 0, half: 0 };
+	return v.kind === "sector" ? (props.disk.layout.sectorBlock?.(v.track, v.sector) ?? null) : null;
 });
 const blockSectors = computed(() => {
 	const v = view.value;
-	return v.kind === "block" ? props.image.blockSectors(v.block) : [];
+	return v.kind === "block" ? (props.disk.layout.blockSectors?.(v.block) ?? []) : [];
 });
 
 const owner = computed(() => {
@@ -194,52 +200,57 @@ const owner = computed(() => {
 });
 
 const wrap = (n: number, count: number) => ((n % count) + count) % count;
+const clamp = (n: number, min: number, max: number) => Math.min(Math.max(n, min), max);
 
 const step = (delta: number) => {
 	const v = view.value;
-	if (v.kind === "sector") {
-		const index = wrap(v.track * SECTORS_PER_TRACK + v.sector + delta, sectorCount);
-		view.value = {
-			kind: "sector",
-			track: Math.floor(index / SECTORS_PER_TRACK),
-			sector: index % SECTORS_PER_TRACK,
-		};
-	} else if (v.kind === "block") view.value = { kind: "block", block: wrap(v.block + delta, props.image.blockCount) };
+	if (v.kind === "sector" && sectors.value.count) {
+		const index = wrap(sectors.value.toIndex(v.track, v.sector) + delta, sectors.value.count);
+		view.value = { kind: "sector", ...sectors.value.fromIndex(index) };
+	} else if (v.kind === "block" && blocks.value)
+		view.value = { kind: "block", block: wrap(v.block + delta, blocks.value.count) };
+};
+
+/** The same sector of the next / previous track (its last one if the track has fewer) */
+const stepTrack = (delta: number) => {
+	const v = view.value;
+	const t = tracks.value;
+	if (v.kind !== "sector" || !t) return;
+	const track = t.first + wrap(v.track - t.first + delta, t.count);
+	view.value = { kind: "sector", track, sector: Math.min(v.sector, t.sectors(track) - 1) };
 };
 
 const parseNum = (text: string, hexByDefault: boolean) => {
-	const t = text.trim();
-	if (t.startsWith("$")) return parseInt(t.slice(1), 16);
-	return hexByDefault ? parseInt(t, 16) : parseInt(t, 10);
+	const s = text.trim();
+	if (s.startsWith("$")) return parseInt(s.slice(1), 16);
+	return hexByDefault ? parseInt(s, 16) : parseInt(s, 10);
 };
 
 const setTs = (track: string | null, sector: string | null) => {
 	const v = view.value;
-	if (v.kind !== "sector") return;
-	const t = track === null ? v.track : parseNum(track, true);
-	const s = sector === null ? v.sector : parseNum(sector, true);
-	if (Number.isNaN(t) || Number.isNaN(s)) return;
-	view.value = {
-		kind: "sector",
-		track: Math.min(Math.max(t, 0), TRACKS - 1),
-		sector: Math.min(Math.max(s, 0), SECTORS_PER_TRACK - 1),
-	};
+	const t = tracks.value;
+	if (v.kind !== "sector" || !t) return;
+	const tn = track === null ? v.track : parseNum(track, t.hex);
+	const sn = sector === null ? v.sector : parseNum(sector, t.hex);
+	if (Number.isNaN(tn) || Number.isNaN(sn)) return;
+	const newTrack = clamp(tn, t.first, t.first + t.count - 1);
+	view.value = { kind: "sector", track: newTrack, sector: clamp(sn, 0, t.sectors(newTrack) - 1) };
 };
 
 const setBlock = (text: string) => {
 	const block = parseNum(text, false);
-	if (Number.isNaN(block)) return;
-	view.value = { kind: "block", block: Math.min(Math.max(block, 0), props.image.blockCount - 1) };
+	if (Number.isNaN(block) || !blocks.value) return;
+	view.value = { kind: "block", block: clamp(block, 0, blocks.value.count - 1) };
 };
 
 const toSectors = () => {
 	const v = view.value;
-	view.value = v.kind === "block" ? { kind: "sector", ...props.image.blockSectors(v.block)[0] } : v;
+	const first = v.kind === "block" ? props.disk.layout.blockSectors?.(v.block)[0] : undefined;
+	if (first) view.value = { kind: "sector", ...first };
 };
 
 const toBlocks = () => {
-	const v = view.value;
-	view.value = v.kind === "sector" ? { kind: "block", block: sectorBlock.value.block } : v;
+	if (sectorBlock.value) view.value = { kind: "block", block: sectorBlock.value.block };
 };
 
 const onKeydown = (e: KeyboardEvent) => {

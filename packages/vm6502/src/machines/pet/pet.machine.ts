@@ -18,7 +18,15 @@ export const pet3032: MachineConfig = {
 	},
 	bus: { class: "PetBus", path: "pet/pet.bus" },
 	// A 4040 on the IEEE-488 bus, device 8 (drive 0). The PET doesn't boot from it: LOAD"*",8 loads the first file.
-	disk: { enabled: true, name: "4040", extensions: [".d64"], blockSize: 256, bootKeys: 'LOAD"*",8\nRUN\n' },
+	disk: {
+		enabled: true,
+		name: "4040",
+		extensions: [".d64"],
+		blockSize: 256,
+		bootKeys: 'LOAD"*",8\nRUN\n',
+		formats: ["cbm"],
+		viewers: ["hex", "disasm"],
+	},
 	video: { width: 320, height: 200, class: "PetVideo", path: "pet/pet.video" },
 	regions: [
 		{ name: "Stack", start: 0x0100, size: 0x0100, color: "#fb923c", removable: false },
