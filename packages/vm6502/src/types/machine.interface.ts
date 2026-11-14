@@ -23,7 +23,14 @@ export interface DebugGroup {
 export interface MemoryChunk {
 	bank?: number; // Optional for single-bank machines
 	addr: number;
-	data: Uint8Array | string;
+	/** The bytes, or hex text ("A9 00 …"). */
+	data?: Uint8Array | string;
+	/**
+	 * Instead of `data`: a file the main thread fetches, relative to the app (e.g. "roms/pet/kernal.bin" for
+	 * public/roms/pet/kernal.bin). For ROMs that aren't in the repo. Must be `size` bytes when given.
+	 */
+	src?: string;
+	size?: number;
 	tag?: string;
 }
 

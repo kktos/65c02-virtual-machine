@@ -27,6 +27,12 @@ export interface IBus {
 	/** Loads data into memory, allowing for bank switching or specific hardware handling. */
 	load(address: number, data: Uint8Array, bank?: number, tag?: string): void;
 
+	/**
+	 * The CPU's interrupt inputs, given once the CPU is set up: `irq` drives the (level-triggered) IRQ line, the
+	 * devices ORed by the bus; `nmi` is an NMI edge. For machines whose devices interrupt the CPU.
+	 */
+	setInterruptLines?(lines: InterruptLines): void;
+
 	registerTickHandler(handler: (cycles: number) => void): void;
 	unregisterTickHandler(handler: (cycles: number) => void): void;
 
@@ -139,6 +145,9 @@ export type KeyboardState = {
 	strobe: boolean;
 	keyDown: boolean;
 };
+
+/** The CPU's interrupt inputs (see `IBus.setInterruptLines`). */
+export type InterruptLines = { irq(active: boolean): void; nmi(): void };
 
 /** Which text screen `getTextScreen` reads. */
 export type TextScreenOptions = { page?: 1 | 2; cols?: 40 | 80 };

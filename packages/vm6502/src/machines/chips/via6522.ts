@@ -6,6 +6,19 @@ export interface VIAHandlers {
 	irq?: (active: boolean) => void;
 }
 
+/** What a save state keeps of a VIA. */
+export type VIASnapshot = {
+	regs: number[];
+	t1c: number;
+	t1l: number;
+	t1Active: boolean;
+	t2c: number;
+	t2l: number;
+	t2Active: boolean;
+	ier: number;
+	ifr: number;
+};
+
 export class VIA6522 {
 	private regs = new Uint8Array(16);
 	private handlers: VIAHandlers;
@@ -96,6 +109,45 @@ export class VIA6522 {
 			default:
 				return this.regs[offset];
 		}
+	}
+
+	/** A read without side effects (the timer flags stay), for the debugger. */
+	public peek(offset: number): number {
+		switch (offset) {
+			case 0x04:
+				return this.t1c & 0xff;
+			case 0x08:
+				return this.t2c & 0xff;
+			case 0x00:
+			case 0x01:
+				return this.regs[offset] ?? 0; // the output register (reading the pins may have effects)
+			default:
+				return this.read(offset);
+		}
+	}
+
+	public get irq() {
+		return (this.ifr & this.ier & 0x7f) !== 0;
+	}
+
+	public snapshot(): VIASnapshot {
+		const { t1c, t1l, t1Active, t2c, t2l, t2Active, ier, ifr } = this;
+		return { regs: [...this.regs], t1c, t1l, t1Active, t2c, t2l, t2Active, ier, ifr };
+	}
+
+	public restoreSnapshot(state: VIASnapshot) {
+		this.regs.set(state.regs);
+		({
+			t1c: this.t1c,
+			t1l: this.t1l,
+			t1Active: this.t1Active,
+			t2c: this.t2c,
+			t2l: this.t2l,
+			t2Active: this.t2Active,
+			ier: this.ier,
+			ifr: this.ifr,
+		} = state);
+		this.updateIrq();
 	}
 
 	public write(offset: number, value: number) {

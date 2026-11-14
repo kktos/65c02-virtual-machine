@@ -16,7 +16,9 @@ import {
 	setBreakOnBrk,
 	setClockSpeed,
 	setHypercalls,
+	setIrqLine,
 	setRunning,
+	triggerNmi,
 	setTrace,
 	setTraceSize,
 	stepInstruction,
@@ -85,6 +87,8 @@ async function init(machine: MachineConfig) {
 	}
 
 	initCPU(bus, registersView, video, memoryView, stackMetadataView);
+	setIrqLine(false);
+	bus.setInterruptLines?.({ irq: setIrqLine, nmi: triggerNmi });
 	setHypercalls(!!machine.hypercalls);
 
 	bus.syncState?.();

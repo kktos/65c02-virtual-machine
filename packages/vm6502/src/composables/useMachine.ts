@@ -168,11 +168,20 @@ const loadMachine = async (newMachine?: MachineConfig) => {
 	const { loadBreakpoints } = useBreakpoints();
 	loadBreakpoints(newVm);
 
-	newVm.ready.then(() => {
-		newVm.initAudio();
-		newVm.setBreakOnBrk(breakOnBrk.value);
-		if (keyDelay.value !== null && newVm.bus?.setKeyDelay) newVm.setKeyDelay(keyDelay.value).catch(() => undefined);
-	});
+	newVm.ready
+		.then(() => {
+			newVm.initAudio();
+			newVm.setBreakOnBrk(breakOnBrk.value);
+			if (keyDelay.value !== null && newVm.bus?.setKeyDelay)
+				newVm.setKeyDelay(keyDelay.value).catch(() => undefined);
+		})
+		.catch((e) => {
+			// e.g. a ROM file not fetched (see the machine's README)
+			console.error(`Main: ${selectedMachine.value.name} could not start:`, e);
+			toast.error(`${selectedMachine.value.name}: ${e instanceof Error ? e.message : String(e)}`, {
+				position: "bottom-center",
+			});
+		});
 
 	{
 		const { initFormats, setDiskKey } = useFormatting();

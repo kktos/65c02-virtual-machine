@@ -96,6 +96,16 @@ let resumeFromBreakpointAt: number | null = null;
 /** Resuming from the PC breakpoint the machine is stopped on: the next run doesn't stop on it again at once. */
 export const skipBreakpointOnce = (pc: number) => (resumeFromBreakpointAt = pc);
 
+// --- Interrupts ---
+// The IRQ line is level-triggered: held by the devices (the bus ORs them) until the handler acknowledges them.
+// The NMI is edge-triggered: one pending NMI per falling edge. Both are taken at the end of an instruction.
+let irqLine = false;
+let nmiPending = false;
+/** The IRQ line, as the machine's devices drive it (true: asserted). */
+export const setIrqLine = (active: boolean) => (irqLine = active);
+/** An NMI edge: the CPU takes it at the end of the current instruction. */
+export const triggerNmi = () => (nmiPending = true);
+
 // Re-export breakpoint functions for external use
 export { addBreakpoint, removeBreakpoint, clearBreakpoints, setBreakOnBrk };
 
@@ -345,6 +355,7 @@ export function resetCPU() {
 	if (video) video.reset();
 
 	stackMetadataView.fill(0);
+	nmiPending = false;
 
 	// The 6502's reset sequence
 	// Set Stack Pointer to 0xFD
@@ -580,6 +591,11 @@ export function executeInstruction(): number {
 			registersView.getUint8(REG_STATUS_OFFSET),
 			registersView.getUint8(REG_SP_OFFSET),
 		);
+
+	// What stops the machine during this instruction (an error, a BRK / hypercall stop) also holds off an
+	// interrupt: the PC stays where the stop left it.
+	const runningBefore = isRunning;
+	const stepStopBefore = stepStop;
 
 	const opcode = bus.read(pc, true); // Opcode fetch (SYNC)
 	pc++;
@@ -2795,5 +2811,42 @@ export function executeInstruction(): number {
 		registersView.setUint16(REG_PC_OFFSET, pc, true);
 	}
 
+	if (
+		(nmiPending || (irqLine && !(registersView.getUint8(REG_STATUS_OFFSET) & FLAG_I_MASK))) &&
+		isRunning === runningBefore &&
+		stepStop === stepStopBefore
+	)
+		cycles += serviceInterrupt();
+
 	return cycles;
+}
+
+/**
+ * The interrupt sequence (NMI first, else IRQ): pushes PC and P (B clear, which tells it from a BRK), sets I,
+ * clears D (65C02), and jumps through $FFFA (NMI) or $FFFE (IRQ). 7 cycles.
+ */
+function serviceInterrupt(): number {
+	if (!registersView || !bus) return 0;
+	const nmi = nmiPending;
+	nmiPending = false;
+
+	const from = registersView.getUint16(REG_PC_OFFSET, true);
+	let s = registersView.getUint8(REG_SP_OFFSET);
+	bus.write(STACK_PAGE_HI | s, from >> 8);
+	stackMetadataView[s] = 0;
+	s = (s - 1) & 0xff;
+	bus.write(STACK_PAGE_HI | s, from & 0xff);
+	stackMetadataView[s] = 0;
+	s = (s - 1) & 0xff;
+	const status = registersView.getUint8(REG_STATUS_OFFSET);
+	bus.write(STACK_PAGE_HI | s, (status | FLAG_5_MASK) & ~FLAG_B_MASK);
+	s = (s - 1) & 0xff;
+	registersView.setUint8(REG_SP_OFFSET, s);
+	registersView.setUint8(REG_STATUS_OFFSET, (status | FLAG_I_MASK) & ~FLAG_D_MASK);
+
+	const vector = nmi ? 0xfffa : 0xfffe;
+	const to = bus.read(vector) | (bus.read(vector + 1) << 8);
+	registersView.setUint16(REG_PC_OFFSET, to, true);
+	logTrace(nmi ? "NMI" : "IRQ", from, to);
+	return 7;
 }

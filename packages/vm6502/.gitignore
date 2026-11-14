@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# ROMs fetched by scripts (not ours to commit)
+public/roms/
