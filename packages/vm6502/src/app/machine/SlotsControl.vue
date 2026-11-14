@@ -2,7 +2,7 @@
 	<Popover v-if="slots" v-model:open="open">
 		<PopoverTrigger as-child>
 			<button class="toolbar-btn group text-gray-400" title="Expansion slots">
-				<CircuitBoard class="h-4 w-4" />
+				<Puzzle class="h-4 w-4 text-amber-400 group-hover:text-amber-300" />
 			</button>
 		</PopoverTrigger>
 		<PopoverContent align="end" class="w-72 p-2 bg-gray-800 border-gray-700 text-gray-100">
@@ -15,6 +15,14 @@
 				>
 					<span class="w-12 shrink-0 text-gray-400">Slot {{ slot }}</span>
 					<select
+						v-if="slots.builtin?.[slot]"
+						disabled
+						class="flex-1 min-w-0 bg-gray-700 text-gray-200 text-xs rounded border border-gray-600 outline-none px-1 py-0.5 disabled:opacity-50"
+					>
+						<option>{{ slots.builtin[slot] }}</option>
+					</select>
+					<select
+						v-else
 						v-model="draft[slot]"
 						:disabled="!cardsFor(slot).length"
 						class="flex-1 min-w-0 bg-gray-700 text-gray-200 text-xs rounded border border-gray-600 focus:ring-1 focus:ring-cyan-500 outline-none px-1 py-0.5 disabled:opacity-50"
@@ -47,7 +55,7 @@
 </template>
 
 <script lang="ts" setup>
-import { CircuitBoard } from "lucide-vue-next";
+import { Puzzle } from "lucide-vue-next";
 import { computed, inject, type Ref, ref, watch } from "vue";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useMachine } from "@/composables/useMachine";
