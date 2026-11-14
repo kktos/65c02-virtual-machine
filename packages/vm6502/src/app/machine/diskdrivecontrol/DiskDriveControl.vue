@@ -278,8 +278,7 @@ import DiskDriveLogs from "./DiskDriveLogs.vue";
 const vm = inject<Ref<VirtualMachine>>("vm");
 
 const { deleteDisk } = useDiskStorage();
-const { inserted, listDisks, insertFromLibrary, insertFile, insertUrl, eject, rename, restoreLastDisk } =
-	useDiskDrive();
+const { inserted, listDisks, insertFromLibrary, insertFile, insertUrl, eject, rename } = useDiskDrive();
 
 const diskConfig = computed(() => vm?.value?.machineConfig?.disk);
 /** The image files this machine's drive takes */
@@ -455,17 +454,13 @@ const openLogs = () => {
 	isLogSheetOpen.value = true;
 };
 
+// The machine's library (loadMachine puts its last disk back in the drive)
 watch(
 	() => vm?.value,
 	async (newVm) => {
 		if (!newVm) return;
 		await newVm.ready;
 		await refreshLibrary();
-		try {
-			await restoreLastDisk(newVm);
-		} catch (e) {
-			console.error("Failed to restore the last disk:", e);
-		}
 	},
 	{ immediate: true },
 );

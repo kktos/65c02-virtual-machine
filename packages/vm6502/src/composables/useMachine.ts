@@ -12,6 +12,8 @@ import type { EmulatorRegisters } from "@/types/emulatorstate.interface";
 import { useCommands } from "./useCommands";
 import { useRoutines } from "./useRoutines";
 import { useRunUntil } from "./useRunUntil";
+import { useDiskDrive } from "./useDiskDrive";
+import { useDiskEditor } from "./useDiskEditor";
 import type { RegisterDescriptor } from "@/types/registers";
 import type { StopInfo } from "@/types/stopinfo.interface";
 import { setHypercallDisassembly } from "@/lib/hypercalls.lib";
@@ -148,10 +150,13 @@ const setupVmListeners = (targetVm: VirtualMachine) => {
 	// });
 };
 
+/** Starts `newMachine` (default: the current one again, a power cycle). Resolves once it is set up, its disk back in. */
 const loadMachine = async (newMachine?: MachineConfig) => {
 	isRunning.value = false;
 	vm.value?.terminate();
 
+	// Another machine: the disk editor's disk isn't in its library, its file systems and viewers aren't its own
+	if (newMachine && newMachine.name !== selectedMachine.value.name) useDiskEditor().closeDisk();
 	if (newMachine) selectedMachine.value = newMachine;
 
 	console.log(`Main: Loading machine ${selectedMachine.value.name}`);
@@ -222,6 +227,20 @@ const loadMachine = async (newMachine?: MachineConfig) => {
 		const { initNotes, setDiskKey } = useNotes();
 		await initNotes(selectedMachine.value.name);
 		setDiskKey("*");
+	}
+
+	// The drive gets back the last disk inserted in it (empty without a drive). Last, so its labels / formats /
+	// notes win over the "*" ones above; awaited, so a caller (switch_machine) doesn't race it with its own disk.
+	try {
+		await newVm.ready;
+	} catch {
+		return; // reported above
+	}
+	if (vm.value !== newVm) return; // another machine was loaded meanwhile
+	try {
+		await useDiskDrive().restoreLastDisk(newVm);
+	} catch (e) {
+		console.error("Failed to restore the last disk:", e);
 	}
 };
 
