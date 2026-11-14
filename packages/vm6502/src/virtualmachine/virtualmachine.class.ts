@@ -219,8 +219,11 @@ export class VirtualMachine {
 		this.sharedMemory.fill(0);
 		this.sharedStackMetadata.fill(0);
 
-		this.loadCSS();
-		this.ready = this.loadBus();
+		// The CSS (the @font-face of the fonts) must be in before the bus: it draws the text atlases,
+		// and document.fonts.load() would resolve at once, with no face to load, on a fallback font.
+		this.ready = this.loadCSS()
+			.catch((e) => console.warn("VM: Failed to load CSS:", e))
+			.then(() => this.loadBus());
 
 		// Attach keyboard listener
 		window.addEventListener("keydown", this.keyHandler);
