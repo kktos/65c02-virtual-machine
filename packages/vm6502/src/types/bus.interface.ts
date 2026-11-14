@@ -11,7 +11,8 @@ export interface MachineStateSpec {
  * Defines the interface for the system bus, which connects the CPU to memory and other devices.
  */
 export interface IBus {
-	reset(): void;
+	/** `cold`: a power-up (the Apple's Ctrl-OpenApple-Reset: the ROM forgets the warm start and boots). */
+	reset(cold?: boolean): void;
 	tick(deltaCycles: number): void;
 
 	/** Reads an 8-bit value from the specified address. */

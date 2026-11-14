@@ -62,8 +62,17 @@ export interface VideoConfig {
 
 export interface DiskConfig {
 	enabled: boolean;
+	/** The drive, as the UI names it */
 	name?: string;
-	boot?: boolean;
+	/** The image files the drive takes (".d64"): the library lists those, a file must be one of them */
+	extensions: string[];
+	/** Bytes per block in the activity log's map (512: ProDOS blocks, 256: CBM sectors). Default 512. */
+	blockSize?: number;
+	/**
+	 * For a ROM that doesn't boot from the disk itself: the keys typed after a cold boot to start the disk
+	 * (the PET: `LOAD"*",8` and `RUN`). Without it, the cold boot boots the disk.
+	 */
+	bootKeys?: string;
 }
 
 export interface MachineInputControl {

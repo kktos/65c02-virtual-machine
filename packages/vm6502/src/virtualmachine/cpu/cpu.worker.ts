@@ -219,7 +219,7 @@ self.onmessage = async (event: MessageEvent) => {
 			break;
 		case "reset":
 			video?.reset();
-			bus?.reset();
+			bus?.reset(event.data.cold === true);
 			resetCPU();
 			reply(event);
 			break;

@@ -45,8 +45,22 @@ vi.mock("@/composables/useNotes", () => ({ useNotes: () => ({ setDiskKey: setDis
 const { useDiskDrive } = await import("@/composables/useDiskDrive");
 const drive = useDiskDrive();
 
-const vm = { insertDisk: vi.fn(), ejectDisk: vi.fn() };
+const APPLE_DISKS = [".po", ".2mg", ".dsk", ".hdv"];
+const vm = {
+	insertDisk: vi.fn(),
+	ejectDisk: vi.fn(),
+	machineConfig: { name: "Apple //e", disk: { enabled: true, extensions: APPLE_DISKS } },
+};
 const asVm = vm as unknown as Parameters<typeof drive.eject>[0];
+/** Another machine with its own drive */
+const pet = {
+	insertDisk: vi.fn(),
+	ejectDisk: vi.fn(),
+	machineConfig: { name: "PET", disk: { enabled: true, extensions: [".d64"] } },
+};
+const asPet = pet as unknown as Parameters<typeof drive.eject>[0];
+const APPLE_KEY = "vm6502_active_disk_name:Apple //e";
+const APPLE_URL_KEY = "vm6502_active_disk_url:Apple //e";
 const bytes = (n: number) => new Uint8Array(n).buffer;
 
 describe("useDiskDrive", () => {
@@ -57,17 +71,18 @@ describe("useDiskDrive", () => {
 		events.length = 0;
 		vm.insertDisk.mockClear();
 		vm.ejectDisk.mockClear();
+		pet.insertDisk.mockClear();
 	});
 
-	it("inserts a library disk: slot 5, the file name for the card, metadata follows, remembered", async () => {
+	it("inserts a library disk: the file name for the drive, metadata follows, remembered for the machine", async () => {
 		library.set("game.2mg", { type: "physical", name: "My game", path: "game.2mg", size: 1024, data: bytes(1024) });
 		const disk = await drive.insertFromLibrary(asVm, "game.2mg");
 
 		expect(disk).toEqual({ key: "game.2mg", name: "My game", size: 1024, type: "physical" });
 		expect(drive.inserted.value).toEqual(disk);
-		expect(vm.insertDisk).toHaveBeenCalledWith(expect.any(Uint8Array), { slot: 5, name: "game.2mg" });
+		expect(vm.insertDisk).toHaveBeenCalledWith(expect.any(Uint8Array), { name: "game.2mg" });
 		expect(events).toEqual(expect.arrayContaining(["symbols:game.2mg", "formats:game.2mg", "notes:game.2mg"]));
-		expect(storage.get("vm6502_active_disk_name")).toBe("game.2mg");
+		expect(storage.get(APPLE_KEY)).toBe("game.2mg");
 	});
 
 	it("ejects: empty drive, no disk at the next startup, metadata back to no disk", async () => {
@@ -76,7 +91,7 @@ describe("useDiskDrive", () => {
 		events.length = 0;
 
 		await drive.eject(asVm);
-		expect(vm.ejectDisk).toHaveBeenCalledWith({ slot: 5 });
+		expect(vm.ejectDisk).toHaveBeenCalledWith();
 		expect(drive.inserted.value).toBeNull();
 		expect(storage.size).toBe(0);
 		expect(events).toEqual(expect.arrayContaining(["symbols:*", "formats:*", "notes:*"]));
@@ -89,9 +104,60 @@ describe("useDiskDrive", () => {
 
 	it("puts the last disk back at startup", async () => {
 		library.set("a.po", { type: "physical", name: "a.po", path: "a.po", size: 4, data: bytes(4) });
-		storage.set("vm6502_active_disk_name", "a.po");
+		storage.set(APPLE_KEY, "a.po");
 		await drive.restoreLastDisk(asVm);
 		expect(drive.inserted.value?.key).toBe("a.po");
+	});
+
+	it("takes the disk remembered before the machines had their own, if it's one for the machine", async () => {
+		library.set("a.po", { type: "physical", name: "a.po", path: "a.po", size: 4, data: bytes(4) });
+		storage.set("vm6502_active_disk_name", "a.po");
+		await drive.restoreLastDisk(asPet);
+		expect(drive.inserted.value).toBeNull(); // not the PET's
+		expect(storage.get("vm6502_active_disk_name")).toBe("a.po");
+
+		await drive.restoreLastDisk(asVm);
+		expect(drive.inserted.value?.key).toBe("a.po");
+		expect(storage.has("vm6502_active_disk_name")).toBe(false); // now the Apple's
+		expect(storage.get(APPLE_KEY)).toBe("a.po");
+	});
+
+	it("each machine has its own drive: another machine starts empty, then gets its own disk back", async () => {
+		library.set("a.po", { type: "physical", name: "a.po", path: "a.po", size: 4, data: bytes(4) });
+		library.set("games.d64", { type: "physical", name: "games", path: "games.d64", size: 8, data: bytes(8) });
+		await drive.insertFromLibrary(asVm, "a.po");
+		events.length = 0;
+
+		await drive.restoreLastDisk(asPet);
+		expect(drive.inserted.value).toBeNull();
+		expect(events).toEqual(expect.arrayContaining(["symbols:*"])); // not the Apple disk's labels
+		await drive.insertFromLibrary(asPet, "games.d64");
+		expect(pet.insertDisk).toHaveBeenCalledWith(expect.any(Uint8Array), { name: "games.d64" });
+
+		await drive.restoreLastDisk(asVm);
+		expect(drive.inserted.value?.key).toBe("a.po");
+		await drive.restoreLastDisk(asPet);
+		expect(drive.inserted.value?.key).toBe("games.d64");
+	});
+
+	it("lists, and inserts, only the images the machine's drive takes", async () => {
+		library.set("a.po", { type: "physical", name: "a.po", path: "a.po", size: 4, data: bytes(4) });
+		library.set("games.d64", { type: "physical", name: "games", path: "games.d64", size: 8, data: bytes(8) });
+		library.set("https://x.org/b.D64?raw=1", {
+			type: "url",
+			name: "b",
+			path: "https://x.org/b.D64?raw=1",
+			size: 0,
+		});
+		expect((await drive.listDisks(asVm)).map((d) => d.key)).toEqual(["a.po"]);
+		expect((await drive.listDisks(asPet)).map((d) => d.key)).toEqual(["games.d64", "https://x.org/b.D64?raw=1"]);
+		expect((await drive.listAllDisks()).length).toBe(3);
+
+		await expect(drive.insertFromLibrary(asPet, "a.po")).rejects.toThrow("a.po isn't a disk for the PET (.d64)");
+		await expect(drive.insertFile(asPet, "x.dsk", bytes(4))).rejects.toThrow("x.dsk isn't a disk for the PET");
+		await expect(drive.insertUrl(asPet, "https://x.org/c.po")).rejects.toThrow("c.po isn't a disk for the PET");
+		expect(pet.insertDisk).not.toHaveBeenCalled();
+		expect(library.has("x.dsk")).toBe(false);
 	});
 
 	it("adds a file to the library and inserts it", async () => {
@@ -113,9 +179,9 @@ describe("useDiskDrive", () => {
 		expect(events.indexOf("symbols:https://example.com/disks/game.po?x=1")).toBeLessThan(
 			events.indexOf("sym:SYMS"),
 		);
-		expect(vm.insertDisk).toHaveBeenCalledWith(expect.any(Uint8Array), { slot: 5, name: "game.po" });
+		expect(vm.insertDisk).toHaveBeenCalledWith(expect.any(Uint8Array), { name: "game.po" });
 		expect(library.get("https://example.com/disks/game.po?x=1")).toMatchObject({ type: "url" });
-		expect(storage.get("vm6502_active_disk_url")).toBe("https://example.com/disks/game.po?x=1");
+		expect(storage.get(APPLE_URL_KEY)).toBe("https://example.com/disks/game.po?x=1");
 	});
 
 	it("URL disk: its name is unescaped (%20 → space)", async () => {
@@ -163,10 +229,10 @@ describe("useDiskDrive", () => {
 			u.endsWith(".sym") ? { ok: false } : { ok: true, arrayBuffer: async () => bytes(16), statusText: "" },
 		);
 		library.set(url, { type: "url", name: "My game", path: url, size: 0 });
-		storage.set("vm6502_active_disk_url", url);
+		storage.set(APPLE_URL_KEY, url);
 
 		await drive.restoreLastDisk(asVm);
 		expect(drive.inserted.value).toMatchObject({ key: url, name: "My game" });
-		expect(vm.insertDisk).toHaveBeenCalledWith(expect.any(Uint8Array), { slot: 5, name: "game.po" });
+		expect(vm.insertDisk).toHaveBeenCalledWith(expect.any(Uint8Array), { name: "game.po" });
 	});
 });

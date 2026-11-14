@@ -177,7 +177,7 @@ import DiskRawView from "./DiskRawView.vue";
 import DiskVolumeView from "./DiskVolumeView.vue";
 
 const { source, analysis, view, loading, error, orderOverride, openDisk, setOrder } = useDiskEditor();
-const { inserted, listDisks } = useDiskDrive();
+const { inserted, listAllDisks } = useDiskDrive();
 
 const windowRef = ref<InstanceType<typeof FloatingWindow> | null>(null);
 const library = shallowRef<StoredDisk[]>([]);
@@ -240,7 +240,7 @@ const go = (v: DiskEditorView) => {
 
 const refreshLibrary = async () => {
 	try {
-		library.value = await listDisks();
+		library.value = await listAllDisks();
 	} catch (e) {
 		console.error("Disk editor: failed to list the library", e);
 	}

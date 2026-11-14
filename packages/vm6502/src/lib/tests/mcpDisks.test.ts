@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ref, shallowRef } from "vue";
+import type { DiskConfig } from "@/types/machine.interface";
 import { REG_PC_OFFSET } from "@/virtualmachine/cpu/shared-memory";
 
 vi.stubGlobal("localStorage", { getItem: () => null, setItem: () => undefined });
@@ -10,6 +11,7 @@ const inserted = shallowRef<Omit<Disk, "path"> | null>(null);
 const drive = {
 	inserted,
 	listDisks: vi.fn(async () => library),
+	listAllDisks: vi.fn(async () => library),
 	insertFromLibrary: vi.fn(async (_vm: unknown, key: string | number) => {
 		const { path: _path, ...disk } = library.find((d) => d.key === key)!;
 		inserted.value = disk;
@@ -29,21 +31,29 @@ const isRunning = ref(false);
 const memory = new Uint8Array(0x10000);
 const vm = {
 	ready: Promise.resolve(),
-	machineConfig: { name: "Apple //e", disk: { enabled: true, name: "SPDisk" } },
+	machineConfig: {
+		name: "Apple //e",
+		disk: { enabled: true, name: "SPDisk", extensions: [".po", ".2mg", ".dsk", ".hdv"] } as DiskConfig,
+	},
 	sharedRegisters: new DataView(new ArrayBuffer(64)),
 	readDebug: (a: number) => memory[a] ?? 0,
 	writeDebug: vi.fn((a: number, v: number) => (memory[a] = v)),
-	reset: vi.fn(async () => vm.sharedRegisters.setUint16(REG_PC_OFFSET, 0xfa62, true)),
+	reset: vi.fn(async (_opts?: { cold?: boolean }) => vm.sharedRegisters.setUint16(REG_PC_OFFSET, 0xfa62, true)),
+	typeText: vi.fn(async (_text: string) => ({ queued: 0, skipped: 0 })),
 	play: vi.fn(() => (isRunning.value = true)),
 };
 
 vi.mock("@/composables/useMachine", () => ({ useMachine: () => ({ vm: shallowRef(vm), isRunning }) }));
 vi.mock("@/composables/useCommands", () => ({ useCommands: () => ({}) }));
 vi.mock("@/composables/useSymbols", () => ({ useSymbols: () => ({ getAddressForLabel: () => undefined }) }));
-vi.mock("@/composables/useDiskDrive", () => ({
-	DISK_EXTENSIONS: [".po", ".2mg", ".dsk", ".hdv"],
-	useDiskDrive: () => drive,
-}));
+vi.mock("@/composables/useDiskDrive", () => {
+	const diskExtensions = (v: typeof vm) => v.machineConfig.disk?.extensions ?? [];
+	return {
+		diskExtensions,
+		isDiskFor: (v: typeof vm, file: string) => diskExtensions(v).some((ext) => file.toLowerCase().endsWith(ext)),
+		useDiskDrive: () => drive,
+	};
+});
 
 const { findTool, HOST_FILE_KEY } = await import("@/lib/mcp/tools");
 const call = (name: string, input: Record<string, unknown> = {}) =>
@@ -114,26 +124,39 @@ describe("disk tools", () => {
 		expect(drive.insertFromLibrary).not.toHaveBeenCalled();
 	});
 
-	it("load_disk boot: invalidates the power-up byte, resets and runs", async () => {
-		memory[0x3f3] = 0xe0; // SOFTEV+1; valid PWREDUP would be $E0 ^ $A5 = $45
-		memory[0x3f4] = 0x45;
+	it("load_disk boot: a cold reset (the ROM boots the disk) and runs", async () => {
 		const result = await call("load_disk", { disk: "conan.po", boot: true });
-		expect(memory[0x3f4]).not.toBe(0xe0 ^ 0xa5);
-		expect(vm.reset).toHaveBeenCalled();
+		expect(vm.reset).toHaveBeenCalledWith({ cold: true });
+		expect(vm.typeText).not.toHaveBeenCalled();
 		expect(vm.play).toHaveBeenCalled();
 		expect(result).toMatchObject({ result: "inserted", booted: true, running: true });
 	});
 
 	it("load_disk boot paused: resets for a cold boot but stays paused on the reset vector", async () => {
-		memory[0x3f3] = 0xe0;
-		memory[0x3f4] = 0x45;
 		isRunning.value = false;
 		vm.play.mockClear();
 		const result = await call("load_disk", { disk: "conan.po", boot: true, paused: true });
-		expect(memory[0x3f4]).not.toBe(0xe0 ^ 0xa5);
-		expect(vm.reset).toHaveBeenCalled();
+		expect(vm.reset).toHaveBeenCalledWith({ cold: true });
 		expect(vm.play).not.toHaveBeenCalled();
 		expect(result).toMatchObject({ result: "inserted", booted: true, running: false, PC: "$FA62" });
+	});
+
+	it("load_disk boot, on a machine whose ROM doesn't boot the disk: types its bootKeys after the reset", async () => {
+		const apple = vm.machineConfig;
+		vm.machineConfig = {
+			name: "Commodore PET 3032",
+			disk: { enabled: true, name: "4040", extensions: [".d64"], bootKeys: 'LOAD"*",8\nRUN\n' },
+		};
+		library.push({ key: "games.d64", name: "games.d64", type: "physical", size: 174848, path: "games.d64" });
+		try {
+			await call("load_disk", { disk: "games.d64", boot: true, paused: true });
+			expect(vm.reset).toHaveBeenCalledWith({ cold: true });
+			expect(vm.typeText).toHaveBeenCalledWith('LOAD"*",8\nRUN\n');
+			expect(vm.reset.mock.invocationCallOrder[0]).toBeLessThan(vm.typeText.mock.invocationCallOrder[0] as number);
+			await expect(call("load_disk", { path: hostFile("conan.po", [0]) })).rejects.toThrow(/\(\.d64\)/);
+		} finally {
+			vm.machineConfig = apple;
+		}
 	});
 
 	it("load_disk paused without boot is an error, before inserting", async () => {

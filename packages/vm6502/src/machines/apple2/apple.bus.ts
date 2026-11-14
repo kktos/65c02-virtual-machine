@@ -49,6 +49,10 @@ import { readTextScreen } from "./video/text.screen";
 
 // IIgs default colors - white on blue
 const DEFAULT_TEXT_COLORS = 0xf2;
+const PWREDUP = 0x3f4;
+const SOFTEV_HI = 0x3f3;
+/** The SmartPort card's: where a disk goes, unless the metadata names a slot */
+const DISK_SLOT = 5;
 
 const MEM_SCOPES = ["main", "aux", "io", "int_rom", "slot_rom", "rom", "lc_bank1", "lc_bank2"];
 type MemScopeOverride = { lcView: "BANK2" | "BANK1" | "ROM" | "AUTO"; lcAux: "MAIN" | "AUX"; cxView: "INT" | "SLOT" };
@@ -301,7 +305,7 @@ export class AppleBus implements IBus {
 		this.slotRoms = this.memory.subarray(RAM_OFFSET + 0x1c100, RAM_OFFSET + 0x1d000);
 
 		const slot5Rom = this.slotRoms.subarray(0x400, 0x500);
-		this.installCard(new SmartPortCard(this, 5, slot5Rom));
+		this.installCard(new SmartPortCard(this, DISK_SLOT, slot5Rom));
 
 		const slot4Rom = this.slotRoms.subarray(0x300, 0x400);
 		this.installCard(new MouseCard(this, 4, slot4Rom));
@@ -388,11 +392,10 @@ export class AppleBus implements IBus {
 		});
 	}
 
+	/** To the card of `overrides.slot`; the disk's logging (`diskLogging`) to the disk's card. */
 	public setDebugOverrides(overrides: { slot?: number } & Dict) {
-		if (overrides.slot) {
-			const card = this.slots[overrides.slot];
-			if (card) card.setDebugOverrides?.(overrides);
-		}
+		const slot = overrides.slot ?? (typeof overrides.diskLogging === "boolean" ? DISK_SLOT : undefined);
+		if (slot) this.slots[slot]?.setDebugOverrides?.(overrides);
 	}
 
 	// Share internal state by storing it in shared mem
@@ -434,7 +437,10 @@ export class AppleBus implements IBus {
 		this.registers.setUint8(REG_BANKSEL_OFFSET, this.auxMemBank);
 	}
 
-	public reset() {
+	/** `cold`: as Ctrl-OpenApple-Reset, the reset handler cold-starts and boots from the slots. */
+	public reset(cold = false) {
+		// The ROM warm-starts when the power-up byte PWREDUP ($3F4) is SOFTEV+1 ($3F3) EOR $A5: make it not
+		if (cold) this.memory[RAM_OFFSET + PWREDUP] = ~((this.memory[RAM_OFFSET + SOFTEV_HI] ?? 0) ^ 0xa5) & 0xff;
 		this.lcBank2 = false;
 		this.lcReadRam = false;
 		this.lcWriteRam = false;
@@ -1184,15 +1190,14 @@ export class AppleBus implements IBus {
 		this.fakingVBL = fields.fakingVBL as boolean; // syncState toggles it (once per frame)
 	}
 
-	public insertMedia(data: Uint8Array, metadata?: Record<string, unknown>) {
-		if (metadata && typeof metadata.slot === "number") {
-			const card = this.slots[metadata.slot];
-			if (card?.insertMedia) card.insertMedia(data, metadata);
-		}
+	/** Into the card of `metadata.slot`, else the SmartPort's (slot 5). */
+	public insertMedia(data: Uint8Array, metadata: Record<string, unknown> = {}) {
+		const slot = typeof metadata.slot === "number" ? metadata.slot : DISK_SLOT;
+		this.slots[slot]?.insertMedia?.(data, metadata);
 	}
 
-	public ejectMedia(metadata?: Record<string, unknown>) {
-		if (metadata && typeof metadata.slot === "number") this.slots[metadata.slot]?.ejectMedia?.();
+	public ejectMedia(metadata: Record<string, unknown> = {}) {
+		this.slots[typeof metadata.slot === "number" ? metadata.slot : DISK_SLOT]?.ejectMedia?.();
 	}
 
 	public getScope(address: number): string {

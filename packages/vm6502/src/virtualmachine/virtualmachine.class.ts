@@ -293,7 +293,7 @@ export class VirtualMachine {
 					hasTests: this.machineConfig.video?.hasTests,
 				},
 				memory: { buffer: this.sharedBuffer, size: this.machineConfig.memory.size, chunks },
-				disk: { ...this.machineConfig.disk },
+				// Only plain values: the config is reactive (a proxy, which postMessage can't clone)
 			},
 		});
 
@@ -497,8 +497,12 @@ export class VirtualMachine {
 		this._playPending = false;
 		this.worker.postMessage({ command: "pause" });
 	};
-	/** Resolves once the worker has reset (the machine is then stopped, PC on the reset vector). */
-	public reset = (): Promise<void> => this.request("reset").then(() => undefined);
+	/**
+	 * Resolves once the worker has reset (the machine is then stopped, PC on the reset vector). `cold`: a power-up
+	 * (the ROM cold-starts: on the Apple, it boots the disk).
+	 */
+	public reset = (opts: { cold?: boolean } = {}): Promise<void> =>
+		this.request("reset", { cold: opts.cold === true }).then(() => undefined);
 	/** Steps `count` instructions (fewer if something stops it, see `StepResult`); resolves when done. */
 	public step = (count = 1): Promise<StepResult> =>
 		this.request<StepResult>("step", { count }).then((result) => {
