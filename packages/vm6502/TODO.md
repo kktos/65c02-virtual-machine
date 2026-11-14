@@ -62,13 +62,17 @@ Noticed while chasing the squares shown instead of `@` on a page refresh (//e, t
   - `apple.video.ts`: `loadFont` returns its promise; once both are in, `setFontsReady()` then a redraw (`tick()`)
 - text, "Bitmap" renderer: `render40Bitmap` / `render80Bitmap` draw into the OffscreenCanvas but never call
   `copyToBuffer()`, so nothing of it reaches the screen (unlike the "Font" ones). Broken, or left unfinished?
-- `loadFont` (`apple.video.ts`): the font URL is built from `import.meta.url.match(/http:\/\/[^/]+/)`, http only.
+- **FIXED** `loadFont` (`apple.video.ts`): the font URL is built from `import.meta.url.match(/http:\/\/[^/]+/)`, http only.
   Served over https, `baseurl` is undefined and `new URL("undefined/fonts/...")` throws in the `AppleVideo`
   constructor. `new URL(`fonts/${name}.ttf`, self.location.href)`? (Vite's `base` is `./`)
-- `virtualmachine.class.ts`: `loadCSS()` (the `@font-face` of `fonts.css`) isn't awaited before `loadBus()`, which
+  - not relative to `self.location.href`: that's the worker script, the font would be looked for next to it
+    (`assets/`, `src/virtualmachine/cpu/`). Root-absolute like `fonts.css`: `new URL(`/fonts/${name}.ttf`,
+    self.location.href)`, built inside the promise so a bad URL is a warning, not a constructor throw
+- **FIXED** `virtualmachine.class.ts`: `loadCSS()` (the `@font-face` of `fonts.css`) isn't awaited before `loadBus()`, which
   draws the 40/80 column atlases (`generateApple2Assets`, `document.fonts.load(...)`). If the CSS came last,
   `fonts.load` would find no face and resolve at once, drawing the atlas with a fallback font. Always in order so
   far, by luck: await `loadCSS()` before the payloads
+  - `ready = loadCSS().catch(warn).then(loadBus)`: a CSS that fails to load doesn't stop the machine
 
 ### 2026-11-13
 

@@ -65,13 +65,14 @@ export interface ViewRect {
 	height: number;
 }
 
-const baseurl = import.meta.url.match(/http:\/\/[^/]+/)?.[0];
-/** Loads a font in the worker's own font set (the page's @font-face rules don't reach a worker) */
+/**
+ * Loads a font in the worker's own font set (the page's @font-face rules don't reach a worker).
+ * Same root-absolute `/fonts/` path as `fonts.css`, resolved against the worker's own location so
+ * it works over http and https alike (a path relative to the worker would land next to its script).
+ */
 function loadFont(name: string): Promise<void> {
-	const fontUrl = new URL(`${baseurl}/fonts/${name}.ttf`).href;
-	const font = new FontFace(name, `url(${fontUrl})`);
-	return font
-		.load()
+	return Promise.resolve()
+		.then(() => new FontFace(name, `url(${new URL(`/fonts/${name}.ttf`, self.location.href).href})`).load())
 		.then((loaded) => {
 			self.fonts.add(loaded);
 			console.log("AppleVideo: Loaded font", loaded.family);
