@@ -23,8 +23,7 @@ function appleCharCodeToUnicode(charCode: number, isAltCharset = false): string 
 	else if (charCode <= 0x3f) charCode += 0xe100;
 	else if (charCode <= 0x5f) {
 		charCode += isAltCharset ? 0xe040 : 0xe100;
-	} else if (charCode <= 0x7f)
-		charCode += 0xe0c0; // $60-$7F -> $E120-$E13F
+	} else if (charCode <= 0x7f) charCode += 0xe0c0; // $60-$7F -> $E120-$E13F
 	else if (charCode < 0xa0) charCode -= 0x40;
 	else if (charCode >= 0xa0) charCode -= 0x80;
 
@@ -40,6 +39,8 @@ export class TextRenderer {
 	private metrics80: CharMetrics | null = null;
 	private flashCounter = 0;
 	private flashState = false;
+	// The FONT renderers wait for this: see setFontsReady
+	private fontsReady = false;
 
 	private offscreenCanvas: OffscreenCanvas;
 	private ctx: OffscreenCanvasRenderingContext2D;
@@ -80,6 +81,15 @@ export class TextRenderer {
 			this.charmap80 = assets.charmap80 ?? null;
 			this.metrics80 = assets.metrics80 ?? null;
 		}
+	}
+
+	/**
+	 * The worker's fonts are loaded. Until then the FONT renderers draw nothing: setting ctx.font
+	 * before the font is loaded makes the context resolve it to a fallback font, and it keeps that
+	 * one even once the font is loaded (cached per context and font string).
+	 */
+	public setFontsReady() {
+		this.fontsReady = true;
 	}
 
 	public tick() {
@@ -174,7 +184,8 @@ export class TextRenderer {
 					const g = (pixel >> 8) & 0xff;
 					const b = (pixel >> 16) & 0xff;
 
-					const distToGlobalBg = (r - globalBgRgb[0]) ** 2 + (g - globalBgRgb[1]) ** 2 + (b - globalBgRgb[2]) ** 2;
+					const distToGlobalBg =
+						(r - globalBgRgb[0]) ** 2 + (g - globalBgRgb[1]) ** 2 + (b - globalBgRgb[2]) ** 2;
 					const distToTextBg = (r - textBgRgb[0]) ** 2 + (g - textBgRgb[1]) ** 2 + (b - textBgRgb[2]) ** 2;
 					const distToFg = (r - fgRgb[0]) ** 2 + (g - fgRgb[1]) ** 2 + (b - fgRgb[2]) ** 2;
 
@@ -270,6 +281,7 @@ export class TextRenderer {
 	}
 
 	public render40WithFont(startRow: number, isPage2: boolean, bgIdx: number, fgIdx: number, isAltCharset: boolean) {
+		if (!this.fontsReady) return;
 		this.ctx.font = `${fontHeight}px PrintChar21`;
 		this.ctx.textBaseline = "top";
 		this.ctx.textAlign = "left";
@@ -308,6 +320,7 @@ export class TextRenderer {
 	}
 
 	public render80WithFont(startRow: number, bgIdx: number, fgIdx: number, isAltCharset: boolean) {
+		if (!this.fontsReady) return;
 		const charWidth = 7;
 
 		this.ctx.font = `${fontHeight}px PRNumber3`;

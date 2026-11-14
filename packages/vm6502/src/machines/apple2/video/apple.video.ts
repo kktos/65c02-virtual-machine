@@ -66,10 +66,12 @@ export interface ViewRect {
 }
 
 const baseurl = import.meta.url.match(/http:\/\/[^/]+/)?.[0];
-function loadFont(name: string) {
+/** Loads a font in the worker's own font set (the page's @font-face rules don't reach a worker) */
+function loadFont(name: string): Promise<void> {
 	const fontUrl = new URL(`${baseurl}/fonts/${name}.ttf`).href;
 	const font = new FontFace(name, `url(${fontUrl})`);
-	font.load()
+	return font
+		.load()
 		.then((loaded) => {
 			self.fonts.add(loaded);
 			console.log("AppleVideo: Loaded font", loaded.family);
@@ -163,8 +165,13 @@ export class AppleVideo implements Video {
 		this.defaultWidth = width;
 		this.defaultHeight = height;
 
-		loadFont("PrintChar21");
-		loadFont("PRNumber3");
+		// The FONT text renderer must not draw before its fonts are in: a canvas context resolves a font
+		// once and keeps it, so text drawn while the font is loading would use the fallback (missing
+		// glyph boxes) for good. Once they are in, redraw: the machine may be paused at reset.
+		Promise.all([loadFont("PrintChar21"), loadFont("PRNumber3")]).then(() => {
+			this.textRenderer.setFontsReady();
+			this.tick();
+		});
 
 		console.log("AppleVideo", `view w${width}h${height}`);
 
