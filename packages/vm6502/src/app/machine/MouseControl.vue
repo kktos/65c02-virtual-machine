@@ -3,8 +3,9 @@
 		<button
 			ref="trigger"
 			@click="toggleLock"
-			class="toolbar-btn group disabled:opacity-50 disabled:cursor-not-allowed"
+			class="toolbar-btn group"
 			:class="element ? 'bg-green-700 hover:bg-green-600 text-white' : 'text-gray-400'"
+			:aria-pressed="!!element"
 			:title="element ? 'Mouse captured (Press ESC to release)' : 'Click to capture mouse'"
 		>
 			<MousePointer2 class="h-4 w-4" />

@@ -11,25 +11,29 @@
 	<CmdConsole />
 	<AppLayout v-if="vm" class="bg-gray-900 text-white" :aspect="vm.videoAspect.value">
 		<!-- Toolbar: its width drives the @container breakpoints used inside the controls -->
+		<!-- The row only wraps below 26rem, where the separators are hidden, so a separator never ends a wrapped row -->
+		<!-- (a container query can't target the @container element itself, hence the inner flex row) -->
 		<template #video-header>
-			<div class="@container flex flex-wrap items-center gap-1 p-1 bg-gray-800 border-b border-gray-700">
-				<MachineSelector
-					class="flex-1 basis-0 min-w-17"
-					:machines="availableMachines"
-					:selected-machine="selectedMachine"
-					@machine-selected="handleMachineSelected"
-					@power-cycle="handlePowerCycle"
-				/>
-				<div class="hidden @[26rem]:block toolbar-sep"></div>
-				<div class="flex items-center gap-0.5">
-					<VideoControl />
-					<SoundControl />
-					<GamepadControl v-if="hasGamepad" />
-					<MouseControl v-if="hasMouse" />
-					<DiskDriveControl v-if="hasDisk" />
+			<div class="@container p-1 bg-gray-800 border-b border-gray-700">
+				<div class="flex flex-wrap @[26rem]:flex-nowrap items-center gap-1">
+					<MachineSelector
+						class="flex-1 basis-0 min-w-17"
+						:machines="availableMachines"
+						:selected-machine="selectedMachine"
+						@machine-selected="handleMachineSelected"
+						@power-cycle="handlePowerCycle"
+					/>
+					<div class="hidden @[26rem]:block toolbar-sep"></div>
+					<div class="flex items-center gap-0.5">
+						<VideoControl />
+						<SoundControl />
+						<GamepadControl v-if="hasGamepad" />
+						<MouseControl v-if="hasMouse" />
+						<DiskDriveControl v-if="hasDisk" />
+					</div>
+					<div class="hidden @[26rem]:block toolbar-sep"></div>
+					<SpeedControl />
 				</div>
-				<div class="hidden @[26rem]:block toolbar-sep"></div>
-				<SpeedControl />
 			</div>
 		</template>
 

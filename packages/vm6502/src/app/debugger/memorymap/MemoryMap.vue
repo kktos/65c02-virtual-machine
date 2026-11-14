@@ -3,6 +3,7 @@
 		@click="toggleWindow"
 		class="toolbar-btn group"
 		:class="{ 'bg-gray-700 ring-1 ring-cyan-500/50': memoryMapWindow?.isOpen }"
+		:aria-pressed="!!memoryMapWindow?.isOpen"
 		title="Memory Map"
 	>
 		<MapIcon class="h-4 w-4 text-cyan-400 group-hover:text-cyan-300" />
