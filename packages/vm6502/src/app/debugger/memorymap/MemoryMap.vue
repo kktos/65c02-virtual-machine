@@ -14,9 +14,9 @@
 		id="memory_region_map"
 		title="Memory Map"
 		:options="{
-			defaultWidth: 600,
-			defaultHeight: 500,
-			minWidth: 400,
+			defaultWidth: 760,
+			defaultHeight: 560,
+			minWidth: 360,
 			minHeight: 300,
 			contentScrollable: false,
 		}"
@@ -25,7 +25,7 @@
 			<MapIcon class="h-4 w-4" />
 		</template>
 		<div class="p-4 h-full overflow-hidden">
-			<MemoryMapContainer />
+			<MemoryMapContainer @resize-by="resizeWindowBy" />
 		</div>
 	</FloatingWindow>
 </template>
@@ -37,6 +37,12 @@ import MemoryMapContainer from "./MemoryMapContainer.vue";
 import FloatingWindow from "@/components/FloatingWindow.vue";
 
 const memoryMapWindow = ref<InstanceType<typeof FloatingWindow> | null>(null);
+
+// The compact toggle hides/shows the side panel: grow or shrink the window by that much
+const resizeWindowBy = (dWidth: number) => {
+	const win = memoryMapWindow.value;
+	if (win) win.resize({ width: win.size.width + dWidth });
+};
 
 const toggleWindow = () => {
 	memoryMapWindow.value?.toggle();

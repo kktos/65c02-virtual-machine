@@ -222,6 +222,23 @@ const open = (options?: { x?: number; y?: number; width?: number; height?: numbe
 	});
 };
 
+// Resize programmatically (keeps a window snapped to the right edge anchored there)
+const resize = (newSize: { width?: number; height?: number }) => {
+	const wasSnappedRight = isSnappedRight.value;
+	const width = Math.max(config.value.minWidth, Math.min(newSize.width ?? size.value.width, winSize.value.width));
+	const height = Math.max(
+		config.value.minHeight,
+		Math.min(newSize.height ?? size.value.height, winSize.value.height),
+	);
+	if (wasSnappedRight) position.value.x = winSize.value.width - width;
+	size.value = { width, height };
+	nextTick(() => {
+		clampToViewport();
+		saveState();
+	});
+	emit("resize", size.value);
+};
+
 const close = () => {
 	isOpen.value = false;
 	if (isFocused.value) {
@@ -387,6 +404,8 @@ defineExpose({
 	open,
 	close,
 	toggle,
+	resize,
 	isOpen,
+	size,
 });
 </script>
