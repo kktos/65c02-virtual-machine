@@ -35,7 +35,9 @@ import {
 } from "@/virtualmachine/cpu/instructionTrace";
 import { readRegisters } from "@/virtualmachine/cpu/shared-memory";
 import { availableMachines } from "@/machines";
-import type { MachineConfig } from "@/types/machine.interface";
+import type { MachineConfig, SlotLayout } from "@/types/machine.interface";
+import { applySlotChanges, resolveSlotLayout, sameSlotLayout } from "@/lib/slots.lib";
+import { setSlotLayout } from "@/composables/useSlots";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -416,6 +418,24 @@ const findMachine = (name: string): MachineConfig => {
 	throw new Error(
 		`machine: ${partial.length ? `"${name}" is ambiguous` : `no machine "${name}"`} (${machineNames().join(", ")})`,
 	);
+};
+
+/** A machine's slots and what is in them (`layout`: what it was built with). No slots: `count` 0. */
+const describeSlots = (config: MachineConfig, layout: SlotLayout | undefined) => {
+	const slots = config.slots;
+	if (!slots?.count) return { machine: config.name, count: 0 };
+	const current = layout ?? resolveSlotLayout(slots);
+	const label = (id: string) => slots.cards.find((c) => c.id === id)?.label ?? id;
+	return {
+		machine: config.name,
+		count: slots.count,
+		slots: Array.from({ length: slots.count }, (_, i) => {
+			const card = current[i + 1];
+			return { slot: i + 1, card: card ?? null, ...(card && { label: label(card) }) };
+		}),
+		is_default: sameSlotLayout(current, resolveSlotLayout(slots)),
+		cards: slots.cards.map((c) => ({ id: c.id, label: c.label, slots: c.slots ?? "any" })),
+	};
 };
 
 // ─── Memory search (memory_snapshot / memory_diff) ────────────────────────────
@@ -1145,6 +1165,70 @@ export const MCP_TOOLS: McpTool[] = [
 				drive: newVm.machineConfig.disk
 					? { takes: diskExtensions(newVm), in_drive: disk ? describeDisk(disk) : null }
 					: null,
+				...describeRegisters(newVm),
+			});
+		},
+	},
+	{
+		name: "get_slots",
+		description:
+			"The current machine's expansion slots: `count` (0: the machine has none, e.g. the PET; then nothing " +
+			"else), each slot with its card (`card`: the card id, null when empty), whether that's the machine's " +
+			"default layout, and the cards it takes (`cards`: id, label, the slots each can go in). Change them with " +
+			"set_slots.",
+		inputSchema: { type: "object", properties: {} },
+		annotations: { readOnlyHint: true },
+		async execute() {
+			const vm = await getVm();
+			return json(describeSlots(vm.machineConfig, vm.busOptions.slots));
+		},
+	},
+	{
+		name: "set_slots",
+		description:
+			"Put cards in the current machine's slots (see get_slots for the slots and card ids), then power-cycle " +
+			"it so they are there (memory, save states lost, as with switch_machine restart; the drive gets its " +
+			"disk back). `slots`: slot number → card id, or null to empty it; the slots not named are kept. " +
+			'E.g. a Mockingboard in slot 4 and the mouse in 7: {"4": "mockingboard", "7": "mouse"}. ' +
+			"`default: true` starts from the machine's default layout instead of the current one (alone: back to " +
+			"the default). Kept as the user's setting for this machine, like the slots panel. Nothing changed: no " +
+			"power cycle (`result: unchanged`). Returns the slots (as get_slots) and the registers.",
+		inputSchema: {
+			type: "object",
+			properties: {
+				slots: {
+					type: "object",
+					description: 'Slot number → card id, or null to empty it: {"4": "mockingboard", "7": null}',
+					additionalProperties: { type: ["string", "null"] },
+				},
+				default: {
+					type: "boolean",
+					default: false,
+					description: "Start from the machine's default layout (alone: reset to it)",
+				},
+			},
+		},
+		async execute(input) {
+			const vm = await getVm();
+			const config = vm.machineConfig;
+			if (!config.slots?.count) throw new Error(`${config.name} has no slots`);
+			const changes = input.slots ?? {};
+			if (typeof changes !== "object" || changes === null || Array.isArray(changes))
+				throw new Error('slots: an object expected, slot → card id ({"4": "mockingboard"})');
+			const toDefault = input.default === true;
+			const current = vm.busOptions.slots ?? resolveSlotLayout(config.slots);
+			const base = toDefault ? resolveSlotLayout(config.slots) : current;
+			const layout = applySlotChanges(config.slots, base, changes as Record<string, string | null>);
+			setSlotLayout(config, toDefault && !Object.keys(changes).length ? undefined : layout);
+			if (sameSlotLayout(layout, current))
+				return json({ result: "unchanged", ...describeSlots(config, current) });
+
+			await useMachine().loadMachine();
+			memorySearch = undefined; // its snapshot was the memory before the power cycle
+			const newVm = await getVm();
+			return json({
+				result: "restarted",
+				...describeSlots(newVm.machineConfig, newVm.busOptions.slots),
 				...describeRegisters(newVm),
 			});
 		},

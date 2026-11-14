@@ -1,4 +1,4 @@
-import type { MachineConfig } from "@/types/machine.interface";
+import type { BusOptions, MachineConfig } from "@/types/machine.interface";
 import type { IBus } from "../../../types/bus.interface";
 
 // Vite-specific way to handle dynamic imports in workers.
@@ -18,6 +18,6 @@ export async function loadBus(busConfig: MachineConfig["bus"], memoryView: Uint8
 		console.error(`Worker: Could not find class ${busConfig.class} for module ${busModuleKey}`);
 		return null;
 	}
-	const [, BusClass]: [string, new (mem: Uint8Array) => IBus] = exportedBusEntry;
-	return new BusClass(memoryView);
+	const [, BusClass]: [string, new (mem: Uint8Array, options?: BusOptions) => IBus] = exportedBusEntry;
+	return new BusClass(memoryView, busConfig.options);
 }

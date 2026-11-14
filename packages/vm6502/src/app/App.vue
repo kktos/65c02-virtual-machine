@@ -30,6 +30,7 @@
 						<GamepadControl v-if="hasGamepad" />
 						<MouseControl v-if="hasMouse" />
 						<DiskDriveControl v-if="hasDisk" />
+						<SlotsControl />
 					</div>
 					<div class="hidden @[26rem]:block toolbar-sep"></div>
 					<SpeedControl />
@@ -113,6 +114,7 @@ import GamepadControl from "./machine/GamepadControl.vue";
 import MachineSelector from "./machine/MachineSelector.vue";
 import MouseControl from "./machine/MouseControl.vue";
 import SoundControl from "./machine/SoundControl.vue";
+import SlotsControl from "./machine/SlotsControl.vue";
 import SpeedControl from "./machine/SpeedControl.vue";
 import VideoControl from "./machine/VideoControl.vue";
 import CmdConsole from "./debugger/CmdConsole.vue";

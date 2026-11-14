@@ -99,6 +99,31 @@ export interface MachineInputDevice {
 	controls: MachineInputControl[];
 }
 
+/** A card type a machine's slots take (its bus knows how to build it from `id`). */
+export interface SlotCardType {
+	id: string;
+	label: string;
+	/** The slots it can go in (default: all of them). */
+	slots?: number[];
+}
+
+/** Which card in which slot: slot number → card id. A slot not in it is empty. */
+export type SlotLayout = Record<number, string>;
+
+/** A machine's expansion slots, numbered 1 to `count`. */
+export interface SlotsConfig {
+	count: number;
+	cards: SlotCardType[];
+	/** The layout when the user has set none. */
+	default: SlotLayout;
+}
+
+/** The machine's setup as the user chose it, given to its bus constructor. */
+export interface BusOptions {
+	/** The cards in the slots (see `MachineConfig.slots`); none given: the machine's default. */
+	slots?: SlotLayout;
+}
+
 export interface MachineSpeed {
 	label: string;
 	value: number;
@@ -118,7 +143,11 @@ export interface MachineConfig {
 		class: string; // exported class name
 		path: string; // Path relative to the worker for dynamic import
 		payload?: unknown;
+		/** What the bus is built with (`new BusClass(memory, options)`), on both threads. */
+		options?: BusOptions;
 	};
+	/** Expansion slots the user can fill (none: the machine has no slots). */
+	slots?: SlotsConfig;
 	video?: VideoConfig;
 	disk?: DiskConfig;
 	css?: string[];

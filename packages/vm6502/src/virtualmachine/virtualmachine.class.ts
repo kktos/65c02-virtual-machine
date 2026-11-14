@@ -2,7 +2,7 @@ import { ref } from "vue";
 import type { TraceSnapshot } from "./cpu/instructionTrace";
 import type { SaveStateInfo, SaveStateMeta } from "./cpu/saveStates";
 import type { Dict } from "@/types/dict.type";
-import type { MachineConfig, MemoryChunk } from "@/types/machine.interface";
+import type { BusOptions, MachineConfig, MemoryChunk } from "@/types/machine.interface";
 import type { IBus, KeyboardState } from "@/types/bus.interface";
 import {
 	FLAG_B_MASK,
@@ -121,7 +121,11 @@ export class VirtualMachine {
 
 	private stateStack: number[][] = [];
 
-	constructor(machineConfig: MachineConfig) {
+	/** `busOptions`: the machine as the user set it up (its slots…), for its bus on both threads. */
+	constructor(
+		machineConfig: MachineConfig,
+		public readonly busOptions: BusOptions = {},
+	) {
 		this.machineConfig = machineConfig;
 		if (machineConfig.video) this.videoAspect.value = machineConfig.video.width / machineConfig.video.height;
 
@@ -260,8 +264,8 @@ export class VirtualMachine {
 			console.error(`VM: Could not find class ${busConfig.class} for module ${busModuleKey}`);
 			return;
 		}
-		const [, BusClass]: [unknown, new (mem: Uint8Array) => IBus] = exportedBusEntry;
-		this.bus = new BusClass(this.sharedMemory);
+		const [, BusClass]: [unknown, new (mem: Uint8Array, options?: BusOptions) => IBus] = exportedBusEntry;
+		this.bus = new BusClass(this.sharedMemory, this.busOptions);
 		console.log(`VM: Bus ${busConfig.class} loaded on main thread.`);
 
 		// 3. Prepare worker payloads (if any)
@@ -282,6 +286,7 @@ export class VirtualMachine {
 					path: this.machineConfig.bus.path,
 					class: this.machineConfig.bus.class,
 					payload: payloads.bus,
+					options: this.busOptions,
 				},
 				video: {
 					width: this.machineConfig.video?.width,
