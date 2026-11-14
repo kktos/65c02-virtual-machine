@@ -1,5 +1,13 @@
 import type { Dict } from "@/types/dict.type";
-import type { IBus, InterruptLines, KeyboardState, MachineStateSpec, TextMode, TextScreenOptions } from "@/types/bus.interface";
+import type { BusOptions } from "@/types/machine.interface";
+import type {
+	IBus,
+	InterruptLines,
+	KeyboardState,
+	MachineStateSpec,
+	TextMode,
+	TextScreenOptions,
+} from "@/types/bus.interface";
 import {
 	INPUT_ANALOG_0_OFFSET,
 	INPUT_ANALOG_1_OFFSET,
@@ -15,6 +23,7 @@ import { generateApple2Assets } from "./bus/apple.assets";
 import { AppleKeyboard, type KeyboardSnapshot, textToKeyCodes } from "./bus/apple.keyboard";
 import { loadMemoryChunks } from "./bus/apple.loader";
 import { installSoftSwitches } from "./bus/apple.switches";
+import { type AppleCardId, slotsConfig } from "./conf/slots.conf";
 import {
 	APPLE_80COL_MASK,
 	APPLE_ALTCHAR_MASK,
@@ -52,10 +61,15 @@ import { readTextScreen } from "./video/text.screen";
 const DEFAULT_TEXT_COLORS = 0xf2;
 const PWREDUP = 0x3f4;
 const SOFTEV_HI = 0x3f3;
-/** The SmartPort card's: where a disk goes, unless the metadata names a slot */
-const DISK_SLOT = 5;
-/** Slot 4, the Mockingboard's usual one, has the mouse. */
-const MOCKINGBOARD_SLOT = 7;
+/** Builds a card for a slot, `rom` being its $Cn00-$CnFF space (in slotRoms). One per card of slotsConfig. */
+const CARD_FACTORIES: Record<AppleCardId, (bus: AppleBus, slot: number, rom: Uint8Array) => ISlotCard> = {
+	smartport: (bus, slot, rom) => new SmartPortCard(bus, slot, rom),
+	mouse: (bus, slot, rom) => new MouseCard(bus, slot, rom),
+	thunderclock: (bus, slot, rom) => new ThunderClockCard(bus, slot, rom),
+	mockingboard: (bus, slot) => new MockingboardCard(bus, slot),
+};
+
+const isCardId = (id: string): id is AppleCardId => Object.hasOwn(CARD_FACTORIES, id);
 
 const isAudioSource = (card: ISlotCard): card is ISlotCard & AudioSource =>
 	typeof (card as Partial<AudioSource>).render === "function";
@@ -296,7 +310,8 @@ export class AppleBus implements IBus {
 	private readHandlers: Array<() => number>;
 	private writeHandlers: Array<(val: number) => void>;
 
-	constructor(memory: Uint8Array) {
+	/** `options.slots`: the cards, by slot (default: slotsConfig's). */
+	constructor(memory: Uint8Array, options: BusOptions = {}) {
 		this.memory = memory;
 
 		if (memory.length % 0x10000 < RAM_OFFSET) throw new Error("Not enough memory for Apple Bus");
@@ -317,16 +332,15 @@ export class AppleBus implements IBus {
 		// Before the cards: a sound card mixes into its output
 		this.speaker = new Speaker(this);
 
-		const slot5Rom = this.slotRoms.subarray(0x400, 0x500);
-		this.installCard(new SmartPortCard(this, DISK_SLOT, slot5Rom));
-
-		const slot4Rom = this.slotRoms.subarray(0x300, 0x400);
-		this.installCard(new MouseCard(this, 4, slot4Rom));
-
-		const slot2Rom = this.slotRoms.subarray(0x100, 0x200);
-		this.installCard(new ThunderClockCard(this, 2, slot2Rom));
-
-		this.installCard(new MockingboardCard(this, MOCKINGBOARD_SLOT));
+		for (const [key, cardId] of Object.entries(options.slots ?? slotsConfig.default)) {
+			const slot = Number(key);
+			if (!isCardId(cardId) || !Number.isInteger(slot) || slot < 1 || slot > slotsConfig.count) {
+				console.error(`AppleBus: no card "${cardId}" for slot ${key}`);
+				continue;
+			}
+			const rom = this.slotRoms.subarray((slot - 1) * 0x100, slot * 0x100);
+			this.installCard(CARD_FACTORIES[cardId](this, slot, rom));
+		}
 
 		const handlers = installSoftSwitches(this);
 		this.readHandlers = handlers.readHandlers;
@@ -418,9 +432,17 @@ export class AppleBus implements IBus {
 		});
 	}
 
+	/** The slot of the card a disk goes in when the metadata names none: the first that takes one (0: none). */
+	private get diskSlot() {
+		return Math.max(
+			0,
+			this.slots.findIndex((card) => card?.insertMedia),
+		);
+	}
+
 	/** To the card of `overrides.slot`; the disk's logging (`diskLogging`) to the disk's card. */
 	public setDebugOverrides(overrides: { slot?: number } & Dict) {
-		const slot = overrides.slot ?? (typeof overrides.diskLogging === "boolean" ? DISK_SLOT : undefined);
+		const slot = overrides.slot ?? (typeof overrides.diskLogging === "boolean" ? this.diskSlot : undefined);
 		if (slot) this.slots[slot]?.setDebugOverrides?.(overrides);
 	}
 
@@ -1220,14 +1242,16 @@ export class AppleBus implements IBus {
 		this.fakingVBL = fields.fakingVBL as boolean; // syncState toggles it (once per frame)
 	}
 
-	/** Into the card of `metadata.slot`, else the SmartPort's (slot 5). */
+	/** Into the card of `metadata.slot`, else the first card that takes a disk (the SmartPort's). */
 	public insertMedia(data: Uint8Array, metadata: Record<string, unknown> = {}) {
-		const slot = typeof metadata.slot === "number" ? metadata.slot : DISK_SLOT;
-		this.slots[slot]?.insertMedia?.(data, metadata);
+		const slot = typeof metadata.slot === "number" ? metadata.slot : this.diskSlot;
+		const card = this.slots[slot];
+		if (!card?.insertMedia) console.warn(`AppleBus: no card in slot ${slot} takes a disk`);
+		card?.insertMedia?.(data, metadata);
 	}
 
 	public ejectMedia(metadata: Record<string, unknown> = {}) {
-		this.slots[typeof metadata.slot === "number" ? metadata.slot : DISK_SLOT]?.ejectMedia?.();
+		this.slots[typeof metadata.slot === "number" ? metadata.slot : this.diskSlot]?.ejectMedia?.();
 	}
 
 	public getScope(address: number): string {

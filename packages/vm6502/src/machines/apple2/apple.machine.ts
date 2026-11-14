@@ -3,6 +3,7 @@ import type { MachineConfig } from "@/types/machine.interface";
 import { debugOptionsConfig } from "./conf/debug.options.conf";
 import { memoryConfig } from "./conf/memory.conf";
 import { regionsConfig } from "./conf/regions.conf";
+import { slotsConfig } from "./conf/slots.conf";
 import { initRoutine } from "./scripts/init";
 
 export const apple2e: MachineConfig = {
@@ -11,6 +12,7 @@ export const apple2e: MachineConfig = {
 	memory: memoryConfig,
 	css: ["apple2/fonts/fonts.css"],
 	bus: { class: "AppleBus", path: "apple2/apple.bus" },
+	slots: slotsConfig,
 	video: {
 		width: 640,
 		height: 480,

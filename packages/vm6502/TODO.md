@@ -25,13 +25,30 @@ Noticed while running `mock mini prodos T.dsk` (asimov `images/sound/`, a Mockin
   the bus passed the check (`sharedBuffer` was set) and hit a `null` bus
   - `cpu.worker.ts`: what comes before `init` is done is queued, run in order once it is, then `ready` is posted;
     an `init` that failed drops the queue and refuses what comes after
-- Mockingboard slot: the card is in slot 7 (`MOCKINGBOARD_SLOT`, `apple.bus.ts`) because the mouse
+- **DONE** Mockingboard slot: the card is in slot 7 (`MOCKINGBOARD_SLOT`, `apple.bus.ts`) because the mouse
   (`MouseCard`) is in slot 4, the Mockingboard's usual one. Software written for slot 4 doesn't find the card
   - the disk's player (`V15`, at $758A) has `$C4` hard-coded in 23 `STA` / `STY $C4xx` (both VIAs, $C400 / $C480);
     the BASIC's `POKE 30117,4` isn't the slot but the T1 latch low byte. Patched to `$C7` (23 POKEs of 199 after the
     `BLOAD V15`), its IRQ runs (the sample pointer moves) — whether it is heard there was not checked
-  - to decide: the Mockingboard in slot 4 and the mouse moved (slot 7? what expects the mouse in 4?), or the slots
-    as a machine setting (which card in which slot), or several Mockingboard slots selectable in the UI
+  - decided: the slots as a machine setting, see below
+- **DONE** slots, which card in which slot, set by the user (the //e; the default layout unchanged: clock 2, mouse 4,
+  SmartPort 5, Mockingboard 7). A change power-cycles the machine (as swapping real cards: power off first)
+  - `MachineConfig.slots` (`types/machine.interface.ts`): how many slots, the cards the machine takes (id, label, the
+    slots each goes in), the default layout. None: no slots (the PET, KlausTest). The //e's: `conf/slots.conf.ts`
+    (no card in slot 3: the 80-column firmware)
+  - `apple.bus.ts`: `CARD_FACTORIES` builds a card by its id; the bus takes the layout as `BusOptions.slots`
+    (`new BusClass(memory, options)`, on both threads: `VirtualMachine.busOptions`, then the worker's `init`).
+    A disk with no `slot` goes to the first card that takes one (was slot 5, `DISK_SLOT`)
+  - `lib/slots.lib.ts`: checking / merging a layout; `composables/useSlots.ts`: the user's, by machine, in
+    localStorage (`vm6502_slots`), read by `loadMachine`
+  - UI: `SlotsControl.vue` (toolbar, circuit-board icon, the machines with slots only): a select per slot, Defaults,
+    Apply & power cycle
+  - MCP: `get_slots` (`count` 0: no slots), `set_slots` (slot → card id / null, `default: true`), saved as the UI's
+- slots, later: per-disk slots, in the disk's notes (a disk that wants the Mockingboard in 4), over the user's
+  layout when the disk boots (a power cycle when they differ?)
+- slots, later: the mouse in `MachineConfig.inputs` (`MouseControl`, `hasMouse`) stays when no mouse card is in a
+  slot; the inputs could follow the cards
+- slots, later: a generic ROM card ($Cn00 ROM, $C800 expansion ROM, a user file or `rom/slotN.rom.ts`)
 
 ### 2026-11-13
 

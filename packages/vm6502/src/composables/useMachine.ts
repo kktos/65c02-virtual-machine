@@ -14,6 +14,7 @@ import { useRoutines } from "./useRoutines";
 import { useRunUntil } from "./useRunUntil";
 import { useDiskDrive } from "./useDiskDrive";
 import { useDiskEditor } from "./useDiskEditor";
+import { slotLayoutFor } from "./useSlots";
 import type { RegisterDescriptor } from "@/types/registers";
 import type { StopInfo } from "@/types/stopinfo.interface";
 import { setHypercallDisassembly } from "@/lib/hypercalls.lib";
@@ -163,7 +164,7 @@ const loadMachine = async (newMachine?: MachineConfig) => {
 	console.log(`Main: Loading machine ${selectedMachine.value.name}`);
 
 	setHypercallDisassembly(!!selectedMachine.value.hypercalls);
-	const newVm = new VirtualMachine(selectedMachine.value);
+	const newVm = new VirtualMachine(selectedMachine.value, { slots: slotLayoutFor(selectedMachine.value) });
 	vm.value = markRaw<VirtualMachine>(newVm);
 	setupVmListeners(newVm);
 	virtualRegisters.value = [];
