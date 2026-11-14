@@ -6,6 +6,11 @@ const CHUNK_SIZE = 512;
 // The clock used when the machine runs at "Max" speed (no fixed rate): the main thread drops what it can't play.
 const DEFAULT_CLOCK_HZ = 1_023_000;
 
+/** A sound source the speaker mixes in: adds `count` samples, from `start`, to `out`. */
+export interface AudioSource {
+	render(out: Float32Array, start: number, count: number, sampleRate: number): void;
+}
+
 export class Speaker {
 	private sampleRate = 22050;
 	private clockHz = DEFAULT_CLOCK_HZ;
@@ -18,6 +23,8 @@ export class Speaker {
 
 	private sampleBuffer = new Float32Array(CHUNK_SIZE);
 	private bufferIndex = 0;
+
+	private sources: AudioSource[] = [];
 
 	constructor(private bus: IBus) {
 		this.setEnabled(true);
@@ -55,6 +62,11 @@ export class Speaker {
 		this.speakerOn = !this.speakerOn;
 	}
 
+	/** A sound source mixed into the output (a sound card): it adds its samples to the speaker's. */
+	public addSource(source: AudioSource) {
+		this.sources.push(source);
+	}
+
 	public tick(cycles: number) {
 		this.accumulatedCycles += cycles;
 
@@ -64,36 +76,20 @@ export class Speaker {
 		this.accumulatedCycles -= samplesToGenerate * this.cyclesPerSample;
 
 		const value = this.speakerOn ? HIGH_LEVEL : LOW_LEVEL;
-		const chunks: Float32Array[] = [];
 
-		// First, see if we can just add to the existing buffer without sending anything
-		if (this.bufferIndex + samplesToGenerate < CHUNK_SIZE) {
-			this.sampleBuffer.fill(value, this.bufferIndex, this.bufferIndex + samplesToGenerate);
-			this.bufferIndex += samplesToGenerate;
-			return;
+		// Fills the buffer, sending each chunk as it's full
+		while (samplesToGenerate > 0) {
+			const count = Math.min(samplesToGenerate, CHUNK_SIZE - this.bufferIndex);
+			this.sampleBuffer.fill(value, this.bufferIndex, this.bufferIndex + count);
+			for (let index = 0; index < this.sources.length; index++)
+				this.sources[index]!.render(this.sampleBuffer, this.bufferIndex, count, this.sampleRate);
+			this.bufferIndex += count;
+			samplesToGenerate -= count;
+
+			if (this.bufferIndex === CHUNK_SIZE) {
+				self.postMessage({ type: "audio", buffer: this.sampleBuffer.slice() });
+				this.bufferIndex = 0;
+			}
 		}
-
-		// --- Buffer will overflow, so we must send at least one chunk ---
-
-		// 1. Fill the rest of the current buffer
-		const spaceLeft = CHUNK_SIZE - this.bufferIndex;
-		this.sampleBuffer.fill(value, this.bufferIndex, CHUNK_SIZE);
-		chunks.push(this.sampleBuffer.slice());
-		samplesToGenerate -= spaceLeft;
-
-		// 2. Send any remaining full chunks
-		while (samplesToGenerate >= CHUNK_SIZE) {
-			// This is slightly inefficient as it re-allocates, but it's clean.
-			// A constant-value chunk doesn't need copying.
-			const newChunk = new Float32Array(CHUNK_SIZE).fill(value);
-			chunks.push(newChunk);
-			samplesToGenerate -= CHUNK_SIZE;
-		}
-
-		// 3. Place the final remaining samples at the start of the buffer for next time
-		this.bufferIndex = samplesToGenerate;
-		if (this.bufferIndex > 0) this.sampleBuffer.fill(value, 0, this.bufferIndex);
-
-		for (let index = 0; index < chunks.length; index++) self.postMessage({ type: "audio", buffer: chunks[index] });
 	}
 }

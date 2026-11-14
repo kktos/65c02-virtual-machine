@@ -12,7 +12,12 @@ export interface ISlotCard {
 	setRegisters?(view: DataView): void;
 	insertMedia?(data: Uint8Array, metadata?: Record<string, unknown>): void;
 	ejectMedia?(): void;
-	tick?(cycles: number): Float32Array[];
+	tick?(cycles: number): void;
+
+	/** The card asserts the IRQ line (the bus ORs the cards: see AppleBus.updateIrq). */
+	readonly irq?: boolean;
+	/** The Apple's RESET line. */
+	reset?(): void;
 
 	setDebugOverrides?(overrides: Dict): void;
 

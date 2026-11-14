@@ -1,5 +1,5 @@
 import type { Dict } from "@/types/dict.type";
-import type { IBus, KeyboardState, MachineStateSpec, TextMode, TextScreenOptions } from "@/types/bus.interface";
+import type { IBus, InterruptLines, KeyboardState, MachineStateSpec, TextMode, TextScreenOptions } from "@/types/bus.interface";
 import {
 	INPUT_ANALOG_0_OFFSET,
 	INPUT_ANALOG_1_OFFSET,
@@ -40,11 +40,12 @@ import {
 	LC_ROM_OFFSET,
 	RAM_OFFSET,
 } from "./memory.consts";
+import { MockingboardCard } from "./slots/mockingboard/mockingboard.card";
 import { MouseCard } from "./slots/mouse.card";
 import type { ISlotCard } from "./slots/slotcard.interface";
 import { SmartPortCard } from "./slots/smartport.card";
 import { ThunderClockCard } from "./slots/thunderclock.card";
-import { Speaker } from "./speaker";
+import { type AudioSource, Speaker } from "./speaker";
 import { readTextScreen } from "./video/text.screen";
 
 // IIgs default colors - white on blue
@@ -53,6 +54,11 @@ const PWREDUP = 0x3f4;
 const SOFTEV_HI = 0x3f3;
 /** The SmartPort card's: where a disk goes, unless the metadata names a slot */
 const DISK_SLOT = 5;
+/** Slot 4, the Mockingboard's usual one, has the mouse. */
+const MOCKINGBOARD_SLOT = 7;
+
+const isAudioSource = (card: ISlotCard): card is ISlotCard & AudioSource =>
+	typeof (card as Partial<AudioSource>).render === "function";
 
 const MEM_SCOPES = ["main", "aux", "io", "int_rom", "slot_rom", "rom", "lc_bank1", "lc_bank2"];
 type MemScopeOverride = { lcView: "BANK2" | "BANK1" | "ROM" | "AUTO"; lcAux: "MAIN" | "AUX"; cxView: "INT" | "SLOT" };
@@ -282,6 +288,10 @@ export class AppleBus implements IBus {
 
 	private tickHandlers: ((cycles: number) => void)[] = [];
 
+	// The CPU's interrupt inputs (see setInterruptLines), and the IRQ line as the cards drive it
+	private lines?: InterruptLines;
+	private irqActive = false;
+
 	// Soft Switch Dispatch Tables (0xC000 - 0xC0FF)
 	private readHandlers: Array<() => number>;
 	private writeHandlers: Array<(val: number) => void>;
@@ -304,6 +314,9 @@ export class AppleBus implements IBus {
 		// Slot ROMs: $C100-$CFFF in aux RAM
 		this.slotRoms = this.memory.subarray(RAM_OFFSET + 0x1c100, RAM_OFFSET + 0x1d000);
 
+		// Before the cards: a sound card mixes into its output
+		this.speaker = new Speaker(this);
+
 		const slot5Rom = this.slotRoms.subarray(0x400, 0x500);
 		this.installCard(new SmartPortCard(this, DISK_SLOT, slot5Rom));
 
@@ -313,13 +326,11 @@ export class AppleBus implements IBus {
 		const slot2Rom = this.slotRoms.subarray(0x100, 0x200);
 		this.installCard(new ThunderClockCard(this, 2, slot2Rom));
 
-		// this.installCard(new MockingboardCard(4));
+		this.installCard(new MockingboardCard(this, MOCKINGBOARD_SLOT));
 
 		const handlers = installSoftSwitches(this);
 		this.readHandlers = handlers.readHandlers;
 		this.writeHandlers = handlers.writeHandlers;
-
-		this.speaker = new Speaker(this);
 
 		this.registerTickHandler((_cycles) => {
 			const registers = this.registers as DataView<ArrayBufferLike>;
@@ -370,6 +381,21 @@ export class AppleBus implements IBus {
 		this.slots[card.slot] = card;
 		if (this.registers && card.setRegisters) card.setRegisters(this.registers);
 		if (card.tick) this.registerTickHandler(card.tick.bind(card));
+		if (isAudioSource(card)) this.speaker.addSource(card);
+	}
+
+	public setInterruptLines(lines: InterruptLines) {
+		this.lines = lines;
+		this.irqActive = false;
+		this.updateIrq();
+	}
+
+	/** The IRQ line: the cards' ORed (a card calls it when its own changes). */
+	public updateIrq() {
+		const active = this.slots.some((card) => card?.irq);
+		if (active === this.irqActive) return;
+		this.irqActive = active;
+		this.lines?.irq(active);
 	}
 
 	public initAudio(sampleRate: number): void {
@@ -478,6 +504,9 @@ export class AppleBus implements IBus {
 		this.paddleTimers.fill(0);
 		this.totalCycles = 0;
 		this.keyboard.reset();
+
+		for (const card of this.slots) card?.reset?.();
+		this.updateIrq();
 
 		this.syncState();
 	}
@@ -1186,6 +1215,7 @@ export class AppleBus implements IBus {
 		this.slots.forEach((card, slot) => {
 			if (cards[slot] !== undefined) card?.restoreSnapshot?.(cards[slot]);
 		});
+		this.updateIrq();
 		this.syncState(); // the soft switches the main thread and the UI read
 		this.fakingVBL = fields.fakingVBL as boolean; // syncState toggles it (once per frame)
 	}

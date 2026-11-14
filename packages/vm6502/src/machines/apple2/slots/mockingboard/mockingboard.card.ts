@@ -1,114 +1,129 @@
-import type { IBus } from "@/types/bus.interface";
+import type { AudioSource } from "../../speaker";
 import type { ISlotCard } from "../slotcard.interface";
-import { AY38910 } from "./ay38910";
-import { VIA6522 } from "@/machines/chips/via6522";
+import { AY38910, type AYSnapshot } from "./ay38910";
+import { VIA6522, type VIASnapshot } from "@/machines/chips/via6522";
 
-export class MockingboardCard implements ISlotCard {
-	private via1: VIA6522;
-	private via2: VIA6522;
-	private ay1: AY38910;
-	private ay2: AY38910;
+/** The card drives the CPU's IRQ line through the bus, which ORs its cards. */
+export interface MockingboardHost {
+	updateIrq(): void;
+}
 
-	// Bus Latching for AY communication
-	private ay1Addr = 0;
-	private ay2Addr = 0;
+type MockingboardSnapshot = { vias: VIASnapshot[]; ays: AYSnapshot[]; latches: number[] };
+
+// Port B: the AY's control lines
+const PB_BC1 = 0x01;
+const PB_BDIR = 0x02;
+const PB_RESET = 0x04; // active low
+
+// BDIR/BC1 (with BC2 tied high; neither: inactive)
+const AY_READ = PB_BC1;
+const AY_WRITE = PB_BDIR;
+const AY_LATCH = PB_BDIR | PB_BC1;
+
+/** The output level of an AY at full volume (the speaker's square wave is ±0.25). */
+const AY_LEVEL = 0.25;
+/** The DC blocker's pole (the output is AC coupled): ~35 Hz at 44.1 kHz. */
+const DC_POLE = 0.995;
+
+/**
+ * Mockingboard (A/C): two 6522 VIAs, each driving an AY-3-8910 PSG. No ROM: the slot's $Cn00-$CnFF space
+ * decodes A7 as the VIA ($Cn00: the first, $Cn80: the second) and A3-A0 as its register.
+ *
+ * On each VIA, port A is the AY's data bus and port B its control lines (PB0: BC1, PB1: BDIR, PB2: /RESET), so
+ * an AY register is written by: ORA = register, ORB = 7 (latch address), ORB = 4 (inactive), ORA = value,
+ * ORB = 6 (write), ORB = 4. Music drivers run from the VIAs' timer 1 interrupts (both VIAs drive the IRQ line).
+ *
+ * The AYs are mixed (mono) into the speaker's output, sample-synchronized with it.
+ */
+export class MockingboardCard implements ISlotCard, AudioSource {
+	private vias: VIA6522[];
+	private ays = [new AY38910(), new AY38910()];
+	/** The AY's address latch: a register, if its upper bits are 0 (else the AY isn't selected). */
+	private latches = [0, 0];
+
+	private dcInput = 0;
+	private dcOutput = 0;
+	private mixBuffer = new Float32Array(512);
 
 	constructor(
-		_bus: IBus,
+		private host: MockingboardHost,
 		public slot: number,
 	) {
-		this.ay1 = new AY38910();
-		this.ay2 = new AY38910();
-
-		// VIA 1 controls AY 1
-		this.via1 = new VIA6522({
-			writePortB: (val) => this.controlAy(this.ay1, val, this.via1.read(1)), // Port B controls, Port A data
-			writePortA: (_val) => {
-				/* Data bus, used when Port B triggers */
-			},
-		});
-
-		// VIA 2 controls AY 2
-		this.via2 = new VIA6522({
-			writePortB: (val) => this.controlAy(this.ay2, val, this.via2.read(1)),
-			writePortA: (_val) => {},
-		});
+		this.vias = [0, 1].map(
+			(index) =>
+				new VIA6522({
+					writePortA: () => this.driveAy(index),
+					writePortB: () => this.driveAy(index),
+					readPortA: () => this.readAyBus(index),
+					irq: () => this.host.updateIrq(),
+				}),
+		);
+		this.reset();
 	}
 
-	private controlAy(ay: AY38910, ctrl: number, data: number) {
-		// Mockingboard Control Lines on Port B:
-		// Bit 0: BC1
-		// Bit 1: BDIR
-		// Bit 2: Reset (Active Low)
+	/** The Apple's RESET line: on the VIAs, and the AYs silenced. */
+	public reset() {
+		for (const via of this.vias) via.reset();
+		for (const ay of this.ays) ay.reset();
+		this.latches.fill(0);
+	}
 
-		const bc1 = (ctrl & 0x01) !== 0;
-		const bdir = (ctrl & 0x02) !== 0;
-		const reset = (ctrl & 0x04) === 0;
+	public get irq() {
+		return this.vias[0]!.irq || this.vias[1]!.irq;
+	}
 
-		if (reset) {
-			// Reset AY
+	/** The AY's control lines or data bus changed: it acts as long as they hold. */
+	private driveAy(index: number) {
+		const via = this.vias[index]!;
+		const ay = this.ays[index]!;
+		const control = via.portB;
+		if (!(control & PB_RESET)) {
+			ay.reset();
 			return;
 		}
-
-		if (bdir && bc1) {
-			// Latch Address
-			if (ay === this.ay1) this.ay1Addr = data & 0x0f;
-			else this.ay2Addr = data & 0x0f;
-		} else if (bdir && !bc1) {
-			// Write Data
-			if (ay === this.ay1) ay.write(this.ay1Addr, data);
-			else ay.write(this.ay2Addr, data);
-		} else if (!bdir && bc1) {
-			// Read Data (Not fully implemented on VIA side to return it yet, but AY supports read)
+		switch (control & (PB_BDIR | PB_BC1)) {
+			case AY_LATCH:
+				this.latches[index] = via.portA;
+				break;
+			case AY_WRITE:
+				if (this.latches[index]! < 0x10) ay.write(this.latches[index]!, via.portA);
+				break;
 		}
 	}
 
-	tick(cycles: number): Float32Array[] {
-		this.via1.tick(cycles);
-		this.via2.tick(cycles);
+	/** Port A's inputs: the AY's data bus, which it drives in read mode. */
+	private readAyBus(index: number) {
+		const control = this.vias[index]!.portB;
+		const reading = control & PB_RESET && (control & (PB_BDIR | PB_BC1)) === AY_READ;
+		if (!reading || this.latches[index]! >= 0x10) return 0xff;
+		return this.ays[index]!.read(this.latches[index]!);
+	}
 
-		const buf1 = this.ay1.tick(cycles);
-		const buf2 = this.ay2.tick(cycles);
+	tick(cycles: number) {
+		this.vias[0]!.tick(cycles);
+		this.vias[1]!.tick(cycles);
+	}
 
-		if (!buf1 && !buf2) return [];
-
-		// Mix buffers if both exist, or return what we have
-		// For simplicity, we can return them as separate chunks or mix them.
-		// Mixing is safer for the speaker output.
-		const len = buf1 ? buf1.length : buf2 ? buf2.length : 0;
-		if (len === 0) return [];
-
-		const mixed = new Float32Array(len);
-		for (let i = 0; i < len; i++) {
-			const s1 = buf1?.[i] ?? 0;
-			const s2 = buf2?.[i] ?? 0;
-			mixed[i] = (s1 + s2) * 0.5; // Simple mix
+	render(out: Float32Array, start: number, count: number, sampleRate: number) {
+		if (this.mixBuffer.length < count) this.mixBuffer = new Float32Array(count);
+		const mix = this.mixBuffer;
+		mix.fill(0, 0, count);
+		this.ays[0]!.render(mix, 0, count, sampleRate, AY_LEVEL);
+		this.ays[1]!.render(mix, 0, count, sampleRate, AY_LEVEL);
+		for (let index = 0; index < count; index++) {
+			const input = mix[index]!;
+			this.dcOutput = input - this.dcInput + DC_POLE * this.dcOutput;
+			this.dcInput = input;
+			out[start + index]! += this.dcOutput;
 		}
-
-		return [mixed];
 	}
 
 	readRom(offset: number): number {
-		// VIA 1 ($Cn00 - $Cn0F)
-		if (offset >= 0x00 && offset < 0x10) {
-			return this.via1.read(offset);
-		}
-		// VIA 2 ($Cn80 - $Cn8F)
-		if (offset >= 0x80 && offset < 0x90) {
-			return this.via2.read(offset & 0x0f);
-		}
-		return 0;
+		return this.vias[offset >> 7]!.read(offset & 0x0f);
 	}
 
 	writeRom(offset: number, value: number): void {
-		// VIA 1 ($Cn00 - $Cn0F)
-		if (offset >= 0x00 && offset < 0x10) {
-			this.via1.write(offset, value);
-		}
-		// VIA 2 ($Cn80 - $Cn8F)
-		if (offset >= 0x80 && offset < 0x90) {
-			this.via2.write(offset & 0x0f, value);
-		}
+		this.vias[offset >> 7]!.write(offset & 0x0f, value);
 	}
 
 	readIo(_offset: number): number {
@@ -116,10 +131,25 @@ export class MockingboardCard implements ISlotCard {
 	}
 
 	writeIo(_offset: number, _value: number): void {
-		// Standard Mockingboard does not use $C0n0 space
+		// The Mockingboard doesn't use its $C0n0 space
 	}
 
 	readExpansion(_offset: number): number {
 		return 0;
+	}
+
+	snapshot(): MockingboardSnapshot {
+		return {
+			vias: this.vias.map((via) => via.snapshot()),
+			ays: this.ays.map((ay) => ay.snapshot()),
+			latches: [...this.latches],
+		};
+	}
+
+	restoreSnapshot(state: unknown) {
+		const { vias, ays, latches } = state as MockingboardSnapshot;
+		this.vias.forEach((via, index) => via.restoreSnapshot(vias[index]!));
+		this.ays.forEach((ay, index) => ay.restoreSnapshot(ays[index]!));
+		this.latches = [...latches];
 	}
 }
