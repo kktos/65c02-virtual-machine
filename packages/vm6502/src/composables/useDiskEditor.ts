@@ -97,14 +97,19 @@ const fetchData = async (key: IDBValidKey) => {
 	return { disk, data: new Uint8Array(await response.arrayBuffer()) };
 };
 
+/** Bumped by closeDisk: a load still in flight then drops what it gets */
+let generation = 0;
+
 /** Loads a library disk into the editor (and opens its window unless `show` is false). */
 const openDisk = async (key: IDBValidKey, show = true) => {
 	if (show) useFloatingWindows().open(DISK_EDITOR_ID);
 	if (source.value?.key === key && fileData.value) return;
+	const loadGeneration = generation;
 	loading.value = true;
 	error.value = null;
 	try {
 		const { disk, data } = await fetchData(key);
+		if (loadGeneration !== generation) return;
 		source.value = { key, name: disk.name, path: disk.path };
 		fileData.value = data;
 		orderOverride.value = null;
@@ -112,11 +117,29 @@ const openDisk = async (key: IDBValidKey, show = true) => {
 		view.value = homeView();
 		viewer.value = "hex";
 	} catch (e) {
+		if (loadGeneration !== generation) return;
 		console.error(e);
 		error.value = (e as Error)?.message || "Failed to load the disk";
 	} finally {
-		loading.value = false;
+		if (loadGeneration === generation) loading.value = false;
 	}
+};
+
+/**
+ * Closes the window and forgets the disk: another machine came, whose disks, file systems and viewers aren't
+ * this one's. Opened again, the editor starts from the new machine's drive.
+ */
+const closeDisk = () => {
+	generation++;
+	useFloatingWindows().close(DISK_EDITOR_ID);
+	source.value = null;
+	fileData.value = null;
+	orderOverride.value = null;
+	expanded.clear();
+	view.value = { kind: "sector", track: 0, sector: 0 };
+	viewer.value = "hex";
+	loading.value = false;
+	error.value = null;
 };
 
 export function useDiskEditor() {
@@ -132,6 +155,7 @@ export function useDiskEditor() {
 		disasmLabels,
 		orderOverride,
 		openDisk,
+		closeDisk,
 		setOrder,
 		homeView,
 		ownerOfSector,

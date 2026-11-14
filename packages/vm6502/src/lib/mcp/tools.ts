@@ -34,6 +34,8 @@ import {
 	unpackTraceEntries,
 } from "@/virtualmachine/cpu/instructionTrace";
 import { readRegisters } from "@/virtualmachine/cpu/shared-memory";
+import { availableMachines } from "@/machines";
+import type { MachineConfig } from "@/types/machine.interface";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -395,6 +397,25 @@ const hexdump = (start: number, bytes: Uint8Array) => {
 		lines.push(`${(start + i).toString(16).toUpperCase().padStart(4, "0")}: ${hexPart.padEnd(47)}  ${ascii}`);
 	}
 	return lines.join("\n");
+};
+
+// ─── Machines ─────────────────────────────────────────────────────────────────
+
+const machineNames = () => availableMachines.map((m) => m.name);
+const squash = (name: string) => name.toLowerCase().replace(/[^a-z0-9]/g, "");
+
+/** A machine by its name, any case and punctuation ("apple //e", "Commodore PET 3032"), or a part only it has ("pet"). */
+const findMachine = (name: string): MachineConfig => {
+	const wanted = squash(name);
+	if (!wanted) throw new Error("machine: a name expected");
+	const exact = availableMachines.find((m) => squash(m.name) === wanted);
+	if (exact) return exact;
+	const partial = availableMachines.filter((m) => squash(m.name).includes(wanted));
+	const [only] = partial;
+	if (only && partial.length === 1) return only;
+	throw new Error(
+		`machine: ${partial.length ? `"${name}" is ambiguous` : `no machine "${name}"`} (${machineNames().join(", ")})`,
+	);
 };
 
 // ─── Memory search (memory_snapshot / memory_diff) ────────────────────────────
@@ -1082,6 +1103,50 @@ export const MCP_TOOLS: McpTool[] = [
 			await vm.reset();
 			await waitForRunning(false, 1000); // the worker's `isRunning: false` comes before its reply
 			return json(describeRegisters(vm));
+		},
+	},
+	{
+		name: "switch_machine",
+		description:
+			"Switch the emulator to another machine, like the machine selector: the current one is powered off (its " +
+			"memory and state are lost: save_state first to come back to it) and the new one cold-starts, with its " +
+			"own labels, data formats, notes, breakpoints and disk library; its drive gets back the last disk " +
+			"inserted in it. The machines: " +
+			machineNames().join(", ") +
+			' (the name in any case, or a part only it has: "pet", "apple"). `restart: true` power-cycles the ' +
+			"current machine when it is the one named (else `result` is `already_loaded`). Returns the machine, " +
+			"its drive (the images it takes, the disk in it; null without a drive) and the registers.",
+		inputSchema: {
+			type: "object",
+			properties: {
+				machine: { type: "string", description: "Machine name, or a part of it only one has" },
+				restart: {
+					type: "boolean",
+					default: false,
+					description: "Power-cycle it if it is already the current machine",
+				},
+			},
+			required: ["machine"],
+		},
+		async execute(input) {
+			const target = findMachine(toStr(input.machine, "machine"));
+			const { vm, loadMachine } = useMachine();
+			const previous = vm.value?.machineConfig.name;
+			const same = previous === target.name;
+			if (same && input.restart !== true) return json({ result: "already_loaded", machine: target.name });
+			await loadMachine(target);
+			memorySearch = undefined; // its snapshot was the other machine's memory
+			const newVm = await getVm();
+			const disk = useDiskDrive().inserted.value;
+			return json({
+				result: same ? "restarted" : "switched",
+				machine: target.name,
+				...(!same && previous && { previous }),
+				drive: newVm.machineConfig.disk
+					? { takes: diskExtensions(newVm), in_drive: disk ? describeDisk(disk) : null }
+					: null,
+				...describeRegisters(newVm),
+			});
 		},
 	},
 	{
