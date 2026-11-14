@@ -16,6 +16,7 @@ const apple = {
 			{ id: "mouse", label: "AppleMouse", slots: [1, 2, 4, 5, 6, 7] },
 			{ id: "mockingboard", label: "Mockingboard", slots: [1, 2, 4, 5, 6, 7] },
 		],
+		builtin: { 3: "80-column card" },
 		default: { 4: "mouse", 7: "mockingboard" },
 	},
 } as unknown as MachineConfig;
@@ -69,6 +70,7 @@ describe("get_slots / set_slots", () => {
 		expect(result).toMatchObject({ machine: "Apple //e", count: 7, is_default: true });
 		expect(result.slots).toHaveLength(7);
 		expect(result.slots[0]).toEqual({ slot: 1, card: null });
+		expect(result.slots[2]).toEqual({ slot: 3, card: null, builtin: "80-column card" });
 		expect(result.slots[3]).toEqual({ slot: 4, card: "mouse", label: "AppleMouse" });
 		expect(result.cards[1]).toEqual({ id: "mockingboard", label: "Mockingboard", slots: [1, 2, 4, 5, 6, 7] });
 	});

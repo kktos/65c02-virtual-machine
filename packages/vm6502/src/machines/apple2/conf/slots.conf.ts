@@ -19,5 +19,6 @@ export type AppleCardId = (typeof cards)[number]["id"];
 export const slotsConfig: SlotsConfig = {
 	count: 7,
 	cards: [...cards],
+	builtin: { 3: "80-column card" },
 	default: { 2: "thunderclock", 4: "mouse", 5: "smartport", 7: "mockingboard" },
 };

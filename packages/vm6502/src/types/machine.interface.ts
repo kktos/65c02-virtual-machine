@@ -114,6 +114,8 @@ export type SlotLayout = Record<number, string>;
 export interface SlotsConfig {
 	count: number;
 	cards: SlotCardType[];
+	/** Slots the machine itself answers for (slot → what is there, e.g. the //e's 80-column firmware): shown, never offered. */
+	builtin?: Record<number, string>;
 	/** The layout when the user has set none. */
 	default: SlotLayout;
 }

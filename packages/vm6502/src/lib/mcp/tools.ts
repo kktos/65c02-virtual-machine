@@ -431,7 +431,8 @@ const describeSlots = (config: MachineConfig, layout: SlotLayout | undefined) =>
 		count: slots.count,
 		slots: Array.from({ length: slots.count }, (_, i) => {
 			const card = current[i + 1];
-			return { slot: i + 1, card: card ?? null, ...(card && { label: label(card) }) };
+			const builtin = slots.builtin?.[i + 1];
+			return { slot: i + 1, card: card ?? null, ...(card && { label: label(card) }), ...(builtin && { builtin }) };
 		}),
 		is_default: sameSlotLayout(current, resolveSlotLayout(slots)),
 		cards: slots.cards.map((c) => ({ id: c.id, label: c.label, slots: c.slots ?? "any" })),
@@ -1173,7 +1174,8 @@ export const MCP_TOOLS: McpTool[] = [
 		name: "get_slots",
 		description:
 			"The current machine's expansion slots: `count` (0: the machine has none, e.g. the PET; then nothing " +
-			"else), each slot with its card (`card`: the card id, null when empty), whether that's the machine's " +
+			"else), each slot with its card (`card`: the card id, null when empty; `builtin`: what the machine itself has there, e.g. " +
+			"the //e's 80-column card in slot 3, no card allowed), whether that's the machine's " +
 			"default layout, and the cards it takes (`cards`: id, label, the slots each can go in). Change them with " +
 			"set_slots.",
 		inputSchema: { type: "object", properties: {} },
