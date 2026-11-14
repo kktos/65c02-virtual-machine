@@ -1,79 +1,48 @@
-// Helper to convert Apple's weird character codes to something renderable
-function mapAppleChr(char: number): string {
-	const ascii = char & 0x7f;
-	if (ascii >= 0x40 && ascii <= 0x7f) return String.fromCharCode(ascii);
-	if (ascii < 0x20) return String.fromCharCode(ascii + 0x40);
-	return String.fromCharCode(ascii);
-}
+import { GLYPH_COUNT, type GlyphSet, glyphChar, TEXT_CELL_40, TEXT_CELL_80 } from "../video/charset";
 
-const DEBUG_ACTIVATED = false;
+/**
+ * Renders every glyph of a font once, the way the "Font" text renderer draws it (same size,
+ * top-left aligned), and keeps its pixels as a 1-bit mask: the "Bitmap" text renderer only copies
+ * those, with no canvas involved.
+ */
+function buildGlyphSet(font: string, width: number, height: number): GlyphSet | null {
+	const canvas = document.createElement("canvas");
+	canvas.width = width;
+	canvas.height = height;
+	const ctx = canvas.getContext("2d", { willReadFrequently: true });
+	if (!ctx) return null;
+
+	ctx.font = font;
+	ctx.textBaseline = "top";
+	ctx.textAlign = "left";
+	ctx.fillStyle = "white";
+
+	const cellSize = width * height;
+	const masks = new Uint8Array(GLYPH_COUNT * cellSize);
+	for (let glyph = 0; glyph < GLYPH_COUNT; glyph++) {
+		ctx.clearRect(0, 0, width, height);
+		ctx.fillText(glyphChar(glyph), 0, 0);
+		const pixels = ctx.getImageData(0, 0, width, height).data;
+		const base = glyph * cellSize;
+		// Alpha only: anti-aliased edges go to whichever side they are closer to
+		for (let i = 0; i < cellSize; i++) masks[base + i] = pixels[i * 4 + 3]! >= 0x80 ? 1 : 0;
+	}
+	return { width, height, masks };
+}
 
 export async function generateApple2Assets(): Promise<{ video?: unknown; bus?: unknown }> {
 	if (typeof document === "undefined") return {};
 
-	await Promise.all([document.fonts.load("21px PrintChar21"), document.fonts.load("16px PRNumber3")]);
-
-	const generateCharmap = async (font: string, charWidth: number, charHeight: number) => {
-		const canvas = document.createElement("canvas");
-		const ctx = canvas.getContext("2d");
-		if (!ctx) return null;
-
-		ctx.imageSmoothingEnabled = false;
-		canvas.style.imageRendering = "pixelated";
-
-		const cols = 16;
-		const rows = 16;
-
-		canvas.width = cols * charWidth;
-		canvas.height = rows * charHeight;
-
-		ctx.clearRect(0, 0, canvas.width, canvas.height);
-		ctx.font = font;
-		ctx.textAlign = "center";
-		ctx.textBaseline = "middle";
-
-		for (let i = 0; i < 256; i++) {
-			const char = mapAppleChr(i);
-			const col = i % cols;
-			const row = Math.floor(i / cols);
-			const x = Math.floor(col * charWidth + charWidth / 2);
-			const y = Math.floor(row * charHeight + charHeight / 2);
-
-			if (i <= 0x7f) {
-				ctx.fillStyle = "white";
-				ctx.fillRect(col * charWidth, row * charHeight, charWidth, charHeight);
-				ctx.fillStyle = "black";
-			} else {
-				ctx.fillStyle = "white";
-			}
-			ctx.fillText(char, x, y);
-		}
-		const bitmap = await createImageBitmap(canvas);
-
-		if (DEBUG_ACTIVATED) {
-			const url = canvas.toDataURL();
-			console.log(`Font Atlas: ${font} W${canvas.width} x H${canvas.height} char w${charWidth} h${charHeight}`);
-			console.log(
-				"%c  ",
-				`font-size: 1px; padding: ${canvas.height / 2}px ${canvas.width / 2}px; background: url(${url}) no-repeat; background-size: contain;`,
-			);
-		}
-
-		return {
-			bitmap,
-			metrics: { charWidth, charHeight, cols, rows, offsetTop: 2, offsetLeft: 3 },
-		};
-	};
-
-	const map40 = await generateCharmap("21px PrintChar21", 16, 22);
-	const map80 = await generateCharmap("16px PRNumber3", 7, 16);
+	const font40 = `${TEXT_CELL_40.height}px PrintChar21`;
+	const font80 = `${TEXT_CELL_80.height}px PRNumber3`;
+	await Promise.all([document.fonts.load(font40), document.fonts.load(font80)]);
+	if (!document.fonts.check(font40) || !document.fonts.check(font80))
+		console.warn("Apple2 assets: text fonts not loaded, the Bitmap text renderer will use a fallback font");
 
 	return {
 		video: {
-			charmap40: map40?.bitmap,
-			metrics40: map40?.metrics,
-			charmap80: map80?.bitmap,
-			metrics80: map80?.metrics,
+			glyphs40: buildGlyphSet(font40, TEXT_CELL_40.width, TEXT_CELL_40.height),
+			glyphs80: buildGlyphSet(font80, TEXT_CELL_80.width, TEXT_CELL_80.height),
 		},
 	};
 }

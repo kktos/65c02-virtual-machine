@@ -31,6 +31,9 @@ const APPLE_VIDEO7_REG_SHIFT = 1;
 // The renderers only use indices below 128 (IIgs 0-15, HGR 17-24, DHGR 32-47).
 const BLEND_BASE = 128;
 
+// Weight of the latest frame in the text render time shown in the debug bar (moving average)
+const TEXT_TIME_SMOOTHING = 0.05;
+
 // Space above and below the text in the debug bar (buffer pixels; a multiple of 2 keeps it on the Apple pixel grid)
 const DEBUG_BAR_PADDING = 2;
 
@@ -144,6 +147,11 @@ export class AppleVideo implements Video {
 		isAltCharset: boolean,
 	) => void;
 	private renderText80!: (startRow: number, bgIdx: number, fgIdx: number, isAltCharset: boolean) => void;
+
+	// Time spent drawing the text (ms per frame, moving average), shown in the debug bar to compare
+	// the text renderers. Reset when the renderer changes.
+	private textRenderMs = 0;
+	private textRendererTag = "";
 
 	constructor(
 		parent: Worker,
@@ -373,6 +381,12 @@ export class AppleVideo implements Video {
 	private updateRenderers() {
 		// this.textRenderer.wannaScale = !!this.overrides.wannaScale;
 
+		const tag = this.overrides.textRenderer === "FONT" ? "FNT" : "BMP";
+		if (tag !== this.textRendererTag) {
+			this.textRendererTag = tag;
+			this.textRenderMs = 0;
+		}
+
 		if (this.overrides.textRenderer === "FONT") {
 			this.renderText40 = this.textRenderer.render40WithFont.bind(this.textRenderer);
 			this.renderText80 = this.textRenderer.render80WithFont.bind(this.textRenderer);
@@ -380,6 +394,22 @@ export class AppleVideo implements Video {
 			this.renderText40 = this.textRenderer.render40Bitmap.bind(this.textRenderer);
 			this.renderText80 = this.textRenderer.render80Bitmap.bind(this.textRenderer);
 		}
+	}
+
+	private drawText(
+		startRow: number,
+		is80Col: boolean,
+		isPage2: boolean,
+		bgIdx: number,
+		fgIdx: number,
+		isAltCharset: boolean,
+	) {
+		const start = performance.now();
+		if (is80Col) this.renderText80(startRow, bgIdx, fgIdx, isAltCharset);
+		else this.renderText40(startRow, isPage2, bgIdx, fgIdx, isAltCharset);
+		const elapsed = performance.now() - start;
+		this.textRenderMs =
+			this.textRenderMs === 0 ? elapsed : this.textRenderMs + (elapsed - this.textRenderMs) * TEXT_TIME_SMOOTHING;
 	}
 
 	public tick(_meta?: unknown) {
@@ -434,8 +464,7 @@ export class AppleVideo implements Video {
 			(this.overrides.mouseChars === "OFF" ? false : (stateByte2 & APPLE_ALTCHAR_MASK) !== 0);
 
 		if (isText) {
-			if (is80Col) this.renderText80(0, bgIdx, fgIdx, isAltCharset);
-			else this.renderText40(0, isPage2, bgIdx, fgIdx, isAltCharset);
+			this.drawText(0, is80Col, isPage2, bgIdx, fgIdx, isAltCharset);
 		} else {
 			if (isHgr)
 				this.hgrRenderer.render(
@@ -446,10 +475,7 @@ export class AppleVideo implements Video {
 					video7Register,
 				);
 			else this.lowGrRenderer.render(isMixed, isPage2, isDblRes);
-			if (isMixed) {
-				if (is80Col) this.renderText80(20, bgIdx, fgIdx, isAltCharset);
-				else this.renderText40(20, isPage2, bgIdx, fgIdx, isAltCharset);
-			}
+			if (isMixed) this.drawText(20, is80Col, isPage2, bgIdx, fgIdx, isAltCharset);
 		}
 
 		// Drawn last, at the top of the visible area: with a thin border it sits over the picture
@@ -468,7 +494,10 @@ export class AppleVideo implements Video {
 				// Translucent background: show what's under the bar through the background colour
 				if (!isTransparent) this.blendRect(0, top, this.targetWidth, this.debugBarHeight);
 			}
-			const debugStr = `${isText ? "TEXT" : isHgr ? " HGR" : "  GR"} ${is80Col ? "80" : "40"} ${isMixed ? "MIXED" : " FULL"} ${isPage2 ? "P2" : "P1"} ${isDblRes ? "DBL" : ""}`;
+			// With some text on screen: the text renderer and its time per frame
+			const textTime =
+				isText || isMixed ? ` ${this.textRendererTag} ${this.textRenderMs.toFixed(2).padStart(5)}` : "";
+			const debugStr = `${isText ? "TEXT" : isHgr ? " HGR" : "  GR"} ${is80Col ? "80" : "40"} ${isMixed ? "MIXED" : " FULL"} ${isPage2 ? "P2" : "P1"}${isDblRes ? " DBL" : ""}${textTime}`;
 			// Unset text colour: white over a transparent bar, black over a coloured one
 			const fg = dbgFg >= 0 ? dbgFg : isTransparent ? 15 : 0;
 			this.debugText.drawCenteredString(top + DEBUG_BAR_PADDING, debugStr, fg);

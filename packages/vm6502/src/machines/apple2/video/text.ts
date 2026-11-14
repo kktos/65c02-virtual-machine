@@ -1,3 +1,4 @@
+import { appleCharCodeToUnicode, GLYPH_MAPS, type GlyphSet } from "./charset";
 import { IIgsPaletteRGB, NATIVE_VIEW_HEIGHT, NATIVE_VIEW_WIDTH, textScreenLineOffsets } from "./constants";
 
 const TEXT_ROWS = 24;
@@ -8,35 +9,10 @@ const AUX_BANK_OFFSET = 0x10000;
 const fontHeight = 16;
 const font40Width = 14;
 
-export type CharMetrics = {
-	charWidth: number;
-	charHeight: number;
-	cols: number;
-	rows: number;
-	offsetTop: number;
-	offsetLeft: number;
-};
-
-function appleCharCodeToUnicode(charCode: number, isAltCharset = false): string {
-	// let charCode = asciiCode;
-	if (charCode <= 0x1f) charCode += 0xe140;
-	else if (charCode <= 0x3f) charCode += 0xe100;
-	else if (charCode <= 0x5f) {
-		charCode += isAltCharset ? 0xe040 : 0xe100;
-	} else if (charCode <= 0x7f) charCode += 0xe0c0; // $60-$7F -> $E120-$E13F
-	else if (charCode < 0xa0) charCode -= 0x40;
-	else if (charCode >= 0xa0) charCode -= 0x80;
-
-	return String.fromCharCode(charCode);
-}
-
 export class TextRenderer {
-	private charWidth: number;
-	private charHeight: number;
-	private charmap40: ImageBitmap | null = null;
-	private metrics40: CharMetrics | null = null;
-	private charmap80: ImageBitmap | null = null;
-	private metrics80: CharMetrics | null = null;
+	// The BITMAP renderers' glyphs, from the main thread (generateApple2Assets)
+	private glyphs40: GlyphSet | null = null;
+	private glyphs80: GlyphSet | null = null;
 	private flashCounter = 0;
 	private flashState = false;
 	// The FONT renderers wait for this: see setFontsReady
@@ -66,21 +42,9 @@ export class TextRenderer {
 		this.bufferWidth = targetWidth;
 		this.bufferHeight = targetHeight;
 
-		this.charWidth = 14;
-		this.charHeight = 16;
-
-		const assets = payload as {
-			charmap40?: ImageBitmap;
-			metrics40?: CharMetrics;
-			charmap80?: ImageBitmap;
-			metrics80?: CharMetrics;
-		};
-		if (assets) {
-			this.charmap40 = assets.charmap40 ?? null;
-			this.metrics40 = assets.metrics40 ?? null;
-			this.charmap80 = assets.charmap80 ?? null;
-			this.metrics80 = assets.metrics80 ?? null;
-		}
+		const assets = payload as { glyphs40?: GlyphSet | null; glyphs80?: GlyphSet | null } | undefined;
+		this.glyphs40 = assets?.glyphs40 ?? null;
+		this.glyphs80 = assets?.glyphs80 ?? null;
 	}
 
 	/**
@@ -213,69 +177,67 @@ export class TextRenderer {
 		}
 	}
 
-	private drawChar(
-		charmap: ImageBitmap | null,
-		metrics: CharMetrics | null,
-		charCode: number,
-		x: number,
-		y: number,
-		width: number,
-		height: number,
-	) {
-		if (!charmap || !metrics) return;
-
-		// Calculate source position in atlas (simple math, very fast)
-		const col = charCode % metrics.cols;
-		const row = Math.floor(charCode / metrics.rows);
-
-		const srcX = col * metrics.charWidth;
-		const srcY = row * metrics.charHeight;
-
-		// Draw from atlas
-		this.ctx.drawImage(
-			charmap,
-			srcX,
-			srcY,
-			metrics.charWidth,
-			metrics.charHeight, // source
-			x,
-			y,
-			width,
-			height, // destination
-		);
+	/** The glyph table for the charset in use, at this point of the flash cycle */
+	private glyphMap(isAltCharset: boolean) {
+		if (isAltCharset) return GLYPH_MAPS.alt;
+		return this.flashState ? GLYPH_MAPS.primaryInverse : GLYPH_MAPS.primaryNormal;
 	}
 
-	public render40Bitmap(startRow: number, isPage2: boolean, _bgIdx: number, _fgIdx: number, _isAltCharset: boolean) {
+	/**
+	 * Writes a glyph's pixels as palette indices straight into the buffer, at (x, y) of the Apple
+	 * picture (which is centered in the buffer, as copyToBuffer does).
+	 */
+	private blitGlyph(glyphs: GlyphSet, glyph: number, x: number, y: number, fgIdx: number, bgIdx: number) {
+		const { width, height, masks } = glyphs;
+		const stride = this.bufferWidth;
+		const destX = x + Math.floor((this.bufferWidth - NATIVE_VIEW_WIDTH) / 2);
+		const destY = y + Math.floor((this.bufferHeight - NATIVE_VIEW_HEIGHT) / 2);
+
+		// Clipped to the buffer (a canvas smaller than the Apple picture)
+		const c0 = Math.max(0, -destX);
+		const c1 = Math.min(width, stride - destX);
+		const r0 = Math.max(0, -destY);
+		const r1 = Math.min(height, this.bufferHeight - destY);
+		if (c0 >= c1 || r0 >= r1) return;
+
+		let src = glyph * width * height + r0 * width;
+		let dst = (destY + r0) * stride + destX;
+		for (let r = r0; r < r1; r++) {
+			for (let c = c0; c < c1; c++) this.dest[dst + c] = masks[src + c] ? fgIdx : bgIdx;
+			src += width;
+			dst += stride;
+		}
+	}
+
+	public render40Bitmap(startRow: number, isPage2: boolean, bgIdx: number, fgIdx: number, isAltCharset: boolean) {
+		const glyphs = this.glyphs40;
+		if (!glyphs) return;
+		const map = this.glyphMap(isAltCharset);
 		const pageOffset = isPage2 ? 0x400 : 0;
 		for (let y = startRow; y < TEXT_ROWS; y++) {
 			const lineBase = (textScreenLineOffsets[y] ?? 0) + pageOffset;
+			const drawY = y * glyphs.height;
 			for (let x = 0; x < TEXT_COLS; x++) {
-				const charCode = this.ram[lineBase + x] ?? 0;
-
-				const drawX = x * this.charWidth;
-				const drawY = y * this.charHeight;
-
-				this.drawChar(this.charmap40, this.metrics40, charCode, drawX, drawY, this.charWidth, this.charHeight);
+				const glyph = map[this.ram[lineBase + x] ?? 0]!;
+				this.blitGlyph(glyphs, glyph, x * glyphs.width, drawY, fgIdx, bgIdx);
 			}
 		}
 	}
 
-	public render80Bitmap(startRow: number, _bgIdx: number, _fgIdx: number, _isAltCharset: boolean) {
-		const charWidth80 = this.charWidth / 2;
+	public render80Bitmap(startRow: number, bgIdx: number, fgIdx: number, isAltCharset: boolean) {
+		const glyphs = this.glyphs80;
+		if (!glyphs) return;
+		const map = this.glyphMap(isAltCharset);
 		for (let y = startRow; y < TEXT_ROWS; y++) {
 			const lineBase = textScreenLineOffsets[y] ?? 0;
+			const drawY = y * glyphs.height;
 			for (let x = 0; x < TEXT_COLS; x++) {
-				const drawY = y * this.charHeight;
-
-				// Aux char (Even column)
-				const auxVal = this.ram[AUX_BANK_OFFSET + lineBase + x] ?? 0;
-				const drawXAux = x * 2 * charWidth80;
-				this.drawChar(this.charmap80, this.metrics80, auxVal, drawXAux, drawY, charWidth80, this.charHeight);
-
-				// Main char (Odd column)
-				const mainVal = this.ram[lineBase + x] ?? 0;
-				const drawXMain = (x * 2 + 1) * charWidth80;
-				this.drawChar(this.charmap80, this.metrics80, mainVal, drawXMain, drawY, charWidth80, this.charHeight);
+				const drawX = x * 2 * glyphs.width;
+				// Aux char (even column), then main char (odd column)
+				const auxGlyph = map[this.ram[AUX_BANK_OFFSET + lineBase + x] ?? 0]!;
+				this.blitGlyph(glyphs, auxGlyph, drawX, drawY, fgIdx, bgIdx);
+				const mainGlyph = map[this.ram[lineBase + x] ?? 0]!;
+				this.blitGlyph(glyphs, mainGlyph, drawX + glyphs.width, drawY, fgIdx, bgIdx);
 			}
 		}
 	}

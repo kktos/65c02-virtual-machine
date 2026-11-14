@@ -60,8 +60,18 @@ Noticed while chasing the squares shown instead of `@` on a page refresh (//e, t
   context and font string). Not the main thread: its atlas (`generateApple2Assets`) was fine every time
   - `text.ts`: `render40WithFont` / `render80WithFont` draw nothing until `setFontsReady()`
   - `apple.video.ts`: `loadFont` returns its promise; once both are in, `setFontsReady()` then a redraw (`tick()`)
-- text, "Bitmap" renderer: `render40Bitmap` / `render80Bitmap` draw into the OffscreenCanvas but never call
-  `copyToBuffer()`, so nothing of it reaches the screen (unlike the "Font" ones). Broken, or left unfinished?
+- **FIXED** text, "Bitmap" renderer: `render40Bitmap` / `render80Bitmap` drew into the OffscreenCanvas but never called
+  `copyToBuffer()`, so nothing of it reached the screen (unlike the "Font" ones). Its atlas didn't fit either (21px
+  glyphs in 16x22 cells, scaled down to 14x16; plain ASCII only: no inverse, flashing, mouse text)
+  - `video/charset.ts`: `appleCharCodeToUnicode` (shared), the glyphs (256 + the alt charset's 32 mouse text ones),
+    a code -> glyph table per charset state (normal / flash phase / alt), as the "Font" renderer chooses them
+  - `bus/apple.assets.ts`: the main thread draws each glyph once, same fonts and size as the "Font" renderer
+    (16px, top-left), into a 1-bit mask (14x16 for 40 columns, 7x16 for 80)
+  - `text.ts`: the "Bitmap" renderers write palette indices straight into the buffer (`blitGlyph`): no canvas,
+    no `getImageData`, no colour matching
+  - debug bar: the text renderer and its time per frame (`FNT 2.38` / `BMP 0.37`, ms, moving average) when text
+    is on screen. Measured, same screen, running: 40 col FNT ~2.4 / BMP ~0.37 ms, 80 col FNT ~2.6 / BMP ~0.38 ms
+- text renderers: keep only "Bitmap" (6-7x faster, same pixels)? "Font" would then only matter to check the atlas
 - **FIXED** `loadFont` (`apple.video.ts`): the font URL is built from `import.meta.url.match(/http:\/\/[^/]+/)`, http only.
   Served over https, `baseurl` is undefined and `new URL("undefined/fonts/...")` throws in the `AppleVideo`
   constructor. `new URL(`fonts/${name}.ttf`, self.location.href)`? (Vite's `base` is `./`)
