@@ -21,7 +21,6 @@ export const apple2e: MachineConfig = {
 	disk: {
 		enabled: true,
 		name: "SPDisk",
-		extensions: [".po", ".2mg", ".dsk", ".hdv"],
 		formats: ["apple2"],
 		viewers: ["hex", "hgr", "disasm"],
 	},

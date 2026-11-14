@@ -1,10 +1,12 @@
 // The disk drive of the machine: what is inserted (from the library, a file or a URL), ejecting, and the disk put
 // back at startup. Shared by the toolbar's DiskDriveControl and the MCP tools. The machine's config says which
-// images its drive takes (`disk.extensions`): the library is shared by the machines, each sees its own disks.
+// formats of its disks (`disk.formats`), whose extensions are the images its drive takes: the library is shared by
+// the machines, each sees its own disks.
 
 import { shallowReadonly, shallowRef } from "vue";
 import { useFormatting } from "@/composables/useDataFormattings";
 import { type StoredDisk, useDiskStorage } from "@/composables/useDiskStorage";
+import { formatExtensions } from "@/lib/disk/formats";
 import { useNotes } from "@/composables/useNotes";
 import { useSymbols } from "@/composables/useSymbols";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
@@ -21,7 +23,7 @@ export type InsertedDisk = { key: IDBValidKey; name: string; size: number; type:
 const inserted = shallowRef<InsertedDisk | null>(null);
 
 /** The image files the machine's drive takes (".d64"…); none without a drive. */
-export const diskExtensions = (vm: VirtualMachine) => vm.machineConfig.disk?.extensions ?? [];
+export const diskExtensions = (vm: VirtualMachine) => formatExtensions(vm.machineConfig.disk?.formats ?? []);
 
 /** The file (a name, a path or a URL) is an image for the machine's drive: by its extension. */
 export const isDiskFor = (vm: VirtualMachine, file: string) => {

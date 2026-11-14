@@ -42,21 +42,20 @@ vi.mock("@/composables/useSymbols", () => ({
 vi.mock("@/composables/useDataFormattings", () => ({ useFormatting: () => ({ setDiskKey: setDiskKey("formats") }) }));
 vi.mock("@/composables/useNotes", () => ({ useNotes: () => ({ setDiskKey: setDiskKey("notes") }) }));
 
-const { useDiskDrive } = await import("@/composables/useDiskDrive");
+const { diskExtensions, isDiskFor, useDiskDrive } = await import("@/composables/useDiskDrive");
 const drive = useDiskDrive();
 
-const APPLE_DISKS = [".po", ".2mg", ".dsk", ".hdv"];
 const vm = {
 	insertDisk: vi.fn(),
 	ejectDisk: vi.fn(),
-	machineConfig: { name: "Apple //e", disk: { enabled: true, extensions: APPLE_DISKS } },
+	machineConfig: { name: "Apple //e", disk: { enabled: true, formats: ["apple2"] } },
 };
 const asVm = vm as unknown as Parameters<typeof drive.eject>[0];
 /** Another machine with its own drive */
 const pet = {
 	insertDisk: vi.fn(),
 	ejectDisk: vi.fn(),
-	machineConfig: { name: "PET", disk: { enabled: true, extensions: [".d64"] } },
+	machineConfig: { name: "PET", disk: { enabled: true, formats: ["cbm"] } },
 };
 const asPet = pet as unknown as Parameters<typeof drive.eject>[0];
 const APPLE_KEY = "vm6502_active_disk_name:Apple //e";
@@ -158,6 +157,15 @@ describe("useDiskDrive", () => {
 		await expect(drive.insertUrl(asPet, "https://x.org/c.po")).rejects.toThrow("c.po isn't a disk for the PET");
 		expect(pet.insertDisk).not.toHaveBeenCalled();
 		expect(library.has("x.dsk")).toBe(false);
+	});
+
+	it("the drive takes the extensions of the machine's disk formats", () => {
+		expect(diskExtensions(asVm)).toEqual([".po", ".2mg", ".dsk", ".do", ".hdv"]);
+		expect(diskExtensions(asPet)).toEqual([".d64"]);
+		expect(isDiskFor(asVm, "https://x.org/master.DO?raw=1")).toBe(true);
+		expect(isDiskFor(asVm, "game.woz")).toBe(false);
+		const noDrive = { machineConfig: { name: "KlausTest" } } as unknown as typeof asVm;
+		expect(diskExtensions(noDrive)).toEqual([]);
 	});
 
 	it("adds a file to the library and inserts it", async () => {

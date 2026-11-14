@@ -14,6 +14,7 @@ const ERROR_BYTES_SIZES = [174848 + 683, 196608 + 768];
 export const cbmFormat: DiskFormat = {
 	id: "cbm",
 	name: "Commodore",
+	extensions: [".d64"],
 	open(file) {
 		let image: D64Image;
 		try {

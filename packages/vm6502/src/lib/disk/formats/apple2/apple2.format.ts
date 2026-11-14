@@ -342,6 +342,8 @@ const BADGES: Record<DiskAnalysis["format"], OpenedDisk["badge"]> = {
 export const apple2Format: DiskFormat = {
 	id: "apple2",
 	name: "Apple II",
+	// The order of a floppy: by its extension (orderFromExtension) when its content doesn't tell
+	extensions: [".po", ".2mg", ".dsk", ".do", ".hdv"],
 	open(file, name, reading) {
 		const order = reading === "dos" || reading === "prodos" ? reading : undefined;
 		const disk = analyzeDisk(file, name, order);

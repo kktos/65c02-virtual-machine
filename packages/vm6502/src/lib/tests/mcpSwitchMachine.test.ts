@@ -6,8 +6,8 @@ vi.stubGlobal("localStorage", { getItem: () => null, setItem: () => undefined })
 
 const machines = [
 	{ name: "KlausTest" },
-	{ name: "Apple //e", disk: { enabled: true, name: "SPDisk", extensions: [".po", ".2mg", ".dsk", ".hdv"] } },
-	{ name: "Commodore PET 3032", disk: { enabled: true, name: "4040", extensions: [".d64"] } },
+	{ name: "Apple //e", disk: { enabled: true, name: "SPDisk", formats: ["apple2"] } },
+	{ name: "Commodore PET 3032", disk: { enabled: true, name: "4040", formats: ["cbm"] } },
 ] as MachineConfig[];
 
 const makeVm = (machineConfig: MachineConfig, ready: Promise<void> = Promise.resolve()) => ({
@@ -31,11 +31,14 @@ vi.mock("@/machines", () => ({ availableMachines: machines }));
 vi.mock("@/composables/useMachine", () => ({ useMachine: () => ({ vm, isRunning, loadMachine }) }));
 vi.mock("@/composables/useCommands", () => ({ useCommands: () => ({}) }));
 vi.mock("@/composables/useSymbols", () => ({ useSymbols: () => ({ getAddressForLabel: () => undefined }) }));
-vi.mock("@/composables/useDiskDrive", () => ({
-	diskExtensions: (v: { machineConfig: MachineConfig }) => v.machineConfig.disk?.extensions ?? [],
-	isDiskFor: () => false,
-	useDiskDrive: () => ({ inserted }),
-}));
+vi.mock("@/composables/useDiskDrive", async () => {
+	const { formatExtensions } = await import("@/lib/disk/formats");
+	return {
+		diskExtensions: (v: { machineConfig: MachineConfig }) => formatExtensions(v.machineConfig.disk?.formats ?? []),
+		isDiskFor: () => false,
+		useDiskDrive: () => ({ inserted }),
+	};
+});
 
 const { findTool } = await import("@/lib/mcp/tools");
 const call = (name: string, input: Record<string, unknown> = {}) =>

@@ -64,8 +64,6 @@ export interface DiskConfig {
 	enabled: boolean;
 	/** The drive, as the UI names it */
 	name?: string;
-	/** The image files the drive takes (".d64"): the library lists those, a file must be one of them */
-	extensions: string[];
 	/** Bytes per block in the activity log's map (512: ProDOS blocks, 256: CBM sectors). Default 512. */
 	blockSize?: number;
 	/**
@@ -74,8 +72,9 @@ export interface DiskConfig {
 	 */
 	bootKeys?: string;
 	/**
-	 * The disk editor: the formats the machine's disks are in, tried in order (ids of `lib/disk/formats`:
-	 * "apple2", "cbm"). None: the editor reads none of its disks.
+	 * The formats the machine's disks are in (ids of `lib/disk/formats`: "apple2", "cbm"). Their extensions are
+	 * the image files the drive takes (the library lists those, a file must be one of them); the disk editor
+	 * tries them in order. None: the drive takes no image.
 	 */
 	formats?: string[];
 	/**

@@ -14,9 +14,9 @@ const { DISK_EDITOR_ID, useDiskEditor } = await import("@/composables/useDiskEdi
 
 const apple = {
 	name: "Apple //e",
-	disk: { enabled: true, extensions: [".po"], formats: ["apple2"], viewers: ["hgr"] },
+	disk: { enabled: true, formats: ["apple2"], viewers: ["hgr"] },
 };
-const pet = { name: "PET", disk: { enabled: true, extensions: [".d64"], formats: ["cbm"], viewers: ["disasm"] } };
+const pet = { name: "PET", disk: { enabled: true, formats: ["cbm"], viewers: ["disasm"] } };
 
 describe("useDiskEditor: closeDisk", () => {
 	const editor = useDiskEditor();
