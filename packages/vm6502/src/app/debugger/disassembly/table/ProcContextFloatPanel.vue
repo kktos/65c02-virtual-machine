@@ -61,8 +61,6 @@ const info = computed(() => {
 
 const handleJump = () => {
 	setActiveTab("disassembly");
-	console.log("handleJump", props.addr);
-	jumpToAddress(0x2000);
 	jumpToAddress(props.addr);
 };
 </script>

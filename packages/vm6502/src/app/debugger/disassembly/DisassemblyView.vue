@@ -121,7 +121,7 @@ watch(isMaximized, (isMax) => {
 
 const { jumpEvent, takeUnapplied, isNewVm } = useDisassembly();
 const { setMemoryViewAddress, setActiveTab } = useDebuggerNav();
-const { addJumpHistory, historyNavigationEvent, clearHistory } = useAddressHistory("disassembly");
+const { recordJump, trackLocation, historyNavigationEvent, clearHistory } = useAddressHistory("disassembly");
 const { settings } = useSettings();
 const { formattingState } = useFormatting();
 const { explanation: explanationText, isLoading: isExplainLoading } = useGemini();
@@ -172,10 +172,9 @@ const handleAddressClick = (address: number) => {
 const handleOpcodeClick = (line: DisassemblyLine) => {
 	if (BRANCH_OPCODES.has(line.opc.toUpperCase())) {
 		const currentBank = line.addr & 0xff0000;
-		const newAddress = currentBank | line.oprn;
+		const newAddress = currentBank | getJumpTarget(line);
 
-		// addJumpHistory(newAddress);
-		addJumpHistory(disassemblyStartAddress.value);
+		recordJump(newAddress);
 
 		isFollowingPc.value = false;
 		disassemblyStartAddress.value = newAddress;
@@ -194,10 +193,29 @@ const handleOpcodeClick = (line: DisassemblyLine) => {
 	}
 };
 
+/** where a JMP/JSR/branch goes: JMP (abs) and JMP (abs,X) jump through a pointer */
+const getJumpTarget = (line: DisassemblyLine): number => {
+	if (!vm?.value || (line.mode !== "IND" && line.mode !== "IAX")) return line.oprn;
+	const pointerAddr = line.mode === "IAX" ? (line.oprn + registers.X) & 0xffff : line.oprn;
+	const lo = vm.value.readDebug(pointerAddr);
+	const hi = vm.value.readDebug((pointerAddr + 1) & 0xffff);
+	return (hi << 8) | lo;
+};
+
 const getEffectiveAddress = (line: DisassemblyLine): number | null => {
 	if (!vm?.value) return null;
 
 	switch (line.mode) {
+		case "ZP": {
+			return line.oprn;
+		}
+
+		case "ZPI": {
+			const lo = vm.value.readDebug(line.oprn);
+			const hi = vm.value.readDebug((line.oprn + 1) & 0xff);
+			return (hi << 8) | lo;
+		}
+
 		case "IDX": {
 			const zpAddr = line.oprn;
 			const pointerAddr = (zpAddr + registers.X) & 0xff;
@@ -255,6 +273,7 @@ const fullPcAddress = computed(() => {
 });
 
 const disassemblyStartAddress = ref(fullPcAddress.value);
+trackLocation(() => disassemblyStartAddress.value);
 const disassembly = ref<DisassemblyLine[]>([]);
 const isFollowingPc = ref(true);
 const pcRowIndex = ref(-1);
