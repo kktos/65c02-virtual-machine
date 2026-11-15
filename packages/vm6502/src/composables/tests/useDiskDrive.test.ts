@@ -11,6 +11,8 @@ vi.stubGlobal("localStorage", {
 // The library (IndexedDB)
 type Rec = { type: "physical" | "url"; name: string; path: string; size: number; data?: ArrayBuffer };
 const library = new Map<unknown, Rec>();
+/** Keys marked as used (the library's recent disks), in order */
+const touched: unknown[] = [];
 vi.mock("@/composables/useDiskStorage", () => ({
 	useDiskStorage: () => ({
 		loadDisk: async (key: unknown) => {
@@ -23,6 +25,7 @@ vi.mock("@/composables/useDiskStorage", () => ({
 		saveUrlDisk: async (key: unknown, name: string, path: string) =>
 			library.set(key, { type: "url", name, path, size: 0 }),
 		deleteDisk: async (key: unknown) => library.delete(key),
+		touchDisk: async (key: unknown) => void touched.push(key),
 		renameDisk: async (key: unknown, name: string) => {
 			const rec = library.get(key);
 			if (rec) rec.name = name;
@@ -66,6 +69,7 @@ describe("useDiskDrive", () => {
 	beforeEach(async () => {
 		storage.clear();
 		library.clear();
+		touched.length = 0;
 		await drive.eject(asVm);
 		events.length = 0;
 		vm.insertDisk.mockClear();
@@ -82,6 +86,19 @@ describe("useDiskDrive", () => {
 		expect(vm.insertDisk).toHaveBeenCalledWith(expect.any(Uint8Array), { name: "game.2mg" });
 		expect(events).toEqual(expect.arrayContaining(["symbols:game.2mg", "formats:game.2mg", "notes:game.2mg"]));
 		expect(storage.get(APPLE_KEY)).toBe("game.2mg");
+		expect(touched).toEqual(["game.2mg"]); // up the library's recent disks
+	});
+
+	it("marks a URL disk as used once it is in the library", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async (url: string) =>
+				url.endsWith(".sym") ? new Response("", { status: 404 }) : new Response(new Uint8Array(4)),
+			),
+		);
+		await drive.insertUrl(asVm, "https://x.org/c.po");
+		expect(library.has("https://x.org/c.po")).toBe(true);
+		expect(touched).toEqual(["https://x.org/c.po"]);
 	});
 
 	it("ejects: empty drive, no disk at the next startup, metadata back to no disk", async () => {

@@ -91,7 +91,7 @@ const urlFileName = (url: string) => {
 };
 
 export function useDiskDrive() {
-	const { saveDisk, saveUrlDisk, loadDisk, getAllDisks, deleteDisk, renameDisk } = useDiskStorage();
+	const { saveDisk, saveUrlDisk, loadDisk, getAllDisks, deleteDisk, renameDisk, touchDisk } = useDiskStorage();
 	const { addSymbolsFromText, setDiskKey: symbolsSetDiskKey } = useSymbols();
 	const { setDiskKey: formattingsSetDiskKey } = useFormatting();
 	const { setDiskKey: notesSetDiskKey } = useNotes();
@@ -107,6 +107,15 @@ export function useDiskDrive() {
 		inserted.value = disk;
 		await loadDisk(disk.key); // the disk the explain prompt names (`lastLoadedDisk`)
 		await setMetadataDisk(String(disk.key));
+	};
+
+	/** The library's recent disks: a failure there doesn't fail the insertion. */
+	const markUsed = async (key: IDBValidKey) => {
+		try {
+			await touchDisk(key);
+		} catch (e) {
+			console.warn(`Disk library: couldn't mark ${String(key)} as used`, e);
+		}
 	};
 
 	/** Fetches a URL disk and its `.sym` file if there is one (its symbols go to that disk). */
@@ -144,6 +153,7 @@ export function useDiskDrive() {
 				disk.path,
 			);
 		remember(vm, { type: disk.type, key });
+		await markUsed(key);
 		return inserted.value as InsertedDisk;
 	};
 
@@ -160,6 +170,7 @@ export function useDiskDrive() {
 		await saveUrlDisk(url, urlFileName(url), url);
 		await loadDisk(url); // now that it's saved, for `lastLoadedDisk`
 		remember(vm, { type: "url", key: url });
+		await markUsed(url);
 		return inserted.value as InsertedDisk;
 	};
 
