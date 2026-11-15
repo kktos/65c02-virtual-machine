@@ -29,9 +29,15 @@ const { lock, element } = usePointerLock(trigger);
 const mouseConfig = ref<MachineInputDevice | null>(null);
 const hasMouse = computed(() => !!mouseConfig.value);
 
-// Internal state for the emulated mouse (0-1023 range for Apple II)
+// The host mouse position, in units (one per pointer-lock movement pixel), wrapping around at HOST_RANGE.
+// The machine only uses the movement between two readings (the AppleMouse counts motion, its card clamps it):
+// wrapping instead of clamping here means no motion is ever lost at a host-side edge. Same value as the
+// Apple II MouseCard's MOUSE_HOST_RANGE; a power of 2, so position / HOST_RANGE is exact in the Float32 input.
+const HOST_RANGE = 1024;
 const mouseX = ref(0);
 const mouseY = ref(0);
+
+const wrap = (v: number) => ((v % HOST_RANGE) + HOST_RANGE) % HOST_RANGE;
 
 watch(
 	() => vm?.value,
@@ -58,16 +64,15 @@ useEventListener(document, "mousemove", (e: MouseEvent) => {
 	if (!element.value || !mouseConfig.value || !vm?.value) return;
 
 	// Update internal state with relative movement
-	mouseX.value = Math.max(0, Math.min(1023, mouseX.value + e.movementX));
-	mouseY.value = Math.max(0, Math.min(1023, mouseY.value + e.movementY));
+	mouseX.value = wrap(mouseX.value + e.movementX);
+	mouseY.value = wrap(mouseY.value + e.movementY);
 
-	// Find axis controls and update VM
-	// We normalize 0-1023 to 0.0-1.0 float for the VM
+	// Find axis controls and update VM, as 0.0 <= value < 1.0
 	const axisX = mouseConfig.value.controls.find((c) => c.id === "axis_x");
-	if (axisX && axisX.index !== undefined) vm.value.setAnalogInput(axisX.index, mouseX.value / 1023);
+	if (axisX && axisX.index !== undefined) vm.value.setAnalogInput(axisX.index, mouseX.value / HOST_RANGE);
 
 	const axisY = mouseConfig.value.controls.find((c) => c.id === "axis_y");
-	if (axisY && axisY.index !== undefined) vm.value.setAnalogInput(axisY.index, mouseY.value / 1023);
+	if (axisY && axisY.index !== undefined) vm.value.setAnalogInput(axisY.index, mouseY.value / HOST_RANGE);
 });
 
 const handleButton = (e: MouseEvent, pressed: boolean) => {
