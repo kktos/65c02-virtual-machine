@@ -39,8 +39,10 @@
 				</button>
 			</PopoverTrigger>
 			<PopoverContent
-				class="bg-gray-900 border-gray-700 text-gray-100 relative w-[340px] p-0 overflow-hidden"
+				class="bg-gray-900 border-gray-700 text-gray-100 relative w-[min(400px,calc(100vw-2rem))] p-0 overflow-hidden"
 				align="center"
+				@open-auto-focus="onOpenAutoFocus"
+				@escape-key-down="onEscapeKeyDown"
 				@dragover.prevent="isDragging = true"
 				@dragleave="onDragLeave"
 				@drop.prevent="handleDrop"
@@ -98,29 +100,58 @@
 					</div>
 				</section>
 
-				<!-- Library: click a disk to insert it -->
+				<!-- Library: search, then click (or Enter) a disk to insert it -->
 				<section class="pt-3">
 					<h4 class="section-title px-3">Library · {{ savedDisks.length }}</h4>
-					<ScrollArea class="h-[260px] mt-1">
-						<div class="px-1.5 pb-1.5 space-y-px">
-							<div v-if="savedDisks.length === 0" class="text-center text-xs text-gray-500 py-10">
-								No disks yet. Add one from a URL or a file below.
-							</div>
+					<div v-if="savedDisks.length" class="relative px-3 mt-1.5">
+						<Search
+							class="absolute left-5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-500 pointer-events-none"
+						/>
+						<input
+							ref="searchInputRef"
+							v-model="query"
+							type="text"
+							placeholder="Search disks…"
+							aria-label="Search the library"
+							class="w-full bg-gray-800 border border-gray-700 text-gray-200 text-xs rounded pl-7 pr-7 py-1 focus:outline-none focus:border-cyan-500 placeholder-gray-500"
+							@keydown="onSearchKeydown"
+						/>
+						<button
+							v-if="query"
+							class="absolute right-4 top-1/2 -translate-y-1/2 p-0.5 rounded text-gray-500 hover:text-gray-300"
+							title="Clear the search"
+							@click="clearQuery"
+						>
+							<X class="h-3.5 w-3.5" />
+						</button>
+					</div>
+					<div ref="listRef" class="disk-list mt-1 px-1.5 pb-1.5 overflow-y-auto max-h-[min(55vh,26rem)]">
+						<div v-if="savedDisks.length === 0" class="text-center text-xs text-gray-500 py-10">
+							No disks yet. Add one from a URL or a file below.
+						</div>
+						<div v-else-if="rows.length === 0" class="text-center text-xs text-gray-500 py-6">
+							No disk matches “{{ query.trim() }}”
+						</div>
 
+						<template v-for="group in groups" :key="group.id">
+							<div v-if="group.title" class="group-title">{{ group.title }}</div>
 							<div
-								v-for="disk in savedDisks"
-								:key="disk.key.toString()"
+								v-for="{ disk, index } in group.rows"
+								:key="`${group.id}:${String(disk.key)}`"
+								:data-index="index"
 								role="button"
 								tabindex="0"
-								class="group relative flex items-center gap-2.5 pl-2.5 pr-1.5 py-1.5 rounded border-l-2 transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-cyan-500"
-								:class="
+								class="group relative flex items-center gap-2.5 pl-2.5 pr-1.5 py-1 rounded border-l-2 transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-cyan-500"
+								:class="[
 									isInDrive(disk)
-										? 'border-cyan-500 bg-cyan-950/30 cursor-default'
-										: 'border-transparent hover:bg-gray-800 cursor-pointer'
-								"
+										? 'border-cyan-500 cursor-default'
+										: 'border-transparent cursor-pointer',
+									index === activeIndex ? 'bg-gray-800' : isInDrive(disk) ? 'bg-cyan-950/30' : '',
+								]"
 								:title="isInDrive(disk) ? 'In the drive' : `Insert ${disk.name}`"
 								@click="handleInsert(disk)"
 								@keydown.enter.self="handleInsert(disk)"
+								@mousemove="activeIndex = index"
 								@mouseleave="pendingDeleteKey = null"
 							>
 								<Loader2
@@ -145,15 +176,12 @@
 										{{ disk.name }}
 									</div>
 									<div class="truncate text-[10px] text-gray-500" :title="disk.path">
+										<span v-if="isInDrive(disk)" class="font-bold tracking-wider text-cyan-400"
+											>IN DRIVE ·
+										</span>
 										{{ diskDetails(disk) }}
 									</div>
 								</div>
-
-								<span
-									v-if="isInDrive(disk) && editingId !== disk.key"
-									class="shrink-0 text-[9px] font-bold tracking-wider text-cyan-400 group-hover:hidden"
-									>IN DRIVE</span
-								>
 
 								<div
 									v-if="editingId !== disk.key"
@@ -177,6 +205,14 @@
 									</template>
 									<template v-else>
 										<button
+											@click.stop="togglePin(disk)"
+											class="icon-btn"
+											:class="disk.pinned ? '!text-amber-400' : ''"
+											:title="disk.pinned ? 'Unpin' : 'Pin to the top of the library'"
+										>
+											<Star class="h-4 w-4" :class="disk.pinned ? 'fill-current' : ''" />
+										</button>
+										<button
 											@click.stop="handleLookInside(disk.key)"
 											class="icon-btn"
 											title="Look inside (Disk Editor)"
@@ -196,8 +232,8 @@
 									</template>
 								</div>
 							</div>
-						</div>
-					</ScrollArea>
+						</template>
+					</div>
 				</section>
 
 				<!-- Add: from a URL or a local file (or drop one on the popover) -->
@@ -262,13 +298,14 @@ import {
 	Pencil,
 	Save,
 	ScanSearch,
+	Search,
+	Star,
 	Trash2,
 	X,
 } from "lucide-vue-next";
 import { computed, inject, nextTick, type Ref, ref, watch } from "vue";
 
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { type StoredDisk, useDiskStorage } from "@/composables/useDiskStorage";
 import { diskExtensions, useDiskDrive } from "@/composables/useDiskDrive";
 import { useDiskEditor } from "@/composables/useDiskEditor";
@@ -277,7 +314,7 @@ import DiskDriveLogs from "./DiskDriveLogs.vue";
 
 const vm = inject<Ref<VirtualMachine>>("vm");
 
-const { deleteDisk } = useDiskStorage();
+const { deleteDisk, setDiskPinned } = useDiskStorage();
 const { inserted, listDisks, insertFromLibrary, insertFile, insertUrl, eject, rename } = useDiskDrive();
 
 const diskConfig = computed(() => vm?.value?.machineConfig?.disk);
@@ -301,12 +338,117 @@ const editingId: Ref<IDBValidKey | null> = ref(null);
 const editingName = ref("");
 const renameInputRef = ref<HTMLInputElement[] | HTMLInputElement | null>(null);
 
+const query = ref("");
+/** The row Enter inserts, ↑/↓ move: an index in `rows`; -1 = none */
+const activeIndex = ref(-1);
+const searchInputRef = ref<HTMLInputElement | null>(null);
+const listRef = ref<HTMLElement | null>(null);
+
 watch(isLibraryOpen, (open) => {
-	if (open) return;
+	// Up to date: recent disks, and disks added elsewhere (Disk Editor, MCP)
+	if (open) return void refreshLibrary();
 	error.value = null;
 	pendingDeleteKey.value = null;
 	isDragging.value = false;
+	query.value = "";
+	activeIndex.value = -1;
 });
+
+/** The recent disks get their own group only in a library too long to see at a glance. */
+const RECENT_FROM = 8;
+const RECENT_COUNT = 5;
+
+const byName = (a: StoredDisk, b: StoredDisk) =>
+	a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" });
+
+type Group = { id: string; title: string | null; disks: StoredDisk[] };
+
+/** Searching: the disks whose name or path has every word. Else: pinned, recent, then the others, by name. */
+const diskGroups = computed<Group[]>(() => {
+	const sorted = [...savedDisks.value].sort(byName);
+	const words = query.value.toLowerCase().split(/\s+/).filter(Boolean);
+	if (words.length) {
+		const found = sorted.filter((d) => {
+			const text = `${d.name} ${d.path}`.toLowerCase();
+			return words.every((w) => text.includes(w));
+		});
+		return [{ id: "found", title: null, disks: found }];
+	}
+	const pinned = sorted.filter((d) => d.pinned);
+	const recent =
+		sorted.length > RECENT_FROM
+			? sorted
+					.filter((d) => !d.pinned && d.lastUsed)
+					.sort((a, b) => (b.lastUsed ?? 0) - (a.lastUsed ?? 0))
+					.slice(0, RECENT_COUNT)
+			: [];
+	const shown = new Set([...pinned, ...recent]);
+	const others = sorted.filter((d) => !shown.has(d));
+	return [
+		{ id: "pinned", title: "Pinned", disks: pinned },
+		{ id: "recent", title: "Recent", disks: recent },
+		{ id: "others", title: shown.size ? "Others" : null, disks: others },
+	].filter((g) => g.disks.length);
+});
+
+/** The groups' rows, each with its index in `rows` */
+const groups = computed(() => {
+	let index = 0;
+	return diskGroups.value.map((g) => ({ ...g, rows: g.disks.map((disk) => ({ disk, index: index++ })) }));
+});
+const rows = computed(() => diskGroups.value.flatMap((g) => g.disks));
+
+// Searching: the first match is the one Enter inserts
+watch(query, (q) => {
+	pendingDeleteKey.value = null;
+	activeIndex.value = q.trim() && rows.value.length ? 0 : -1;
+	if (listRef.value) listRef.value.scrollTop = 0;
+});
+
+const showActive = () =>
+	nextTick(() =>
+		listRef.value?.querySelector(`[data-index="${activeIndex.value}"]`)?.scrollIntoView({ block: "nearest" }),
+	);
+
+const onSearchKeydown = (event: KeyboardEvent) => {
+	const last = rows.value.length - 1;
+	if (event.key === "ArrowDown") {
+		event.preventDefault();
+		activeIndex.value = Math.min(activeIndex.value + 1, last);
+		showActive();
+	} else if (event.key === "ArrowUp") {
+		event.preventDefault();
+		activeIndex.value = Math.max(activeIndex.value - 1, 0);
+		showActive();
+	} else if (event.key === "Enter") {
+		const disk = rows.value[activeIndex.value];
+		if (disk) {
+			event.preventDefault();
+			handleInsert(disk);
+		}
+	}
+};
+
+const clearQuery = () => {
+	query.value = "";
+	searchInputRef.value?.focus();
+};
+
+/** Opening the library: ready to type a disk's name */
+const onOpenAutoFocus = (event: Event) => {
+	if (!searchInputRef.value) return;
+	event.preventDefault();
+	searchInputRef.value.focus();
+};
+
+/** Esc undoes what is going on (a rename, a delete, a search) before it closes the library. */
+const onEscapeKeyDown = (event: KeyboardEvent) => {
+	if (editingId.value !== null) cancelRename();
+	else if (pendingDeleteKey.value !== null) pendingDeleteKey.value = null;
+	else if (query.value) query.value = "";
+	else return;
+	event.preventDefault();
+};
 
 const isInDrive = (disk: StoredDisk) => inserted.value?.key === disk.key;
 
@@ -316,10 +458,25 @@ const formatSize = (bytes: number) => {
 	return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 };
 
+/** "DSK · 140.0 KB · archive.org": the format, the size (unknown for a URL disk), where it comes from */
 const diskDetails = (disk: StoredDisk) => {
-	if (disk.type === "url") return disk.path;
-	const size = formatSize(disk.size);
-	return disk.path && disk.path !== disk.name ? `${size} · ${disk.path}` : size;
+	const file = disk.path.split(/[?#]/)[0] ?? "";
+	const dot = file.lastIndexOf(".");
+	const format = dot > file.lastIndexOf("/") ? file.slice(dot + 1).toUpperCase() : "";
+	let source = "";
+	if (disk.type === "url") {
+		try {
+			source = new URL(disk.path).host;
+		} catch {
+			source = disk.path;
+		}
+	} else if (disk.path !== disk.name) source = disk.path;
+	return [format, disk.size ? formatSize(disk.size) : "", source].filter(Boolean).join(" · ");
+};
+
+const togglePin = async (disk: StoredDisk) => {
+	await setDiskPinned(disk.key, !disk.pinned);
+	await refreshLibrary();
 };
 
 const startRename = (disk: StoredDisk) => {
@@ -471,6 +628,15 @@ watch(
 
 .section-title {
 	@apply text-[10px] uppercase font-bold tracking-wider text-gray-500;
+}
+
+.group-title {
+	@apply px-2.5 pt-2 pb-0.5 text-[9px] uppercase font-bold tracking-wider text-gray-600;
+}
+
+.disk-list {
+	scrollbar-width: thin;
+	scrollbar-color: var(--color-gray-700) transparent;
 }
 
 .icon-btn {
