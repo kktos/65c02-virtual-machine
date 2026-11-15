@@ -233,3 +233,51 @@ describe("a DOS 3.3 RWTS driving the Disk II in slot 5: found on the stack, patc
 		expect(m.bus.read(0x0453)).toBe(0x10);
 	});
 });
+
+describe("SmartPort calls ($C50D) report one drive: ProDOS 2.x mirrors any other unit the host announces", () => {
+	const LIST = 0x0400;
+	const DONE = 0x030a;
+
+	/** JSR $C50D / .db cmd / .dw $0310 / JMP *; params at $0310: [count, unit, list lo, list hi, code or block] */
+	const call = (cmd: number, unit: number, code = 0) => {
+		const m = boot();
+		m.bus.insertMedia(new Uint8Array(FLOPPY_SIZE), { slot: 5, name: "disk.po" });
+		[0x20, 0x0d, 0xc5, cmd, 0x10, 0x03, 0xea, 0xea, 0xea, 0xea, 0x4c, 0x0a, 0x03].forEach((byte, i) =>
+			m.bus.write(0x0300 + i, byte),
+		);
+		[3, unit, LIST & 0xff, LIST >> 8, code, 0, 0].forEach((byte, i) => m.bus.write(0x0310 + i, byte));
+		m.regs.setUint8(REG_SP_OFFSET, 0xff);
+		m.regs.setUint16(REG_PC_OFFSET, 0x0300, true);
+		runUntil(m, () => pc(m) === DONE, 100);
+		const carry = m.regs.getUint8(REG_STATUS_OFFSET) & FLAG_C_MASK;
+		const list = (n: number) => [...Array(n)].map((_, i) => m.bus.read(LIST + i));
+		return { m, error: carry ? m.regs.getUint8(REG_A_OFFSET) : 0, list };
+	};
+
+	it("STATUS unit 0 (the host): one device, no interrupt", () => {
+		const { error, list, m } = call(0x00, 0);
+		expect(error).toBe(0);
+		expect(list(2)).toEqual([1, 0x40]);
+		expect(m.regs.getUint8(REG_X_OFFSET)).toBe(8);
+	});
+
+	it("STATUS unit 1: the drive, 280 blocks", () => {
+		const { error, list } = call(0x00, 1);
+		expect(error).toBe(0);
+		expect(list(4)).toEqual([0xfc, 0x18, 0x01, 0x00]);
+	});
+
+	it("STATUS unit 1 DIB: status, ID string, then type", () => {
+		const { error, list } = call(0x00, 1, 0x03);
+		expect(error).toBe(0);
+		const dib = list(25);
+		expect(dib.slice(0, 4)).toEqual([0xfc, 0x18, 0x01, 0x00]);
+		expect(String.fromCharCode(...dib.slice(5, 5 + (dib[4] ?? 0)))).toBe("VM6502 SP DRIVE");
+		expect(dib[21]).toBe(0x02);
+	});
+
+	it("STATUS or READ of unit 2: no device ($28)", () => {
+		expect(call(0x00, 2).error).toBe(0x28);
+		expect(call(0x01, 2).error).toBe(0x28);
+	});
+});

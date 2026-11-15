@@ -122,6 +122,8 @@ export class SmartPortCard implements ISlotCard {
 			0x64, 0x47, // STZ $47   block hi
 			0xa9, 0x08, // LDA #$08
 			0x85, 0x45, // STA $45   buffer hi
+			0xa9, n << 4, // LDA #$n0
+			0x85, 0x43, // STA $43   unit: slot n, drive 1
 			0xa9, 0x01, // LDA #$01  READ
 			0x85, 0x42, // STA $42
 			0xa2, 0x42, // LDX #$42
@@ -364,7 +366,6 @@ export class SmartPortCard implements ISlotCard {
 
 	private executeCommand(cmd: number, paramAddr: number, isSmartPort: boolean) {
 		if (!this.registers) return;
-		// console.log(`SmartPort(${this.slot}) Cmd: ${cmd.toString(16)} ParamAddr: $${paramAddr.toString(16)}`);
 
 		let error = 0;
 
@@ -374,10 +375,10 @@ export class SmartPortCard implements ISlotCard {
 				else error = this.handleBlockStatus(paramAddr);
 				break;
 			case 0x01: // READ
-				error = this.handleRead(paramAddr);
+				error = this.unitError(paramAddr, isSmartPort) || this.handleRead(paramAddr);
 				break;
 			case 0x02: // WRITE
-				error = 0x2b; // Write Protected
+				error = this.unitError(paramAddr, isSmartPort) || 0x2b; // Write Protected
 				break;
 			default:
 				error = 0x01; // Bad Command
@@ -396,7 +397,19 @@ export class SmartPortCard implements ISlotCard {
 		}
 	}
 
-	private handleBlockStatus(_paramAddr: number): number {
+	/**
+	 * The card has one drive. SmartPort: unit 1 (unit 0 is the host itself, for STATUS only).
+	 * ProDOS block interface: unit number DSSS0000, drive 1 (D = 0). Anything else: no device ($28).
+	 */
+	private unitError(paramAddr: number, isSmartPort: boolean): number {
+		const unit = this.bus.read(paramAddr + 1);
+		const ok = isSmartPort ? unit === 1 : !(unit & 0x80);
+		return ok ? 0 : 0x28;
+	}
+
+	private handleBlockStatus(paramAddr: number): number {
+		const unitError = this.unitError(paramAddr, false);
+		if (unitError) return unitError;
 		if (!this.diskData) return 0x2f; // Device Offline
 
 		// ProDOS Status: Returns block count in X (Lo) and Y (Hi)
@@ -407,58 +420,51 @@ export class SmartPortCard implements ISlotCard {
 		return 0;
 	}
 
+	/**
+	 * SmartPort STATUS. Params: [count, unit, list lo, list hi, code]. Returns the bytes written in X/Y.
+	 * Unit 0 is the host: code 0 tells how many devices it has (ProDOS 2.x mirrors units 3+ into other
+	 * slots, so a wrong count there shows the same disk many times). Unit 1 is the drive.
+	 */
 	private handleSmartPortStatus(paramAddr: number): number {
-		if (!this.bus || !this.diskData) return 0x2f; // Device Offline
+		const bus = this.bus;
+		const unit = bus.read(paramAddr + 1);
+		const listPtr = (bus.read(paramAddr + 3) << 8) | bus.read(paramAddr + 2);
+		const code = bus.read(paramAddr + 4);
+		const write = (bytes: number[]) => {
+			bytes.forEach((byte, i) => bus.write((listPtr + i) & 0xffff, byte));
+			this.registers?.setUint8(REG_X_OFFSET, bytes.length & 0xff);
+			this.registers?.setUint8(REG_Y_OFFSET, bytes.length >> 8);
+			return 0;
+		};
 
-		// Param List: [Count, Unit, PtrLo, PtrHi, Code]
-		const unit = this.bus.read(paramAddr + 1);
-		const listPtrLo = this.bus.read(paramAddr + 2);
-		const listPtrHi = this.bus.read(paramAddr + 3);
-		const listPtr = (listPtrHi << 8) | listPtrLo;
-		const code = this.bus.read(paramAddr + 4);
+		if (unit === 0) {
+			// Host status: number of devices, interrupt status ($40: none), 6 reserved bytes
+			if (code !== 0x00) return 0x21; // Bad Code
+			return write([1, 0x40, 0, 0, 0, 0, 0, 0]);
+		}
+		if (unit !== 1) return 0x28; // No Device Connected
+		if (!this.diskData) return 0x2f; // Device Offline
+
+		// General status: block device, write allowed, read allowed, online, format allowed,
+		// write protected (WRITE answers $2B)
+		const blocks = Math.floor(this.diskData.length / 512);
+		const status = [0b1111_1100, blocks & 0xff, (blocks >> 8) & 0xff, (blocks >> 16) & 0xff];
 
 		switch (code) {
-			case 0x00: {
-				// Device Status
-				// Byte 0: Status (0x86 = Active, R/W, Format Allowed)
-				this.bus.write(listPtr, 0b1111_1000);
-
-				const blocks = Math.floor(this.diskData.length / 512);
-				// Byte 1-3: Blocks
-				this.bus.write(listPtr + 1, blocks & 0xff);
-				this.bus.write(listPtr + 2, (blocks >> 8) & 0xff);
-				this.bus.write(listPtr + 3, (blocks >> 16) & 0xff);
-				break;
-			}
-			case 0x01: // Device Control Block (DCB)
-				// TODO: Implement DCB if required
-				break;
-			case 0x02: // Newline Status
-				// TODO: Implement Newline if required (Character devices)
-				break;
+			case 0x00: // Device Status
+				return write(status);
+			case 0x01: // Device Control Block: none (a count byte of 0)
+				return write([0]);
 			case 0x03: {
-				// Device Info Block (DIB)
-				// Byte 0: Device Type (0x02 = Hard Disk)
-				// Byte 1: Subtype (0x20)
-				// Byte 2-3: Version (0x0100)
-				// Byte 4: Caps (0x03 = Read/Write)
-				// Byte 5: Name Len (16)
-				// Byte 6..21: "SmartPort Drive "
-				this.bus.write(listPtr + 0, 0x02);
-				this.bus.write(listPtr + 1, 0x20);
-				this.bus.write(listPtr + 2, 0x00);
-				this.bus.write(listPtr + 3, 0x01);
-				this.bus.write(listPtr + 4, 0x03);
-				const name = `SP Drive ${unit.toString(16).padStart(2, "0")}       `;
-				const len = Math.min(name.length, 16);
-				this.bus.write(listPtr + 5, len);
-				for (let i = 0; i < len; i++) this.bus.write(listPtr + 6 + i, name.charCodeAt(i));
-				break;
+				// Device Info Block: status (4), ID string length, ID string (16, upper case, space padded),
+				// device type ($02: hard disk), subtype, firmware version (2)
+				const name = "VM6502 SP DRIVE".padEnd(16, " ");
+				const id = [...name].map((c) => c.charCodeAt(0));
+				return write([...status, name.trimEnd().length, ...id, 0x02, 0x20, 0x00, 0x01]);
 			}
 			default:
 				return 0x21; // Bad Code
 		}
-		return 0;
 	}
 
 	private handleRead(paramAddr: number): number {
