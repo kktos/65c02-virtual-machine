@@ -5,7 +5,20 @@
 			<h2 class="text-[0.65rem] leading-none font-semibold text-cyan-400 uppercase tracking-wider">
 				Execution Trace
 			</h2>
-			<div class="flex space-x-1">
+			<div class="flex items-center space-x-1">
+				<div class="flex rounded border border-gray-700 overflow-hidden text-[0.65rem] leading-none mr-1" role="group">
+					<button
+						v-for="m in MODES"
+						:key="m.value"
+						@click="mode = m.value"
+						class="px-1.5 py-1 transition-colors"
+						:class="mode === m.value ? 'bg-gray-700 text-cyan-300' : 'text-gray-400 hover:text-gray-200'"
+						:aria-pressed="mode === m.value"
+						:title="m.title"
+					>
+						{{ m.label }}
+					</button>
+				</div>
 				<Popover>
 					<PopoverTrigger as-child>
 						<button
@@ -22,7 +35,7 @@
 						</button>
 					</PopoverTrigger>
 					<PopoverContent class="w-60 bg-gray-800 border-gray-700 text-gray-100 p-3" align="end">
-						<div class="flex flex-col space-y-2">
+						<div v-if="mode === 'jumps'" class="flex flex-col space-y-2">
 							<label class="text-xs font-medium text-gray-400">Max Trace Depth</label>
 							<input
 								type="number"
@@ -31,6 +44,27 @@
 								min="10"
 								max="1000"
 								step="10"
+							/>
+						</div>
+						<div v-else class="flex flex-col space-y-2">
+							<label class="text-xs font-medium text-gray-400" for="trace-kept">Instructions kept</label>
+							<select
+								id="trace-kept"
+								v-model.number="instructionsKept"
+								class="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-cyan-500"
+							>
+								<option v-for="n in KEPT_SIZES" :key="n" :value="n">{{ n }}</option>
+							</select>
+							<p class="text-[0.65rem] text-gray-500">Changing it while tracing restarts the trace.</p>
+							<label class="text-xs font-medium text-gray-400" for="trace-rows">Rows shown</label>
+							<input
+								id="trace-rows"
+								type="number"
+								v-model.number="rowsShown"
+								class="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-cyan-500"
+								min="10"
+								:max="ROWS_MAX"
+								step="100"
 							/>
 						</div>
 					</PopoverContent>
@@ -65,7 +99,10 @@
 			</div>
 		</div>
 
-		<div class="flex-grow min-h-0 overflow-y-auto font-mono text-xs bg-gray-900 p-1.5 rounded-md">
+		<div
+			v-if="mode === 'jumps'"
+			class="flex-grow min-h-0 overflow-y-auto font-mono text-xs bg-gray-900 p-1.5 rounded-md"
+		>
 			<table class="text-left border-collapse w-full">
 				<thead class="sticky top-0 bg-gray-900">
 					<tr class="text-gray-500 border-b border-gray-700">
@@ -100,34 +137,161 @@
 				</tbody>
 			</table>
 		</div>
+
+		<!-- Every instruction, most recent first like the jumps (the top row is the last one executed), registers before it -->
+		<div
+			v-else
+			class="flex-grow min-h-0 overflow-auto font-mono text-xs bg-gray-900 p-1.5 rounded-md"
+		>
+			<table class="text-left border-collapse w-full whitespace-nowrap">
+				<thead class="sticky top-0 bg-gray-900">
+					<tr class="text-gray-500 border-b border-gray-700">
+						<th class="py-1 pr-2">Address</th>
+						<th class="py-1 pr-2">Instruction</th>
+						<th class="py-1 pr-1.5 text-right">A</th>
+						<th class="py-1 pr-1.5 text-right">X</th>
+						<th class="py-1 pr-1.5 text-right">Y</th>
+						<th class="py-1 pr-1.5 text-right" title="Status flags (set: upper case)">NV-BDIZC</th>
+						<th class="py-1 text-right">SP</th>
+					</tr>
+				</thead>
+				<tbody>
+					<tr v-for="(entry, index) in instructions" :key="index" class="hover:bg-gray-800 text-gray-300">
+						<td
+							class="py-0.5 pr-2 text-yellow-500 cursor-pointer hover:text-yellow-300 hover:underline"
+							@click="handleJumpToSource(entry.address)"
+							:title="entry.label ? `${entry.label} — jump to disassembly` : 'Jump to disassembly'"
+						>
+							{{ formatAddress(entry.address) }}
+						</td>
+						<td class="py-0.5 pr-2">
+							<span v-if="entry.label" class="text-green-400">{{ entry.label }}: </span>
+							<span class="text-cyan-400">{{ entry.instruction }}</span>
+						</td>
+						<td class="py-0.5 pr-1.5 text-right">{{ toHex(entry.a) }}</td>
+						<td class="py-0.5 pr-1.5 text-right">{{ toHex(entry.x) }}</td>
+						<td class="py-0.5 pr-1.5 text-right">{{ toHex(entry.y) }}</td>
+						<td class="py-0.5 pr-1.5 text-right text-gray-400" :title="`P=$${toHex(entry.p)}`">
+							{{ formatFlags(entry.p) }}
+						</td>
+						<td class="py-0.5 text-right">{{ toHex(entry.sp) }}</td>
+					</tr>
+					<tr v-if="instructions.length === 0">
+						<td colspan="7" class="py-4 text-center text-gray-600 italic whitespace-normal">
+							No trace data. Enable tracing in controls.
+						</td>
+					</tr>
+				</tbody>
+			</table>
+		</div>
+		<div
+			v-if="mode === 'instructions' && recorded > instructions.length"
+			class="shrink-0 pt-0.5 text-[0.65rem] text-gray-500"
+		>
+			Last {{ instructions.length }} of {{ recorded }} recorded
+		</div>
 	</div>
 </template>
 
 <script lang="ts" setup>
-import { inject, onUnmounted, type Ref, ref, watch } from "vue";
+import { useLocalStorage } from "@vueuse/core";
+import { inject, onMounted, onUnmounted, type Ref, ref, watch } from "vue";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useDisassembly } from "@/composables/useDisassembly";
+import { useMachine } from "@/composables/useMachine";
+import { type DescribedTraceEntry, describeTraceEntries, formatFlags } from "@/lib/instructionTrace.lib";
+import { formatAddress, toHex } from "@/lib/hex.utils";
+import { INSTRUCTION_TRACE_MAX_SIZE } from "@/virtualmachine/cpu/instructionTrace";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 
+type Mode = "jumps" | "instructions";
+const MODES: { value: Mode; label: string; title: string }[] = [
+	{ value: "jumps", label: "Jumps", title: "JSR / JMP / interrupts: where the flow went" },
+	{ value: "instructions", label: "Instr.", title: "Every instruction executed, with the registers before it" },
+];
+const KEPT_SIZES = [1024, 4096, 16384, INSTRUCTION_TRACE_MAX_SIZE];
+const ROWS_MAX = 5000;
+// While running, the instruction view is redrawn at most this often (each redraw disassembles the rows)
+const RUNNING_REFRESH_MS = 1000;
+
 const vm = inject<Ref<VirtualMachine>>("vm");
+const { isRunning } = useMachine();
 const { requestJump } = useDisassembly();
+const mode = useLocalStorage<Mode>("trace-mode", "jumps");
 const traceHistory = ref<{ type: string; source: number; target: number }[]>([]);
 const traceSize = ref(200);
 
-const formatAddress = (addr: number) => {
-	const bank = addr >> 16;
-	const address = addr & 0xffff;
-	return `$${bank.toString(16).toUpperCase().padStart(2, "0")}:${address.toString(16).toUpperCase().padStart(4, "0")}`;
-};
+const instructionsKept = useLocalStorage("trace-instructions-kept", 4096);
+const rowsShown = useLocalStorage("trace-rows-shown", 500);
+const instructions = ref<DescribedTraceEntry[]>([]);
+const recorded = ref(0);
 
-const refreshTrace = () => vm?.value?.getTrace();
+const refreshTrace = () => {
+	vm?.value?.getTrace();
+	refreshInstructions(true);
+};
 
 const clearTrace = () => {
 	vm?.value?.clearTrace();
 	traceHistory.value = [];
+	instructions.value = [];
+	recorded.value = 0;
+	lastTotal = 0;
 };
 
 const handleJumpToSource = (addr: number) => requestJump(addr);
+
+// ─── Instructions ───────────────────────────────────────────────────────────
+
+let lastTotal = -1;
+let lastRefresh = 0;
+let refreshing = false;
+const rowCount = () => Math.min(Math.max(Math.trunc(rowsShown.value) || 0, 10), ROWS_MAX);
+
+/** Re-reads the trace when new instructions were recorded (or `force`), at most once a second while running. */
+async function refreshInstructions(force = false) {
+	const machine = vm?.value;
+	if (!machine || mode.value !== "instructions" || refreshing) return;
+	const now = performance.now();
+	if (!force && isRunning.value && now - lastRefresh < RUNNING_REFRESH_MS) return;
+	refreshing = true;
+	try {
+		const snapshot = await machine.getInstructionTrace(rowCount());
+		if (!force && snapshot.total === lastTotal) return;
+		lastTotal = snapshot.total;
+		lastRefresh = now;
+		recorded.value = snapshot.total;
+		// The trace is oldest first: shown most recent first, as the jumps
+		instructions.value = (await describeTraceEntries(machine, snapshot.words)).reverse();
+	} finally {
+		refreshing = false;
+	}
+}
+
+let pollInterval: number | undefined;
+onMounted(() => {
+	pollInterval = window.setInterval(() => refreshInstructions(), 250);
+});
+
+watch(mode, (m) => {
+	if (m !== "instructions") return;
+	refreshInstructions(true);
+});
+watch(rowsShown, () => refreshInstructions(true));
+
+watch(
+	instructionsKept,
+	(size) => {
+		const machine = vm?.value;
+		if (!machine) return;
+		machine.instructionTraceSize = size;
+		// The size only takes effect when the trace (re)starts: restart it if it runs
+		if (machine.isTraceEnabled) machine.setTrace(true);
+	},
+	{ flush: "post" },
+);
+
+// ─── Jumps ──────────────────────────────────────────────────────────────────
 
 watch(
 	() => vm?.value,
@@ -137,7 +301,10 @@ watch(
 				traceHistory.value = [...history].reverse();
 			};
 			newVm.setTraceSize(traceSize.value);
+			newVm.instructionTraceSize = instructionsKept.value;
 			newVm.getTrace();
+			lastTotal = -1;
+			refreshInstructions(true);
 		}
 	},
 	{ immediate: true },
@@ -148,6 +315,7 @@ watch(traceSize, (newSize) => {
 });
 
 onUnmounted(() => {
+	clearInterval(pollInterval);
 	if (vm?.value) vm.value.onTraceReceived = undefined;
 });
 </script>

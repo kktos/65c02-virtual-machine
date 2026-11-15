@@ -29,7 +29,7 @@ import {
 	stepOverInstruction,
 } from "./cpu.65c02";
 import { loadBus } from "./loaders/bus.loader";
-import { readInstructionTrace, setInstructionTrace } from "./instructionTrace";
+import { clearInstructionTrace, readInstructionTrace, setInstructionTrace } from "./instructionTrace";
 import { loadVideo } from "./loaders/video.loader";
 import {
 	deleteMachineStates,
@@ -282,6 +282,9 @@ async function handleMessage(event: MessageEvent) {
 		case "setInstructionTrace":
 			setInstructionTrace(!!event.data.enabled, event.data.size);
 			reply(event, readInstructionTrace(0));
+			break;
+		case "clearInstructionTrace":
+			clearInstructionTrace();
 			break;
 		case "getInstructionTrace": {
 			const snapshot = readInstructionTrace(event.data.count);

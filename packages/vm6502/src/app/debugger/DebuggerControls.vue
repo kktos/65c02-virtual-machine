@@ -55,8 +55,8 @@
 			:aria-pressed="traceEnabled"
 			:title="
 				vm?.traceOverflow?.value
-					? 'Execution tracing (JSR/JMP) — buffer overflow'
-					: 'Enable execution tracing (JSR/JMP)'
+					? 'Execution tracing (jumps and instructions) — jumps buffer overflow'
+					: 'Enable execution tracing (jumps and instructions)'
 			"
 		>
 			<span
@@ -151,11 +151,8 @@ const toggle = () => {
 const { breakOnBrk, setBreakOnBrk } = useMachine();
 const toggleBreakOnBrk = () => setBreakOnBrk(!breakOnBrk.value);
 
-const traceEnabled = ref(false);
-const toggleTrace = () => {
-	traceEnabled.value = !traceEnabled.value;
-	vm?.value?.setTrace(traceEnabled.value);
-};
+const { traceEnabled, setTraceEnabled } = useMachine();
+const toggleTrace = () => setTraceEnabled(!traceEnabled.value);
 
 const pasteFromClipboard = async () => {
 	if (!vm?.value) return;
