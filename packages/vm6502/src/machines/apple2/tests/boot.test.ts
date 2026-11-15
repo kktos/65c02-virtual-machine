@@ -240,6 +240,17 @@ describe("a DOS 3.3 RWTS driving the Disk II in slot 5: found on the stack, patc
 		expect(m.regs.getUint8(REG_SP_OFFSET)).toBe(0xff);
 	});
 
+	it("like DOS 3.3 RWTS, leaves the IOB's DCT pointer and buffer in $3C-$3F (A1, A2)", () => {
+		const m = setUp();
+		runUntil(m, () => pc(m) === DONE, 1000);
+		[0x81, 0xc0, 0x81, 0xc0].forEach((byte, i) => m.bus.write(0x3c + i, byte)); // the monitor examined $C081
+		m.bus.write(IOB + 0x06, 0x10); // DCT at $0510
+		m.bus.write(IOB + 0x07, 0x05);
+		m.regs.setUint16(REG_PC_OFFSET, 0x0300, true);
+		runUntil(m, () => pc(m) === DONE, 10);
+		expect([0x3c, 0x3d, 0x3e, 0x3f].map((a) => m.bus.read(a))).toEqual([0x10, 0x05, BUFFER & 0xff, BUFFER >> 8]);
+	});
+
 	it("a write: write protected ($10), carry set", () => {
 		const m = setUp();
 		m.bus.write(IOB + 0x0c, 0x02);
