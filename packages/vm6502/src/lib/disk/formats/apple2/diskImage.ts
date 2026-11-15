@@ -30,7 +30,8 @@ const invert = (table: number[]) => {
 	return inv;
 };
 const PHYS_TO_DOS = invert(DOS_TO_PHYS);
-const PHYS_TO_PRODOS = invert(PRODOS_TO_PHYS);
+/** Physical sector -> ProDOS logical sector: where a physical sector of a track is in a ProDOS-order image */
+export const PHYS_TO_PRODOS = invert(PRODOS_TO_PHYS);
 
 export type { TrackSector };
 
