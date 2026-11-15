@@ -47,6 +47,35 @@ describe("AppleBus.peek", () => {
 		expect([bus.readDebug(0xfa), bus.readDebug(0x2000)]).toEqual([0x11, 0x33]);
 	});
 
+	it("follows ALTZP in the language card, bank 2 and $E000-$FFFF; `readDebug` reads main", () => {
+		bus.lcReadRam = true;
+		bus.lcBank2 = true;
+		bus.writeDebug(0xd1f9, 0x11);
+		bus.writeDebug(0x1d1f9, 0x22);
+		bus.writeDebug(0xe000, 0x33);
+		bus.writeDebug(0x1e000, 0x44);
+
+		expect([bus.peek(0xd1f9), bus.peek(0xe000)]).toEqual([0x11, 0x33]);
+		bus.altZp = true;
+		expect([bus.peek(0xd1f9), bus.peek(0xe000)]).toEqual([0x22, 0x44]);
+		expect([bus.readDebug(0xd1f9), bus.readDebug(0xe000)]).toEqual([0x11, 0x33]);
+	});
+
+	it("follows 80STORE + PAGE2 on the text and hires pages, over RAMRD", () => {
+		bus.writeDebug(0x0400, 0x11);
+		bus.writeDebug(0x10400, 0x22);
+		bus.writeDebug(0x2000, 0x33);
+		bus.writeDebug(0x12000, 0x44);
+
+		bus.store80 = true;
+		bus.page2 = true;
+		bus.hires = true;
+		expect([bus.peek(0x0400), bus.peek(0x2000)]).toEqual([0x22, 0x44]);
+		bus.page2 = false;
+		bus.ramRdAux = true;
+		expect([bus.peek(0x0400), bus.peek(0x2000)]).toEqual([0x11, 0x33]);
+	});
+
 	it("reads banked addresses as physical", () => {
 		bus.writeDebug(0x100fa, 0x22);
 		expect(bus.peek(0x100fa)).toBe(0x22);

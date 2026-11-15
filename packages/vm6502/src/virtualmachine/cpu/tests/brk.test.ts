@@ -207,6 +207,20 @@ describe("CPU 65C02 - BRK", () => {
 			expect(bus.read).not.toHaveBeenCalledWith(0x2000);
 		});
 
+		it("prefers the bus's `peek` (the CPU's current view of memory) over `readDebug`", () => {
+			const bus = createMockBus(memory);
+			const peek = vi.fn((address: number) => memory[address] ?? 0);
+			const readDebug = vi.fn(() => 0);
+			initCPU({ ...bus, peek, readDebug }, registersView, null, memory, new Uint8Array(256));
+			setRunning(false);
+			memory.set([0x00, 0x81, 0x00, 0x20], 0x300);
+			memory.set([0xc8, 0xc9, 0x00], 0x2000); // "HI"
+			runFrom(0x300);
+			expect(hypercallMessages()[0].call.message).toBe("HI");
+			expect(peek).toHaveBeenCalledWith(0x2000);
+			expect(readDebug).not.toHaveBeenCalled();
+		});
+
 		it("BRK followed by another byte is a normal BRK, stop bit or not", () => {
 			memory.set([0x00, 0x05], 0x300);
 			runFrom(0x300);
