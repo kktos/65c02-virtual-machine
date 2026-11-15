@@ -77,6 +77,18 @@ Noticed while running `mock mini prodos T.dsk` (asimov `images/sound/`, a Mockin
   layout when the disk boots (a power cycle when they differ?)
 - slots, later: the mouse in `MachineConfig.inputs` (`MouseControl`, `hasMouse`) stays when no mouse card is in a
   slot; the inputs could follow the cards
+- mouse, later: `MouseControl.vue` is generic UI but now follows the Apple II mouse card's protocol (the
+  CLAMPMOUSE / double-click fix): rethink it when another machine gets a mouse
+  - `HOST_RANGE = 1024` is a copy of the card's `MOUSE_HOST_RANGE` (`mouse.card.ts`), kept equal by hand
+  - it sends a position that wraps at 1024, as a float in the analog inputs 2 & 3, and the card turns it back into
+    motion (`setHostMouse`, the shortest way across the wrap). It is really a relative device going through an
+    absolute channel: a machine that wants deltas has to undo the wrap, and one that wants an absolute position
+    (clamped by the host, a tablet / light pen) doesn't fit at all
+  - the button inputs 4 & 5 (`apple.machine.ts`) are picked to stay clear of the //e's PB0-PB3 (digital 0-3, read
+    by the bus as Open Apple / Solid Apple / Shift): input indices that collide across devices are only avoided by
+    a comment in the config
+  - a way out: a mouse input that sends motion (deltas, summed until the machine reads them) and the buttons, as its
+    own kind of input, not analog / digital indices; each machine's device clamps or wraps as its hardware does
 - slots, later: a generic ROM card ($Cn00 ROM, $C800 expansion ROM, a user file or `rom/slotN.rom.ts`)
 
 Noticed while chasing the squares shown instead of `@` on a page refresh (//e, text renderer "Font"):
