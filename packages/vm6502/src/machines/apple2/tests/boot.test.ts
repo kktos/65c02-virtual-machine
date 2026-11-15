@@ -1,8 +1,18 @@
 // Boots the real //e (ROMs + AppleBus, no video) in Node.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { parseHexData } from "@/lib/array.utils";
+import { FLOPPY_SIZE } from "@/lib/disk/formats/apple2/diskImage";
 import { initCPU, setRunning, stepInstruction } from "@/virtualmachine/cpu/cpu.65c02";
-import { MEMORY_OFFSET, REG_PC_OFFSET, STACK_METADATA_OFFSET } from "@/virtualmachine/cpu/shared-memory";
+import {
+	FLAG_C_MASK,
+	MEMORY_OFFSET,
+	REG_A_OFFSET,
+	REG_PC_OFFSET,
+	REG_SP_OFFSET,
+	REG_STATUS_OFFSET,
+	REG_X_OFFSET,
+	STACK_METADATA_OFFSET,
+} from "@/virtualmachine/cpu/shared-memory";
 import { AppleBus } from "../apple.bus";
 import { apple2e } from "../apple.machine";
 
@@ -110,5 +120,116 @@ describe("text mode (what screen_text reads by default)", () => {
 		m.bus.page2 = true;
 		expect(m.bus.getTextScreen()[0]?.[0]).toBe("2");
 		expect(m.bus.getTextScreen({ page: 1 })[0]?.[0]).toBe("1");
+	});
+});
+
+describe("//e boot of a DOS 3.3 disk in the SmartPort drive: BOOT1 calls the Disk II ReadSector ($C55C)", () => {
+	// DOS 3.3 BOOT1 ($0800-$085C, $08FD-$08FF), https://6502disassembly.com/a2-rom/BOOT1.html:
+	// reads 10 sectors of track 0 into $B600-$BFFF through ($3E) = $Cn5C, then JMP $B700.
+	const BOOT1 = [
+		"01 a5 27 c9 09 d0 18 a5 2b 4a 4a 4a 4a 09 c0 85 3f a9 5c 85 3e 18 ad fe 08 6d ff 08 8d fe 08",
+		"ae ff 08 30 15 bd 4d 08 85 3d ce ff 08 ad fe 08 85 27 ce fe 08 a6 2b 6c 3e 00",
+		"ee fe 08 ee fe 08 20 89 fe 20 93 fe 20 2f fb a6 2b 6c fd 08",
+		"00 0d 0b 09 07 05 03 01 0e 0c 0a 08 06 04 02 0f",
+	]
+		.join(" ")
+		.split(" ")
+		.map((hex) => Number.parseInt(hex, 16));
+
+	/** A .dsk (DOS order): BOOT1 in T0 S0, logical sector s of track 0 filled with $s0 + 1. */
+	const dosDisk = () => {
+		const disk = new Uint8Array(FLOPPY_SIZE);
+		for (let s = 1; s < 16; s++) disk.fill((s << 4) | 1, s * 256, (s + 1) * 256);
+		disk.set(BOOT1);
+		disk.set([0x00, 0xb6, 0x09], 0xfd);
+		return disk;
+	};
+
+	it("loads $B600-$BFFF from track 0 with the DOS 3.3 interleave and jumps to $B700", () => {
+		const m = boot();
+		m.bus.insertMedia(dosDisk(), { slot: 5, name: "dos33.dsk" });
+		runUntil(m, () => pc(m) === 0xb700);
+		expect(m.regs.getUint8(REG_X_OFFSET)).toBe(0x50); // slot_index
+		expect(m.bus.read(0xb600)).toBe(0x01); // BOOT1 itself: logical sector 0
+		for (let s = 1; s <= 9; s++) expect(m.bus.read(0xb600 + s * 256), `page $B${6 + s}`).toBe((s << 4) | 1);
+		expect(m.bus.read(0xc000 - 1)).toBe(0x91); // $BFFF: last byte of sector 9
+	});
+
+	it("a sector the image hasn't (track $40): the boot failed, the slot scan resumes", () => {
+		const m = boot();
+		const disk = new Uint8Array(FLOPPY_SIZE);
+		disk.set([0x01, 0xa9, 0x40, 0x85, 0x41, 0x4c, 0x5c, 0xc5]); // LDA #$40 / STA $41 / JMP $C55C
+		m.bus.insertMedia(disk, { slot: 5, name: "dos33.dsk" });
+		runUntil(m, () => pc(m) === 0xc55c);
+		runUntil(m, () => pc(m) === 0xfaba, 100); // SLOOP
+	});
+});
+
+describe("a DOS 3.3 RWTS driving the Disk II in slot 5: found on the stack, patched to call the SmartPort card", () => {
+	const IOB = 0x0500;
+	const BUFFER = 0x2000;
+	const program = [
+		[0x0300, [0xa9, IOB >> 8, 0xa0, IOB & 0xff, 0x20, 0x00, 0x04, 0x4c, 0x07, 0x03]], // LDA/LDY IOB, JSR RWTS, done: JMP *
+		[0x0400, [0x84, 0x48, 0x85, 0x49, 0x08, 0x20, 0x50, 0x04, 0x28, 0x60]], // RWTS: STY $48 / STA $49 / PHP / JSR RDADR / PLP / RTS
+		[0x0450, [0xbd, 0x8c, 0xc0, 0x10, 0xfb, 0x60]], // RDADR: LDA $C08C,X / BPL *-3 / RTS
+	] as const;
+	const DONE = 0x0307;
+
+	/** IOB: read T$11 S$0F (DOS logical) into $2000, slot 5 drive 1 */
+	const setUp = (track = 0x11, sector = 0x0f) => {
+		const m = boot();
+		const disk = new Uint8Array(FLOPPY_SIZE);
+		disk.fill(0xa5, (track * 16 + sector) * 256, (track * 16 + sector + 1) * 256);
+		m.bus.insertMedia(disk, { slot: 5, name: "dos33.dsk" });
+		for (const [address, bytes] of program) bytes.forEach((byte, i) => m.bus.write(address + i, byte));
+		[0x01, 0x50, 0x01, 0x00, track, sector, 0, 0, BUFFER & 0xff, BUFFER >> 8, 0, 0, 0x01, 0xff].forEach((byte, i) =>
+			m.bus.write(IOB + i, byte),
+		);
+		m.regs.setUint8(REG_X_OFFSET, 0x50);
+		m.regs.setUint8(REG_SP_OFFSET, 0xff);
+		m.regs.setUint16(REG_PC_OFFSET, 0x0300, true);
+		return m;
+	};
+
+	it("serves the call in progress, returns to the caller, patches the entry and puts the detour back", () => {
+		const m = setUp();
+		runUntil(m, () => pc(m) === DONE, 1000);
+		expect(m.regs.getUint8(REG_SP_OFFSET)).toBe(0xff); // back in the caller, stack balanced
+		expect(m.regs.getUint8(REG_A_OFFSET)).toBe(0);
+		expect(m.regs.getUint8(REG_STATUS_OFFSET) & FLAG_C_MASK).toBe(0);
+		expect(m.bus.read(IOB + 0x0d)).toBe(0); // error code
+		expect(m.bus.read(IOB + 0x0e)).toBe(254); // volume found (no VTOC)
+		expect([BUFFER, BUFFER + 255].map((a) => m.bus.read(a))).toEqual([0xa5, 0xa5]);
+		expect([0x400, 0x401, 0x402].map((a) => m.bus.read(a))).toEqual([0x4c, 0x90, 0xc5]); // JMP $C590
+		expect([0x453, 0x454].map((a) => m.bus.read(a))).toEqual([0x10, 0xfb]); // BPL put back
+	});
+
+	it("next calls go straight to the card through the patched entry", () => {
+		const m = setUp();
+		runUntil(m, () => pc(m) === DONE, 1000);
+		m.bus.write(IOB + 0x05, 0x00); // T$11 S$00: zeros
+		m.bus.write(BUFFER, 0x11);
+		m.regs.setUint16(REG_PC_OFFSET, 0x0300, true);
+		runUntil(m, () => pc(m) === 0xc590, 10);
+		runUntil(m, () => pc(m) === DONE, 10);
+		expect(m.bus.read(BUFFER)).toBe(0);
+		expect(m.regs.getUint8(REG_SP_OFFSET)).toBe(0xff);
+	});
+
+	it("a write: write protected ($10), carry set", () => {
+		const m = setUp();
+		m.bus.write(IOB + 0x0c, 0x02);
+		runUntil(m, () => pc(m) === DONE, 1000);
+		expect(m.regs.getUint8(REG_A_OFFSET)).toBe(0x10);
+		expect(m.regs.getUint8(REG_STATUS_OFFSET) & FLAG_C_MASK).toBe(FLAG_C_MASK);
+		expect(m.bus.read(IOB + 0x0d)).toBe(0x10);
+	});
+
+	it("Disk II code not called through a DOS 3.3 RWTS entry is left alone", () => {
+		const m = setUp();
+		m.bus.write(0x0400, 0xea); // the entry signature broken
+		vi.spyOn(console, "warn").mockImplementation(() => undefined);
+		expect(() => runUntil(m, () => pc(m) === DONE, 1000)).toThrow("not reached");
+		expect(m.bus.read(0x0453)).toBe(0x10);
 	});
 });
