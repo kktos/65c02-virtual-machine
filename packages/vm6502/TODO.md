@@ -1,6 +1,20 @@
 # TODO
 
-### 2026-11-14
+### 2026-11-15
+
+- **FIXED** disassembly, jump history: after a Ctrl+click on a label, Back was sometimes disabled though the previous
+  address was in the history (Back to A, then Ctrl+click from A: A matched the last entry, the index stayed at 0)
+  - `useAddressHistory.ts`: `historyIndex` is the current entry (-1: empty), was one past the end; an address is
+    skipped only when it is the current entry, the forward entries are dropped before it is added
+  - a jump records where the view was, then where it goes (`trackLocation` / `recordJump`): Back from the first
+    jump returns to its origin. Ctrl+click, the goto box, xref / procedure panels, the stack view, `disasmView`
+  - `ProcContextFloatPanel.vue`: a leftover `jumpToAddress(0x2000)` (and `console.log`) before each jump, removed
+- **DONE** disassembly, Ctrl+click follows on mousedown (on macOS Ctrl+click is a right-click, no `click`); Ctrl+hover
+  underlines what it follows; `JMP (abs)` / `JMP (abs,X)` follow the pointer; ZP / `(zp)` operands open the memory view
+- memory viewer, jump history: Back / Forward (and the history list) change the index but the view doesn't move:
+  `MemoryViewer.vue` doesn't watch `historyNavigationEvent` of its history (`"memory"`), and doesn't `trackLocation`,
+  so a jump records its target only. To decide: the split panes share that one history, which one follows Back /
+  Forward (the focused one? one history per pane?)
 
 - **DONE** disk editor, new disk and copying files: a DOS 3.3 disk doesn't boot (no Disk II, on purpose), its files
   copied to a ProDOS volume do

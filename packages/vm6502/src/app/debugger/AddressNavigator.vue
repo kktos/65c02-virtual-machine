@@ -148,7 +148,7 @@ const props = withDefaults(
 const emit = defineEmits<(e: "goto", address: number) => void>();
 
 const { getAddressForLabel, getLabelForAddress, findSymbols } = useSymbols();
-const { historyIndex, jumpHistory, addJumpHistory, navigateHistory, jumpToHistoryIndex, clearHistory } =
+const { historyIndex, jumpHistory, recordJump, navigateHistory, jumpToHistoryIndex, clearHistory } =
 	useAddressHistory(props.name);
 const inputValue = ref("");
 const isHistoryOpen = ref(false);
@@ -225,7 +225,7 @@ const selectPrevSuggestion = () => {
 
 const selectSuggestion = (suggestion: SuggestionItem) => {
 	inputValue.value = (suggestion as SearchSuggestion).value ?? suggestion.label;
-	addJumpHistory(suggestion.addr);
+	recordJump(suggestion.addr);
 	emit("goto", suggestion.addr);
 	closeSuggestions();
 };
@@ -243,7 +243,7 @@ const handleGoto = () => {
 	if (addr === undefined) addr = parseHexValue(val);
 
 	if (!Number.isNaN(addr)) {
-		addJumpHistory(addr);
+		recordJump(addr);
 		emit("goto", addr);
 		inputValue.value = "";
 		closeSuggestions();

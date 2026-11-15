@@ -3,6 +3,7 @@
 		ref="disasmTable"
 		class="overflow-hidden font-mono text-[0.78rem] text-gray-400 relative"
 		@keydown.escape="clearSelection"
+		@contextmenu="handleContextMenu"
 		tabindex="0"
 	>
 		<!-- ── Procedure Context Badge ────────────────────────────────── -->
@@ -20,7 +21,10 @@
 		<div class="overflow-auto">
 			<div :style="{ display: 'grid', gridTemplateColumns }">
 				<!-- ── Header ───────────────────────────────────────────────── -->
-				<div class="col-span-full grid sticky top-0 z-[5] border-b border-gray-700" :style="{ gridTemplateColumns }">
+				<div
+					class="col-span-full grid sticky top-0 z-[5] border-b border-gray-700"
+					:style="{ gridTemplateColumns }"
+				>
 					<div />
 					<!--
 						COMMENT shrinks to fit (minmax(0, 1fr)): its label is right-aligned with flex so that,
@@ -60,6 +64,7 @@
 							gridTemplateColumns,
 							backgroundColor: rowBackgroundColor(row),
 						}"
+						@mousedown="handleRowMouseDown(row, $event)"
 						@click="handleRowClick(row, $event)"
 					>
 						<!-- Gutter indicator -->
@@ -72,7 +77,10 @@
 								@click.stop="onToggleBreakpoint(row.line.addr)"
 								class="w-full h-full flex items-center justify-center cursor-pointer group"
 							>
-								<span class="w-2 h-2 rounded-full transition-colors" :class="getBreakpointClass(row.line.addr)"></span>
+								<span
+									class="w-2 h-2 rounded-full transition-colors"
+									:class="getBreakpointClass(row.line.addr)"
+								></span>
 							</button>
 						</div>
 
@@ -95,6 +103,8 @@
 
 <script setup lang="ts">
 import { computed, defineComponent, h, inject, reactive, type Ref } from "vue";
+import { useKeyModifier } from "@vueuse/core";
+import { BRANCH_OPCODES, type AddressingMode } from "@/lib/opcodes";
 import DisasmLabel from "./DisasmLabel.vue";
 import ProcContextFloatPanel from "./ProcContextFloatPanel.vue";
 import XRefFloatPanel from "./XRefFloatPanel.vue";
@@ -254,25 +264,58 @@ function cellTextClass(row: DisassemblyRow): string {
 
 // ── Event handlers ─────────────────────────────────────────────────────────
 
-function handleRowClick(row: DisassemblyRow, event: MouseEvent) {
-	let target = event.target as HTMLElement;
-	while (target && !target.dataset?.id) {
-		target = target.parentElement as HTMLElement;
-	}
+// Ctrl+hover underlines the address / operand that Ctrl+click follows
+const isCtrlPressed = useKeyModifier("Control", { initial: false });
 
+const MEMORY_OPERAND_MODES = new Set<AddressingMode>(["ZP", "ZPX", "ZPY", "ABS", "ABX", "ABY", "IDX", "IDY", "ZPI"]);
+
+/** true when the operand is an address that can be followed (branch target or memory location) */
+function isOperandFollowable(line: DisassemblyLine): boolean {
+	if (line.opc.startsWith(".")) return false;
+	return BRANCH_OPCODES.has(line.opc.toUpperCase()) || MEMORY_OPERAND_MODES.has(line.mode);
+}
+
+/** the Ctrl+click target under the pointer: the address cell or a followable operand */
+function followTargetOf(event: MouseEvent): "addr" | "opc" | null {
+	let target = event.target as HTMLElement | null;
+	while (target && !target.dataset?.id) target = target.parentElement;
 	switch (target?.dataset?.id) {
 		case "faddr":
-			if (event.ctrlKey) {
-				emit("cellClick", "addr", row.line);
-				return;
-			}
-			break;
-		case "opc":
-			if (event.ctrlKey) {
-				emit("cellClick", "opc", row.line);
-				return;
-			}
-			break;
+			return "addr";
+		case "operand":
+			return "opc";
+		default:
+			return null;
+	}
+}
+
+/*
+	Follow on mousedown, not click: on macOS Ctrl+click is a right-click and never fires "click".
+	Following re-renders the rows before the "contextmenu" (macOS) / "click" event that ends the gesture
+	arrives, so that event no longer targets the operand: remember the follow to swallow it.
+*/
+let followedOnMouseDown = false;
+
+function handleRowMouseDown(row: DisassemblyRow, event: MouseEvent) {
+	followedOnMouseDown = false;
+	if (event.button !== 0 || !event.ctrlKey) return;
+	const cellId = followTargetOf(event);
+	if (!cellId) return;
+	event.preventDefault();
+	followedOnMouseDown = true;
+	emit("cellClick", cellId, row.line);
+}
+
+function handleContextMenu(event: MouseEvent) {
+	if (!followedOnMouseDown) return;
+	followedOnMouseDown = false;
+	event.preventDefault();
+}
+
+function handleRowClick(row: DisassemblyRow, event: MouseEvent) {
+	if (followedOnMouseDown) {
+		followedOnMouseDown = false;
+		return;
 	}
 
 	selectionClick(row.line.addr, event);
@@ -325,7 +368,20 @@ const CellValue = defineComponent(
 		return () => {
 			if (props.col === "opc") {
 				const tokens = parseOperand(props.line["opr"]);
-				const children = tokens.map((t) => h("span", { style: { color: t.color } }, t.text));
+				const operand = tokens.map((t) => h("span", { style: { color: t.color } }, t.text));
+				const children = isOperandFollowable(props.line)
+					? [
+							h(
+								"span",
+								{
+									"data-id": "operand",
+									class: isCtrlPressed.value ? "cursor-pointer hover:underline" : "",
+									title: "Ctrl+Click to follow",
+								},
+								operand,
+							),
+						]
+					: operand;
 				const isPseudo = props.line["opc"].startsWith(".");
 				children.unshift(
 					h(
@@ -341,6 +397,12 @@ const CellValue = defineComponent(
 				);
 				return h("div", children);
 			}
+			if (props.col === "faddr")
+				return h(
+					"div",
+					{ class: isCtrlPressed.value ? "cursor-pointer hover:underline" : "" },
+					String(props.line[props.col]),
+				);
 			return h("div", String(props.line[props.col]));
 		};
 	},
