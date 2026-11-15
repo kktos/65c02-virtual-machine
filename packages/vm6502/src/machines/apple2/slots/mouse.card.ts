@@ -20,24 +20,53 @@ const CLAMPMOUSE = 0x17;
 const HOMEMOUSE = 0x18;
 const INITMOUSE = 0x19;
 
+/**
+ * The host sends the mouse as a position that wraps around: analog inputs 2 & 3 hold (units mod HOST_RANGE) / HOST_RANGE
+ * (see MouseControl.vue). The card only uses the movement between two ticks, like the real mouse, which counts
+ * motion: its own position lives in the clamping window, and what goes past an edge is lost, not banked.
+ */
+export const MOUSE_HOST_RANGE = 1024;
+
+const DEFAULT_MIN = 0;
+const DEFAULT_MAX = 1023;
+
+/** Screen holes: $0478+n etc. for the card in slot n; CLAMPMOUSE reads its bounds in slot 0's ($0478...). */
+const HOLE_X_LO = 0x0478;
+const HOLE_Y_LO = 0x04f8;
+const HOLE_X_HI = 0x0578;
+const HOLE_Y_HI = 0x05f8;
+const HOLE_STATUS = 0x0778;
+const HOLE_MODE = 0x07f8;
+
+const toInt16 = (lo: number, hi: number) => {
+	const v = ((hi & 0xff) << 8) | (lo & 0xff);
+	return v & 0x8000 ? v - 0x10000 : v;
+};
+
+const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v));
+
 export class MouseCard implements ISlotCard {
 	private registers!: DataView;
 
-	// Mouse State
+	// Mouse State (position in mouse units, inside the clamping window)
 	private x = 0;
 	private y = 0;
 	private lastButton0 = false;
 	private button0 = false;
-	// private lastButton1 = false;
-	// private button1 = false;
+	// Position at the last READMOUSE / SERVEMOUSE, for the "moved" status bit
+	private lastReadX = 0;
+	private lastReadY = 0;
 
-	// Clamping
-	private minX = 0;
-	private maxX = 1023; // Default Apple Mouse range
-	private minY = 0;
-	private maxY = 1023;
+	// Last host position seen (units, 0..MOUSE_HOST_RANGE-1); null: resync on the next tick (not part of a snapshot)
+	private hostX: number | null = null;
+	private hostY: number | null = null;
 
-	// Bit 	  0 : Turn mouse on
+	// Clamping window (CLAMPMOUSE), signed 16-bit
+	private minX = DEFAULT_MIN;
+	private maxX = DEFAULT_MAX;
+	private minY = DEFAULT_MIN;
+	private maxY = DEFAULT_MAX;
+
 	// Bit 	  0 : Turn mouse on
 	//		  1 : Enable interrupts on mouse movement
 	// 		  2 : Enable interrupts when button pressed
@@ -46,12 +75,15 @@ export class MouseCard implements ISlotCard {
 	private mode = 0;
 
 	public snapshot() {
-		const { x, y, lastButton0, button0, minX, maxX, minY, maxY, mode } = this;
-		return { x, y, lastButton0, button0, minX, maxX, minY, maxY, mode };
+		const { x, y, lastButton0, button0, lastReadX, lastReadY, minX, maxX, minY, maxY, mode } = this;
+		return { x, y, lastButton0, button0, lastReadX, lastReadY, minX, maxX, minY, maxY, mode };
 	}
 
 	public restoreSnapshot(state: unknown) {
 		Object.assign(this, state as ReturnType<MouseCard["snapshot"]>);
+		// The host mouse has moved on since: take its current position as the new reference
+		this.hostX = null;
+		this.hostY = null;
 	}
 
 	constructor(
@@ -122,13 +154,14 @@ export class MouseCard implements ISlotCard {
 	}
 
 	tick?(_cycles: number): void {
-		// Read Mouse Axes (Indices 2 & 3 -> Offsets +8 & +12)
+		// Mouse axes: analog inputs 2 & 3 (offsets +8 & +12)
 		const mx = this.registers.getFloat32(INPUT_ANALOG_0_OFFSET + 8, true);
 		const my = this.registers.getFloat32(INPUT_ANALOG_0_OFFSET + 12, true);
+		// Mouse buttons: digital inputs 4 & 5 (0-3 are the game port pushbuttons PB0-PB3, read by the bus)
 		const digital1 = this.registers.getUint8(INPUT_DIGITAL_OFFSET);
-		const mb0 = (digital1 & 0b0000_0100) !== 0;
-		const mb1 = (digital1 & 0b0000_1000) !== 0;
-		this.setMouse(Math.max(0, Math.min(1, mx)) * 1023, Math.max(0, Math.min(1, my)) * 1023, mb0, mb1);
+		const mb0 = (digital1 & 0b0001_0000) !== 0;
+		const mb1 = (digital1 & 0b0010_0000) !== 0;
+		this.setHostMouse(mx * MOUSE_HOST_RANGE, my * MOUSE_HOST_RANGE, mb0, mb1);
 	}
 
 	readRom(offset: number): number {
@@ -145,18 +178,6 @@ export class MouseCard implements ISlotCard {
 
 	writeIo(offset: number, _value: number): void {
 		if (!this.registers) return;
-
-		// const COMMANDS = [
-		// 	"SETMOUSE",
-		// 	"SERVEMOUSE",
-		// 	"READMOUSE",
-		// 	"CLEARMOUSE",
-		// 	"POSMOUSE",
-		// 	"CLAMPMOUSE",
-		// 	"HOMEMOUSE",
-		// 	"INITMOUSE",
-		// ];
-		// console.log("--- MOUSE ", COMMANDS[offset], "Acc", this.registers.getUint8(REG_A_OFFSET));
 
 		switch (offset) {
 			case 0x00:
@@ -189,45 +210,28 @@ export class MouseCard implements ISlotCard {
 	// --- Commands ---
 
 	private cmdInitMouse() {
-		this.minX = 0;
-		this.maxX = 1023;
-		this.minY = 0;
-		this.maxY = 1023;
+		this.minX = DEFAULT_MIN;
+		this.maxX = DEFAULT_MAX;
+		this.minY = DEFAULT_MIN;
+		this.maxY = DEFAULT_MAX;
 		this.x = 0;
 		this.y = 0;
+		this.lastReadX = 0;
+		this.lastReadY = 0;
 		this.mode = 0;
 		this.registers?.setUint8(REG_A_OFFSET, 0);
 		this.clearCarry();
 	}
 
+	/** Puts the mouse at the top-left corner of the clamping window. */
 	private cmdHomeMouse() {
-		this.x = 0;
-		this.y = 0;
+		this.x = this.minX;
+		this.y = this.minY;
 		this.clearCarry();
 	}
 
 	private cmdReadMouse() {
-		// Update Screen Holes with current position
 		this.updateScreenHoles();
-
-		/*
-		// Return Low X in X Register, High X in Y Register
-		const lowX = this.x & 0xff;
-		const highX = (this.x >> 8) & 0xff;
-
-		this.registers?.setUint8(REG_X_OFFSET, lowX);
-		this.registers?.setUint8(REG_Y_OFFSET, highX);
-
-		// Status in Accumulator
-		// Bit 7: Button 0 (1 = down? Standard varies, usually 0=down for some, 1=down for others.
-		// Apple Mouse II: 1 = Button Down (if configured active high) or interrupt status.
-		// For HLE, we often assume bit 7 set if button is down.
-		let status = 0;
-		if (this.button0) status |= 0x80;
-		if (this.button1) status |= 0x40;
-
-		this.registers?.setUint8(REG_A_OFFSET, status);
-*/
 		this.clearCarry();
 	}
 
@@ -242,23 +246,39 @@ export class MouseCard implements ISlotCard {
 		this.clearCarry();
 	}
 
+	/** Puts the mouse at 0,0 (clamped to the window). */
 	private cmdClearMouse() {
-		this.x = 0;
-		this.y = 0;
+		this.x = clamp(0, this.minX, this.maxX);
+		this.y = clamp(0, this.minY, this.maxY);
 		this.clearCarry();
 	}
 
+	/** Puts the mouse at the position in the card's screen holes ($0478+n / $0578+n for X, $04F8+n / $05F8+n for Y). */
 	private cmdPosMouse() {
-		// Read X/Y from screen holes or registers and set internal state
-		// For HLE, we might just ignore this or implement if needed.
+		const n = this.slot;
+		const x = toInt16(this.bus.read(HOLE_X_LO + n), this.bus.read(HOLE_X_HI + n));
+		const y = toInt16(this.bus.read(HOLE_Y_LO + n), this.bus.read(HOLE_Y_HI + n));
+		this.x = clamp(x, this.minX, this.maxX);
+		this.y = clamp(y, this.minY, this.maxY);
 		this.clearCarry();
 	}
 
+	/**
+	 * A = 0: X, 1: Y. The new bounds are in slot 0's screen holes: minimum in $0478 (low) / $0578 (high),
+	 * maximum in $04F8 (low) / $05F8 (high). The current position is brought inside the new window.
+	 */
 	private cmdClampMouse() {
-		// Sets min/max windows.
-		// A = 0 (X), 1 (Y)
-		// X = Low, Y = High
-		// We'll stub this as success for now.
+		const min = toInt16(this.bus.read(HOLE_X_LO), this.bus.read(HOLE_X_HI));
+		const max = toInt16(this.bus.read(HOLE_Y_LO), this.bus.read(HOLE_Y_HI));
+		if (this.registers.getUint8(REG_A_OFFSET) & 1) {
+			this.minY = min;
+			this.maxY = max;
+			this.y = clamp(this.y, min, max);
+		} else {
+			this.minX = min;
+			this.maxX = max;
+			this.x = clamp(this.x, min, max);
+		}
 		this.clearCarry();
 	}
 
@@ -275,15 +295,14 @@ export class MouseCard implements ISlotCard {
 		// $778 + n 	Button and interrupt status
 		// $7F8 + n 	Current mode
 
-		const base = 0x0478 + this.slot;
+		const n = this.slot;
+		const x = Math.trunc(this.x) & 0xffff;
+		const y = Math.trunc(this.y) & 0xffff;
 
-		// X Coordinate
-		this.bus.write(base, this.x & 0xff);
-		this.bus.write(base + 0x100, (this.x >> 8) & 0xff);
-
-		// Y Coordinate
-		this.bus.write(base + 0x80, this.y & 0xff);
-		this.bus.write(base + 0x180, (this.y >> 8) & 0xff);
+		this.bus.write(HOLE_X_LO + n, x & 0xff);
+		this.bus.write(HOLE_X_HI + n, x >> 8);
+		this.bus.write(HOLE_Y_LO + n, y & 0xff);
+		this.bus.write(HOLE_Y_HI + n, y >> 8);
 
 		// button & interrupt status
 		// Bit 	7: Button is down
@@ -297,12 +316,14 @@ export class MouseCard implements ISlotCard {
 		let status = 0;
 		if (this.button0) status |= 0x80;
 		if (this.lastButton0) status |= 0x40;
-		this.bus.write(0x778 + this.slot, status);
+		if (x !== this.lastReadX || y !== this.lastReadY) status |= 0x20;
+		this.bus.write(HOLE_STATUS + n, status);
 
 		this.lastButton0 = this.button0;
+		this.lastReadX = x;
+		this.lastReadY = y;
 
-		// mode
-		this.bus.write(0x7f8 + this.slot, this.mode);
+		this.bus.write(HOLE_MODE + n, this.mode);
 	}
 
 	private clearCarry() {
@@ -311,12 +332,26 @@ export class MouseCard implements ISlotCard {
 		this.registers.setUint8(REG_STATUS_OFFSET, status & ~FLAG_C_MASK);
 	}
 
+	/** The host's movement since the last tick, across the wrap at MOUSE_HOST_RANGE. */
+	private static hostDelta(from: number, to: number) {
+		let d = to - from;
+		if (d > MOUSE_HOST_RANGE / 2) d -= MOUSE_HOST_RANGE;
+		else if (d < -MOUSE_HOST_RANGE / 2) d += MOUSE_HOST_RANGE;
+		return d;
+	}
+
 	// --- Public Interface for Host ---
 
-	public setMouse(x: number, y: number, button0: boolean, _button1: boolean) {
-		this.x = Math.max(this.minX, Math.min(this.maxX, x));
-		this.y = Math.max(this.minY, Math.min(this.maxY, y));
+	/** The host mouse: its (wrapping) position in units and its buttons. Moves the card's mouse by the difference. */
+	public setHostMouse(hostX: number, hostY: number, button0: boolean, _button1: boolean) {
+		if (Number.isFinite(hostX) && Number.isFinite(hostY)) {
+			if (this.hostX !== null && this.hostY !== null) {
+				this.x = clamp(this.x + MouseCard.hostDelta(this.hostX, hostX), this.minX, this.maxX);
+				this.y = clamp(this.y + MouseCard.hostDelta(this.hostY, hostY), this.minY, this.maxY);
+			}
+			this.hostX = hostX;
+			this.hostY = hostY;
+		}
 		this.button0 = button0;
-		// this.button1 = button1;
 	}
 }

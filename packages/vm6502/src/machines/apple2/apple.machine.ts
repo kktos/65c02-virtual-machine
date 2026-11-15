@@ -49,8 +49,10 @@ export const apple2e: MachineConfig = {
 			controls: [
 				{ id: "axis_x", label: "Mouse X", type: "axis", index: 2 },
 				{ id: "axis_y", label: "Mouse Y", type: "axis", index: 3 },
-				{ id: "btn_0", label: "Left Button", type: "button", index: 2 },
-				{ id: "btn_1", label: "Right Button", type: "button", index: 3 },
+				// Digital inputs 0-3 are the pushbuttons PB0-PB3 ($C061-$C063, $C060): the mouse buttons
+				// must not share them, or a click reads as Open Apple / Shift (see MouseCard.tick)
+				{ id: "btn_0", label: "Left Button", type: "button", index: 4 },
+				{ id: "btn_1", label: "Right Button", type: "button", index: 5 },
 			],
 		},
 	],
