@@ -25,6 +25,8 @@ const isRunning = ref(false);
 // "Break on BRK": stop the CPU on a BRK instead of running it. On by default (the worker's default too);
 // kept here so it survives a machine change and the toolbar and the `brk` command agree.
 const breakOnBrk = ref(true);
+// The toolbar's Trace switch: a new VM (power cycle, machine switch) starts tracing again if it is on
+const traceEnabled = ref(false);
 // Cycles after the program consumes a typed key before it gets the next one (the `key delay` command); null: the
 // machine's default. Kept here to survive a machine change. A program that eats typed keys needs a longer one.
 const keyDelay = ref<number | null>(null);
@@ -179,6 +181,7 @@ const loadMachine = async (newMachine?: MachineConfig) => {
 		.then(() => {
 			newVm.initAudio();
 			newVm.setBreakOnBrk(breakOnBrk.value);
+			if (traceEnabled.value) newVm.setTrace(true);
 			if (keyDelay.value !== null && newVm.bus?.setKeyDelay)
 				newVm.setKeyDelay(keyDelay.value).catch(() => undefined);
 		})
@@ -257,6 +260,11 @@ const setBreakOnBrk = (enabled: boolean) => {
 	vm.value?.setBreakOnBrk(enabled);
 };
 
+const setTraceEnabled = (enabled: boolean) => {
+	traceEnabled.value = enabled;
+	vm.value?.setTrace(enabled);
+};
+
 const setKeyDelay = async (cycles: number) => {
 	keyDelay.value = Math.max(0, Math.round(cycles));
 	return vm.value?.setKeyDelay(keyDelay.value);
@@ -276,6 +284,8 @@ export function useMachine() {
 		addVirtualRegister,
 		breakOnBrk: readonly(breakOnBrk),
 		setBreakOnBrk,
+		traceEnabled: readonly(traceEnabled),
+		setTraceEnabled,
 		keyDelay: readonly(keyDelay),
 		setKeyDelay,
 	};

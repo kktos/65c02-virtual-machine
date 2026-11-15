@@ -31,8 +31,8 @@ import {
 	INSTRUCTION_TRACE_DEFAULT_SIZE,
 	INSTRUCTION_TRACE_MAX_SIZE,
 	type TraceSnapshot,
-	unpackTraceEntries,
 } from "@/virtualmachine/cpu/instructionTrace";
+import { describeTraceEntries } from "@/lib/instructionTrace.lib";
 import { readRegisters } from "@/virtualmachine/cpu/shared-memory";
 import { availableMachines } from "@/machines";
 import type { MachineConfig, SlotLayout } from "@/types/machine.interface";
@@ -363,29 +363,13 @@ const coldBoot = async (vm: VirtualMachine, paused: boolean) => {
 const h2 = (v: number) => v.toString(16).toUpperCase().padStart(2, "0");
 
 /** Trace entries for the agent: disassembled from memory as it is now, registers as they were before. */
-const describeTrace = async (vm: VirtualMachine, snapshot: TraceSnapshot) => {
-	const lines = new Map<number, DisassemblyLine | undefined>();
-	const entries = [];
-	for (const e of unpackTraceEntries(snapshot.words)) {
-		if (!lines.has(e.address)) {
-			const [line] = await disassemble({
-				readByte: (a) => vm.readDebug(a) ?? 0,
-				scope: vm.getScope(e.address & 0xffff),
-				fromAddress: e.address,
-				lineCount: 1,
-			});
-			lines.set(e.address, line);
-		}
-		const line = lines.get(e.address);
-		entries.push({
-			address: hexAddr(e.address),
-			...(line?.label && { label: line.label }),
-			instruction: line ? (line.opr ? `${line.opc} ${line.opr}` : line.opc) : "?",
-			regs: `A=${h2(e.a)} X=${h2(e.x)} Y=${h2(e.y)} P=${h2(e.p)} SP=${h2(e.sp)}`,
-		});
-	}
-	return entries;
-};
+const describeTrace = async (vm: VirtualMachine, snapshot: TraceSnapshot) =>
+	(await describeTraceEntries(vm, snapshot.words)).map((e) => ({
+		address: hexAddr(e.address),
+		...(e.label && { label: e.label }),
+		instruction: e.instruction,
+		regs: `A=${h2(e.a)} X=${h2(e.x)} Y=${h2(e.y)} P=${h2(e.p)} SP=${h2(e.sp)}`,
+	}));
 
 const hexdump = (start: number, bytes: Uint8Array) => {
 	const lines: string[] = [];

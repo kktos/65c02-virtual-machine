@@ -1,5 +1,5 @@
 import { ref } from "vue";
-import type { TraceSnapshot } from "./cpu/instructionTrace";
+import { INSTRUCTION_TRACE_DEFAULT_SIZE, type TraceSnapshot } from "./cpu/instructionTrace";
 import type { SaveStateInfo, SaveStateMeta } from "./cpu/saveStates";
 import type { Dict } from "@/types/dict.type";
 import type { BusOptions, MachineConfig, MemoryChunk } from "@/types/machine.interface";
@@ -555,9 +555,14 @@ export class VirtualMachine {
 		this.worker.postMessage({ command: "insertMedia", data, metadata });
 	public ejectDisk = (metadata: Dict = {}) => this.worker.postMessage({ command: "ejectMedia", metadata });
 
+	/** Instructions the trace switch keeps (the instruction trace's size, rounded up to a power of 2). */
+	public instructionTraceSize = INSTRUCTION_TRACE_DEFAULT_SIZE;
+
+	/** The trace switch: the JSR / JMP / interrupt log and the instruction trace (restarted, cleared). */
 	public setTrace = (enabled: boolean) => {
 		this.isTraceEnabled = enabled;
 		this.worker.postMessage({ command: "setTrace", enabled });
+		this.worker.postMessage({ command: "setInstructionTrace", enabled, size: this.instructionTraceSize });
 		if (enabled) {
 			this.startTracePolling();
 		} else {
@@ -586,8 +591,10 @@ export class VirtualMachine {
 	public getInstructionTrace = (count?: number) => this.request<TraceSnapshot>("getInstructionTrace", { count });
 	public setTraceSize = (size: number) => this.worker.postMessage({ command: "setTraceSize", size });
 	public getTrace = () => this.worker.postMessage({ command: "getTrace" });
+	/** Clears both traces (the jumps log and the instruction trace). */
 	public clearTrace = () => {
 		this.worker.postMessage({ command: "clearTrace" });
+		this.worker.postMessage({ command: "clearInstructionTrace" });
 		this.traceOverflow.value = false;
 		this.lastTraceHead = "";
 	};
