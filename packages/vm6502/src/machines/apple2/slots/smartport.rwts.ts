@@ -16,6 +16,7 @@ export const IOB = {
 	VOLUME: 0x03, // expected; 0: any
 	TRACK: 0x04,
 	SECTOR: 0x05, // DOS 3.3 logical sector
+	DCT: 0x06, // 2 bytes: the device characteristics table
 	BUFFER: 0x08, // 2 bytes
 	COMMAND: 0x0c, // 0 seek, 1 read, 2 write, 4 format
 	ERROR: 0x0d,
@@ -108,12 +109,20 @@ export type IobResult = {
 	offset: number;
 };
 
+/** Where DOS 3.3 RWTS copies the IOB's DCT pointer and buffer (IOB+6..9), as it starts: $3C-$3F (A1, A2) */
+const RWTS_ZP_DCT = 0x3c;
+
 /**
  * The IOB's command on `data` (a 140K image in ProDOS order) from `slot`'s drive 1. The disk is read-only:
  * write and format answer "write protected". Writes the error code, volume found, last slot / drive to the IOB.
+ * Like DOS 3.3 RWTS ($BD54), leaves the IOB's DCT pointer and buffer in $3C-$3F: code after it can count on
+ * that. The monitor does: a DOS command typed at its prompt hands it an empty line back, and an empty line
+ * dumps the 8 bytes after A1; were A1 left on $C081 (a "C081 C081" line before), $C083 would switch the
+ * language card's RAM in under the monitor (Captain Goodnight's ACE crack, EXEC file loading the LC).
  */
 export function serveIob(bus: IBus, iob: number, data: Uint8Array | null, slot: number): IobResult {
 	const field = (offset: number) => peek(bus, iob + offset);
+	for (let i = 0; i < 4; i++) bus.write(RWTS_ZP_DCT + i, field(IOB.DCT + i));
 	const command = field(IOB.COMMAND);
 	const track = field(IOB.TRACK);
 	const sector = field(IOB.SECTOR);
