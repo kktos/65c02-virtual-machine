@@ -612,10 +612,13 @@ export function executeInstruction(): number {
 				stoppedOnBrkAt = null;
 
 				// Hypercall: run it here (decode, PC past it) and let the main thread apply its effect.
-				// Arguments are read without side effects (no soft switch triggered by a read).
+				// The call is read as the CPU sees memory now (`peek`: ALTZP, RAMRD, 80STORE…, so a call in the
+				// aux language card decodes), without side effects (no soft switch triggered by a read).
+				// `readDebug` with a 16-bit address would read the main bank.
 				if (hypercallsEnabled) {
 					const b = bus;
-					const peek = (address: number) => (b.readDebug ? b.readDebug(address) : b.read(address)) & 0xff;
+					const peek = (address: number) =>
+						(b.peek ? b.peek(address) : b.readDebug ? b.readDebug(address) : b.read(address)) & 0xff;
 					const call = decodeHypercall(peek, pc - 1, registersView);
 					if (call) {
 						const bank = bus.getBank?.(call.address) ?? 0;

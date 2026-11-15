@@ -2,17 +2,18 @@
 
 ### 2026-11-15
 
-- hypercalls from the aux language card (or aux zero page / stack) don't run: the BRK stops as a plain BRK.
+- **FIXED** hypercalls from the aux language card (or aux zero page / stack) don't run: the BRK stops as a plain BRK.
   Noticed rehosting Captain Goodnight, whose tiny-dos runs in the aux LC (ALTZP on, `$D000`): its `dbgAddMemRegion`
   (`BRK $03`, `ADD_REGION`) at `$01:D1F9` stopped the boot with "brk", where the disassembler shows `!!ADD_REGION`
   - `cpu.65c02.ts` (BRK): `decodeHypercall` reads through `bus.readDebug(address)`, with 16-bit addresses
   - `apple.bus.ts` `readDebug`: a 16-bit address is the main bank, whatever ALTZP (and RAMRD / 80STORE) say. For
     `$D000-$FFFF` its default path reads `bank2` / main RAM: the CPU fetched the BRK from aux LC, the decoder
     reads main LC's bytes there, sees no hypercall byte
-  - fix: the CPU's `peek` reads each byte as the CPU sees it now, `readDebug((bus.getBank(a) << 16) | a)`
-    (`getBank` knows ALTZP, RAMRD, 80STORE; the BRK case already uses it, for the stop address only). Test: a
-    hypercall in aux LC with ALTZP on, its arguments pointing at main RAM
-  - meanwhile captain-goodnight's tiny-dos doesn't call it
+  - fix: the CPU decodes through `bus.peek` when the bus has one: `read`'s banking (ALTZP, RAMRD, 80STORE + PAGE2
+    / HIRES, LC bank), `readDebug` on `$C000-$CFFF` so no soft switch is triggered. Not
+    `readDebug((getBank(a) << 16) | a)`: `getBank` ignores 80STORE. Tests: `hypercall.test.ts` (real //e bus, call in
+    aux LC with ALTZP on, its string in main RAM), `peek.test.ts` (aux LC, 80STORE), `brk.test.ts` (`peek` first)
+  - captain-goodnight's tiny-dos can call `dbgAddMemRegion` again
 
 - **FIXED** disassembly, jump history: after a Ctrl+click on a label, Back was sometimes disabled though the previous
   address was in the history (Back to A, then Ctrl+click from A: A matched the last entry, the index stayed at 0)
