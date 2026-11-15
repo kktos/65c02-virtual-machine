@@ -75,10 +75,38 @@ export function absoluteInstructionLength(opcode: number) {
 	return null;
 }
 
-/** What the volume number was when the disk was formatted: the VTOC's (T$11 S$00 + 6), else 254. */
-const volumeOf = (image: DiskImage) => image.readSector(0x11, 0)[6] || 254;
+/** VTOC fields (Beneath Apple DOS, chapter 4) */
+const VTOC = { CATALOG_TRACK: 0x01, VOLUME: 0x06, SECTORS_PER_TRACK: 0x35, BYTES_PER_SECTOR: 0x36 } as const;
+const DEFAULT_VOLUME = 254;
 
-export type IobResult = { error: number; command: number; track: number; sector: number; buffer: number; offset: number };
+/**
+ * What the volume number was when the disk was formatted (a .dsk doesn't keep the address fields that hold
+ * it): the VTOC's (T$11 S$00), if that sector is one; else 254, what DOS 3.3 INIT uses. A disk with its own
+ * format (a game) can keep data in T$11: its byte 6 isn't a volume number.
+ */
+function volumeOf(image: DiskImage) {
+	const vtoc = image.readSector(0x11, 0);
+	const catalogTrack = vtoc[VTOC.CATALOG_TRACK] ?? 0;
+	const volume = vtoc[VTOC.VOLUME] ?? 0;
+	const isVtoc =
+		catalogTrack > 0 &&
+		catalogTrack < TRACKS &&
+		vtoc[VTOC.SECTORS_PER_TRACK] === SECTORS_PER_TRACK &&
+		vtoc[VTOC.BYTES_PER_SECTOR] === (SECTOR_SIZE & 0xff) &&
+		vtoc[VTOC.BYTES_PER_SECTOR + 1] === SECTOR_SIZE >> 8 &&
+		volume > 0 &&
+		volume < 0xff;
+	return isVtoc ? volume : DEFAULT_VOLUME;
+}
+
+export type IobResult = {
+	error: number;
+	command: number;
+	track: number;
+	sector: number;
+	buffer: number;
+	offset: number;
+};
 
 /**
  * The IOB's command on `data` (a 140K image in ProDOS order) from `slot`'s drive 1. The disk is read-only:

@@ -176,10 +176,11 @@ describe("a DOS 3.3 RWTS driving the Disk II in slot 5: found on the stack, patc
 	const DONE = 0x0307;
 
 	/** IOB: read T$11 S$0F (DOS logical) into $2000, slot 5 drive 1 */
-	const setUp = (track = 0x11, sector = 0x0f) => {
+	const setUp = (track = 0x11, sector = 0x0f, vtoc?: number[]) => {
 		const m = boot();
 		const disk = new Uint8Array(FLOPPY_SIZE);
 		disk.fill(0xa5, (track * 16 + sector) * 256, (track * 16 + sector + 1) * 256);
+		if (vtoc) disk.set(vtoc, 0x11 * 16 * 256); // T$11 S$00
 		m.bus.insertMedia(disk, { slot: 5, name: "dos33.dsk" });
 		for (const [address, bytes] of program) bytes.forEach((byte, i) => m.bus.write(address + i, byte));
 		[0x01, 0x50, 0x01, 0x00, track, sector, 0, 0, BUFFER & 0xff, BUFFER >> 8, 0, 0, 0x01, 0xff].forEach((byte, i) =>
@@ -202,6 +203,29 @@ describe("a DOS 3.3 RWTS driving the Disk II in slot 5: found on the stack, patc
 		expect([BUFFER, BUFFER + 255].map((a) => m.bus.read(a))).toEqual([0xa5, 0xa5]);
 		expect([0x400, 0x401, 0x402].map((a) => m.bus.read(a))).toEqual([0x4c, 0x90, 0xc5]); // JMP $C590
 		expect([0x453, 0x454].map((a) => m.bus.read(a))).toEqual([0x10, 0xfb]); // BPL put back
+	});
+
+	// A DOS 3.3 VTOC: catalog T$11 S$0F, release 3, volume 42, ..., 35 tracks, 16 sectors, 256 bytes per sector
+	const VTOC = [0x04, 0x11, 0x0f, 0x03, 0, 0, 42, ...Array(0x2d).fill(0), 35, 16, 0x00, 0x01];
+	// Captain Goodnight (ACE crack) side A: game data in T$11 S$00, its byte 6 ($88) isn't a volume number
+	const NOT_A_VTOC = [0x80, 0x80, 0x80, 0xa8, 0x00, 0x57, 0x88, 0xa8, ...Array(0x2c).fill(0x80), 0x80, 0xd5, 0, 4];
+
+	it("a VTOC: the volume found is its volume, which the IOB's must match ($20 otherwise)", () => {
+		const m = setUp(0x11, 0x0f, VTOC);
+		m.bus.write(IOB + 0x03, 254);
+		runUntil(m, () => pc(m) === DONE, 1000);
+		expect(m.bus.read(IOB + 0x0e)).toBe(42);
+		expect(m.bus.read(IOB + 0x0d)).toBe(0x20);
+		expect(m.regs.getUint8(REG_STATUS_OFFSET) & FLAG_C_MASK).toBe(FLAG_C_MASK);
+	});
+
+	it("T$11 S$00 not a VTOC (a game's own format): volume 254, as DOS 3.3 INIT makes it", () => {
+		const m = setUp(0x10, 0x0f, NOT_A_VTOC);
+		m.bus.write(IOB + 0x03, 254); // what the boot image's IOB expects
+		runUntil(m, () => pc(m) === DONE, 1000);
+		expect(m.bus.read(IOB + 0x0e)).toBe(254);
+		expect(m.bus.read(IOB + 0x0d)).toBe(0);
+		expect(m.bus.read(BUFFER)).toBe(0xa5);
 	});
 
 	it("next calls go straight to the card through the patched entry", () => {
