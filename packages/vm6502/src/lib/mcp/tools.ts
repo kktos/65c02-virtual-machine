@@ -1230,7 +1230,7 @@ export const MCP_TOOLS: McpTool[] = [
 			"The machine's interrupt controller (IMU, vectored IRQs: see IMU.md), read without side effects. " +
 			"`enabled` (vectoring on; off, the IMU only ORs its lines into the IRQ), `auto_eoi`, `irq_line` (the " +
 			"CPU's IRQ input as the IMU drives it), `current` (CURRENT: the ID whose handler runs, null if none), " +
-			"`index` (INDEX register), and per ID (`ids`): `source` (what drives it: on the //e ID n is slot n's card), " +
+			"`index` (INDEX register), and per ID (`ids`): `source` (what drives it: on the //e ID n is slot n's card, ID 8 the timer at $C0B8), " +
 			"`prio` (0 highest), `handler` (null: none, the IRQ goes through $FFFE/F), `bank`, `pending` (line " +
 			"asserted), `masked`, `in_service`, `eligible` (can interrupt now). `frames`: the vectored IRQs not yet " +
 			"returned from, innermost last (`sp`: the SP after the pushes, where the matching RTI is expected). " +

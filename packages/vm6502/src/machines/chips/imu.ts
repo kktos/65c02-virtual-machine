@@ -37,7 +37,9 @@ export type IMUSnapshot = {
 	frames: IMUFrame[];
 };
 
-export const IMU_IDS = 8;
+export const IMU_IDS = 16;
+/** The 16-bit masks (MASK, PENDING, INSERVICE): one bit per ID. */
+const ID_BITS = (1 << IMU_IDS) - 1;
 
 // Ports (offsets)
 export const IMU_PORT_INDEX = 0;
@@ -51,9 +53,9 @@ export const IMU_REG_CTRL = 0x00;
 export const IMU_REG_MASK = 0x01;
 export const IMU_REG_PENDING = 0x02;
 export const IMU_REG_INSERVICE = 0x03;
-export const IMU_REG_PRIO = 0x08;
-export const IMU_REG_HANDLER = 0x10;
-export const IMU_REG_HBANK = 0x18;
+export const IMU_REG_PRIO = 0x10;
+export const IMU_REG_HANDLER = 0x20;
+export const IMU_REG_HBANK = 0x30;
 
 export const IMU_CTRL_ENABLE = 0x80;
 export const IMU_CTRL_AUTO_EOI = 0x40;
@@ -62,7 +64,7 @@ export const IMU_CTRL_AUTO_EOI = 0x40;
 export const IMU_NONE = 0xff;
 
 /**
- * Interrupt Management Unit: vectored interrupts for the 6502 (see IMU.md). Up to 8 lines (IDs), each with a
+ * Interrupt Management Unit: vectored interrupts for the 6502 (see IMU.md). Up to 16 lines (IDs), each with a
  * handler, a bank byte and a priority. The CPU asks it for the vector before it reads $FFFE (`irqVector`), and tells
  * it about every RTI (`onRti`). Disabled (the reset state), it only ORs its lines into the CPU's IRQ.
  *
@@ -127,7 +129,7 @@ export class IMU {
 	 * (fully nested). Only meaningful with vectoring enabled.
 	 */
 	get eligible() {
-		let eligible = this.asserted & ~this.mask & 0xff;
+		let eligible = this.asserted & ~this.mask & ID_BITS;
 		if (this.isr === 0 || eligible === 0) return eligible;
 		// The highest priority in service blocks itself and everything below it
 		let top = IMU_IDS;
@@ -252,21 +254,24 @@ export class IMU {
 	/** DATA LO: the 8-bit registers take it at once, a handler's low byte and the banks are staged. */
 	private writeLo(reg: number, value: number) {
 		if (reg >= IMU_REG_PRIO && reg < IMU_REG_PRIO + IMU_IDS) {
-			this.prio[reg - IMU_REG_PRIO] = value & 0x07;
+			this.prio[reg - IMU_REG_PRIO] = value & (IMU_IDS - 1);
 			this.updateIrq();
 		} else if (reg >= IMU_REG_HANDLER && reg < IMU_REG_HANDLER + IMU_IDS) this.stagedLo = value;
 		else if (reg >= IMU_REG_HBANK && reg < IMU_REG_HBANK + IMU_IDS) this.stagedBanks[reg - IMU_REG_HBANK] = value;
+		else if (reg === IMU_REG_MASK) this.stagedLo = value;
 		else if (reg === IMU_REG_CTRL) {
 			this.ctrl = value & (IMU_CTRL_ENABLE | IMU_CTRL_AUTO_EOI);
-			this.updateIrq();
-		} else if (reg === IMU_REG_MASK) {
-			this.mask = value;
 			this.updateIrq();
 		}
 	}
 
-	/** DATA HI: commits a handler (both bytes, and its staged bank). Ignored by every other register. */
+	/** DATA HI: commits a 16-bit register (both bytes): MASK, or a handler with its staged bank. Else ignored. */
 	private writeHi(reg: number, value: number) {
+		if (reg === IMU_REG_MASK) {
+			this.mask = (value << 8) | this.stagedLo;
+			this.updateIrq();
+			return;
+		}
 		if (reg < IMU_REG_HANDLER || reg >= IMU_REG_HANDLER + IMU_IDS) return;
 		const id = reg - IMU_REG_HANDLER;
 		this.handlers[id] = (value << 8) | this.stagedLo;
@@ -312,6 +317,7 @@ export class IMU {
 	}
 
 	restoreSnapshot(state: IMUSnapshot) {
+		this.reset(); // a state saved with fewer IDs leaves the others as reset
 		this.ctrl = state.ctrl;
 		this.mask = state.mask;
 		this.isr = state.isr;

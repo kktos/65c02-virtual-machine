@@ -24,6 +24,7 @@ import type { InterruptsState } from "@/types/interrupts.interface";
 import { IMU, IMU_IDS, type IMUSnapshot } from "../chips/imu";
 import { AppleKeyboard, type KeyboardSnapshot, textToKeyCodes } from "./bus/apple.keyboard";
 import { loadMemoryChunks } from "./bus/apple.loader";
+import { AppleTimer, type TimerSnapshot } from "./bus/apple.timer";
 import { installSoftSwitches } from "./bus/apple.switches";
 import { type AppleCardId, slotsConfig } from "./conf/slots.conf";
 import {
@@ -62,6 +63,8 @@ import { readTextScreen } from "./video/text.screen";
 // IIgs default colors - white on blue
 const DEFAULT_TEXT_COLORS = 0xf2;
 const PWREDUP = 0x3f4;
+/** The IMU ID the timer drives (the slots take 1-7). */
+export const TIMER_IMU_ID = 8;
 const SOFTEV_HI = 0x3f3;
 /** Builds a card for a slot, `rom` being its $Cn00-$CnFF space (in slotRoms). One per card of slotsConfig. */
 const CARD_FACTORIES: Record<AppleCardId, (bus: AppleBus, slot: number, rom: Uint8Array) => ISlotCard> = {
@@ -207,6 +210,8 @@ type AppleBusSnapshot = {
 	keyboard?: KeyboardSnapshot;
 	/** Absent from the states saved before the IMU. */
 	imu?: IMUSnapshot;
+	/** Absent from the states saved before the timer. */
+	timer?: TimerSnapshot;
 };
 
 export class AppleBus implements IBus {
@@ -309,10 +314,12 @@ export class AppleBus implements IBus {
 	// The CPU's interrupt inputs (see setInterruptLines)
 	private lines?: InterruptLines;
 	/**
-	 * The interrupt controller (see IMU.md): ID n is slot n's IRQ, its registers at $C0B0-$C0BF (slot 3's I/O).
-	 * Disabled, it ORs the cards into the CPU's IRQ line.
+	 * The interrupt controller (see IMU.md): ID n is slot n's IRQ (1-7), ID 8 the timer, its registers at
+	 * $C0B0-$C0B7 (slot 3's I/O). Disabled, it ORs its lines into the CPU's IRQ line.
 	 */
 	public readonly imu = new IMU({ irq: (active) => this.lines?.irq(active) });
+	/** The built-in periodic interrupt source (IMU ID 8), its registers at $C0B8-$C0BF. */
+	public readonly timer = new AppleTimer(() => this.imu.setLine(TIMER_IMU_ID, this.timer.irq));
 	// The card id in each slot (for the debugger's interrupt sources)
 	private readonly cardIds: (AppleCardId | undefined)[] = [];
 
@@ -356,6 +363,8 @@ export class AppleBus implements IBus {
 		const handlers = installSoftSwitches(this);
 		this.readHandlers = handlers.readHandlers;
 		this.writeHandlers = handlers.writeHandlers;
+
+		this.registerTickHandler((cycles) => this.timer.tick(cycles));
 
 		this.registerTickHandler((_cycles) => {
 			const registers = this.registers as DataView<ArrayBufferLike>;
@@ -432,6 +441,7 @@ export class AppleBus implements IBus {
 	public getInterrupts(): InterruptsState {
 		const sources = Array.from({ length: IMU_IDS }, (_, id) => {
 			const cardId = this.cardIds[id];
+			if (id === TIMER_IMU_ID) return "Timer ($C0B8)";
 			if (!cardId) return null;
 			return `Slot ${id}: ${slotsConfig.cards?.find((card) => card.id === cardId)?.label ?? cardId}`;
 		});
@@ -555,6 +565,7 @@ export class AppleBus implements IBus {
 
 		for (const card of this.slots) card?.reset?.();
 		this.imu.reset();
+		this.timer.reset();
 		this.updateIrq();
 
 		this.syncState();
@@ -1254,11 +1265,12 @@ export class AppleBus implements IBus {
 			cards: this.slots.map((card) => card?.snapshot?.()),
 			keyboard: this.keyboard.snapshot(),
 			imu: this.imu.snapshot(),
+			timer: this.timer.snapshot(),
 		};
 	}
 
 	public restoreSnapshot(state: unknown) {
-		const { fields, paddleTimers, cards, keyboard, imu } = state as AppleBusSnapshot;
+		const { fields, paddleTimers, cards, keyboard, imu, timer } = state as AppleBusSnapshot;
 		Object.assign(this, fields);
 		this.paddleTimers = [...paddleTimers];
 		this.keyboard.restoreSnapshot(keyboard);
@@ -1267,6 +1279,8 @@ export class AppleBus implements IBus {
 		});
 		if (imu) this.imu.restoreSnapshot(imu);
 		else this.imu.reset();
+		if (timer) this.timer.restoreSnapshot(timer);
+		else this.timer.reset();
 		this.updateIrq();
 		this.syncState(); // the soft switches the main thread and the UI read
 		this.fakingVBL = fields.fakingVBL as boolean; // syncState toggles it (once per frame)
