@@ -14,7 +14,7 @@ export interface ISlotCard {
 	ejectMedia?(): void;
 	tick?(cycles: number): void;
 
-	/** The card asserts the IRQ line (the bus ORs the cards: see AppleBus.updateIrq). */
+	/** The card asserts its IRQ line (the bus gives it to the IMU, ID = slot: see AppleBus.updateIrq). */
 	readonly irq?: boolean;
 	/** The Apple's RESET line. */
 	reset?(): void;

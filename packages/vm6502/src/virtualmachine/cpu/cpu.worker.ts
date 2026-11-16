@@ -298,6 +298,9 @@ async function handleMessage(event: MessageEvent) {
 		case "deleteStates":
 			reply(event, saveStateCommand(command, event.data));
 			break;
+		case "getInterrupts":
+			reply(event, { state: bus?.getInterrupts?.() ?? null });
+			break;
 		case "refreshVideo":
 			if (video) video.tick();
 			reply(event);

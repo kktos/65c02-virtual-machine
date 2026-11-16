@@ -416,7 +416,12 @@ const describeSlots = (config: MachineConfig, layout: SlotLayout | undefined) =>
 		slots: Array.from({ length: slots.count }, (_, i) => {
 			const card = current[i + 1];
 			const builtin = slots.builtin?.[i + 1];
-			return { slot: i + 1, card: card ?? null, ...(card && { label: label(card) }), ...(builtin && { builtin }) };
+			return {
+				slot: i + 1,
+				card: card ?? null,
+				...(card && { label: label(card) }),
+				...(builtin && { builtin }),
+			};
 		}),
 		is_default: sameSlotLayout(current, resolveSlotLayout(slots)),
 		cards: slots.cards.map((c) => ({ id: c.id, label: c.label, slots: c.slots ?? "any" })),
@@ -1216,6 +1221,45 @@ export const MCP_TOOLS: McpTool[] = [
 				result: "restarted",
 				...describeSlots(newVm.machineConfig, newVm.busOptions.slots),
 				...describeRegisters(newVm),
+			});
+		},
+	},
+	{
+		name: "get_interrupts",
+		description:
+			"The machine's interrupt controller (IMU, vectored IRQs: see IMU.md), read without side effects. " +
+			"`enabled` (vectoring on; off, the IMU only ORs its lines into the IRQ), `auto_eoi`, `irq_line` (the " +
+			"CPU's IRQ input as the IMU drives it), `current` (CURRENT: the ID whose handler runs, null if none), " +
+			"`index` (INDEX register), and per ID (`ids`): `source` (what drives it: on the //e ID n is slot n's card), " +
+			"`prio` (0 highest), `handler` (null: none, the IRQ goes through $FFFE/F), `bank`, `pending` (line " +
+			"asserted), `masked`, `in_service`, `eligible` (can interrupt now). `frames`: the vectored IRQs not yet " +
+			"returned from, innermost last (`sp`: the SP after the pushes, where the matching RTI is expected). " +
+			"The registers are at $C0B0-$C0B3 on the //e (INDEX, DATA LO, DATA HI, CURRENT / EOI).",
+		inputSchema: { type: "object", properties: {} },
+		annotations: { readOnlyHint: true },
+		async execute() {
+			const vm = await getVm();
+			const state = await vm.getInterrupts();
+			if (!state) throw new Error(`${vm.machineConfig.name} has no interrupt controller (IMU)`);
+			const bit = (mask: number, id: number) => (mask & (1 << id)) !== 0;
+			return json({
+				enabled: state.enabled,
+				auto_eoi: state.autoEoi,
+				irq_line: state.irq,
+				current: state.current === 0xff ? null : state.current,
+				index: hex(state.index, 2),
+				ids: state.lines.map((line) => ({
+					id: line.id,
+					source: state.sources[line.id] ?? null,
+					prio: line.prio,
+					handler: line.handler ? hex(line.handler, 4) : null,
+					...(line.bank && { bank: line.bank }),
+					pending: bit(state.pending, line.id),
+					masked: bit(state.mask, line.id),
+					in_service: bit(state.inService, line.id),
+					eligible: bit(state.eligible, line.id),
+				})),
+				frames: state.frames.map((frame) => ({ id: frame.id, sp: hex(frame.sp, 2), saved: frame.saved })),
 			});
 		},
 	},

@@ -97,6 +97,11 @@ Priorities reviewed 2026-11-08 (what blocked the use cases):
    Checked: `machines/apple2/tests/saveState.test.ts` on the real //e (state back exactly; 50k instructions
    replayed from a restored state end identical); live on Conan: restore → `memory_diff changed` = 0 of 98304,
    and 20000 steps twice from the state give the same registers and memory.
+6. **`get_interrupts`**: the IMU (vectored IRQs, `IMU.md`), read-only: `enabled`, `auto_eoi`, `irq_line`,
+   `current`, `index`, per ID its `source` (on the //e, the card in slot n), `prio`, `handler` (null: the
+   `$FFFE/F` fallback), `bank`, and `pending` / `masked` / `in_service` / `eligible`, then the `frames` (vectored
+   IRQs not yet returned from). A worker request (`getInterrupts` → `IBus.getInterrupts()`); a machine without an
+   IMU (the PET) answers an error. The same data feeds the debugger's Interrupts window. Checked live on the //e.
 
 ## Follow-ups fixed
 

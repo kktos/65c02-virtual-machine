@@ -1,7 +1,7 @@
 # IMU: Interrupt Management Unit (design)
 
-Status: implemented for the //e (`src/machines/chips/imu.ts`, CPU hooks, //e wiring, save state). Not yet: the
-debugger / MCP view, the PET, the MMU's `InterruptContext`.
+Status: implemented for the //e (`src/machines/chips/imu.ts`, CPU hooks, //e wiring, save state, debugger window
+and `get_interrupts` MCP tool). Not yet: the PET, the MMU's `InterruptContext`.
 
 The IMU is vectored interrupts for the 6502: up to 8 interrupt sources (IDs), each with its own handler and
 priority. When an ID wins, the CPU jumps straight to its handler instead of going through `$FFFE/F`. An ID with no
@@ -248,8 +248,11 @@ in place of `AppleBus.updateIrq` / `PetBus.updateIrq`.
   reset with the bus (any reset, as the cards), and a save state without it (older) restores a reset IMU.
 - **PET** (optional): ID 0 PIA1, ID 1 PIA2, ID 2 VIA.
 - **Save state**: the IMU's state in the machine's `MachineStateSpec`.
-- **Debugger / MCP**: show CTRL, MASK, PENDING, INSERVICE, CURRENT, the handler table and the frames. For example
-  a `get_interrupts` MCP tool and a panel in the UI.
+- **Debugger / MCP**: `IBus.getInterrupts()` (the IMU's `getState()` plus what drives each ID; on the //e, the
+  card in slot n), read by the worker command `getInterrupts`. The `get_interrupts` MCP tool, and the Interrupts
+  window (toolbar, next to Machine State; only on machines with an IMU): the control bits, CURRENT, INDEX, per
+  ID its source, priority, handler (click: disassembly), bank and pending / masked / in service / eligible, and
+  the frames. Read-only: the registers are programmed through `$C0B0`–`$C0B3`.
 
 ## Tests
 

@@ -40,6 +40,7 @@ import type { StepResult, StopInfo } from "@/types/stopinfo.interface";
 import type { EmulatorRegisters } from "@/types/emulatorstate.interface";
 import { logBus } from "./logbus.class";
 import { encodeIndexedPng } from "@/lib/png.lib";
+import type { InterruptsState } from "@/types/interrupts.interface";
 
 const MACHINES_BASE_PATH = "../machines";
 const busModules = import.meta.glob("../machines/*/*.bus.ts");
@@ -588,6 +589,9 @@ export class VirtualMachine {
 	public setInstructionTrace = (enabled: boolean, size?: number) =>
 		this.request<TraceSnapshot>("setInstructionTrace", { enabled, size });
 	/** The last `count` instructions recorded (all if omitted), oldest first. */
+	/** The machine's interrupt controller (IMU), null when it has none. */
+	public getInterrupts = () =>
+		this.request<{ state: InterruptsState | null }>("getInterrupts").then((answer) => answer.state);
 	public getInstructionTrace = (count?: number) => this.request<TraceSnapshot>("getInstructionTrace", { count });
 	public setTraceSize = (size: number) => this.worker.postMessage({ command: "setTraceSize", size });
 	public getTrace = () => this.worker.postMessage({ command: "getTrace" });
