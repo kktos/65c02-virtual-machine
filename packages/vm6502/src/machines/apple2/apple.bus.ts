@@ -20,6 +20,7 @@ import {
 	REG_TBCOLOR_OFFSET,
 } from "@/virtualmachine/cpu/shared-memory";
 import { generateApple2Assets } from "./bus/apple.assets";
+import { IMU, type IMUSnapshot } from "../chips/imu";
 import { AppleKeyboard, type KeyboardSnapshot, textToKeyCodes } from "./bus/apple.keyboard";
 import { loadMemoryChunks } from "./bus/apple.loader";
 import { installSoftSwitches } from "./bus/apple.switches";
@@ -203,6 +204,8 @@ type AppleBusSnapshot = {
 	cards: unknown[];
 	/** Absent from the states saved before the typed keys queue. */
 	keyboard?: KeyboardSnapshot;
+	/** Absent from the states saved before the IMU. */
+	imu?: IMUSnapshot;
 };
 
 export class AppleBus implements IBus {
@@ -302,9 +305,13 @@ export class AppleBus implements IBus {
 
 	private tickHandlers: ((cycles: number) => void)[] = [];
 
-	// The CPU's interrupt inputs (see setInterruptLines), and the IRQ line as the cards drive it
+	// The CPU's interrupt inputs (see setInterruptLines)
 	private lines?: InterruptLines;
-	private irqActive = false;
+	/**
+	 * The interrupt controller (see IMU.md): ID n is slot n's IRQ, its registers at $C0B0-$C0BF (slot 3's I/O).
+	 * Disabled, it ORs the cards into the CPU's IRQ line.
+	 */
+	public readonly imu = new IMU({ irq: (active) => this.lines?.irq(active) });
 
 	// Soft Switch Dispatch Tables (0xC000 - 0xC0FF)
 	private readHandlers: Array<() => number>;
@@ -400,16 +407,21 @@ export class AppleBus implements IBus {
 
 	public setInterruptLines(lines: InterruptLines) {
 		this.lines = lines;
-		this.irqActive = false;
 		this.updateIrq();
+		lines.irq(this.imu.irqActive);
 	}
 
-	/** The IRQ line: the cards' ORed (a card calls it when its own changes). */
+	/** The cards' IRQs, to the IMU: slot n on ID n (a card calls it when its own changes). */
 	public updateIrq() {
-		const active = this.slots.some((card) => card?.irq);
-		if (active === this.irqActive) return;
-		this.irqActive = active;
-		this.lines?.irq(active);
+		for (let slot = 1; slot < this.slots.length; slot++) this.imu.setLine(slot, this.slots[slot]?.irq ?? false);
+	}
+
+	public irqVector(sp: number) {
+		return this.imu.irqVector(sp);
+	}
+
+	public onRti(sp: number) {
+		this.imu.onRti(sp);
 	}
 
 	public initAudio(sampleRate: number): void {
@@ -528,6 +540,7 @@ export class AppleBus implements IBus {
 		this.keyboard.reset();
 
 		for (const card of this.slots) card?.reset?.();
+		this.imu.reset();
 		this.updateIrq();
 
 		this.syncState();
@@ -1226,17 +1239,20 @@ export class AppleBus implements IBus {
 			paddleTimers: [...this.paddleTimers],
 			cards: this.slots.map((card) => card?.snapshot?.()),
 			keyboard: this.keyboard.snapshot(),
+			imu: this.imu.snapshot(),
 		};
 	}
 
 	public restoreSnapshot(state: unknown) {
-		const { fields, paddleTimers, cards, keyboard } = state as AppleBusSnapshot;
+		const { fields, paddleTimers, cards, keyboard, imu } = state as AppleBusSnapshot;
 		Object.assign(this, fields);
 		this.paddleTimers = [...paddleTimers];
 		this.keyboard.restoreSnapshot(keyboard);
 		this.slots.forEach((card, slot) => {
 			if (cards[slot] !== undefined) card?.restoreSnapshot?.(cards[slot]);
 		});
+		if (imu) this.imu.restoreSnapshot(imu);
+		else this.imu.reset();
 		this.updateIrq();
 		this.syncState(); // the soft switches the main thread and the UI read
 		this.fakingVBL = fields.fakingVBL as boolean; // syncState toggles it (once per frame)

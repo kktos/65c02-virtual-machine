@@ -5,6 +5,8 @@ import * as SoftSwitches from "./softswitches.consts";
 
 // Cycles per paddle unit
 const PADDLE_TIMEOUT_MULTIPLIER = 11.18;
+/** The slot whose I/O space ($C0B0-$C0BF) holds the IMU's registers. */
+const IMU_SLOT = 3;
 
 export function installSoftSwitches(bus: AppleBus) {
 	const readHandlers: Array<() => number> = Array.from({ length: 256 });
@@ -204,6 +206,12 @@ export function installSoftSwitches(bus: AppleBus) {
 	for (let addr = 0xc090; addr <= 0xc0ff; addr++) {
 		const slot = ((addr >> 4) & 0x0f) - 8;
 		const offset = addr & 0x0f;
+		if (slot === IMU_SLOT) {
+			// Slot 3's I/O: the IMU's registers (no card in slot 3, see IMU.md)
+			onRead(addr, () => bus.imu.read(offset));
+			onWrite(addr, (v) => bus.imu.write(offset, v));
+			continue;
+		}
 		onRead(addr, () => bus.slots[slot]?.readIo(offset) ?? 0);
 		onWrite(addr, (v) => bus.slots[slot]?.writeIo(offset, v));
 	}

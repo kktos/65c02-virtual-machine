@@ -133,7 +133,7 @@ describe("Mockingboard on the //e", () => {
 
 	it("runs a free-running T1 IRQ handler through the ROM's $3FE vector", () => {
 		const { bus, regs } = boot();
-		// biome-ignore format: assembly listing
+		// oxfmt-ignore
 		const program = [
 			0x78, // SEI
 			0xa9, 0xc0, 0x8d, 0x0e, 0xc7, // LDA #$C0 / STA $C70E: T1 IRQ on
@@ -143,7 +143,7 @@ describe("Mockingboard on the //e", () => {
 			0x58, // CLI
 			0x4c, 0x16, 0x03, // JMP *
 		];
-		// biome-ignore format: assembly listing
+		// oxfmt-ignore
 		const handler = [
 			0xad, 0x04, 0xc7, // LDA $C704: acknowledged
 			0xe6, 0x06, // INC $06
@@ -162,6 +162,99 @@ describe("Mockingboard on the //e", () => {
 		for (let i = 0; i < 100_000 && bus.totalCycles - start < end; i++) stepInstruction();
 		expect(bus.totalCycles - start).toBeGreaterThanOrEqual(end);
 		expect(bus.read(0x06)).toBe(10);
+	});
+
+	// The T1 setup of the test above, then `extra` before the CLI / JMP *.
+	const timerProgram = (extra: number[]) => {
+		// oxfmt-ignore
+		const program = [
+			0x78, // SEI
+			0xa9, 0xc0, 0x8d, 0x0e, 0xc7, // LDA #$C0 / STA $C70E: T1 IRQ on
+			0xa9, 0x40, 0x8d, 0x0b, 0xc7, // LDA #$40 / STA $C70B: free-run
+			0xa9, 0x00, 0x8d, 0x04, 0xc7, // LDA #$00 / STA $C704
+			0xa9, 0x10, 0x8d, 0x05, 0xc7, // LDA #$10 / STA $C705: every $1002 cycles
+			...extra,
+		];
+		const cli = 0x300 + program.length;
+		return [...program, 0x58, 0x4c, (cli + 1) & 0xff, (cli + 1) >> 8]; // CLI / JMP *
+	};
+
+	const run = (bus: AppleBus, periods: number) => {
+		const start = bus.totalCycles;
+		const end = 0x1002 * periods + 500;
+		for (let i = 0; i < 100_000 && bus.totalCycles - start < end; i++) stepInstruction();
+	};
+
+	it("vectors the Mockingboard's IRQ (slot 7) straight to its handler through the IMU", () => {
+		const { bus, regs } = boot();
+		// oxfmt-ignore
+		const imuSetup = [
+			0xa9, 0x17, 0x8d, 0xb0, 0xc0, // LDA #$10+7 / STA IMU_INDEX: HANDLER 7
+			0xa9, 0x80, 0x8d, 0xb1, 0xc0, // LDA #<$0380 / STA IMU_DATALO: staged
+			0xa9, 0x03, 0x8d, 0xb2, 0xc0, // LDA #>$0380 / STA IMU_DATAHI: committed
+			0xa9, 0x00, 0x8d, 0xb0, 0xc0, // LDA #$00 / STA IMU_INDEX: CTRL
+			0xa9, 0x80, 0x8d, 0xb1, 0xc0, // LDA #$80 / STA IMU_DATALO: enable
+		];
+		// oxfmt-ignore
+		const handler = [
+			0x48, // PHA
+			0xad, 0x04, 0xc7, // LDA $C704: acknowledged
+			0x8d, 0xb3, 0xc0, // STA IMU_EOI
+			0xe6, 0x06, // INC $06
+			0x68, // PLA
+			0x40, // RTI
+		];
+		timerProgram(imuSetup).forEach((byte, index) => bus.write(0x300 + index, byte));
+		handler.forEach((byte, index) => bus.write(0x380 + index, byte));
+		bus.write(0x3fe, 0x00); // $3FE → $0000: the ROM path would never count
+		bus.write(0x3ff, 0x00);
+		bus.write(0x06, 0);
+		regs.setUint16(REG_PC_OFFSET, 0x300, true);
+
+		run(bus, 10);
+		expect(bus.read(0x06)).toBe(10);
+		expect(bus.read(0xc0b3)).toBe(0xff); // CURRENT: nothing in service
+		expect(bus.imu.getFrames()).toHaveLength(0);
+	});
+
+	it("falls back to the ROM's $3FE vector for a card without a handler", () => {
+		const { bus, regs } = boot();
+		// oxfmt-ignore
+		const enable = [
+			0xa9, 0x00, 0x8d, 0xb0, 0xc0, // LDA #$00 / STA IMU_INDEX: CTRL
+			0xa9, 0x80, 0x8d, 0xb1, 0xc0, // LDA #$80 / STA IMU_DATALO: enable, no handler for slot 7
+		];
+		// oxfmt-ignore
+		const handler = [
+			0xad, 0x04, 0xc7, // LDA $C704: acknowledged
+			0xe6, 0x06, // INC $06
+			0xa5, 0x45, // LDA $45: A, as the ROM saved it
+			0x40, // RTI
+		];
+		timerProgram(enable).forEach((byte, index) => bus.write(0x300 + index, byte));
+		handler.forEach((byte, index) => bus.write(0x380 + index, byte));
+		bus.write(0x3fe, 0x80);
+		bus.write(0x3ff, 0x03);
+		bus.write(0x06, 0);
+		regs.setUint16(REG_PC_OFFSET, 0x300, true);
+
+		run(bus, 10);
+		expect(bus.read(0x06)).toBe(10);
+		expect(bus.read(0xc0b3)).toBe(0xff);
+	});
+
+	it("keeps the IMU in a save state, and resets it", () => {
+		const { bus } = boot();
+		bus.write(0xc0b0, 0x17);
+		bus.write(0xc0b1, 0x34);
+		bus.write(0xc0b2, 0x12);
+		const state = structuredClone(bus.snapshot());
+		bus.reset();
+		expect(bus.read(0xc0b0)).toBe(0);
+		expect(bus.read(0xc0b1)).toBe(0); // CTRL: disabled
+		bus.restoreSnapshot(state);
+		expect(bus.read(0xc0b0)).toBe(0x17);
+		expect(bus.read(0xc0b1) | (bus.read(0xc0b2) << 8)).toBe(0x1234);
 	});
 
 	it("drops the IRQ line on reset", () => {
