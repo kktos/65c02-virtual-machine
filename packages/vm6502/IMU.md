@@ -100,38 +100,74 @@ foreign RTI at exactly the recorded SP would be taken for the matching one.
 ## Registers
 
 The IMU exposes `read(offset)` / `write(offset, value)` over 16 bytes. The machine's bus decodes the address and
-forwards, the same way the PET bus forwards to `VIA6522`.
+forwards, the same way the PET bus forwards to `VIA6522`. Only 4 offsets are used: an index register, a 16-bit
+data port, and a direct port for the handler's hot path. The registers themselves are reached through the index,
+like the AY of the Mockingboard or the 6845 of a Videx.
+
+### Ports
 
 | Off | R/W | Name | Role |
 |---|---|---|---|
-| 0 | RW | CTRL | bit 7: vectoring enabled. bit 6: auto-EOI. Others reserved, 0 |
-| 1 | RW | MASK | bit n = 1: ID n can't interrupt (vectoring enabled only) |
-| 2 | R | PENDING | `asserted`: the lines requesting, mask ignored |
-| 3 | R | INSERVICE | ISR: one bit per ID in service |
-| 4 | R | CURRENT | the in-service ID with the highest priority (the handler running), `$FF` if none |
-| 5 | W | EOI | any value: clears the ISR bit of `CURRENT` (non-specific EOI) |
-| 6 | RW | SELECT | the ID (0–7) that offsets 7 to 10 refer to |
-| 7 | RW | HLO | handler of the selected ID, low byte (staged) |
-| 8 | RW | HHI | handler, high byte. **Writing it commits** HLO, HHI and HBANK together |
-| 9 | RW | HBANK | bank byte (staged), for the machine's `InterruptContext`. 0: current map |
-| 10 | RW | PRIO | priority of the selected ID, 0 (highest) to 7 |
-| 11–15 | | | reserved |
+| 0 | RW | INDEX | the register (`$00`–`$FF`) that DATA LO / DATA HI refer to. Readable, for save / restore |
+| 1 | RW | DATA LO | the selected register, low byte |
+| 2 | RW | DATA HI | the selected register, high byte |
+| 3 | R | CURRENT | the in-service ID with the highest priority (the handler running), `$FF` if none |
+| 3 | W | EOI | any value: clears the ISR bit of `CURRENT` (non-specific EOI) |
+| 4–15 | | | reserved: read 0, writes ignored |
 
-- Reads of HLO, HHI and HBANK return the committed entry, so software can see the handlers.
-- Committing on the HHI write means an IRQ taken between two writes never sees half an address.
+CURRENT and EOI have their own port so a handler never touches INDEX: an EOI is a single `STA`.
+
+### Registers
+
+| Reg | Width | R/W | Name | Role |
+|---|---|---|---|---|
+| `$00` | 8 | RW | CTRL | bit 7: vectoring enabled. bit 6: auto-EOI. Others reserved, 0 |
+| `$01` | 8 | RW | MASK | bit n = 1: ID n can't interrupt (vectoring enabled only) |
+| `$02` | 8 | R | PENDING | `asserted`: the lines requesting, mask ignored |
+| `$03` | 8 | R | INSERVICE | ISR: one bit per ID in service |
+| `$08`–`$0F` | 8 | RW | PRIO n | priority of ID n, 0 (highest) to 7 |
+| `$10`–`$17` | 16 | RW | HANDLER n | handler of ID n. **Writing DATA HI commits** it, with HBANK n |
+| `$18`–`$1F` | 8 | RW | HBANK n | bank byte of ID n (staged), for the machine's `InterruptContext`. 0: current map |
+| others | | | | reserved: read 0, writes ignored |
+
+The gaps (`$04`–`$07`, `$20` and up) leave room for more control registers or for 16 IDs.
+
+- 8-bit registers: a DATA LO write takes effect at once. DATA HI reads 0 and ignores writes.
+- 16-bit registers: a DATA LO write is staged, the DATA HI write commits both bytes. An IRQ taken between the two
+  writes never sees half an address.
+- HBANK n is staged too, and committed by the DATA HI write of HANDLER n: the handler and its bank change together.
+- Reads return the committed values (handler, bank), so software and the debugger can see the table.
 - A handler of `$0000` means no handler, so that ID takes the fallback path.
-- Reset: CTRL = 0 (disabled), MASK = 0, all handlers `$0000`, PRIO = ID (so the lower ID wins by default),
-  ISR = 0, no frames.
+- Reset: CTRL = 0 (disabled), MASK = 0, all handlers `$0000`, all banks 0, PRIO n = n (so the lower ID wins by
+  default), INDEX = 0, ISR = 0, no frames.
+
+### INDEX and interrupts
+
+INDEX is shared. If code writes INDEX, an IRQ comes in, and the handler writes INDEX too, the code then writes
+DATA to the wrong register. So **INDEX / DATA sequences run with interrupts disabled**:
+
+- Code that can be interrupted wraps them in `PHP` / `SEI` ... `PLP`. Not `SEI` ... `CLI`: called with I already
+  set (from a handler), a `CLI` would let interrupts in too early.
+- Handlers start with I set, so they're covered. A handler that does `CLI` to let higher priorities in must
+  disable them again around its INDEX / DATA accesses.
+- A handler that only EOIs doesn't use INDEX at all (port 3).
+- NMI isn't blocked by `SEI`. An NMI handler must not use INDEX unless it saves and restores it (INDEX is readable).
 
 Setting up a handler:
 
 ```asm
-        LDA #3        : STA IMU_SELECT
-        LDA #2        : STA IMU_PRIO
-        LDA #0        : STA IMU_HBANK
-        LDA #<HANDLER : STA IMU_HLO
-        LDA #>HANDLER : STA IMU_HHI     ; commit
-        LDA #$80      : STA IMU_CTRL    ; enable
+        PHP
+        SEI
+        LDA #$08+3    : STA IMU_INDEX   ; PRIO 3
+        LDA #2        : STA IMU_DATALO
+        LDA #$18+3    : STA IMU_INDEX   ; HBANK 3
+        LDA #0        : STA IMU_DATALO  ; staged
+        LDA #$10+3    : STA IMU_INDEX   ; HANDLER 3
+        LDA #<HANDLER : STA IMU_DATALO  ; staged
+        LDA #>HANDLER : STA IMU_DATAHI  ; commit (handler and bank)
+        LDA #$00      : STA IMU_INDEX   ; CTRL
+        LDA #$80      : STA IMU_DATALO  ; enable
+        PLP
 
 HANDLER PHA
         ...                             ; acknowledge the device (it releases its line)
@@ -183,7 +219,7 @@ class IMU {
 	irqVector(sp: number): number | undefined;
 	onRti(sp: number): void;
 	reset(): void;
-	// save state: CTRL, MASK, handler table (lo, hi, bank, prio), staged entry, SELECT, ISR, frames
+	// save state: CTRL, MASK, handler table (lo, hi, bank, prio), INDEX, staged low byte and banks, ISR, frames
 }
 ```
 
@@ -208,8 +244,9 @@ in place of `AppleBus.updateIrq` / `PetBus.updateIrq`.
 
 ## Tests
 
-- IMU: arbitration (mask, priority, ties), fully nested blocking, EOI, auto-EOI, commit on HHI, fallback for
-  `$0000`, transparent when disabled, reset.
+- IMU: arbitration (mask, priority, ties), fully nested blocking, EOI, auto-EOI, commit on DATA HI (with the
+  bank), 8-bit registers ignoring DATA HI, reserved registers and ports, fallback for `$0000`, transparent when
+  disabled, reset.
 - CPU: a vectored IRQ (7 cycles, frame, I set, D clear), fallback to `$FFFE`, BRK never redirected (hypercalls
   included), NMI unchanged.
 - RTI matching with a fake `InterruptContext`: enter / exit order around the pushes and pulls, nested IRQs, an
@@ -226,7 +263,8 @@ in place of `AppleBus.updateIrq` / `PetBus.updateIrq`.
 - Slot 3 is free: on a //e the 80-column card sits in the aux slot and only uses soft switches in `$C00x`/`$C01x`,
   never `$C0Bx`. In vm6502, slot 3 can't hold a card (`CARD_SLOTS` in `conf/slots.conf.ts`), so `$C0B0`–`$C0BF`
   reads 0 and ignores writes today.
-- 16 addresses, the size of the register file: the bus forwards `address & $0F` with no further decoding.
+- 16 addresses, the IMU's offsets: the bus forwards `address & $0F` with no further decoding. Only `$C0B0`–`$C0B3`
+  are used (INDEX, DATA LO, DATA HI, CURRENT / EOI), the rest stays reserved.
 - Risk: ][+ software for an 80-column card in slot 3 (Videx Videoterm, Sup'R'Terminal) programs its CRTC at
   `$C0B0`/`$C0B1`. It first checks for the card's ID in `$C3xx`, which on a //e is the internal 80-column
   firmware, so it doesn't get there.
