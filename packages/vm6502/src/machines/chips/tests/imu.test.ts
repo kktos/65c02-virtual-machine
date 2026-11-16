@@ -3,6 +3,7 @@ import {
 	IMU,
 	IMU_CTRL_AUTO_EOI,
 	IMU_CTRL_ENABLE,
+	IMU_IDS,
 	IMU_NONE,
 	IMU_PORT_CURRENT,
 	IMU_PORT_DATAHI,
@@ -26,6 +27,10 @@ const setup = (context?: InterruptContext) => {
 		imu.write(IMU_PORT_INDEX, reg);
 		imu.write(IMU_PORT_DATALO, value);
 	};
+	const set16 = (reg: number, value: number) => {
+		set8(reg, value & 0xff);
+		imu.write(IMU_PORT_DATAHI, value >> 8);
+	};
 	const get = (reg: number) => {
 		imu.write(IMU_PORT_INDEX, reg);
 		return imu.read(IMU_PORT_DATALO) | (imu.read(IMU_PORT_DATAHI) << 8);
@@ -37,7 +42,7 @@ const setup = (context?: InterruptContext) => {
 	};
 	const enable = (ctrl = 0) => set8(IMU_REG_CTRL, IMU_CTRL_ENABLE | ctrl);
 	const eoi = () => imu.write(IMU_PORT_CURRENT, 0);
-	return { imu, irq, set8, get, setHandler, enable, eoi };
+	return { imu, irq, set8, set16, get, setHandler, enable, eoi };
 };
 
 describe("IMU", () => {
@@ -47,7 +52,7 @@ describe("IMU", () => {
 			expect(get(IMU_REG_CTRL)).toBe(0);
 			expect(get(IMU_REG_MASK)).toBe(0);
 			expect(get(IMU_REG_INSERVICE)).toBe(0);
-			for (let id = 0; id < 8; id++) {
+			for (let id = 0; id < IMU_IDS; id++) {
 				expect(get(IMU_REG_PRIO + id)).toBe(id);
 				expect(get(IMU_REG_HANDLER + id)).toBe(0);
 				expect(get(IMU_REG_HBANK + id)).toBe(0);
@@ -56,9 +61,9 @@ describe("IMU", () => {
 		});
 
 		it("reset() puts everything back", () => {
-			const { imu, set8, setHandler, enable, get } = setup();
+			const { imu, set8, setHandler, enable, get, set16 } = setup();
 			enable();
-			set8(IMU_REG_MASK, 0x0f);
+			set16(IMU_REG_MASK, 0x0f);
 			set8(IMU_REG_PRIO + 2, 7);
 			setHandler(2, 0x1234, 5);
 			imu.setLine(2, true);
@@ -76,8 +81,8 @@ describe("IMU", () => {
 
 	describe("disabled", () => {
 		it("ORs its lines into the IRQ, whatever the mask", () => {
-			const { imu, irq, set8 } = setup();
-			set8(IMU_REG_MASK, 0xff);
+			const { imu, irq, set16 } = setup();
+			set16(IMU_REG_MASK, 0xff);
 			imu.setLine(4, true);
 			expect(irq).toHaveBeenLastCalledWith(true);
 			imu.setLine(7, true);
@@ -97,9 +102,9 @@ describe("IMU", () => {
 
 	describe("registers", () => {
 		it("PENDING shows the raw lines, mask ignored", () => {
-			const { imu, set8, get, enable } = setup();
+			const { imu, get, enable, set16 } = setup();
 			enable();
-			set8(IMU_REG_MASK, 0x10);
+			set16(IMU_REG_MASK, 0x10);
 			imu.setLine(4, true);
 			imu.setLine(1, true);
 			expect(get(IMU_REG_PENDING)).toBe(0x12);
@@ -113,16 +118,24 @@ describe("IMU", () => {
 
 		it("8-bit registers: DATA LO takes effect at once, DATA HI reads 0 and is ignored", () => {
 			const { imu, set8, get } = setup();
-			set8(IMU_REG_MASK, 0x5a);
+			set8(IMU_REG_PRIO + 2, 0x05);
 			imu.write(IMU_PORT_DATAHI, 0xff);
-			expect(get(IMU_REG_MASK)).toBe(0x5a);
+			expect(get(IMU_REG_PRIO + 2)).toBe(0x05);
 			expect(imu.read(IMU_PORT_DATAHI)).toBe(0);
 		});
 
-		it("PRIO keeps 3 bits, CTRL its 2 defined bits", () => {
+		it("MASK is 16 bits: DATA LO is staged, DATA HI commits both bytes", () => {
+			const { imu, set8, get } = setup();
+			set8(IMU_REG_MASK, 0x5a);
+			expect(get(IMU_REG_MASK)).toBe(0); // staged only
+			imu.write(IMU_PORT_DATAHI, 0xa5);
+			expect(get(IMU_REG_MASK)).toBe(0xa55a);
+		});
+
+		it("PRIO keeps 4 bits, CTRL its 2 defined bits", () => {
 			const { set8, get } = setup();
 			set8(IMU_REG_PRIO + 1, 0xfd);
-			expect(get(IMU_REG_PRIO + 1)).toBe(5);
+			expect(get(IMU_REG_PRIO + 1)).toBe(13);
 			set8(IMU_REG_CTRL, 0xff);
 			expect(get(IMU_REG_CTRL)).toBe(0xc0);
 		});
@@ -171,10 +184,26 @@ describe("IMU", () => {
 	});
 
 	describe("arbitration", () => {
+		it("IDs 8-15 work like the others: handler, priority, mask (high byte)", () => {
+			const { imu, set8, set16, setHandler, enable, eoi } = setup();
+			enable();
+			setHandler(15, 0x150f);
+			setHandler(2, 0x1002);
+			set8(IMU_REG_PRIO + 15, 0); // ID 15 above ID 2
+			imu.setLine(2, true);
+			imu.setLine(15, true);
+			expect(imu.getState().pending).toBe(0x8004);
+			expect(imu.irqVector(0xfc)).toEqual({ id: 15, address: 0x150f });
+			expect(imu.read(IMU_PORT_CURRENT)).toBe(15);
+			eoi();
+			set16(IMU_REG_MASK, 0x8000);
+			expect(imu.irqVector(0xf9)).toEqual({ id: 2, address: 0x1002 });
+		});
+
 		it("the lowest PRIO wins; ties go to the lowest ID", () => {
 			const { imu, set8, setHandler, enable, eoi } = setup();
 			enable();
-			for (let id = 0; id < 8; id++) setHandler(id, 0x1000 + id);
+			for (let id = 0; id < IMU_IDS; id++) setHandler(id, 0x1000 + id);
 			set8(IMU_REG_PRIO + 6, 0);
 			set8(IMU_REG_PRIO + 2, 1);
 			set8(IMU_REG_PRIO + 5, 1);
@@ -188,14 +217,14 @@ describe("IMU", () => {
 		});
 
 		it("a masked ID can't interrupt", () => {
-			const { imu, irq, set8, setHandler, enable } = setup();
+			const { imu, irq, setHandler, enable, set16 } = setup();
 			enable();
 			setHandler(4, 0x1004);
-			set8(IMU_REG_MASK, 0x10);
+			set16(IMU_REG_MASK, 0x10);
 			imu.setLine(4, true);
 			expect(irq).not.toHaveBeenCalled();
 			expect(imu.irqVector(0xfc)).toBeUndefined();
-			set8(IMU_REG_MASK, 0);
+			set16(IMU_REG_MASK, 0);
 			expect(irq).toHaveBeenLastCalledWith(true);
 		});
 
@@ -222,7 +251,7 @@ describe("IMU", () => {
 		it("an in-service ID blocks itself and lower priorities, not higher ones", () => {
 			const { imu, irq, setHandler, enable, get } = setup();
 			enable();
-			for (let id = 0; id < 8; id++) setHandler(id, 0x1000 + id);
+			for (let id = 0; id < IMU_IDS; id++) setHandler(id, 0x1000 + id);
 			imu.setLine(4, true);
 			expect(imu.irqVector(0xfc)?.id).toBe(4);
 			expect(get(IMU_REG_INSERVICE)).toBe(0x10);
@@ -251,7 +280,7 @@ describe("IMU", () => {
 		it("EOI clears CURRENT's bit, the highest priority in service, and unblocks", () => {
 			const { imu, irq, setHandler, enable, eoi, get } = setup();
 			enable();
-			for (let id = 0; id < 8; id++) setHandler(id, 0x1000 + id);
+			for (let id = 0; id < IMU_IDS; id++) setHandler(id, 0x1000 + id);
 			imu.setLine(4, true);
 			imu.irqVector(0xfc);
 			imu.setLine(4, false);
@@ -369,9 +398,9 @@ describe("IMU", () => {
 	});
 
 	it("snapshot / restoreSnapshot round-trip", () => {
-		const { imu, set8, setHandler, enable } = setup();
+		const { imu, set8, setHandler, enable, set16 } = setup();
 		enable();
-		set8(IMU_REG_MASK, 0x80);
+		set16(IMU_REG_MASK, 0x80);
 		set8(IMU_REG_PRIO + 3, 6);
 		setHandler(3, 0xbeef, 2);
 		set8(IMU_REG_HBANK + 5, 9); // staged

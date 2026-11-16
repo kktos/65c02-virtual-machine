@@ -189,7 +189,7 @@ describe("Mockingboard on the //e", () => {
 		const { bus, regs } = boot();
 		// oxfmt-ignore
 		const imuSetup = [
-			0xa9, 0x17, 0x8d, 0xb0, 0xc0, // LDA #$10+7 / STA IMU_INDEX: HANDLER 7
+			0xa9, 0x27, 0x8d, 0xb0, 0xc0, // LDA #$20+7 / STA IMU_INDEX: HANDLER 7
 			0xa9, 0x80, 0x8d, 0xb1, 0xc0, // LDA #<$0380 / STA IMU_DATALO: staged
 			0xa9, 0x03, 0x8d, 0xb2, 0xc0, // LDA #>$0380 / STA IMU_DATAHI: committed
 			0xa9, 0x00, 0x8d, 0xb0, 0xc0, // LDA #$00 / STA IMU_INDEX: CTRL
@@ -245,7 +245,7 @@ describe("Mockingboard on the //e", () => {
 
 	it("keeps the IMU in a save state, and resets it", () => {
 		const { bus } = boot();
-		bus.write(0xc0b0, 0x17);
+		bus.write(0xc0b0, 0x27);
 		bus.write(0xc0b1, 0x34);
 		bus.write(0xc0b2, 0x12);
 		const state = structuredClone(bus.snapshot());
@@ -253,18 +253,20 @@ describe("Mockingboard on the //e", () => {
 		expect(bus.read(0xc0b0)).toBe(0);
 		expect(bus.read(0xc0b1)).toBe(0); // CTRL: disabled
 		bus.restoreSnapshot(state);
-		expect(bus.read(0xc0b0)).toBe(0x17);
+		expect(bus.read(0xc0b0)).toBe(0x27);
 		expect(bus.read(0xc0b1) | (bus.read(0xc0b2) << 8)).toBe(0x1234);
 	});
 
-	it("names each IMU ID after the card in its slot", () => {
+	it("names each IMU ID after the card in its slot, ID 8 the timer", () => {
 		const { bus } = boot();
 		const { sources, lines } = bus.getInterrupts();
 		expect(sources[7]).toBe("Slot 7: Mockingboard");
 		expect(sources[4]).toBe("Slot 4: AppleMouse");
 		expect(sources[0]).toBeNull();
 		expect(sources[3]).toBeNull();
-		expect(lines).toHaveLength(8);
+		expect(sources[8]).toBe("Timer ($C0B8)");
+		expect(sources[9]).toBeNull();
+		expect(lines).toHaveLength(16);
 	});
 
 	it("drops the IRQ line on reset", () => {

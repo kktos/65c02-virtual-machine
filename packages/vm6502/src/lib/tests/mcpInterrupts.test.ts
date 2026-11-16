@@ -28,6 +28,10 @@ const set8 = (reg: number, value: number) => {
 	imu.write(0, reg);
 	imu.write(1, value);
 };
+const set16 = (reg: number, value: number) => {
+	set8(reg, value & 0xff);
+	imu.write(2, value >> 8);
+};
 
 describe("get_interrupts tool", () => {
 	beforeEach(() => {
@@ -42,7 +46,7 @@ describe("get_interrupts tool", () => {
 	it("reports the reset IMU: disabled, no handlers, PRIO n = n", async () => {
 		const result = await call();
 		expect(result).toMatchObject({ enabled: false, auto_eoi: false, irq_line: false, current: null, index: "$00" });
-		expect(result.ids).toHaveLength(8);
+		expect(result.ids).toHaveLength(16);
 		expect(result.ids[7]).toEqual({
 			id: 7,
 			source: "Slot 7: Mockingboard",
@@ -61,7 +65,7 @@ describe("get_interrupts tool", () => {
 		set8(IMU_REG_HBANK + 7, 2);
 		set8(IMU_REG_HANDLER + 7, 0x80);
 		imu.write(2, 0x03);
-		set8(IMU_REG_MASK, 0x10);
+		set16(IMU_REG_MASK, 0x10);
 		set8(IMU_REG_CTRL, IMU_CTRL_ENABLE);
 		imu.setLine(4, true);
 		imu.setLine(7, true);

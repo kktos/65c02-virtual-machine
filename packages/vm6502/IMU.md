@@ -1,9 +1,9 @@
 # IMU: Interrupt Management Unit (design)
 
-Status: implemented for the //e (`src/machines/chips/imu.ts`, CPU hooks, //e wiring, save state, debugger window
-and `get_interrupts` MCP tool). Not yet: the PET, the MMU's `InterruptContext`.
+Status: implemented for the //e (`src/machines/chips/imu.ts`, CPU hooks, //e wiring, the //e timer on ID 8, save
+state, debugger window and `get_interrupts` MCP tool). Not yet: the PET, the MMU's `InterruptContext`.
 
-The IMU is vectored interrupts for the 6502: up to 8 interrupt sources (IDs), each with its own handler and
+The IMU is vectored interrupts for the 6502: up to 16 interrupt sources (IDs), each with its own handler and
 priority. When an ID wins, the CPU jumps straight to its handler instead of going through `$FFFE/F`. An ID with no
 handler goes through `$FFFE/F` as today. It's per machine: a machine that doesn't wire an IMU is unchanged.
 
@@ -126,19 +126,20 @@ CURRENT and EOI have their own port so a handler never touches INDEX: an EOI is 
 | Reg | Width | R/W | Name | Role |
 |---|---|---|---|---|
 | `$00` | 8 | RW | CTRL | bit 7: vectoring enabled. bit 6: auto-EOI. Others reserved, 0 |
-| `$01` | 8 | RW | MASK | bit n = 1: ID n can't interrupt (vectoring enabled only) |
-| `$02` | 8 | R | PENDING | `asserted`: the lines requesting, mask ignored |
-| `$03` | 8 | R | INSERVICE | ISR: one bit per ID in service |
-| `$08`–`$0F` | 8 | RW | PRIO n | priority of ID n, 0 (highest) to 7 |
-| `$10`–`$17` | 16 | RW | HANDLER n | handler of ID n. **Writing DATA HI commits** it, with HBANK n |
-| `$18`–`$1F` | 8 | RW | HBANK n | bank byte of ID n (staged), for the machine's `InterruptContext`. 0: current map |
+| `$01` | 16 | RW | MASK | bit n = 1: ID n can't interrupt (vectoring enabled only). **Writing DATA HI commits** it |
+| `$02` | 16 | R | PENDING | `asserted`: the lines requesting, mask ignored |
+| `$03` | 16 | R | INSERVICE | ISR: one bit per ID in service |
+| `$10`–`$1F` | 8 | RW | PRIO n | priority of ID n, 0 (highest) to 15 |
+| `$20`–`$2F` | 16 | RW | HANDLER n | handler of ID n. **Writing DATA HI commits** it, with HBANK n |
+| `$30`–`$3F` | 8 | RW | HBANK n | bank byte of ID n (staged), for the machine's `InterruptContext`. 0: current map |
 | others | | | | reserved: read 0, writes ignored |
 
-The gaps (`$04`–`$07`, `$20` and up) leave room for more control registers or for 16 IDs.
+One block of 16 per table, the ID in the low nibble. The gaps (`$04`–`$0F`, `$40` and up) leave room for more
+control registers.
 
 - 8-bit registers: a DATA LO write takes effect at once. DATA HI reads 0 and ignores writes.
-- 16-bit registers: a DATA LO write is staged, the DATA HI write commits both bytes. An IRQ taken between the two
-  writes never sees half an address.
+- 16-bit registers (MASK, HANDLER n): a DATA LO write is staged, the DATA HI write commits both bytes. An IRQ taken
+  between the two writes never sees half an address or half a mask. PENDING and INSERVICE are read-only.
 - HBANK n is staged too, and committed by the DATA HI write of HANDLER n: the handler and its bank change together.
 - Reads return the committed values (handler, bank), so software and the debugger can see the table.
 - A handler of `$0000` means no handler, so that ID takes the fallback path.
@@ -162,11 +163,11 @@ Setting up a handler:
 ```asm
         PHP
         SEI
-        LDA #$08+3    : STA IMU_INDEX   ; PRIO 3
+        LDA #$10+3    : STA IMU_INDEX   ; PRIO 3
         LDA #2        : STA IMU_DATALO
-        LDA #$18+3    : STA IMU_INDEX   ; HBANK 3
+        LDA #$30+3    : STA IMU_INDEX   ; HBANK 3
         LDA #0        : STA IMU_DATALO  ; staged
-        LDA #$10+3    : STA IMU_INDEX   ; HANDLER 3
+        LDA #$20+3    : STA IMU_INDEX   ; HANDLER 3
         LDA #<HANDLER : STA IMU_DATALO  ; staged
         LDA #>HANDLER : STA IMU_DATAHI  ; commit (handler and bank)
         LDA #$00      : STA IMU_INDEX   ; CTRL
@@ -242,8 +243,9 @@ in place of `AppleBus.updateIrq` / `PetBus.updateIrq`.
   - Nothing else: the I gating, NMI, BRK, hypercalls and step out are unchanged.
 - **IMU**: `src/machines/chips/imu.ts`, next to `via6522.ts` / `pia6821.ts`: shared by the machines, and wired like
   them.
-- **Apple //e**: ID n = slot n (1–7), IDs 0 and 3 free for now (slot 3 never holds a card). `updateIrq` becomes
-  `imu.setLine(slot, card.irq)`. The registers at `$C0B0`–`$C0BF` (see below). The
+- **Apple //e**: ID n = slot n (1–7): a card has a single IRQ line, so one ID per slot. ID 8 is the built-in timer
+  (see "//e timer"). IDs 0 and 3 stay free (slot 3 never holds a card), 9–15 are for future non-slot sources.
+  `updateIrq` becomes `imu.setLine(slot, card.irq)`. The registers at `$C0B0`–`$C0B7` (see below). The
   bus implements `irqVector` / `onRti` by delegating, and later passes the MMU as the `InterruptContext`. The IMU is
   reset with the bus (any reset, as the cards), and a save state without it (older) restores a reset IMU.
 - **PET** (optional): ID 0 PIA1, ID 1 PIA2, ID 2 VIA.
@@ -275,17 +277,46 @@ in place of `AppleBus.updateIrq` / `PetBus.updateIrq`.
 - Slot 3 is free: on a //e the 80-column card sits in the aux slot and only uses soft switches in `$C00x`/`$C01x`,
   never `$C0Bx`. In vm6502, slot 3 can't hold a card (`CARD_SLOTS` in `conf/slots.conf.ts`), so `$C0B0`–`$C0BF`
   reads 0 and ignores writes today.
-- 16 addresses, the IMU's offsets: the bus forwards `address & $0F` with no further decoding. Only `$C0B0`–`$C0B3`
-  are used (INDEX, DATA LO, DATA HI, CURRENT / EOI), the rest stays reserved.
+- `$C0B0`–`$C0B7`, the IMU's offsets 0–7: only `$C0B0`–`$C0B3` are used (INDEX, DATA LO, DATA HI, CURRENT / EOI),
+  the rest stays reserved. `$C0B8`–`$C0BF` is the timer's.
 - Risk: ][+ software for an 80-column card in slot 3 (Videx Videoterm, Sup'R'Terminal) programs its CRTC at
   `$C0B0`/`$C0B1`. It first checks for the card's ID in `$C3xx`, which on a //e is the internal 80-column
   firmware, so it doesn't get there.
 - Consequence: slot 3's I/O space is reserved for the IMU. If slot 3 ever takes a card (with `SLOTC3ROM` on), its
   `readIo` / `writeIo` won't be reached.
 
+## //e timer
+
+A periodic interrupt source built into the //e (no card), on **ID 8**, its registers at `$C0B8`–`$C0BA`. It is
+stopped at reset, so it never interrupts a program that didn't start it. Without vectoring it raises the plain IRQ
+like a card does (`$FFFE/F`).
+
+| Addr | R/W | Name | Role |
+|---|---|---|---|
+| `$C0B8` | RW | CTRL | W: bit 7 = 1 starts it (a full period from now), 0 stops it. R: bit 7 running, bit 0 fired |
+| `$C0B9` | W | ACK | any value: releases the line (reads 0) |
+| `$C0BA` | RW | PERIOD | in frames (1/60 s, 17030 cycles), 0 = 256. Reset: 60 (about a second). Taken at the next start or pulse |
+| `$C0BB`–`$C0BF` | | | reserved: read 0, writes ignored |
+
+Every PERIOD frames it asserts its line, and holds it until ACK. It keeps its phase: the next pulse comes one period
+after the previous one, whenever it was acknowledged. Reset stops it and releases the line; it's in the save state.
+
+Implemented by `AppleTimer` (`src/machines/apple2/bus/apple.timer.ts`), wired by `AppleBus` to IMU ID 8.
+
+### Example: a seconds counter
+
+[`examples/imu-timer.asm`](examples/imu-timer.asm) is a complete use of the IMU with the timer: it installs a
+handler on ID 8, turns vectoring and the timer on, and returns. Every second the handler acknowledges the timer,
+counts in BCD at the top right of the 40-column text screen, and sends its EOI. It goes straight from the IRQ to the
+handler: no `$FFFE/F`, no `$3FE`.
+
+It's written for the debugger's mini-assembler: paste the file in the debugger console (it assembles at `$300`),
+then `300G` from the Monitor or `CALL 768` from BASIC. A reset stops it (timer stopped, vectoring off). The same
+program runs in `src/machines/apple2/tests/timer.test.ts`.
+
 ## Open questions
 
-- **ID 0 and ID 3 on the //e:** a VBL tick? Something else?
+- **ID 0 and ID 3 on the //e:** a VBL tick? Something else? IDs 9–15 too.
 - **Auto-EOI:** keep it, or require explicit EOI only?
 - **NMI through the IMU:** out of scope for now.
 - **The //e MMU:** what HBANK means, and how `enter` / `exit` switch maps. To be defined with the MMU.
