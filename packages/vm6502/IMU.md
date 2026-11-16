@@ -198,7 +198,8 @@ in place of `AppleBus.updateIrq` / `PetBus.updateIrq`.
   - Nothing else: the I gating, NMI, BRK, hypercalls and step out are unchanged.
 - **IMU**: `src/machines/chips/imu.ts`, next to `via6522.ts` / `pia6821.ts`: shared by the machines, and wired like
   them.
-- **Apple //e**: ID n = slot n (1–7), ID 0 free for now. `updateIrq` becomes `imu.setLine(slot, card.irq)`. The
+- **Apple //e**: ID n = slot n (1–7), IDs 0 and 3 free for now (slot 3 never holds a card). `updateIrq` becomes
+  `imu.setLine(slot, card.irq)`. The registers at `$C0B0`–`$C0BF` (see below). The
   bus implements `irqVector` / `onRti` by delegating, and later passes the MMU as the `InterruptContext`.
 - **PET** (optional): ID 0 PIA1, ID 1 PIA2, ID 2 VIA.
 - **Save state**: the IMU's state in the machine's `MachineStateSpec`.
@@ -215,12 +216,26 @@ in place of `AppleBus.updateIrq` / `PetBus.updateIrq`.
   RTI used as a jump passes through, an abandoned frame is dropped.
 - //e: Mockingboard in slot 4 vectored, a card without a handler falls back to `$3FE`.
 
+## //e placement of the registers
+
+**Decided: `$C0B0`–`$C0BF`, slot 3's device-select space** (`$C0B0 + offset`). Always there, no card to install.
+
+- Not a slot card: it would cost one of the six card slots.
+- Not slot 0 (`$C080`–`$C08F`): the language card uses all 16 addresses. The rest of `$C000`–`$C07F` is soft
+  switches, annunciators, paddles and `$C073` (RamWorks): only scattered holes.
+- Slot 3 is free: on a //e the 80-column card sits in the aux slot and only uses soft switches in `$C00x`/`$C01x`,
+  never `$C0Bx`. In vm6502, slot 3 can't hold a card (`CARD_SLOTS` in `conf/slots.conf.ts`), so `$C0B0`–`$C0BF`
+  reads 0 and ignores writes today.
+- 16 addresses, the size of the register file: the bus forwards `address & $0F` with no further decoding.
+- Risk: ][+ software for an 80-column card in slot 3 (Videx Videoterm, Sup'R'Terminal) programs its CRTC at
+  `$C0B0`/`$C0B1`. It first checks for the card's ID in `$C3xx`, which on a //e is the internal 80-column
+  firmware, so it doesn't get there.
+- Consequence: slot 3's I/O space is reserved for the IMU. If slot 3 ever takes a card (with `SLOTC3ROM` on), its
+  `readIo` / `writeIo` won't be reached.
+
 ## Open questions
 
-- **//e placement of the registers:**
-  - A slot card (`$C0n0`–`$C0nF`): opt-in through the slots and real-hardware-like, but it costs a slot.
-  - Fixed addresses in a free part of `$C0xx`: always there, but risks colliding with soft switches.
-- **ID 0 on the //e:** a VBL tick? Something else?
+- **ID 0 and ID 3 on the //e:** a VBL tick? Something else?
 - **Auto-EOI:** keep it, or require explicit EOI only?
 - **NMI through the IMU:** out of scope for now.
 - **The //e MMU:** what HBANK means, and how `enter` / `exit` switch maps. To be defined with the MMU.
