@@ -1,6 +1,7 @@
 # IMU: Interrupt Management Unit (design)
 
-Status: design, not implemented.
+Status: implemented for the //e (`src/machines/chips/imu.ts`, CPU hooks, //e wiring, save state). Not yet: the
+debugger / MCP view, the PET, the MMU's `InterruptContext`.
 
 The IMU is vectored interrupts for the 6502: up to 8 interrupt sources (IDs), each with its own handler and
 priority. When an ID wins, the CPU jumps straight to its handler instead of going through `$FFFE/F`. An ID with no
@@ -46,9 +47,9 @@ IRQ line asserted, I clear, end of instruction
   bus.irqVector(sp)
      IMU off, or no eligible ID          → undefined
      winner without handler              → undefined                (no ISR bit, no frame recorded)
-     winner with handler                 → ISR |= id (unless auto-EOI), CURRENT = id,
-                                           saved = context?.enter(bank) ?? 0, frames.push({ sp, saved }),
-                                           return handler
+     winner with handler                 → ISR |= id (unless auto-EOI), drop the frames at or below sp,
+                                           saved = context?.enter(bank) ?? 0, frames.push({ id, sp, saved }),
+                                           return { id, handler }
   PC = handler ?? read($FFFE/F)
   7 cycles
 ```
@@ -67,7 +68,10 @@ written to, even when the MMU switches the stack page (ALTZP on the //e).
 
 The 6502 also uses `RTI` for things that aren't returns from a vectored IRQ: the "push address, push P, RTI" jump
 trick, returning from a BRK, returning from an IRQ that took the fallback path. So the IMU keeps a stack of frames
-`{ sp, saved }`, one per vectored dispatch, where `sp` is the SP after the 3 pushes.
+`{ id, sp, saved }`, one per vectored dispatch, where `sp` is the SP after the 3 pushes.
+
+On a vectored dispatch, the frames whose `sp` is at or below the new one are dropped first: they were abandoned,
+and the new frame overwrites them. So the recorded `sp`s always decrease, and there are at most ~85 frames.
 
 On `onRti(sp)`:
 
@@ -111,7 +115,7 @@ like the AY of the Mockingboard or the 6845 of a Videx.
 | 0 | RW | INDEX | the register (`$00`–`$FF`) that DATA LO / DATA HI refer to. Readable, for save / restore |
 | 1 | RW | DATA LO | the selected register, low byte |
 | 2 | RW | DATA HI | the selected register, high byte |
-| 3 | R | CURRENT | the in-service ID with the highest priority (the handler running), `$FF` if none |
+| 3 | R | CURRENT | the in-service ID with the highest priority (the handler running), `$FF` if none. With auto-EOI (nothing in service): the ID of the innermost vectored handler not yet returned from (the top frame) |
 | 3 | W | EOI | any value: clears the ISR bit of `CURRENT` (non-specific EOI) |
 | 4–15 | | | reserved: read 0, writes ignored |
 
@@ -196,8 +200,8 @@ and short handlers go high, slow ones go low.
 // IBus: optional hooks, absent on machines without an IMU
 interface IBus {
 	/** IRQ only, never BRK / NMI. After the pushes; `sp` = SP after them.
-	 *  The handler of the winning ID, or undefined to fetch $FFFE/F. */
-	irqVector?(sp: number): number | undefined;
+	 *  The winning ID and its handler (the ID for the trace), or undefined to fetch $FFFE/F. */
+	irqVector?(sp: number): { id: number; address: number } | undefined;
 	/** On every RTI, after the opcode fetch, before the pulls; `sp` = SP before the pulls. */
 	onRti?(sp: number): void;
 }
@@ -216,8 +220,12 @@ class IMU {
 	setLine(id: number, active: boolean): void; // the devices
 	read(offset: number): number;
 	write(offset: number, value: number): void;
-	irqVector(sp: number): number | undefined;
+	irqVector(sp: number): { id: number; address: number } | undefined;
 	onRti(sp: number): void;
+	eoi(): void;
+	readRegister(reg: number): number; // for the debugger: no side effect
+	getFrames(): readonly { id: number; sp: number; saved: number }[];
+	get irqActive(): boolean; // the IRQ line as the IMU drives it
 	reset(): void;
 	// save state: CTRL, MASK, handler table (lo, hi, bank, prio), INDEX, staged low byte and banks, ISR, frames
 }
@@ -236,7 +244,8 @@ in place of `AppleBus.updateIrq` / `PetBus.updateIrq`.
   them.
 - **Apple //e**: ID n = slot n (1–7), IDs 0 and 3 free for now (slot 3 never holds a card). `updateIrq` becomes
   `imu.setLine(slot, card.irq)`. The registers at `$C0B0`–`$C0BF` (see below). The
-  bus implements `irqVector` / `onRti` by delegating, and later passes the MMU as the `InterruptContext`.
+  bus implements `irqVector` / `onRti` by delegating, and later passes the MMU as the `InterruptContext`. The IMU is
+  reset with the bus (any reset, as the cards), and a save state without it (older) restores a reset IMU.
 - **PET** (optional): ID 0 PIA1, ID 1 PIA2, ID 2 VIA.
 - **Save state**: the IMU's state in the machine's `MachineStateSpec`.
 - **Debugger / MCP**: show CTRL, MASK, PENDING, INSERVICE, CURRENT, the handler table and the frames. For example

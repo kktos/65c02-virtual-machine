@@ -1235,6 +1235,7 @@ export function executeInstruction(): number {
 				const shouldStop = stepOutTargetSP !== null && registersView.getUint8(REG_SP_OFFSET) >= stepOutTargetSP;
 
 				let s = registersView.getUint8(REG_SP_OFFSET);
+				bus.onRti?.(s); // before the pulls: an IMU restores the interrupted map, its stack included
 
 				// PLP (Pull Processor Status)
 				s = (s + 1) & 0xff;
@@ -2826,7 +2827,7 @@ export function executeInstruction(): number {
 
 /**
  * The interrupt sequence (NMI first, else IRQ): pushes PC and P (B clear, which tells it from a BRK), sets I,
- * clears D (65C02), and jumps through $FFFA (NMI) or $FFFE (IRQ). 7 cycles.
+ * clears D (65C02), and jumps through $FFFA (NMI) or $FFFE (IRQ), unless the bus vectors the IRQ (IMU). 7 cycles.
  */
 function serviceInterrupt(): number {
 	if (!registersView || !bus) return 0;
@@ -2847,9 +2848,11 @@ function serviceInterrupt(): number {
 	registersView.setUint8(REG_SP_OFFSET, s);
 	registersView.setUint8(REG_STATUS_OFFSET, (status | FLAG_I_MASK) & ~FLAG_D_MASK);
 
+	// A vectored IRQ (IMU): its handler, instead of $FFFE/F
+	const vectored = nmi ? undefined : bus.irqVector?.(s);
 	const vector = nmi ? 0xfffa : 0xfffe;
-	const to = bus.read(vector) | (bus.read(vector + 1) << 8);
+	const to = vectored ? vectored.address : bus.read(vector) | (bus.read(vector + 1) << 8);
 	registersView.setUint16(REG_PC_OFFSET, to, true);
-	logTrace(nmi ? "NMI" : "IRQ", from, to);
+	logTrace(nmi ? "NMI" : vectored ? `IRQ#${vectored.id}` : "IRQ", from, to);
 	return 7;
 }

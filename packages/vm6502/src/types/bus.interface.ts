@@ -34,6 +34,14 @@ export interface IBus {
 	 */
 	setInterruptLines?(lines: InterruptLines): void;
 
+	/**
+	 * Vectored IRQs (an IMU, see IMU.md). IRQ only, never BRK / NMI: called after the pushes, `sp` the SP after
+	 * them. The winning ID and its handler, or undefined to fetch $FFFE/F.
+	 */
+	irqVector?(sp: number): { id: number; address: number } | undefined;
+	/** On every RTI, after the opcode fetch, before the pulls: `sp` the SP before them. */
+	onRti?(sp: number): void;
+
 	registerTickHandler(handler: (cycles: number) => void): void;
 	unregisterTickHandler(handler: (cycles: number) => void): void;
 
