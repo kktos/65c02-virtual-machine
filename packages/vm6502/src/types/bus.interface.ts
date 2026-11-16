@@ -1,4 +1,5 @@
 import type { Dict } from "@/types/dict.type";
+import type { InterruptsState } from "@/types/interrupts.interface";
 
 export interface MachineStateSpec {
 	id: string;
@@ -41,6 +42,8 @@ export interface IBus {
 	irqVector?(sp: number): { id: number; address: number } | undefined;
 	/** On every RTI, after the opcode fetch, before the pulls: `sp` the SP before them. */
 	onRti?(sp: number): void;
+	/** The IMU's state for the debugger (no side effects), with what each ID is wired to. Absent: no IMU. */
+	getInterrupts?(): InterruptsState;
 
 	registerTickHandler(handler: (cycles: number) => void): void;
 	unregisterTickHandler(handler: (cycles: number) => void): void;

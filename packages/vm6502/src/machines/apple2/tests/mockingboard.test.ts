@@ -257,6 +257,16 @@ describe("Mockingboard on the //e", () => {
 		expect(bus.read(0xc0b1) | (bus.read(0xc0b2) << 8)).toBe(0x1234);
 	});
 
+	it("names each IMU ID after the card in its slot", () => {
+		const { bus } = boot();
+		const { sources, lines } = bus.getInterrupts();
+		expect(sources[7]).toBe("Slot 7: Mockingboard");
+		expect(sources[4]).toBe("Slot 4: AppleMouse");
+		expect(sources[0]).toBeNull();
+		expect(sources[3]).toBeNull();
+		expect(lines).toHaveLength(8);
+	});
+
 	it("drops the IRQ line on reset", () => {
 		const { bus } = boot();
 		bus.write(0xc70e, 0xc0);

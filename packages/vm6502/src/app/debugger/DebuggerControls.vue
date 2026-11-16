@@ -80,6 +80,7 @@
 		<BreakpointsDrawer :top="toolbarBottom" />
 		<MemoryMap />
 		<MachineState />
+		<Interrupts />
 		<button
 			@click="vm?.refreshVideo"
 			:disabled="isRunning"
@@ -127,6 +128,7 @@ import { useElementBounding } from "@vueuse/core";
 import BreakpointsDrawer from "@/app/debugger/BreakpointsDrawer.vue";
 import MemoryMap from "@/app/debugger/memorymap/MemoryMap.vue";
 import MachineState from "@/app/debugger/MachineState.vue";
+import Interrupts from "@/app/debugger/Interrupts.vue";
 import LayoutPicker from "@/app/layout/LayoutPicker.vue";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import { useCmdConsole } from "@/composables/useCmdConsole";

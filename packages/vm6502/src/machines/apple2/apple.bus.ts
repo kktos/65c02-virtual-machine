@@ -20,7 +20,8 @@ import {
 	REG_TBCOLOR_OFFSET,
 } from "@/virtualmachine/cpu/shared-memory";
 import { generateApple2Assets } from "./bus/apple.assets";
-import { IMU, type IMUSnapshot } from "../chips/imu";
+import type { InterruptsState } from "@/types/interrupts.interface";
+import { IMU, IMU_IDS, type IMUSnapshot } from "../chips/imu";
 import { AppleKeyboard, type KeyboardSnapshot, textToKeyCodes } from "./bus/apple.keyboard";
 import { loadMemoryChunks } from "./bus/apple.loader";
 import { installSoftSwitches } from "./bus/apple.switches";
@@ -312,6 +313,8 @@ export class AppleBus implements IBus {
 	 * Disabled, it ORs the cards into the CPU's IRQ line.
 	 */
 	public readonly imu = new IMU({ irq: (active) => this.lines?.irq(active) });
+	// The card id in each slot (for the debugger's interrupt sources)
+	private readonly cardIds: (AppleCardId | undefined)[] = [];
 
 	// Soft Switch Dispatch Tables (0xC000 - 0xC0FF)
 	private readHandlers: Array<() => number>;
@@ -347,6 +350,7 @@ export class AppleBus implements IBus {
 			}
 			const rom = this.slotRoms.subarray((slot - 1) * 0x100, slot * 0x100);
 			this.installCard(CARD_FACTORIES[cardId](this, slot, rom));
+			this.cardIds[slot] = cardId;
 		}
 
 		const handlers = installSoftSwitches(this);
@@ -422,6 +426,16 @@ export class AppleBus implements IBus {
 
 	public onRti(sp: number) {
 		this.imu.onRti(sp);
+	}
+
+	/** ID n: the card in slot n (IDs 0 and 3: nothing). */
+	public getInterrupts(): InterruptsState {
+		const sources = Array.from({ length: IMU_IDS }, (_, id) => {
+			const cardId = this.cardIds[id];
+			if (!cardId) return null;
+			return `Slot ${id}: ${slotsConfig.cards?.find((card) => card.id === cardId)?.label ?? cardId}`;
+		});
+		return { ...this.imu.getState(), sources };
 	}
 
 	public initAudio(sampleRate: number): void {

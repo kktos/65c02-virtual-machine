@@ -1,3 +1,5 @@
+import type { IMUState, InterruptFrame } from "@/types/interrupts.interface";
+
 /**
  * The machine's MMU, as the IMU sees it: switches to a handler's bank when its IRQ is taken, and back on the
  * matching RTI. Optional: without it, the banks (HBANK) are ignored.
@@ -16,7 +18,7 @@ export interface IMUOptions {
 }
 
 /** A vectored dispatch: `sp` the SP after the 3 pushes, `saved` what `context.enter` returned. */
-export type IMUFrame = { id: number; sp: number; saved: number };
+export type IMUFrame = InterruptFrame;
 
 /** The winner of a vectored IRQ: its ID, and the handler to jump to. */
 export type IMUVector = { id: number; address: number };
@@ -274,6 +276,24 @@ export class IMU {
 	/** The vectored dispatches not yet returned from, innermost last (for the debugger). */
 	getFrames(): readonly IMUFrame[] {
 		return this.frames;
+	}
+
+	/** Everything the debugger shows, without side effects. */
+	getState(): IMUState {
+		return {
+			ctrl: this.ctrl,
+			enabled: this.enabled,
+			autoEoi: this.autoEoi,
+			mask: this.mask,
+			pending: this.asserted,
+			inService: this.isr,
+			eligible: this.enabled ? this.eligible : 0,
+			current: this.current,
+			irq: this.irqOut,
+			index: this.index,
+			lines: this.prio.map((prio, id) => ({ id, prio, handler: this.handlers[id]!, bank: this.banks[id]! })),
+			frames: this.frames.map((frame) => ({ ...frame })),
+		};
 	}
 
 	snapshot(): IMUSnapshot {
