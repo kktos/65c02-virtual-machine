@@ -1,3 +1,4 @@
+import { type PatternMatch, searchPattern } from "@/lib/patternSearch.lib";
 import type { Dict } from "@/types/dict.type";
 import type { BusOptions } from "@/types/machine.interface";
 import type {
@@ -25,6 +26,7 @@ import { IMU, IMU_IDS } from "../chips/imu";
 import { AppleKeyboard, textToKeyCodes } from "./bus/apple.keyboard";
 import { loadMemoryChunks } from "./bus/apple.loader";
 import { AppleTimer } from "./bus/apple.timer";
+import { APPLE_SEARCH_REGIONS } from "./bus/apple.search";
 import { installSoftSwitches } from "./bus/apple.switches";
 import { type AppleCardId, slotsConfig } from "./conf/slots.conf";
 import {
@@ -81,90 +83,6 @@ const isAudioSource = (card: ISlotCard): card is ISlotCard & AudioSource =>
 
 const MEM_SCOPES = ["main", "aux", "io", "int_rom", "slot_rom", "rom", "lc_bank1", "lc_bank2"];
 type MemScopeOverride = { lcView: "BANK2" | "BANK1" | "ROM" | "AUTO"; lcAux: "MAIN" | "AUX"; cxView: "INT" | "SLOT" };
-type MemScopeOverrideValues = MemScopeOverride[keyof MemScopeOverride];
-
-type SearchTask = {
-	data: (self: AppleBus, off: number) => number;
-	location: string;
-	bank: number;
-	start: number;
-	end: number;
-};
-type MemRegionSearch = {
-	name: MemScopeOverrideValues | "MAIN";
-	data: (self: AppleBus, off: number) => number;
-	start: number;
-	end: number;
-	bankTest: (b: number) => boolean;
-};
-const allRegions: MemRegionSearch[] = [
-	{
-		name: "MAIN",
-		data: (self: AppleBus, off: number) => self.memory[RAM_OFFSET + off],
-		start: 0x0000,
-		end: 0xbfff,
-		bankTest: (b: number) => b === 0,
-	},
-	{
-		name: "MAIN",
-		data: (self: AppleBus, off: number) => self.memory[RAM_OFFSET + 0x10000 + off],
-		start: 0x0000,
-		end: 0xbfff,
-		bankTest: (b: number) => b > 0,
-	},
-
-	{
-		name: "INT",
-		data: (self: AppleBus, off: number) => self.romC[off - 0xc100],
-		start: 0xc100,
-		end: 0xcfff,
-		bankTest: (_b: number) => true,
-	},
-	{
-		name: "SLOT",
-		data: (self: AppleBus, off: number) => self.slotRoms[off - 0xc100],
-		start: 0xc100,
-		end: 0xcfff,
-		bankTest: (_b: number) => true,
-	},
-	{
-		name: "ROM",
-		data: (self: AppleBus, off: number) => self.rom[off - 0xd000],
-		start: 0xd000,
-		end: 0xffff,
-		bankTest: (_b: number) => true,
-	},
-
-	{
-		name: "BANK1",
-		data: (self: AppleBus, off: number) => self.memory[RAM_OFFSET + off],
-		start: 0xd000,
-		end: 0xffff,
-		bankTest: (b: number) => b === 0,
-	},
-	{
-		name: "BANK1",
-		data: (self: AppleBus, off: number) => self.memory[RAM_OFFSET + 0x10000 + off],
-		start: 0xd000,
-		end: 0xffff,
-		bankTest: (b: number) => b > 0,
-	},
-
-	{
-		name: "BANK2",
-		data: (self: AppleBus, off: number) => self.bank2[off - 0xd000],
-		start: 0xd000,
-		end: 0xdfff,
-		bankTest: (b: number) => b === 0,
-	},
-	{
-		name: "BANK2",
-		data: (self: AppleBus, off: number) => self.auxbank2[off - 0xd000],
-		start: 0xd000,
-		end: 0xdfff,
-		bankTest: (b: number) => b > 0,
-	},
-];
 
 export class AppleBus implements IBus {
 	public memory: Uint8Array;
@@ -1069,85 +987,8 @@ export class AppleBus implements IBus {
 		endAddress = 0xffffff,
 		is7Bit = false,
 		candidates?: number[][],
-	): { address: number; location: string }[] {
-		const results: { address: number; location: string }[] = [];
-		const len = pattern.length;
-		if (len === 0) return results;
-
-		// 1. "Pre-compile" a list of search tasks based on the address range.
-		const searchTasks: SearchTask[] = [];
-
-		const startBank = startAddress >> 16;
-		const endBank = endAddress >> 16;
-
-		for (let bank = startBank; bank <= endBank; bank++) {
-			const bankStartAddr16 = bank === startBank ? startAddress & 0xffff : 0x0000;
-			const bankEndAddr16 = bank === endBank ? endAddress & 0xffff : 0xffff;
-
-			for (const region of allRegions) {
-				if (!region.bankTest(bank)) continue;
-
-				const searchStart = Math.max(bankStartAddr16, region.start);
-				const searchEnd = Math.min(bankEndAddr16, region.end);
-
-				if (searchStart <= searchEnd) {
-					searchTasks.push({
-						data: region.data,
-						location: region.name,
-						bank,
-						start: searchStart,
-						end: searchEnd,
-					});
-				}
-			}
-		}
-
-		// 2. Execute the search tasks.
-		for (const task of searchTasks) {
-			for (let addr = task.start; addr <= task.end - len + 1; addr++) {
-				let match = true;
-
-				let wildcardIndex = 0;
-				for (let i = 0; i < len; i++) {
-					const byte = is7Bit ? task.data(this, addr + i) & 0x7f : task.data(this, addr + i);
-					const p = pattern[i];
-					if (p === null) {
-						const allowed = candidates?.[wildcardIndex];
-						wildcardIndex++;
-						if (allowed !== undefined && !allowed.includes(byte)) {
-							match = false;
-							break;
-						}
-					} else {
-						const expected = is7Bit ? p & 0x7f : p;
-						if (byte !== expected) {
-							match = false;
-							break;
-						}
-					}
-				}
-
-				if (match) results.push({ address: (task.bank << 16) | addr, location: task.location });
-			}
-		}
-
-		// 3. De-duplicate results from non-banked ROM regions
-		const finalResults: { address: number; location: string }[] = [];
-		const seenSharedAddresses = new Set<number>();
-
-		for (const result of results) {
-			const isShared = result.location === "ROM" || result.location === "INT" || result.location === "SLOT";
-			if (isShared) {
-				const addr16 = result.address & 0xffff;
-				if (!seenSharedAddresses.has(addr16)) {
-					finalResults.push(result);
-					seenSharedAddresses.add(addr16);
-				}
-			} else {
-				finalResults.push(result);
-			}
-		}
-		return finalResults;
+	): PatternMatch[] {
+		return searchPattern(this.memory, APPLE_SEARCH_REGIONS, pattern, startAddress, endAddress, is7Bit, candidates);
 	}
 
 	getMachineStateSpecs(): (MachineStateSpec | [MachineStateSpec, MachineStateSpec])[] {
