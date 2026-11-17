@@ -1,8 +1,10 @@
 // Mockingboard: the AYs written through the VIAs' ports, the VIAs' timer interrupts on the //e's IRQ line.
-import { describe, expect, it, vi } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import { parseHexData } from "@/lib/array.utils";
 import { initCPU, setIrqLine, setRunning, stepInstruction, triggerNmi } from "@/virtualmachine/cpu/cpu.65c02";
 import { MEMORY_OFFSET, REG_PC_OFFSET, STACK_METADATA_OFFSET } from "@/virtualmachine/cpu/shared-memory";
+import { loadDevices } from "@/virtualmachine/cpu/loaders/device.loader";
+import type { LoadedDevice } from "@/types/machine.interface";
 import { AppleBus } from "../apple.bus";
 import { apple2e } from "../apple.machine";
 import { AY38910 } from "../slots/mockingboard/ay38910";
@@ -109,6 +111,11 @@ describe("Mockingboard card", () => {
 });
 
 describe("Mockingboard on the //e", () => {
+	let devices: LoadedDevice[] = [];
+	beforeAll(async () => {
+		devices = await loadDevices(apple2e.devices);
+	});
+
 	const boot = () => {
 		vi.stubGlobal("self", { postMessage: () => undefined });
 		vi.stubGlobal("performance", { now: () => 0 });
@@ -117,6 +124,7 @@ describe("Mockingboard on the //e", () => {
 		const regs = new DataView(buffer, 0, MEMORY_OFFSET);
 		const mem = new Uint8Array(buffer, MEMORY_OFFSET, size);
 		const bus = new AppleBus(mem);
+		bus.installDevices(devices);
 		bus.setRegistersView(regs);
 		for (const c of apple2e.memory.chunks ?? [])
 			bus.load(c.addr, typeof c.data === "string" ? parseHexData(c.data) : (c.data as Uint8Array), c.bank, c.tag);

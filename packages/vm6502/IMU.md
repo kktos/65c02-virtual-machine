@@ -243,8 +243,9 @@ in place of `AppleBus.updateIrq` / `PetBus.updateIrq`.
   - Nothing else: the I gating, NMI, BRK, hypercalls and step out are unchanged.
 - **IMU**: `src/machines/chips/imu.ts`, next to `via6522.ts` / `pia6821.ts`: shared by the machines, and wired like
   them.
-- **Apple //e**: ID n = slot n (1–7): a card has a single IRQ line, so one ID per slot. ID 8 is the built-in timer
-  (see "//e timer"). IDs 0 and 3 stay free (slot 3 never holds a card), 9–15 are for future non-slot sources.
+- **Apple //e**: ID n = slot n (1–7): a card has a single IRQ line, so one ID per slot. IDs 8–15 are for the
+  devices (see "//e devices"): ID 8 is the built-in timer (see "//e timer"). IDs 0 and 3 stay free (slot 3 never
+  holds a card).
   `updateIrq` becomes `imu.setLine(slot, card.irq)`. The registers at `$C0B0`–`$C0B7` (see below). The
   bus implements `irqVector` / `onRti` by delegating, and later passes the MMU as the `InterruptContext`. The IMU is
   reset with the bus (any reset, as the cards), and a save state without it (older) restores a reset IMU.
@@ -278,7 +279,7 @@ in place of `AppleBus.updateIrq` / `PetBus.updateIrq`.
   never `$C0Bx`. In vm6502, slot 3 can't hold a card (`CARD_SLOTS` in `conf/slots.conf.ts`), so `$C0B0`–`$C0BF`
   reads 0 and ignores writes today.
 - `$C0B0`–`$C0B7`, the IMU's offsets 0–7: only `$C0B0`–`$C0B3` are used (INDEX, DATA LO, DATA HI, CURRENT / EOI),
-  the rest stays reserved. `$C0B8`–`$C0BF` is the timer's.
+  the rest stays reserved. `$C0B8`–`$C0BF` is free for a device: the timer's.
 - Risk: ][+ software for an 80-column card in slot 3 (Videx Videoterm, Sup'R'Terminal) programs its CRTC at
   `$C0B0`/`$C0B1`. It first checks for the card's ID in `$C3xx`, which on a //e is the internal 80-column
   firmware, so it doesn't get there.
@@ -301,7 +302,8 @@ like a card does (`$FFFE/F`).
 Every PERIOD frames it asserts its line, and holds it until ACK. It keeps its phase: the next pulse comes one period
 after the previous one, whenever it was acknowledged. Reset stops it and releases the line; it's in the save state.
 
-Implemented by `AppleTimer` (`src/machines/apple2/bus/apple.timer.ts`), wired by `AppleBus` to IMU ID 8.
+Implemented by `AppleTimer` (`src/machines/apple2/devices/timer.device.ts`), a device (see "//e devices") wired to
+IMU ID 8 and `$C0B8`–`$C0BF` by `conf/devices.conf.ts`.
 
 ### Example: a seconds counter
 
@@ -313,6 +315,25 @@ handler: no `$FFFE/F`, no `$3FE`.
 It's written for the debugger's mini-assembler: paste the file in the debugger console (it assembles at `$300`),
 then `300G` from the Monitor or `CALL 768` from BASIC. A reset stops it (timer stopped, vectoring off). The same
 program runs in `src/machines/apple2/tests/timer.test.ts`.
+
+## //e devices
+
+The sources besides the slot cards are devices: `MachineConfig.devices` (`conf/devices.conf.ts` on the //e), each
+with an `id` (its name in the save states), a `label` (the Interrupts window's source), and its class loaded at run
+time like the bus and the video: the export `class` of `path` (relative to `src/machines`, a `*.device.ts`).
+`loadDevices` (`virtualmachine/cpu/loaders/device.loader.ts`) imports them on both threads, then
+`IBus.installDevices` builds and wires them, right after the bus's constructor.
+
+On the //e a device implements `AppleDevice` (`devices/device.interface.ts`: `read` / `write` at an offset, `tick`,
+`reset`, `snapshot` / `restoreSnapshot`, all optional), built with `{ bus, setIrq, options }`. Its `options` say how
+it's wired, besides its own settings:
+
+- `io: { address, size }`: its registers, in the slots' I/O space (`$C090`–`$C0FF`), not over the IMU's, a card's
+  slot or another device.
+- `irq`: the IMU ID `setIrq` drives, 8–15, not another device's. None: it never interrupts.
+
+A device that can't be wired is logged and left out. Reset after the IMU, in the save state under its `id` (a state
+from before the devices restores the timer from its old place).
 
 ## Open questions
 

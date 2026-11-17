@@ -1,6 +1,6 @@
 import { type PatternMatch, searchPattern } from "@/lib/patternSearch.lib";
 import type { Dict } from "@/types/dict.type";
-import type { BusOptions } from "@/types/machine.interface";
+import type { BusOptions, DeviceConfig, LoadedDevice } from "@/types/machine.interface";
 import type {
 	IBus,
 	InterruptLines,
@@ -25,10 +25,10 @@ import type { InterruptsState } from "@/types/interrupts.interface";
 import { IMU, IMU_IDS } from "../chips/imu";
 import { AppleKeyboard, textToKeyCodes } from "./bus/apple.keyboard";
 import { loadMemoryChunks } from "./bus/apple.loader";
-import { AppleTimer } from "./bus/apple.timer";
 import { APPLE_SEARCH_REGIONS } from "./bus/apple.search";
 import { installSoftSwitches } from "./bus/apple.switches";
 import { type AppleCardId, slotsConfig } from "./conf/slots.conf";
+import type { AppleDevice, AppleDeviceClass, AppleDeviceWiring } from "./devices/device.interface";
 import {
 	APPLE_80COL_MASK,
 	APPLE_ALTCHAR_MASK,
@@ -66,8 +66,13 @@ import { type AppleBusSnapshot, SNAPSHOT_FIELDS, type SnapshotField } from "./bu
 
 // IIgs default colors - white on blue
 const DEFAULT_TEXT_COLORS = 0xf2;
-/** The IMU ID the timer drives (the slots take 1-7). */
-export const TIMER_IMU_ID = 8;
+/** The I/O addresses a device can take: the slots' ($C090-$C0FF), $C000-$C08F being the //e's own soft switches. */
+const DEVICE_IO_START = 0xc090;
+const DEVICE_IO_END = 0xc0ff;
+/** Slot 3's I/O space up to here is the IMU's registers (see IMU.md). */
+const IMU_IO_START = 0xc0b0;
+const IMU_IO_END = 0xc0b7;
+const hex4 = (value: number) => `$${value.toString(16).toUpperCase().padStart(4, "0")}`;
 /** Builds a card for a slot, `rom` being its $Cn00-$CnFF space (in slotRoms). One per card of slotsConfig. */
 const CARD_FACTORIES: Record<AppleCardId, (bus: AppleBus, slot: number, rom: Uint8Array) => ISlotCard> = {
 	smartport: (bus, slot, rom) => new SmartPortCard(bus, slot, rom),
@@ -184,12 +189,13 @@ export class AppleBus implements IBus {
 	// The CPU's interrupt inputs (see setInterruptLines)
 	private lines?: InterruptLines;
 	/**
-	 * The interrupt controller (see IMU.md): ID n is slot n's IRQ (1-7), ID 8 the timer, its registers at
+	 * The interrupt controller (see IMU.md): ID n is slot n's IRQ (1-7), the devices take the IDs from 8, its registers at
 	 * $C0B0-$C0B7 (slot 3's I/O). Disabled, it ORs its lines into the CPU's IRQ line.
 	 */
 	public readonly imu = new IMU({ irq: (active) => this.lines?.irq(active) });
 	/** The built-in periodic interrupt source (IMU ID 8), its registers at $C0B8-$C0BF. */
-	public readonly timer = new AppleTimer(() => this.imu.setLine(TIMER_IMU_ID, this.timer.irq));
+	/** The devices besides the slot cards (`installDevices`), in their config's order. */
+	private readonly devices: { config: DeviceConfig; wiring: AppleDeviceWiring; device: AppleDevice }[] = [];
 	// The card id in each slot (for the debugger's interrupt sources)
 	private readonly cardIds: (AppleCardId | undefined)[] = [];
 
@@ -233,8 +239,6 @@ export class AppleBus implements IBus {
 		const handlers = installSoftSwitches(this);
 		this.readHandlers = handlers.readHandlers;
 		this.writeHandlers = handlers.writeHandlers;
-
-		this.registerTickHandler((cycles) => this.timer.tick(cycles));
 
 		this.registerTickHandler((_cycles) => {
 			const registers = this.registers as DataView<ArrayBufferLike>;
@@ -288,6 +292,67 @@ export class AppleBus implements IBus {
 		if (isAudioSource(card)) this.speaker.addSource(card);
 	}
 
+	/**
+	 * Builds the devices and wires them: their registers over the I/O addresses of `options.io` (in the slots' I/O
+	 * space, none taken by a card, the IMU or another device), their line to the IMU ID `options.irq` (8-15, free).
+	 * One that can't be wired is logged and left out.
+	 */
+	public installDevices(devices: LoadedDevice[]) {
+		for (const { config, Class } of devices) {
+			const options = { ...config.options };
+			const wiring: AppleDeviceWiring = { io: options.io as AppleDeviceWiring["io"], irq: options.irq as number };
+			const error = this.deviceWiringError(config, wiring);
+			if (error) {
+				console.error(`AppleBus: device "${config.id}" not installed: ${error}`);
+				continue;
+			}
+			const { irq, io } = wiring;
+			const setIrq = irq === undefined ? () => {} : (active: boolean) => this.imu.setLine(irq, active);
+			const device = new (Class as AppleDeviceClass)({ bus: this, setIrq, options });
+			this.devices.push({ config, wiring, device });
+
+			if (io) {
+				for (let offset = 0; offset < io.size; offset++) {
+					const index = (io.address + offset) & 0xff;
+					this.readHandlers[index] = () => device.read?.(offset) ?? 0;
+					this.writeHandlers[index] = (value) => device.write?.(offset, value);
+				}
+			}
+			if (device.tick) this.registerTickHandler(device.tick.bind(device));
+			device.reset?.();
+		}
+	}
+
+	private deviceWiringError({ id }: DeviceConfig, { io, irq }: AppleDeviceWiring): string | undefined {
+		if (this.devices.some((other) => other.config.id === id)) return "its id is already taken";
+		if (irq !== undefined) {
+			if (!Number.isInteger(irq) || irq <= slotsConfig.count || irq >= IMU_IDS) return `no IMU ID ${irq}`;
+			if (this.devices.some((other) => other.wiring.irq === irq)) return `IMU ID ${irq} already taken`;
+		}
+		if (!io) return;
+		const { address, size } = io;
+		const end = address + size - 1;
+		if (
+			!Number.isInteger(address) ||
+			!Number.isInteger(size) ||
+			size < 1 ||
+			address < DEVICE_IO_START ||
+			end > DEVICE_IO_END
+		)
+			return `no I/O range ${hex4(address)}+${size} (it must be in ${hex4(DEVICE_IO_START)}-${hex4(DEVICE_IO_END)})`;
+		const overlaps = (start: number, last: number) => address <= last && end >= start;
+		if (overlaps(IMU_IO_START, IMU_IO_END)) return `${hex4(address)}-${hex4(end)} overlaps the IMU's registers`;
+		for (let slot = 1; slot <= slotsConfig.count; slot++) {
+			const slotIo = 0xc080 + slot * 0x10;
+			if (this.slots[slot] && overlaps(slotIo, slotIo + 0x0f))
+				return `${hex4(address)}-${hex4(end)} overlaps slot ${slot}'s card`;
+		}
+		const other = this.devices.find(
+			({ wiring }) => wiring.io && overlaps(wiring.io.address, wiring.io.address + wiring.io.size - 1),
+		);
+		if (other) return `${hex4(address)}-${hex4(end)} overlaps device "${other.config.id}"`;
+	}
+
 	public setInterruptLines(lines: InterruptLines) {
 		this.lines = lines;
 		this.updateIrq();
@@ -307,11 +372,15 @@ export class AppleBus implements IBus {
 		this.imu.onRti(sp);
 	}
 
-	/** ID n: the card in slot n (IDs 0 and 3: nothing). */
+	/** ID n: the card in slot n (IDs 0 and 3: nothing), or the device wired to it. */
 	public getInterrupts(): InterruptsState {
 		const sources = Array.from({ length: IMU_IDS }, (_, id) => {
 			const cardId = this.cardIds[id];
-			if (id === TIMER_IMU_ID) return "Timer ($C0B8)";
+			const device = this.devices.find(({ wiring }) => wiring.irq === id);
+			if (device) {
+				const { config, wiring } = device;
+				return `${config.label ?? config.id}${wiring.io ? ` (${hex4(wiring.io.address)})` : ""}`;
+			}
 			if (!cardId) return null;
 			return `Slot ${id}: ${slotsConfig.cards?.find((card) => card.id === cardId)?.label ?? cardId}`;
 		});
@@ -435,7 +504,7 @@ export class AppleBus implements IBus {
 
 		for (const card of this.slots) card?.reset?.();
 		this.imu.reset();
-		this.timer.reset();
+		for (const { device } of this.devices) device.reset?.();
 		this.updateIrq();
 
 		this.syncState();
@@ -1058,12 +1127,12 @@ export class AppleBus implements IBus {
 			cards: this.slots.map((card) => card?.snapshot?.()),
 			keyboard: this.keyboard.snapshot(),
 			imu: this.imu.snapshot(),
-			timer: this.timer.snapshot(),
+			devices: Object.fromEntries(this.devices.map(({ config, device }) => [config.id, device.snapshot?.()])),
 		};
 	}
 
 	public restoreSnapshot(state: unknown) {
-		const { fields, paddleTimers, cards, keyboard, imu, timer } = state as AppleBusSnapshot;
+		const { fields, paddleTimers, cards, keyboard, imu, devices, timer } = state as AppleBusSnapshot;
 		Object.assign(this, fields);
 		this.paddleTimers = [...paddleTimers];
 		this.keyboard.restoreSnapshot(keyboard);
@@ -1072,8 +1141,13 @@ export class AppleBus implements IBus {
 		});
 		if (imu) this.imu.restoreSnapshot(imu);
 		else this.imu.reset();
-		if (timer) this.timer.restoreSnapshot(timer);
-		else this.timer.reset();
+		// The states saved before the devices had the timer's at the top
+		const deviceStates: Record<string, unknown> = devices ?? (timer ? { timer } : {});
+		for (const { config, device } of this.devices) {
+			const deviceState = deviceStates[config.id];
+			if (deviceState !== undefined && device.restoreSnapshot) device.restoreSnapshot(deviceState);
+			else device.reset?.();
+		}
 		this.updateIrq();
 		this.syncState(); // the soft switches the main thread and the UI read
 		this.fakingVBL = fields.fakingVBL as boolean; // syncState toggles it (once per frame)

@@ -1,17 +1,26 @@
-// The //e's built-in timer ($C0B8-$C0BA), a periodic interrupt source on IMU ID 8.
-import { describe, expect, it, vi } from "vitest";
+// The //e's built-in timer ($C0B8-$C0BA), a periodic interrupt source on IMU ID 8: a device (conf/devices.conf.ts),
+// loaded and wired as the VM does.
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import { parseHexData } from "@/lib/array.utils";
 import { initCPU, setIrqLine, setRunning, stepInstruction, triggerNmi } from "@/virtualmachine/cpu/cpu.65c02";
 import { MEMORY_OFFSET, REG_PC_OFFSET, STACK_METADATA_OFFSET } from "@/virtualmachine/cpu/shared-memory";
-import { AppleBus, TIMER_IMU_ID } from "../apple.bus";
+import { installDevices, loadDevices } from "@/virtualmachine/cpu/loaders/device.loader";
+import type { DeviceConfig, LoadedDevice } from "@/types/machine.interface";
+import { AppleBus } from "../apple.bus";
 import { apple2e } from "../apple.machine";
-import { FRAME_CYCLES, TIMER_DEFAULT_PERIOD } from "../bus/apple.timer";
+import { TIMER_IMU_ID } from "../conf/devices.conf";
+import { AppleTimer, FRAME_CYCLES, TIMER_DEFAULT_PERIOD } from "../devices/timer.device";
 
 const CTRL = 0xc0b8;
 const ACK = 0xc0b9;
 const PERIOD = 0xc0ba;
 
-const boot = () => {
+let devices: LoadedDevice[] = [];
+beforeAll(async () => {
+	devices = await loadDevices(apple2e.devices);
+});
+
+const boot = (installed: LoadedDevice[] = devices) => {
 	vi.stubGlobal("self", { postMessage: () => undefined });
 	vi.stubGlobal("performance", { now: () => 0 });
 	const size = apple2e.memory.size;
@@ -19,6 +28,7 @@ const boot = () => {
 	const regs = new DataView(buffer, 0, MEMORY_OFFSET);
 	const mem = new Uint8Array(buffer, MEMORY_OFFSET, size);
 	const bus = new AppleBus(mem);
+	bus.installDevices(installed);
 	bus.setRegistersView(regs);
 	for (const c of apple2e.memory.chunks ?? [])
 		bus.load(c.addr, typeof c.data === "string" ? parseHexData(c.data) : (c.data as Uint8Array), c.bank, c.tag);
@@ -91,6 +101,17 @@ describe("//e timer", () => {
 		expect(pending(bus)).toBe(0);
 		expect(bus.read(CTRL)).toBe(0);
 		expect(bus.read(PERIOD)).toBe(TIMER_DEFAULT_PERIOD);
+	});
+
+	it("restores a save state from before the devices (the timer's state at the top)", () => {
+		const { bus } = boot();
+		bus.write(PERIOD, 3);
+		bus.write(CTRL, 0x80);
+		const { devices: deviceStates, ...state } = structuredClone(bus.snapshot());
+		bus.reset();
+		bus.restoreSnapshot({ ...state, timer: deviceStates?.timer });
+		expect(bus.read(CTRL)).toBe(0x80);
+		expect(bus.read(PERIOD)).toBe(3);
 	});
 
 	it("keeps its state in a save state", () => {
@@ -181,5 +202,80 @@ describe("//e timer", () => {
 		expect(text).toBe("0012");
 		expect(bus.read(0xc0b3)).toBe(0xff); // CURRENT: nothing in service
 		expect(bus.imu.getFrames()).toHaveLength(0);
+	});
+});
+
+describe("//e devices", () => {
+	const timer = apple2e.devices?.find((device) => device.id === "timer") as DeviceConfig;
+	const withOptions = (options: DeviceConfig["options"], id = "other"): LoadedDevice => ({
+		config: { ...timer, id, options },
+		Class: AppleTimer,
+	});
+
+	it("loads the timer from the machine's config", () => {
+		expect(devices).toHaveLength(1);
+		expect(devices[0]?.Class).toBe(AppleTimer);
+	});
+
+	it("leaves out a device whose module or class isn't there", async () => {
+		const error = vi.spyOn(console, "error").mockImplementation(() => {});
+		const loaded = await loadDevices([
+			{ ...timer, id: "nopath", path: "apple2/devices/nothing.device" },
+			{ ...timer, id: "noclass", class: "Nothing" },
+			timer,
+		]);
+		expect(loaded.map(({ config }) => config.id)).toEqual(["timer"]);
+		expect(error).toHaveBeenCalledTimes(2);
+		error.mockRestore();
+	});
+
+	it("installs the devices through IBus.installDevices", async () => {
+		const bus = new AppleBus(new Uint8Array(apple2e.memory.size));
+		await installDevices(bus, apple2e.devices);
+		expect(bus.getInterrupts().sources[TIMER_IMU_ID]).toBe("Timer ($C0B8)");
+	});
+
+	it("without the timer, $C0B8-$C0BF reads 0 and ID 8 has no source", () => {
+		const { bus } = boot([]);
+		bus.write(CTRL, 0x80);
+		expect(bus.read(CTRL)).toBe(0);
+		expect(bus.read(PERIOD)).toBe(0);
+		expect(bus.getInterrupts().sources[TIMER_IMU_ID]).toBeNull();
+	});
+
+	it("wires a device elsewhere: its I/O range and its IMU ID come from its options", () => {
+		// Slot 6 is empty by default
+		const { bus } = boot([withOptions({ io: { address: 0xc0e0, size: 3 }, irq: 9 }, "timer")]);
+		bus.write(0xc0e2, 1);
+		bus.write(0xc0e0, 0x80);
+		bus.tick(FRAME_CYCLES);
+		expect(bus.read(0xc0e0)).toBe(0x81);
+		expect(bus.imu.getState().pending & (1 << 9)).not.toBe(0);
+		expect(bus.read(CTRL)).toBe(0); // not at $C0B8 anymore
+		expect(bus.getInterrupts().sources[9]).toBe("Timer ($C0E0)");
+	});
+
+	it.each([
+		["the IMU's registers", { io: { address: 0xc0b4, size: 8 } }],
+		["a card's I/O (slot 7: the Mockingboard)", { io: { address: 0xc0f0, size: 1 } }],
+		["the soft switches", { io: { address: 0xc050, size: 1 } }],
+		["another device's I/O", { io: { address: 0xc0bf, size: 1 } }],
+		["a slot's IMU ID", { irq: 7 }],
+		["another device's IMU ID", { irq: TIMER_IMU_ID }],
+		["no IMU ID", { irq: 16 }],
+	])("doesn't install a device over %s", (_, options) => {
+		const error = vi.spyOn(console, "error").mockImplementation(() => {});
+		const { bus } = boot([...devices, withOptions(options)]);
+		expect(error).toHaveBeenCalledWith(expect.stringContaining('device "other" not installed'));
+		expect(Object.keys(bus.snapshot().devices ?? {})).toEqual(["timer"]);
+		error.mockRestore();
+	});
+
+	it("doesn't install two devices with the same id", () => {
+		const error = vi.spyOn(console, "error").mockImplementation(() => {});
+		const { bus } = boot([...devices, withOptions({ irq: 9 }, "timer")]);
+		expect(error).toHaveBeenCalledWith(expect.stringContaining("its id is already taken"));
+		expect(bus.getInterrupts().sources[9]).toBeNull();
+		error.mockRestore();
 	});
 });

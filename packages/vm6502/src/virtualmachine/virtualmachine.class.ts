@@ -38,6 +38,7 @@ import type { Breakpoint } from "../types/breakpoint.interface";
 import { applyHypercall } from "./hypercall";
 import type { StepResult, StopInfo } from "@/types/stopinfo.interface";
 import type { EmulatorRegisters } from "@/types/emulatorstate.interface";
+import { installDevices } from "./cpu/loaders/device.loader";
 import { logBus } from "./logbus.class";
 import { encodeIndexedPng } from "@/lib/png.lib";
 import type { InterruptsState } from "@/types/interrupts.interface";
@@ -270,6 +271,7 @@ export class VirtualMachine {
 		}
 		const [, BusClass]: [unknown, new (mem: Uint8Array, options?: BusOptions) => IBus] = exportedBusEntry;
 		this.bus = new BusClass(this.sharedMemory, this.busOptions);
+		await installDevices(this.bus, this.machineConfig.devices);
 		console.log(`VM: Bus ${busConfig.class} loaded on main thread.`);
 
 		// 3. Prepare worker payloads (if any)
@@ -292,6 +294,8 @@ export class VirtualMachine {
 					payload: payloads.bus,
 					options: this.busOptions,
 				},
+				// Plain values (the config is reactive): the worker loads their classes itself
+				devices: JSON.parse(JSON.stringify(this.machineConfig.devices ?? [])),
 				video: {
 					width: this.machineConfig.video?.width,
 					height: this.machineConfig.video?.height,
