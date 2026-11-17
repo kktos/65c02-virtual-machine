@@ -717,14 +717,16 @@ export class VirtualMachine {
 		this.stateStack.push(state);
 	}
 
-	public restoreRegisters() {
+	/** Pops what saveRegisters pushed. `keepFlags`: the P bits that stay as they are now (the others are restored). */
+	public restoreRegisters(keepFlags = 0) {
 		const state = this.stateStack.pop();
 		if (state) {
+			const status = this.sharedRegisters.getUint8(REG_STATUS_OFFSET);
 			this.sharedRegisters.setUint8(REG_A_OFFSET, state[0]);
 			this.sharedRegisters.setUint8(REG_X_OFFSET, state[1]);
 			this.sharedRegisters.setUint8(REG_Y_OFFSET, state[2]);
 			this.sharedRegisters.setUint8(REG_SP_OFFSET, state[3]);
-			this.sharedRegisters.setUint8(REG_STATUS_OFFSET, state[4]);
+			this.sharedRegisters.setUint8(REG_STATUS_OFFSET, (state[4] & ~keepFlags) | (status & keepFlags));
 			this.sharedRegisters.setUint16(REG_PC_OFFSET, state[5], true);
 		}
 	}

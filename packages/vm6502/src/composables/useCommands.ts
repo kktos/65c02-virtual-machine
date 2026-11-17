@@ -67,7 +67,7 @@ export function parseStoredHistory(json: string | null): HistoryEntry[] {
 const commandHistory = ref<HistoryEntry[]>(parseStoredHistory(localStorage.getItem(LS_KEY_HISTORY)));
 const errorHistory = ref<string[]>([]);
 
-const { addBreakpoint } = useBreakpoints();
+const { addBreakpoint, removeBreakpoint } = useBreakpoints();
 
 watch(commandHistory, (history) => localStorage.setItem(LS_KEY_HISTORY, JSON.stringify(history)), { deep: true });
 watch(error, (err) => err && errorHistory.value.push(err));
@@ -120,8 +120,14 @@ function handleJsrOutput(output: any, vm: VirtualMachine, result: CommandRunResu
 	}
 
 	vm.saveRegisters();
-	const lines = [`regs restore`, `print "done"`];
-	addBreakpoint({ type: "pc", address: breakpointAddress, isTemporary: true, command: lines.join(";") }, vm);
+	// The routine's I flag holds (its CLI / SEI), as after the Monitor's G
+	const lines = [`regs return`, `print "done"`];
+	// Back to where it was: running on, or paused
+	if (vm.isRunningOrStarting) lines.push("run");
+	// A hook left by a G whose routine never returned would keep its command: replaced
+	const hook = { type: "pc", address: breakpointAddress } as const;
+	removeBreakpoint(hook, vm);
+	addBreakpoint({ ...hook, isTemporary: true, command: lines.join(";") }, vm);
 
 	vm.sharedRegisters.setUint8(REG_SP_OFFSET, sp - 2);
 	vm.writeDebug(0x0100 + sp, fakeReturnAddress >> 8);
@@ -326,7 +332,9 @@ export async function executeSubQueue(
 					if (!isLastInChain) throw new Error("Cannot pipe from a multi-line command request.");
 
 					if (subQueue.length > 0)
-						throw new Error("Commands that start multi-line mode cannot be combined with other commands using ';'.");
+						throw new Error(
+							"Commands that start multi-line mode cannot be combined with other commands using ';'.",
+						);
 					multiLineSession.value = {
 						__isMultiLineRequest: true,
 						prompt: request.prompt,

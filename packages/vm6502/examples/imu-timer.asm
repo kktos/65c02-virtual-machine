@@ -4,7 +4,8 @@ asm $300
 ; the seconds in BCD at the top right of the 40-column text screen.
 ;
 ; Paste this file in the debugger console (it assembles at $300 with the mini-assembler),
-; then from the Monitor: 300G, or from BASIC: CALL 768. It returns at once, the counter runs on.
+; then 300G in the console, CALL 768 from BASIC or 300G from the Monitor. It returns at once,
+; the counter runs on.
 ; A reset stops the timer and turns vectoring off.
 ;
 ; Mini-assembler: comments on lines of their own, labels local (":") so none is saved
