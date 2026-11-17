@@ -1,3 +1,4 @@
+import { type PatternMatch, searchPattern } from "@/lib/patternSearch.lib";
 import type { Dict } from "@/types/dict.type";
 import type { BusOptions } from "@/types/machine.interface";
 import type {
@@ -21,10 +22,11 @@ import {
 } from "@/virtualmachine/cpu/shared-memory";
 import { generateApple2Assets } from "./bus/apple.assets";
 import type { InterruptsState } from "@/types/interrupts.interface";
-import { IMU, IMU_IDS, type IMUSnapshot } from "../chips/imu";
-import { AppleKeyboard, type KeyboardSnapshot, textToKeyCodes } from "./bus/apple.keyboard";
+import { IMU, IMU_IDS } from "../chips/imu";
+import { AppleKeyboard, textToKeyCodes } from "./bus/apple.keyboard";
 import { loadMemoryChunks } from "./bus/apple.loader";
-import { AppleTimer, type TimerSnapshot } from "./bus/apple.timer";
+import { AppleTimer } from "./bus/apple.timer";
+import { APPLE_SEARCH_REGIONS } from "./bus/apple.search";
 import { installSoftSwitches } from "./bus/apple.switches";
 import { type AppleCardId, slotsConfig } from "./conf/slots.conf";
 import {
@@ -51,7 +53,7 @@ import {
 	LC_MAIN_BANK2_OFFSET,
 	LC_ROM_OFFSET,
 	RAM_OFFSET,
-} from "./memory.consts";
+} from "./shared-memory.consts";
 import { MockingboardCard } from "./slots/mockingboard/mockingboard.card";
 import { MouseCard } from "./slots/mouse.card";
 import type { ISlotCard } from "./slots/slotcard.interface";
@@ -59,13 +61,13 @@ import { SmartPortCard } from "./slots/smartport.card";
 import { ThunderClockCard } from "./slots/thunderclock.card";
 import { type AudioSource, Speaker } from "./speaker";
 import { readTextScreen } from "./video/text.screen";
+import { PWREDUP, SOFTEV_HI } from "./bus/symbols.consts";
+import { type AppleBusSnapshot, SNAPSHOT_FIELDS, type SnapshotField } from "./bus/apple.snapshot";
 
 // IIgs default colors - white on blue
 const DEFAULT_TEXT_COLORS = 0xf2;
-const PWREDUP = 0x3f4;
 /** The IMU ID the timer drives (the slots take 1-7). */
 export const TIMER_IMU_ID = 8;
-const SOFTEV_HI = 0x3f3;
 /** Builds a card for a slot, `rom` being its $Cn00-$CnFF space (in slotRoms). One per card of slotsConfig. */
 const CARD_FACTORIES: Record<AppleCardId, (bus: AppleBus, slot: number, rom: Uint8Array) => ISlotCard> = {
 	smartport: (bus, slot, rom) => new SmartPortCard(bus, slot, rom),
@@ -81,138 +83,6 @@ const isAudioSource = (card: ISlotCard): card is ISlotCard & AudioSource =>
 
 const MEM_SCOPES = ["main", "aux", "io", "int_rom", "slot_rom", "rom", "lc_bank1", "lc_bank2"];
 type MemScopeOverride = { lcView: "BANK2" | "BANK1" | "ROM" | "AUTO"; lcAux: "MAIN" | "AUX"; cxView: "INT" | "SLOT" };
-type MemScopeOverrideValues = MemScopeOverride[keyof MemScopeOverride];
-
-type SearchTask = {
-	data: (self: AppleBus, off: number) => number;
-	location: string;
-	bank: number;
-	start: number;
-	end: number;
-};
-type MemRegionSearch = {
-	name: MemScopeOverrideValues | "MAIN";
-	data: (self: AppleBus, off: number) => number;
-	start: number;
-	end: number;
-	bankTest: (b: number) => boolean;
-};
-const allRegions: MemRegionSearch[] = [
-	{
-		name: "MAIN",
-		data: (self: AppleBus, off: number) => self.memory[RAM_OFFSET + off],
-		start: 0x0000,
-		end: 0xbfff,
-		bankTest: (b: number) => b === 0,
-	},
-	{
-		name: "MAIN",
-		data: (self: AppleBus, off: number) => self.memory[RAM_OFFSET + 0x10000 + off],
-		start: 0x0000,
-		end: 0xbfff,
-		bankTest: (b: number) => b > 0,
-	},
-
-	{
-		name: "INT",
-		data: (self: AppleBus, off: number) => self.romC[off - 0xc100],
-		start: 0xc100,
-		end: 0xcfff,
-		bankTest: (_b: number) => true,
-	},
-	{
-		name: "SLOT",
-		data: (self: AppleBus, off: number) => self.slotRoms[off - 0xc100],
-		start: 0xc100,
-		end: 0xcfff,
-		bankTest: (_b: number) => true,
-	},
-	{
-		name: "ROM",
-		data: (self: AppleBus, off: number) => self.rom[off - 0xd000],
-		start: 0xd000,
-		end: 0xffff,
-		bankTest: (_b: number) => true,
-	},
-
-	{
-		name: "BANK1",
-		data: (self: AppleBus, off: number) => self.memory[RAM_OFFSET + off],
-		start: 0xd000,
-		end: 0xffff,
-		bankTest: (b: number) => b === 0,
-	},
-	{
-		name: "BANK1",
-		data: (self: AppleBus, off: number) => self.memory[RAM_OFFSET + 0x10000 + off],
-		start: 0xd000,
-		end: 0xffff,
-		bankTest: (b: number) => b > 0,
-	},
-
-	{
-		name: "BANK2",
-		data: (self: AppleBus, off: number) => self.bank2[off - 0xd000],
-		start: 0xd000,
-		end: 0xdfff,
-		bankTest: (b: number) => b === 0,
-	},
-	{
-		name: "BANK2",
-		data: (self: AppleBus, off: number) => self.auxbank2[off - 0xd000],
-		start: 0xd000,
-		end: 0xdfff,
-		bankTest: (b: number) => b > 0,
-	},
-];
-// What a save state keeps of the bus, besides memory (shared buffer), the cards and the keyboard queue. Not the live
-// inputs (joystick buttons, paddle positions: read from the shared registers at each tick, the real keys down) nor
-// the speaker.
-const SNAPSHOT_FIELDS = [
-	"activeExpansionSlot",
-	"lcBank2",
-	"lcReadRam",
-	"lcWriteRam",
-	"lcPreWriteCount",
-	"store80",
-	"ramRdAux",
-	"ramWrAux",
-	"altZp",
-	"auxMemBank",
-	"intCxRom",
-	"intC8Rom",
-	"slotC3Rom",
-	"col80",
-	"altChar",
-	"text",
-	"mixed",
-	"page2",
-	"hires",
-	"fakingVBL",
-	"dblRes",
-	"video7Register",
-	"video7SeqState",
-	"video7NextBit",
-	"tbColor",
-	"brdrColor",
-	"lastKey",
-	"keyStrobe",
-	"kbd_pb0",
-	"kbd_pb1",
-	"totalCycles",
-] as const;
-type SnapshotField = (typeof SNAPSHOT_FIELDS)[number];
-type AppleBusSnapshot = {
-	fields: Record<SnapshotField, number | boolean>;
-	paddleTimers: [number, number, number, number];
-	cards: unknown[];
-	/** Absent from the states saved before the typed keys queue. */
-	keyboard?: KeyboardSnapshot;
-	/** Absent from the states saved before the IMU. */
-	imu?: IMUSnapshot;
-	/** Absent from the states saved before the timer. */
-	timer?: TimerSnapshot;
-};
 
 export class AppleBus implements IBus {
 	public memory: Uint8Array;
@@ -1117,85 +987,8 @@ export class AppleBus implements IBus {
 		endAddress = 0xffffff,
 		is7Bit = false,
 		candidates?: number[][],
-	): { address: number; location: string }[] {
-		const results: { address: number; location: string }[] = [];
-		const len = pattern.length;
-		if (len === 0) return results;
-
-		// 1. "Pre-compile" a list of search tasks based on the address range.
-		const searchTasks: SearchTask[] = [];
-
-		const startBank = startAddress >> 16;
-		const endBank = endAddress >> 16;
-
-		for (let bank = startBank; bank <= endBank; bank++) {
-			const bankStartAddr16 = bank === startBank ? startAddress & 0xffff : 0x0000;
-			const bankEndAddr16 = bank === endBank ? endAddress & 0xffff : 0xffff;
-
-			for (const region of allRegions) {
-				if (!region.bankTest(bank)) continue;
-
-				const searchStart = Math.max(bankStartAddr16, region.start);
-				const searchEnd = Math.min(bankEndAddr16, region.end);
-
-				if (searchStart <= searchEnd) {
-					searchTasks.push({
-						data: region.data,
-						location: region.name,
-						bank,
-						start: searchStart,
-						end: searchEnd,
-					});
-				}
-			}
-		}
-
-		// 2. Execute the search tasks.
-		for (const task of searchTasks) {
-			for (let addr = task.start; addr <= task.end - len + 1; addr++) {
-				let match = true;
-
-				let wildcardIndex = 0;
-				for (let i = 0; i < len; i++) {
-					const byte = is7Bit ? task.data(this, addr + i) & 0x7f : task.data(this, addr + i);
-					const p = pattern[i];
-					if (p === null) {
-						const allowed = candidates?.[wildcardIndex];
-						wildcardIndex++;
-						if (allowed !== undefined && !allowed.includes(byte)) {
-							match = false;
-							break;
-						}
-					} else {
-						const expected = is7Bit ? p & 0x7f : p;
-						if (byte !== expected) {
-							match = false;
-							break;
-						}
-					}
-				}
-
-				if (match) results.push({ address: (task.bank << 16) | addr, location: task.location });
-			}
-		}
-
-		// 3. De-duplicate results from non-banked ROM regions
-		const finalResults: { address: number; location: string }[] = [];
-		const seenSharedAddresses = new Set<number>();
-
-		for (const result of results) {
-			const isShared = result.location === "ROM" || result.location === "INT" || result.location === "SLOT";
-			if (isShared) {
-				const addr16 = result.address & 0xffff;
-				if (!seenSharedAddresses.has(addr16)) {
-					finalResults.push(result);
-					seenSharedAddresses.add(addr16);
-				}
-			} else {
-				finalResults.push(result);
-			}
-		}
-		return finalResults;
+	): PatternMatch[] {
+		return searchPattern(this.memory, APPLE_SEARCH_REGIONS, pattern, startAddress, endAddress, is7Bit, candidates);
 	}
 
 	getMachineStateSpecs(): (MachineStateSpec | [MachineStateSpec, MachineStateSpec])[] {

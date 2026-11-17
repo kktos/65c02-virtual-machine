@@ -1,5 +1,5 @@
 import type { AppleBus } from "../apple.bus";
-import { RAM_OFFSET } from "../memory.consts";
+import { RAM_OFFSET } from "../shared-memory.consts";
 
 export function loadMemoryChunks(
 	bus: AppleBus,
