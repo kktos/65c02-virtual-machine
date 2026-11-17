@@ -7,7 +7,7 @@ import {
 	REG_TBCOLOR_OFFSET,
 } from "@/virtualmachine/cpu/shared-memory";
 import type { AppleBus } from "../apple.bus";
-import { RAM_OFFSET } from "../memory.consts";
+import { RAM_OFFSET } from "../shared-memory.consts";
 import { DHGRPaletteRGB, IIgsPaletteRGB, NATIVE_VIEW_HEIGHT, NATIVE_VIEW_WIDTH } from "./constants";
 import { DebugText } from "./debug/debug.text";
 import { LowGrRenderer } from "./gr";

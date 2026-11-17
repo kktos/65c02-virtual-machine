@@ -17,7 +17,7 @@ import {
 } from "@/virtualmachine/cpu/shared-memory";
 import { AppleBus } from "../apple.bus";
 import { apple2e } from "../apple.machine";
-import { APPLE_PAGE2_MASK } from "../memory.consts";
+import { APPLE_PAGE2_MASK } from "../shared-memory.consts";
 
 type Machine = { bus: AppleBus; regs: DataView; views: MachineViews };
 

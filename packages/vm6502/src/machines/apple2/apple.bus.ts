@@ -21,10 +21,10 @@ import {
 } from "@/virtualmachine/cpu/shared-memory";
 import { generateApple2Assets } from "./bus/apple.assets";
 import type { InterruptsState } from "@/types/interrupts.interface";
-import { IMU, IMU_IDS, type IMUSnapshot } from "../chips/imu";
-import { AppleKeyboard, type KeyboardSnapshot, textToKeyCodes } from "./bus/apple.keyboard";
+import { IMU, IMU_IDS } from "../chips/imu";
+import { AppleKeyboard, textToKeyCodes } from "./bus/apple.keyboard";
 import { loadMemoryChunks } from "./bus/apple.loader";
-import { AppleTimer, type TimerSnapshot } from "./bus/apple.timer";
+import { AppleTimer } from "./bus/apple.timer";
 import { installSoftSwitches } from "./bus/apple.switches";
 import { type AppleCardId, slotsConfig } from "./conf/slots.conf";
 import {
@@ -51,7 +51,7 @@ import {
 	LC_MAIN_BANK2_OFFSET,
 	LC_ROM_OFFSET,
 	RAM_OFFSET,
-} from "./memory.consts";
+} from "./shared-memory.consts";
 import { MockingboardCard } from "./slots/mockingboard/mockingboard.card";
 import { MouseCard } from "./slots/mouse.card";
 import type { ISlotCard } from "./slots/slotcard.interface";
@@ -59,13 +59,13 @@ import { SmartPortCard } from "./slots/smartport.card";
 import { ThunderClockCard } from "./slots/thunderclock.card";
 import { type AudioSource, Speaker } from "./speaker";
 import { readTextScreen } from "./video/text.screen";
+import { PWREDUP, SOFTEV_HI } from "./bus/symbols.consts";
+import { type AppleBusSnapshot, SNAPSHOT_FIELDS, type SnapshotField } from "./bus/apple.snapshot";
 
 // IIgs default colors - white on blue
 const DEFAULT_TEXT_COLORS = 0xf2;
-const PWREDUP = 0x3f4;
 /** The IMU ID the timer drives (the slots take 1-7). */
 export const TIMER_IMU_ID = 8;
-const SOFTEV_HI = 0x3f3;
 /** Builds a card for a slot, `rom` being its $Cn00-$CnFF space (in slotRoms). One per card of slotsConfig. */
 const CARD_FACTORIES: Record<AppleCardId, (bus: AppleBus, slot: number, rom: Uint8Array) => ISlotCard> = {
 	smartport: (bus, slot, rom) => new SmartPortCard(bus, slot, rom),
@@ -165,54 +165,6 @@ const allRegions: MemRegionSearch[] = [
 		bankTest: (b: number) => b > 0,
 	},
 ];
-// What a save state keeps of the bus, besides memory (shared buffer), the cards and the keyboard queue. Not the live
-// inputs (joystick buttons, paddle positions: read from the shared registers at each tick, the real keys down) nor
-// the speaker.
-const SNAPSHOT_FIELDS = [
-	"activeExpansionSlot",
-	"lcBank2",
-	"lcReadRam",
-	"lcWriteRam",
-	"lcPreWriteCount",
-	"store80",
-	"ramRdAux",
-	"ramWrAux",
-	"altZp",
-	"auxMemBank",
-	"intCxRom",
-	"intC8Rom",
-	"slotC3Rom",
-	"col80",
-	"altChar",
-	"text",
-	"mixed",
-	"page2",
-	"hires",
-	"fakingVBL",
-	"dblRes",
-	"video7Register",
-	"video7SeqState",
-	"video7NextBit",
-	"tbColor",
-	"brdrColor",
-	"lastKey",
-	"keyStrobe",
-	"kbd_pb0",
-	"kbd_pb1",
-	"totalCycles",
-] as const;
-type SnapshotField = (typeof SNAPSHOT_FIELDS)[number];
-type AppleBusSnapshot = {
-	fields: Record<SnapshotField, number | boolean>;
-	paddleTimers: [number, number, number, number];
-	cards: unknown[];
-	/** Absent from the states saved before the typed keys queue. */
-	keyboard?: KeyboardSnapshot;
-	/** Absent from the states saved before the IMU. */
-	imu?: IMUSnapshot;
-	/** Absent from the states saved before the timer. */
-	timer?: TimerSnapshot;
-};
 
 export class AppleBus implements IBus {
 	public memory: Uint8Array;
