@@ -37,6 +37,10 @@ export type IMUSnapshot = {
 	frames: IMUFrame[];
 };
 
+/**
+ * The number of IDs (read back through IDS). More than 16 would follow the page layout of IMU.md ("More than 16
+ * IDs"): IDs 16n to 16n+15 in the registers $40*n to $40*n+$3F, laid out as $00-$3F.
+ */
 export const IMU_IDS = 16;
 /** The 16-bit masks (MASK, PENDING, INSERVICE): one bit per ID. */
 const ID_BITS = (1 << IMU_IDS) - 1;
@@ -53,6 +57,8 @@ export const IMU_REG_CTRL = 0x00;
 export const IMU_REG_MASK = 0x01;
 export const IMU_REG_PENDING = 0x02;
 export const IMU_REG_INSERVICE = 0x03;
+/** Read-only: the number of IDs (see IMU.md, "More than 16 IDs"). */
+export const IMU_REG_IDS = 0x04;
 export const IMU_REG_PRIO = 0x10;
 export const IMU_REG_HANDLER = 0x20;
 export const IMU_REG_HBANK = 0x30;
@@ -131,8 +137,8 @@ export class IMU {
 	get eligible() {
 		let eligible = this.asserted & ~this.mask & ID_BITS;
 		if (this.isr === 0 || eligible === 0) return eligible;
-		// The highest priority in service blocks itself and everything below it
-		let top = IMU_IDS;
+		// The highest priority in service blocks itself and everything below it (PRIO is 8-bit)
+		let top = 0x100;
 		for (let id = 0; id < IMU_IDS; id++) if (this.isr & (1 << id)) top = Math.min(top, this.prio[id]!);
 		for (let id = 0; id < IMU_IDS; id++) if (this.prio[id]! >= top) eligible &= ~(1 << id);
 		return eligible;
@@ -246,6 +252,8 @@ export class IMU {
 				return this.asserted;
 			case IMU_REG_INSERVICE:
 				return this.isr;
+			case IMU_REG_IDS:
+				return IMU_IDS;
 			default:
 				return 0;
 		}
@@ -254,7 +262,7 @@ export class IMU {
 	/** DATA LO: the 8-bit registers take it at once, a handler's low byte and the banks are staged. */
 	private writeLo(reg: number, value: number) {
 		if (reg >= IMU_REG_PRIO && reg < IMU_REG_PRIO + IMU_IDS) {
-			this.prio[reg - IMU_REG_PRIO] = value & (IMU_IDS - 1);
+			this.prio[reg - IMU_REG_PRIO] = value;
 			this.updateIrq();
 		} else if (reg >= IMU_REG_HANDLER && reg < IMU_REG_HANDLER + IMU_IDS) this.stagedLo = value;
 		else if (reg >= IMU_REG_HBANK && reg < IMU_REG_HBANK + IMU_IDS) this.stagedBanks[reg - IMU_REG_HBANK] = value;
