@@ -1,9 +1,9 @@
 import { type IMUSnapshot } from "../../chips/imu";
-import { type KeyboardSnapshot } from "./apple.keyboard";
+import type { KeyboardSnapshot } from "../devices/keyboard.device";
 
-// What a save state keeps of the bus, besides memory (shared buffer), the cards and the keyboard queue. Not the live
-// inputs (joystick buttons, paddle positions: read from the shared registers at each tick, the real keys down) nor
-// the speaker.
+// What a save state keeps of the bus, besides memory (shared buffer), the cards and the devices (the keyboard's
+// included). Not the live inputs (joystick buttons, paddle positions: read from the shared registers at each tick)
+// nor the speaker.
 export const SNAPSHOT_FIELDS = [
 	"activeExpansionSlot",
 	"lcBank2",
@@ -31,20 +31,18 @@ export const SNAPSHOT_FIELDS = [
 	"video7NextBit",
 	"tbColor",
 	"brdrColor",
-	"lastKey",
-	"keyStrobe",
-	"kbd_pb0",
-	"kbd_pb1",
 	"totalCycles",
 ] as const;
 
 export type SnapshotField = (typeof SNAPSHOT_FIELDS)[number];
+/** Only in the states saved before the keyboard device: its latch, strobe and Apple keys (now `devices.keyboard`). */
+type OldKeyboardField = "lastKey" | "keyStrobe" | "kbd_pb0" | "kbd_pb1";
 
 export type AppleBusSnapshot = {
-	fields: Record<SnapshotField, number | boolean>;
+	fields: Record<SnapshotField, number | boolean> & Partial<Record<OldKeyboardField, number | boolean>>;
 	paddleTimers: [number, number, number, number];
 	cards: unknown[];
-	/** Absent from the states saved before the typed keys queue. */
+	/** Only in the states saved before the keyboard device (absent before the typed keys queue): now `devices.keyboard`. */
 	keyboard?: KeyboardSnapshot;
 	/** Absent from the states saved before the IMU. */
 	imu?: IMUSnapshot;

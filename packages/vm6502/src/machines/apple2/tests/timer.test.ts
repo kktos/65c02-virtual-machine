@@ -212,9 +212,9 @@ describe("//e devices", () => {
 		Class: AppleTimer,
 	});
 
-	it("loads the timer from the machine's config", () => {
-		expect(devices).toHaveLength(1);
-		expect(devices[0]?.Class).toBe(AppleTimer);
+	it("loads the keyboard and the timer from the machine's config", () => {
+		expect(devices.map(({ config }) => config.id)).toEqual(["keyboard", "timer"]);
+		expect(devices[1]?.Class).toBe(AppleTimer);
 	});
 
 	it("leaves out a device whose module or class isn't there", async () => {
@@ -260,6 +260,9 @@ describe("//e devices", () => {
 		["a card's I/O (slot 7: the Mockingboard)", { io: { address: 0xc0f0, size: 1 } }],
 		["the soft switches", { io: { address: 0xc050, size: 1 } }],
 		["another device's I/O", { io: { address: 0xc0bf, size: 1 } }],
+		["a slot's I/O as soft switches", { switches: { read: [0xc0e0] } }],
+		["another device's soft switch", { switches: { write: [0xc010] } }],
+		["another device's I/O as a soft switch", { switches: { read: [0xc0b8] } }],
 		["a slot's IMU ID", { irq: 7 }],
 		["another device's IMU ID", { irq: TIMER_IMU_ID }],
 		["no IMU ID", { irq: 16 }],
@@ -267,8 +270,28 @@ describe("//e devices", () => {
 		const error = vi.spyOn(console, "error").mockImplementation(() => {});
 		const { bus } = boot([...devices, withOptions(options)]);
 		expect(error).toHaveBeenCalledWith(expect.stringContaining('device "other" not installed'));
-		expect(Object.keys(bus.snapshot().devices ?? {})).toEqual(["timer"]);
+		expect(Object.keys(bus.snapshot().devices ?? {})).toEqual(["keyboard", "timer"]);
 		error.mockRestore();
+	});
+
+	it("takes over the //e's own soft switches, by access", () => {
+		// The timer's PERIOD read at $C050 (TXTCLR), written at $C051 (TXTSET): the other access stays the //e's
+		class SwitchTimer extends AppleTimer {
+			readSwitch() {
+				return this.read(2);
+			}
+			writeSwitch(_address: number, value: number) {
+				this.write(2, value);
+			}
+		}
+		const loaded = withOptions({ switches: { read: [0xc050], write: [0xc051] } });
+		const { bus } = boot([{ ...loaded, Class: SwitchTimer }]);
+		bus.write(0xc050, 0); // still TXTCLR
+		expect(bus.text).toBe(false);
+		bus.write(0xc051, 5); // the device's, not TXTSET
+		expect(bus.text).toBe(false);
+		expect(bus.read(0xc050)).toBe(5);
+		expect(bus.text).toBe(false); // the read is the device's too
 	});
 
 	it("doesn't install two devices with the same id", () => {

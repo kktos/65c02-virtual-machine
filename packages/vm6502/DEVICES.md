@@ -26,6 +26,31 @@ the video's (`class` + `path`).
 - Save state: `devices: { [id]: state }`; a state from before restores the timer from its old `timer` field.
 - Tests: `tests/timer.test.ts` ("//e devices").
 
+### The keyboard (2026-11-17)
+
+The keyboard was hard-wired in the bus (`bus/apple.keyboard.ts`, `$C000` / `$C010` in `apple.switches.ts`, the host
+keys mapped in `AppleBus.pressKey`, Open / Solid Apple in `kbd_pb0` / `kbd_pb1`). It is now a device
+(`devices/keyboard.device.ts`, `AppleKeyboard`, first in `conf/devices.conf.ts`), so a machine can get another one
+(a ][+'s, uppercase and no AKD; an ADB-like one with an IRQ…).
+
+- **A device can take over the //e's own soft switches**: `options.switches: { read?: number[]; write?: number[] }`,
+  addresses in `$C000`–`$C08F`, by access; a read calls `readSwitch(address)`, a write `writeSwitch(address, value)`.
+  The machine's handler there is replaced. `io` stays for register blocks in the slots' space (`$C090`–`$C0FF`).
+  Checked: in range, and no address (per access) another device took, by its `io` or its `switches`.
+- The keyboard takes the reads of `$C000`–`$C00F` (all the latch on a //e; their writes stay the memory switches:
+  before, only `$C000` was mapped) and `$C010` both ways.
+- **The keyboard role**: a device implementing `AppleKeyboardDevice` (`isKeyboardDevice`: it has `getKeyboardState`)
+  is `bus.keyboard`, at most one (a second is refused). The bus forwards it the host's keys (`pressKey`,
+  `releaseKey`) and the typing calls (`typeText`, `holdKey`, `clearKeys`, `setKeyDelay`, `getKeyboardState`), reads
+  its `latch` for `$C011`–`$C01F`, ORs its `openApple` / `solidApple` with the joystick's buttons (`$C061` / `$C062`).
+  The host → //e key mapping is the device's.
+- No keyboard: `$C000`–`$C010` read 0 silently (the ROM polls `$C000`), host keys are lost, the typing calls throw
+  "This machine has no keyboard" (the worker's `keyboard` command answers with it).
+- Save state: `devices.keyboard` (latch, strobe, Apple keys, queue…). A state from before restores it from the bus's
+  old `lastKey` / `keyStrobe` / `kbd_pb0` / `kbd_pb1` fields and the old top-level `keyboard`.
+- The joystick's buttons stay the bus's (`joy_pb*`), until the joystick is a device too.
+- Tests: `tests/keyboard.test.ts` ("the keyboard device on the //e"), `tests/timer.test.ts` (switch wiring).
+
 ## The question: an address, or only an IMU ID?
 
 First thought: a device only needs its IMU ID, to raise an interrupt. Not enough: the program has to **talk** to the

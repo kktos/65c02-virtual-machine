@@ -1,4 +1,6 @@
 import type { KeyboardState } from "@/types/bus.interface";
+import type { AppleBus } from "../apple.bus";
+import type { AppleKeyboardDevice } from "./device.interface";
 
 /** Cycles after a strobe clear before the next typed key is given to the program: about 10 ms at 1 MHz. */
 export const DEFAULT_KEY_DELAY = 10_000;
@@ -6,8 +8,27 @@ export const DEFAULT_KEY_DELAY = 10_000;
 const REPEAT_DELAY = 512_000;
 const REPEAT_PERIOD = 68_000;
 
-/** What a save state keeps of the keyboard, besides the latch and strobe (bus fields). Not the real keys down. */
+/** The host's keys that aren't characters, to the //e's codes. */
+const SPECIAL_KEYS = new Map([
+	["Enter", 0x0d],
+	["Backspace", 0x08],
+	["ArrowLeft", 0x08], // Apple II Left is BS
+	["ArrowRight", 0x15], // Apple II Right is NAK
+	["ArrowUp", 0x0b],
+	["ArrowDown", 0x0a],
+	["Escape", 0x1b],
+]);
+/** The host's keys for the Apple keys. */
+const OPEN_APPLE_KEY = "AltLeft";
+const SOLID_APPLE_KEY = "AltRight";
+
+/** What a save state keeps of the keyboard. Not the real keys down. */
 export type KeyboardSnapshot = {
+	/** Absent from the states saved before the keyboard device (they had them in the bus's fields). */
+	latch?: number;
+	strobe?: boolean;
+	openApple?: boolean;
+	solidApple?: boolean;
 	queue: number[];
 	held: number;
 	typedDown: boolean;
@@ -16,18 +37,21 @@ export type KeyboardSnapshot = {
 };
 
 /**
- * The //e keyboard: the latch ($C000: the last key, bit 7 the strobe), the strobe clear ($C010, which reads AKD,
- * "a key is down", in bit 7), the keys down, and the keys typed by software (paste, `type_keys`, the `key` command).
+ * The //e keyboard, a device (conf/devices.conf.ts): the latch ($C000-$C00F: the last key, bit 7 the strobe), the
+ * strobe clear ($C010, which reads AKD, "a key is down", in bit 7), the Open and Solid Apple keys, the keys down,
+ * and the keys typed by software (paste, `type_keys`, the `key` command).
  *
  * The typed keys wait in a queue, paced by the program: the next one is latched when the program reads $C000 with
  * the strobe clear, `keyDelay` cycles or more after it consumed the previous one (cleared the strobe). A program
  * that flushes the keyboard (STA $C010) some time after reading a key eats the next one if it was already there:
  * a longer delay avoids it, a shorter one types faster. 0 gives the next key as soon as the program asks.
  */
-export class AppleKeyboard {
+export class AppleKeyboard implements AppleKeyboardDevice {
 	public latch = 0;
 	public strobe = false;
 	public keyDelay = DEFAULT_KEY_DELAY;
+	public openApple = false;
+	public solidApple = false;
 
 	private queue: number[] = [];
 	/** The key held by `hold` (-1: none): down, and repeating. */
@@ -39,10 +63,30 @@ export class AppleKeyboard {
 	private strobeClearedAt = 0;
 	private nextRepeatAt = 0;
 
-	constructor(private readonly now: () => number) {}
+	private readonly bus: Pick<AppleBus, "totalCycles">;
+
+	constructor({ bus }: { bus: Pick<AppleBus, "totalCycles"> }) {
+		this.bus = bus;
+	}
+
+	private now() {
+		return this.bus.totalCycles;
+	}
 
 	get anyKeyDown() {
 		return this.typedDown || this.held >= 0 || this.keysDown.size > 0;
+	}
+
+	// --- Soft switches ---
+
+	/** $C000-$C00F: the latch; $C010: AKD, and clears the strobe. */
+	readSwitch(address: number): number {
+		return (address & 0xf0) === 0x10 ? this.readStrobe() : this.readData();
+	}
+
+	/** $C010 */
+	writeSwitch() {
+		this.clearStrobe();
 	}
 
 	/** $C000 */
@@ -66,6 +110,74 @@ export class AppleKeyboard {
 		}
 		this.typedDown = false;
 	}
+
+	// --- The host's keys (IBus) ---
+
+	/** A key pressed on the host (KeyboardEvent `key` and `code`): an Apple key, or a key latched. */
+	pressKey(key: string, code?: string, ctrl?: boolean) {
+		if (code === OPEN_APPLE_KEY) {
+			this.openApple = true;
+			return;
+		}
+		if (code === SOLID_APPLE_KEY) {
+			this.solidApple = true;
+			return;
+		}
+		let ascii = SPECIAL_KEYS.get(key) ?? 0;
+		if (key.length === 1) {
+			ascii = key.charCodeAt(0);
+			if (ctrl) ascii &= 0x1f;
+		}
+		if (ascii > 0 && ascii < 0x80) this.press(ascii, code ?? key);
+	}
+
+	/** A key released on the host. With no key, all the keys are up (the page lost the focus). */
+	releaseKey(key?: string, code?: string) {
+		if (key === undefined && code === undefined) {
+			this.releaseAll();
+			this.openApple = false;
+			this.solidApple = false;
+			return;
+		}
+		if (code === OPEN_APPLE_KEY) this.openApple = false;
+		else if (code === SOLID_APPLE_KEY) this.solidApple = false;
+		else this.release(code ?? (key as string));
+	}
+
+	typeText(text: string) {
+		const { codes, skipped } = textToKeyCodes(text);
+		this.type(codes);
+		return { queued: codes.length, skipped };
+	}
+
+	/** Holds a key down (the first character of `key`, or a key code), or releases it (null). */
+	holdKey(key: string | number | null) {
+		if (key === null) return this.hold(-1);
+		const code = typeof key === "number" ? key & 0x7f : textToKeyCodes(key).codes[0];
+		if (code === undefined) throw new Error(`No key for ${JSON.stringify(key)}`);
+		this.hold(code);
+	}
+
+	clearKeys() {
+		this.queue.length = 0;
+	}
+
+	setKeyDelay(cycles: number) {
+		this.keyDelay = Math.max(0, Math.round(cycles));
+	}
+
+	getKeyboardState(): KeyboardState {
+		return {
+			queued: this.queue.length,
+			held: this.held < 0 ? null : this.held,
+			delay: this.keyDelay,
+			latch: this.latch,
+			strobe: this.strobe,
+			keyDown: this.anyKeyDown,
+		};
+	}
+
+	// --- The keys, as codes ---
 
 	/** A real key pressed: latched now, and it interrupts the typing under way. */
 	press(code: number, physicalKey?: string) {
@@ -96,29 +208,23 @@ export class AppleKeyboard {
 		this.nextRepeatAt = this.now() + REPEAT_DELAY;
 	}
 
-	clear() {
-		this.queue.length = 0;
-	}
-
-	/** The cycle counter restarts at 0: the times kept would hold the keys back. The keys stay (a reset doesn't lift them). */
+	/**
+	 * The cycle counter restarts at 0: the times kept would hold the keys back. The keys stay (a reset doesn't lift
+	 * them), but the Apple keys are let go.
+	 */
 	reset() {
 		this.strobeClearedAt = 0;
 		this.nextRepeatAt = 0;
-	}
-
-	state(): KeyboardState {
-		return {
-			queued: this.queue.length,
-			held: this.held < 0 ? null : this.held,
-			delay: this.keyDelay,
-			latch: this.latch,
-			strobe: this.strobe,
-			keyDown: this.anyKeyDown,
-		};
+		this.openApple = false;
+		this.solidApple = false;
 	}
 
 	snapshot(): KeyboardSnapshot {
 		return {
+			latch: this.latch,
+			strobe: this.strobe,
+			openApple: this.openApple,
+			solidApple: this.solidApple,
 			queue: [...this.queue],
 			held: this.held,
 			typedDown: this.typedDown,
@@ -127,7 +233,12 @@ export class AppleKeyboard {
 		};
 	}
 
-	restoreSnapshot(state: KeyboardSnapshot | undefined) {
+	restoreSnapshot(snapshot: unknown) {
+		const state = snapshot as Partial<KeyboardSnapshot> | undefined;
+		this.latch = state?.latch ?? 0;
+		this.strobe = state?.strobe ?? false;
+		this.openApple = state?.openApple ?? false;
+		this.solidApple = state?.solidApple ?? false;
 		this.queue = [...(state?.queue ?? [])];
 		this.held = state?.held ?? -1;
 		this.typedDown = state?.typedDown ?? false;

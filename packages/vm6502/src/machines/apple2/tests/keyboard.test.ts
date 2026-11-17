@@ -1,19 +1,33 @@
-// The //e keyboard: latch, strobe, AKD, and the typed keys queue (paste, type_keys, the `key` command).
-import { beforeEach, describe, expect, it, vi } from "vitest";
+// The //e keyboard, a device: latch, strobe, AKD, the Apple keys, and the typed keys queue (paste, type_keys, the
+// `key` command).
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { parseHexData } from "@/lib/array.utils";
 import { initCPU, setRunning, stepInstruction } from "@/virtualmachine/cpu/cpu.65c02";
 import { deleteMachineStates, restoreMachineState, saveMachineState } from "@/virtualmachine/cpu/saveStates";
 import { MEMORY_OFFSET, REG_PC_OFFSET, STACK_METADATA_OFFSET } from "@/virtualmachine/cpu/shared-memory";
 import { AppleBus } from "../apple.bus";
 import { apple2e } from "../apple.machine";
-import { AppleKeyboard, textToKeyCodes } from "../bus/apple.keyboard";
+import { AppleKeyboard, textToKeyCodes } from "../devices/keyboard.device";
+import { loadDevices } from "@/virtualmachine/cpu/loaders/device.loader";
+import type { LoadedDevice } from "@/types/machine.interface";
+
+let devices: LoadedDevice[] = [];
+beforeAll(async () => {
+	devices = await loadDevices(apple2e.devices);
+});
 
 describe("AppleKeyboard", () => {
 	let now = 0;
 	let kbd: AppleKeyboard;
 	beforeEach(() => {
 		now = 100_000;
-		kbd = new AppleKeyboard(() => now);
+		kbd = new AppleKeyboard({
+			bus: {
+				get totalCycles() {
+					return now;
+				},
+			},
+		});
 		kbd.keyDelay = 1000;
 	});
 
@@ -26,7 +40,7 @@ describe("AppleKeyboard", () => {
 
 	it("gives the typed keys one at a time, as the program reads them", () => {
 		kbd.type([0x41, 0x42]);
-		expect(kbd.state()).toMatchObject({ queued: 2, strobe: false });
+		expect(kbd.getKeyboardState()).toMatchObject({ queued: 2, strobe: false });
 		expect(getKey()).toBe(0xc1);
 		// the next one only after the delay
 		expect(getKey()).toBe(0x41);
@@ -36,7 +50,7 @@ describe("AppleKeyboard", () => {
 		expect(getKey()).toBe(0xc2);
 		now += 5000;
 		expect(getKey()).toBe(0x42);
-		expect(kbd.state().queued).toBe(0);
+		expect(kbd.getKeyboardState().queued).toBe(0);
 	});
 
 	it("doesn't give a key while the previous one isn't consumed", () => {
@@ -44,7 +58,7 @@ describe("AppleKeyboard", () => {
 		expect(kbd.readData()).toBe(0xc1);
 		now += 10_000;
 		expect(kbd.readData()).toBe(0xc1);
-		expect(kbd.state().queued).toBe(1);
+		expect(kbd.getKeyboardState().queued).toBe(1);
 	});
 
 	it("a flush within the delay doesn't eat the next key", () => {
@@ -84,7 +98,7 @@ describe("AppleKeyboard", () => {
 	it("holds a key: latched at once, down, repeating, until released", () => {
 		kbd.hold(0x20);
 		expect(kbd.readStrobe()).toBe(0xa0);
-		expect(kbd.state()).toMatchObject({ held: 0x20, keyDown: true });
+		expect(kbd.getKeyboardState()).toMatchObject({ held: 0x20, keyDown: true });
 		expect(kbd.readData()).toBe(0x20); // no repeat yet
 		now += 512_000;
 		expect(getKey()).toBe(0xa0);
@@ -101,7 +115,7 @@ describe("AppleKeyboard", () => {
 	it("a real key interrupts the typing, and is down until released", () => {
 		kbd.type([0x41, 0x42]);
 		kbd.press(0x5a, "KeyZ");
-		expect(kbd.state()).toMatchObject({ queued: 0, keyDown: true });
+		expect(kbd.getKeyboardState()).toMatchObject({ queued: 0, keyDown: true });
 		expect(getKey()).toBe(0xda);
 		expect(kbd.readStrobe() & 0x80).toBe(0x80);
 		kbd.release("KeyZ");
@@ -109,7 +123,7 @@ describe("AppleKeyboard", () => {
 
 		kbd.press(0x5a, "KeyZ");
 		kbd.releaseAll();
-		expect(kbd.state().keyDown).toBe(false);
+		expect(kbd.getKeyboardState().keyDown).toBe(false);
 	});
 
 	it("keeps the keys over a reset, where the cycle counter restarts", () => {
@@ -151,6 +165,7 @@ describe("typed keys on the //e", () => {
 		mem = new Uint8Array(buffer, MEMORY_OFFSET, size);
 		stack = new Uint8Array(buffer, STACK_METADATA_OFFSET, 256);
 		bus = new AppleBus(mem);
+		bus.installDevices(devices);
 		bus.setRegistersView(regs);
 		for (const c of apple2e.memory.chunks ?? [])
 			bus.load(c.addr, typeof c.data === "string" ? parseHexData(c.data) : (c.data as Uint8Array), c.bank, c.tag);
@@ -202,6 +217,137 @@ describe("typed keys on the //e", () => {
 		expect(bus.read(0xc01a)).toBe(0xc1); // TEXT on
 		expect(bus.read(0xc01d)).toBe(0x41); // HIRES off
 		for (let addr = 0xc011; addr <= 0xc01f; addr++) expect(bus.read(addr) & 0x7f).toBe(0x41);
-		expect(bus.keyStrobe).toBe(true);
+		expect(bus.getKeyboardState().strobe).toBe(true);
+	});
+});
+
+describe("the keyboard device on the //e", () => {
+	const OPEN_APPLE = 0xc061;
+	const SOLID_APPLE = 0xc062;
+	const busWith = (installed = devices) => {
+		vi.stubGlobal("self", { postMessage: () => undefined });
+		vi.stubGlobal("performance", { now: () => 0 });
+		const bus = new AppleBus(new Uint8Array(apple2e.memory.size));
+		bus.installDevices(installed);
+		return bus;
+	};
+
+	it("maps the host's keys: characters, Ctrl, Return and the arrows", () => {
+		const bus = busWith();
+		const latched = (key: string, ctrl = false) => {
+			bus.pressKey(key, undefined, ctrl);
+			const value = bus.read(0xc010);
+			bus.releaseKey(key);
+			return value & 0x7f;
+		};
+		expect(latched("a")).toBe(0x61);
+		expect(latched("c", true)).toBe(0x03);
+		expect(latched("Enter")).toBe(0x0d);
+		expect(latched("ArrowLeft")).toBe(0x08);
+		expect(latched("ArrowRight")).toBe(0x15);
+		expect(latched("ArrowUp")).toBe(0x0b);
+		expect(latched("ArrowDown")).toBe(0x0a);
+		expect(latched("Escape")).toBe(0x1b);
+		bus.pressKey("Shift", "ShiftLeft"); // no key for it: the latch stays
+		expect(bus.read(0xc000)).toBe(0x1b);
+	});
+
+	it("reads the latch at any of $C000-$C00F, whose writes stay the memory switches", () => {
+		const bus = busWith();
+		bus.pressKey("A", "KeyA");
+		for (let addr = 0xc000; addr <= 0xc00f; addr++) expect(bus.read(addr)).toBe(0xc1);
+		bus.write(0xc001, 0); // 80STOREON
+		expect(bus.store80).toBe(true);
+		bus.write(0xc010, 0);
+		expect(bus.read(0xc00f)).toBe(0x41);
+	});
+
+	it("has the Apple keys at $C061 / $C062, ORed with the joystick's buttons", () => {
+		const bus = busWith();
+		bus.pressKey("Alt", "AltLeft");
+		expect(bus.read(OPEN_APPLE)).toBe(0x80);
+		expect(bus.read(SOLID_APPLE)).toBe(0x00);
+		expect(bus.read(0xc010) & 0x80).toBe(0); // not a key for AKD
+		bus.pressKey("Alt", "AltRight");
+		expect(bus.read(SOLID_APPLE)).toBe(0x80);
+		bus.releaseKey("Alt", "AltLeft");
+		expect(bus.read(OPEN_APPLE)).toBe(0x00);
+		bus.joy_pb0 = true;
+		expect(bus.read(OPEN_APPLE)).toBe(0x80);
+		bus.joy_pb0 = false;
+
+		bus.releaseKey(); // the page lost the focus
+		expect(bus.read(SOLID_APPLE)).toBe(0x00);
+		bus.pressKey("Alt", "AltLeft");
+		bus.reset();
+		expect(bus.read(OPEN_APPLE)).toBe(0x00);
+	});
+
+	it("keeps its state in the save state's devices", () => {
+		const bus = busWith();
+		bus.pressKey("Alt", "AltLeft");
+		bus.pressKey("Q", "KeyQ");
+		bus.typeText("RUN");
+		const state = structuredClone(bus.snapshot());
+		expect(state.devices?.keyboard).toMatchObject({
+			latch: 0x51,
+			strobe: true,
+			openApple: true,
+			queue: [0x52, 0x55, 0x4e],
+		});
+
+		const other = busWith();
+		other.restoreSnapshot(state);
+		expect(other.read(0xc000)).toBe(0xd1);
+		expect(other.read(OPEN_APPLE)).toBe(0x80);
+		expect(other.getKeyboardState().queued).toBe(3);
+	});
+
+	it("restores a save state from before the keyboard device (its latch, strobe, Apple keys in the bus's fields)", () => {
+		const { devices: deviceStates, ...state } = structuredClone(busWith().snapshot());
+		const {
+			latch: _l,
+			strobe: _s,
+			openApple: _o,
+			solidApple: _a,
+			...keyboard
+		} = (deviceStates?.keyboard ?? {}) as Record<string, unknown>;
+		const old = {
+			...state,
+			fields: { ...state.fields, lastKey: 0x5a, keyStrobe: true, kbd_pb0: false, kbd_pb1: true },
+			keyboard: { ...keyboard, queue: [0x41] },
+			devices: { timer: deviceStates?.timer },
+		};
+		const bus = busWith();
+		bus.restoreSnapshot(old);
+		expect(bus.read(0xc000)).toBe(0xda);
+		expect(bus.read(SOLID_APPLE)).toBe(0x80);
+		expect(bus.getKeyboardState().queued).toBe(1);
+		expect(bus).not.toHaveProperty("lastKey");
+	});
+
+	it("without a keyboard, nothing is typed: $C000 reads 0, the typing calls throw", () => {
+		const error = vi.spyOn(console, "warn").mockImplementation(() => {});
+		const bus = busWith([]);
+		bus.pressKey("A", "KeyA");
+		bus.pressKey("Alt", "AltLeft");
+		expect(bus.read(0xc000)).toBe(0);
+		expect(bus.read(0xc010)).toBe(0);
+		expect(bus.read(OPEN_APPLE)).toBe(0);
+		bus.text = true;
+		expect(bus.read(0xc01a)).toBe(0x80);
+		expect(() => bus.typeText("A")).toThrow("no keyboard");
+		expect(() => bus.getKeyboardState()).toThrow("no keyboard");
+		expect(error).not.toHaveBeenCalled(); // the ROM polls $C000: silently
+		error.mockRestore();
+	});
+
+	it("doesn't install a second keyboard", () => {
+		const error = vi.spyOn(console, "error").mockImplementation(() => {});
+		const keyboard = devices[0] as LoadedDevice;
+		const bus = busWith([keyboard, { ...keyboard, config: { ...keyboard.config, id: "keyboard2", options: {} } }]);
+		expect(error).toHaveBeenCalledWith(expect.stringContaining("there is a keyboard already"));
+		expect(Object.keys(bus.snapshot().devices ?? {})).toEqual(["keyboard"]);
+		error.mockRestore();
 	});
 });

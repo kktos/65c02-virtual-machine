@@ -1,7 +1,14 @@
 // AppleBus.peek: the CPU's view of memory, for the disassembler, without the side effects of `read`.
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { loadDevices } from "@/virtualmachine/cpu/loaders/device.loader";
+import type { LoadedDevice } from "@/types/machine.interface";
 import { AppleBus } from "../apple.bus";
 import { apple2e } from "../apple.machine";
+
+let devices: LoadedDevice[] = [];
+beforeAll(async () => {
+	devices = await loadDevices(apple2e.devices);
+});
 
 describe("AppleBus.peek", () => {
 	let bus: AppleBus;
@@ -10,14 +17,15 @@ describe("AppleBus.peek", () => {
 		vi.stubGlobal("performance", { now: () => 0 });
 		// Like the main thread's bus: shared memory, no registers view.
 		bus = new AppleBus(new Uint8Array(apple2e.memory.size));
+		bus.installDevices(devices);
 	});
 
 	it("doesn't trigger soft switches (`read` does)", () => {
-		bus.keyStrobe = true;
+		bus.pressKey("A", "KeyA");
 		bus.peek(0xc010); // KBDSTRB
-		expect(bus.keyStrobe).toBe(true);
+		expect(bus.getKeyboardState().strobe).toBe(true);
 		bus.read(0xc010);
-		expect(bus.keyStrobe).toBe(false);
+		expect(bus.getKeyboardState().strobe).toBe(false);
 	});
 
 	it("doesn't switch the expansion ROM on $CFFF or $C3xx (`read` does)", () => {
