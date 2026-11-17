@@ -1,3 +1,5 @@
+import type { AppleDevice, AppleDeviceContext } from "./device.interface";
+
 /** One NTSC frame of the //e: 65 cycles × 262 lines. */
 export const FRAME_CYCLES = 17_030;
 
@@ -18,18 +20,21 @@ export type TimerSnapshot = { running: boolean; fired: boolean; period: number; 
 
 /**
  * A periodic interrupt source built into the //e (no card): every PERIOD frames it asserts its line until the
- * program acknowledges it. Stopped at reset, so it never interrupts a program that didn't start it. On the //e it
- * drives IMU ID 8, its registers at $C0B8-$C0BA.
+ * program acknowledges it. Stopped at reset, so it never interrupts a program that didn't start it. A device
+ * (conf/devices.conf.ts): on the //e it drives IMU ID 8, its registers at $C0B8-$C0BA.
  */
-export class AppleTimer {
+export class AppleTimer implements AppleDevice {
 	private running = false;
 	private fired = false;
 	private period = TIMER_DEFAULT_PERIOD;
 	/** Cycles until the next pulse. */
 	private remaining = 0;
 
-	/** `onIrqChange`: called when the line changes (`irq` reads it). */
-	constructor(private readonly onIrqChange: () => void) {}
+	private readonly setIrq: (active: boolean) => void;
+
+	constructor({ setIrq }: Pick<AppleDeviceContext, "setIrq">) {
+		this.setIrq = setIrq;
+	}
 
 	get irq() {
 		return this.fired;
@@ -84,14 +89,15 @@ export class AppleTimer {
 	private setFired(fired: boolean) {
 		if (fired === this.fired) return;
 		this.fired = fired;
-		this.onIrqChange();
+		this.setIrq(fired);
 	}
 
 	snapshot(): TimerSnapshot {
 		return { running: this.running, fired: this.fired, period: this.period, remaining: this.remaining };
 	}
 
-	restoreSnapshot(state: TimerSnapshot) {
+	restoreSnapshot(snapshot: unknown) {
+		const state = snapshot as TimerSnapshot;
 		this.running = state.running;
 		this.period = state.period;
 		this.remaining = state.remaining;

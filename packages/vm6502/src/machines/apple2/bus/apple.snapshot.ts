@@ -1,8 +1,6 @@
 import { type IMUSnapshot } from "../../chips/imu";
 import { type KeyboardSnapshot } from "./apple.keyboard";
 
-import { type TimerSnapshot } from "./apple.timer";
-
 // What a save state keeps of the bus, besides memory (shared buffer), the cards and the keyboard queue. Not the live
 // inputs (joystick buttons, paddle positions: read from the shared registers at each tick, the real keys down) nor
 // the speaker.
@@ -50,6 +48,8 @@ export type AppleBusSnapshot = {
 	keyboard?: KeyboardSnapshot;
 	/** Absent from the states saved before the IMU. */
 	imu?: IMUSnapshot;
-	/** Absent from the states saved before the timer. */
-	timer?: TimerSnapshot;
+	/** Each device's state, by its id (absent from the states saved before the devices). */
+	devices?: Record<string, unknown>;
+	/** Only in the states saved before the devices: the timer's (now `devices.timer`). */
+	timer?: unknown;
 };

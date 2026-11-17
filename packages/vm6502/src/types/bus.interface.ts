@@ -1,5 +1,6 @@
 import type { Dict } from "@/types/dict.type";
 import type { InterruptsState } from "@/types/interrupts.interface";
+import type { LoadedDevice } from "@/types/machine.interface";
 
 export interface MachineStateSpec {
 	id: string;
@@ -34,6 +35,12 @@ export interface IBus {
 	 * devices ORed by the bus; `nmi` is an NMI edge. For machines whose devices interrupt the CPU.
 	 */
 	setInterruptLines?(lines: InterruptLines): void;
+
+	/**
+	 * Builds and wires the machine's devices (`MachineConfig.devices`, their classes loaded by `loadDevices`), once,
+	 * right after the constructor: a separate step as loading them is async.
+	 */
+	installDevices?(devices: LoadedDevice[]): void;
 
 	/**
 	 * Vectored IRQs (an IMU, see IMU.md). IRQ only, never BRK / NMI: called after the pushes, `sp` the SP after

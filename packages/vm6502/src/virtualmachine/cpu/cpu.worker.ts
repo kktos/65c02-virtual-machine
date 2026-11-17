@@ -29,6 +29,7 @@ import {
 	stepOverInstruction,
 } from "./cpu.65c02";
 import { loadBus } from "./loaders/bus.loader";
+import { installDevices } from "./loaders/device.loader";
 import { clearInstructionTrace, readInstructionTrace, setInstructionTrace } from "./instructionTrace";
 import { loadVideo } from "./loaders/video.loader";
 import {
@@ -72,6 +73,7 @@ async function init(machine: MachineConfig): Promise<boolean> {
 
 	bus = await loadBus(machine.bus, memoryView);
 	if (!bus) return false;
+	await installDevices(bus, machine.devices);
 
 	// Give bus access to the registers view for state syncing
 	if (bus.setRegistersView) bus.setRegistersView(registersView);

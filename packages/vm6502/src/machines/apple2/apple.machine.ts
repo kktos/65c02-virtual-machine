@@ -1,5 +1,6 @@
 /** biome-ignore-all lint/complexity/useSimpleNumberKeys: Firmware addr in hex */
 import type { MachineConfig } from "@/types/machine.interface";
+import { devicesConfig } from "./conf/devices.conf";
 import { debugOptionsConfig } from "./conf/debug.options.conf";
 import { memoryConfig } from "./conf/memory.conf";
 import { regionsConfig } from "./conf/regions.conf";
@@ -13,6 +14,7 @@ export const apple2e: MachineConfig = {
 	css: ["apple2/fonts/fonts.css"],
 	bus: { class: "AppleBus", path: "apple2/apple.bus" },
 	slots: slotsConfig,
+	devices: devicesConfig,
 	video: {
 		width: 640,
 		height: 480,

@@ -1,5 +1,6 @@
 import type { DataBlock } from "@/composables/useDataFormattings";
 import type { SymbolDict } from "@/composables/useSymbols";
+import type { Dict } from "@/types/dict.type";
 
 export interface DebugOption {
 	id: string;
@@ -126,6 +127,29 @@ export interface BusOptions {
 	slots?: SlotLayout;
 }
 
+/**
+ * A device the machine has besides its slot cards (the //e's timer…), its class loaded at run time like the bus and
+ * the video: from `path` (relative to `src/machines`, without `.ts`; the file must be a `*.device.ts`), the export
+ * named `class`. Built and wired by the bus (`IBus.installDevices`), on both threads.
+ */
+export interface DeviceConfig {
+	/** Unique in the machine: names it in the save states. */
+	id: string;
+	/** As the debugger names it (default: `id`). */
+	label?: string;
+	class: string; // exported class name
+	path: string; // Path relative to src/machines for dynamic import
+	/** For the bus: how it wires the device (the //e: its I/O addresses, its IMU ID) and the device's own settings. */
+	options?: Dict;
+}
+
+/** A device whose class is loaded, given to the bus to build and wire (see `DeviceConfig`). */
+export interface LoadedDevice {
+	config: DeviceConfig;
+	/** What the bus builds it with is the machine's own contract (the //e: `AppleDeviceClass`). */
+	Class: new (...args: never[]) => object;
+}
+
 export interface MachineSpeed {
 	label: string;
 	value: number;
@@ -150,6 +174,8 @@ export interface MachineConfig {
 	};
 	/** Expansion slots the user can fill (none: the machine has no slots). */
 	slots?: SlotsConfig;
+	/** The devices the bus installs besides the slot cards, in this order. */
+	devices?: DeviceConfig[];
 	video?: VideoConfig;
 	disk?: DiskConfig;
 	css?: string[];

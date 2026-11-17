@@ -1,5 +1,11 @@
 # TODO
 
+### 2026-11-17
+
+- //e devices as virtual slots: a SELECT register at `$C0B4` (the device number = its IMU ID, 8–15) and an 11-register
+  window at `$C0B5`–`$C0BF`, instead of a fixed I/O range per device. The selection across interrupts (manual save /
+  restore, or automatic on a vectored IRQ / its RTI) to decide. See DEVICES.md
+
 ### 2026-11-15
 
 - **FIXED** hypercalls from the aux language card (or aux zero page / stack) don't run: the BRK stops as a plain BRK.
