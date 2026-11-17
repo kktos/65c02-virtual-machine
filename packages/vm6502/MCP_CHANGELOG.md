@@ -102,6 +102,9 @@ Priorities reviewed 2026-11-08 (what blocked the use cases):
    `$FFFE/F` fallback), `bank`, and `pending` / `masked` / `in_service` / `eligible`, then the `frames` (vectored
    IRQs not yet returned from). A worker request (`getInterrupts` → `IBus.getInterrupts()`); a machine without an
    IMU (the PET) answers an error. The same data feeds the debugger's Interrupts window. Checked live on the //e.
+   Per ID also `requests` (the line's rising edges) and `dispatches` (vectored IRQs taken), counted since the
+   reset: an IRQ is serviced in microseconds, so a single read almost never catches it pending; two reads show
+   which IDs fire. Found live this way: the timer example's IRQ, pending and eligible but never taken (I set).
 
 ## Follow-ups fixed
 

@@ -56,6 +56,8 @@ describe("get_interrupts tool", () => {
 			masked: false,
 			in_service: false,
 			eligible: false,
+			requests: 0,
+			dispatches: 0,
 		});
 		expect(result.ids[0].source).toBeNull();
 		expect(result.frames).toEqual([]);
@@ -81,7 +83,14 @@ describe("get_interrupts tool", () => {
 			in_service: true,
 			eligible: false,
 		});
-		expect(result.ids[4]).toMatchObject({ pending: true, masked: true, eligible: false });
+		expect(result.ids[7]).toMatchObject({ requests: 1, dispatches: 1 });
+		expect(result.ids[4]).toMatchObject({
+			pending: true,
+			masked: true,
+			eligible: false,
+			requests: 1,
+			dispatches: 0,
+		});
 		expect(result.ids[2]).toMatchObject({ pending: true, masked: false, eligible: true, handler: null });
 		expect(result.ids[2]).not.toHaveProperty("bank");
 		expect(result.frames).toEqual([{ id: 7, sp: "$FC", saved: 0 }]);

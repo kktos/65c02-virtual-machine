@@ -1,8 +1,18 @@
 /** A vectored dispatch not yet returned from: `sp` the SP after the 3 pushes, `saved` what the context's `enter` returned. */
 export type InterruptFrame = { id: number; sp: number; saved: number };
 
-/** One IMU line (ID): its priority (0 highest) and its committed handler ($0000: none, the $FFFE/F fallback). */
-export type InterruptLineState = { id: number; prio: number; handler: number; bank: number };
+/**
+ * One IMU line (ID): its priority (0 highest) and its committed handler ($0000: none, the $FFFE/F fallback).
+ * `requests` (the line's rising edges) and `dispatches` (the vectored IRQs taken) count since the reset.
+ */
+export type InterruptLineState = {
+	id: number;
+	prio: number;
+	handler: number;
+	bank: number;
+	requests: number;
+	dispatches: number;
+};
 
 /** The IMU as the debugger shows it (see IMU.md). The masks have one bit per ID. */
 export type IMUState = {
