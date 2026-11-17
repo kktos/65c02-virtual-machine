@@ -1232,7 +1232,9 @@ export const MCP_TOOLS: McpTool[] = [
 			"CPU's IRQ input as the IMU drives it), `current` (CURRENT: the ID whose handler runs, null if none), " +
 			"`index` (INDEX register), and per ID (`ids`): `source` (what drives it: on the //e ID n is slot n's card, ID 8 the timer at $C0B8), " +
 			"`prio` (0 highest), `handler` (null: none, the IRQ goes through $FFFE/F), `bank`, `pending` (line " +
-			"asserted), `masked`, `in_service`, `eligible` (can interrupt now). `frames`: the vectored IRQs not yet " +
+			"asserted), `masked`, `in_service`, `eligible` (can interrupt now), `requests` (the line's rising edges) and " +
+			"`dispatches` (the vectored IRQs taken), counted since the reset: an IRQ is serviced in microseconds, so " +
+			"compare them across two reads to see which IDs fire. `frames`: the vectored IRQs not yet " +
 			"returned from, innermost last (`sp`: the SP after the pushes, where the matching RTI is expected). " +
 			"The registers are at $C0B0-$C0B3 on the //e (INDEX, DATA LO, DATA HI, CURRENT / EOI).",
 		inputSchema: { type: "object", properties: {} },
@@ -1258,6 +1260,8 @@ export const MCP_TOOLS: McpTool[] = [
 					masked: bit(state.mask, line.id),
 					in_service: bit(state.inService, line.id),
 					eligible: bit(state.eligible, line.id),
+					requests: line.requests,
+					dispatches: line.dispatches,
 				})),
 				frames: state.frames.map((frame) => ({ id: frame.id, sp: hex(frame.sp, 2), saved: frame.saved })),
 			});

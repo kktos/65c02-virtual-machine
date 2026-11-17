@@ -424,6 +424,47 @@ describe("IMU", () => {
 		});
 	});
 
+	describe("activity counters (debugger)", () => {
+		const counts = (imu: IMU, id: number) => {
+			const { requests, dispatches } = imu.getState().lines[id]!;
+			return { requests, dispatches };
+		};
+
+		it("requests count the line's rising edges, vectoring on or off", () => {
+			const { imu } = setup();
+			imu.setLine(4, true);
+			imu.setLine(4, true); // still up: no edge
+			imu.setLine(4, false);
+			imu.setLine(4, true);
+			expect(counts(imu, 4)).toEqual({ requests: 2, dispatches: 0 });
+		});
+
+		it("dispatches count the vectored IRQs only, not the fallbacks", () => {
+			const { imu, enable, setHandler, eoi } = setup();
+			enable();
+			imu.setLine(2, true); // no handler: $FFFE/F
+			imu.irqVector(0xfc);
+			setHandler(5, 0x1005);
+			imu.setLine(2, false);
+			imu.setLine(5, true);
+			imu.irqVector(0xfc);
+			eoi();
+			imu.irqVector(0xfc);
+			expect(counts(imu, 2)).toEqual({ requests: 1, dispatches: 0 });
+			expect(counts(imu, 5)).toEqual({ requests: 1, dispatches: 2 });
+		});
+
+		it("reset() clears them", () => {
+			const { imu, enable, setHandler } = setup();
+			enable();
+			setHandler(5, 0x1005);
+			imu.setLine(5, true);
+			imu.irqVector(0xfc);
+			imu.reset();
+			expect(counts(imu, 5)).toEqual({ requests: 0, dispatches: 0 });
+		});
+	});
+
 	it("snapshot / restoreSnapshot round-trip", () => {
 		const { imu, set8, setHandler, enable, set16 } = setup();
 		enable();

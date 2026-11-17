@@ -89,6 +89,9 @@ export class IMU {
 	private readonly stagedBanks = Array.from({ length: IMU_IDS }, () => 0);
 	private frames: IMUFrame[] = [];
 	private irqOut = false;
+	/** Per ID, for the debugger (not in save states): the line's rising edges, and the vectored dispatches. */
+	private readonly requests = Array.from({ length: IMU_IDS }, () => 0);
+	private readonly dispatches = Array.from({ length: IMU_IDS }, () => 0);
 
 	constructor(private readonly options: IMUOptions) {
 		this.reset();
@@ -105,6 +108,8 @@ export class IMU {
 		this.banks.fill(0);
 		this.stagedBanks.fill(0);
 		this.frames = [];
+		this.requests.fill(0);
+		this.dispatches.fill(0);
 		this.updateIrq();
 	}
 
@@ -126,6 +131,7 @@ export class IMU {
 		const bit = 1 << id;
 		const asserted = active ? this.asserted | bit : this.asserted & ~bit;
 		if (asserted === this.asserted) return;
+		if (active) this.requests[id]!++;
 		this.asserted = asserted;
 		this.updateIrq();
 	}
@@ -184,6 +190,7 @@ export class IMU {
 		while (this.frames.length && this.frames.at(-1)!.sp <= sp) this.frames.pop();
 		const saved = this.options.context?.enter(this.banks[id]!) ?? 0;
 		this.frames.push({ id, sp, saved });
+		this.dispatches[id]!++;
 		this.updateIrq();
 		return { id, address };
 	}
@@ -304,7 +311,14 @@ export class IMU {
 			current: this.current,
 			irq: this.irqOut,
 			index: this.index,
-			lines: this.prio.map((prio, id) => ({ id, prio, handler: this.handlers[id]!, bank: this.banks[id]! })),
+			lines: this.prio.map((prio, id) => ({
+				id,
+				prio,
+				handler: this.handlers[id]!,
+				bank: this.banks[id]!,
+				requests: this.requests[id]!,
+				dispatches: this.dispatches[id]!,
+			})),
 			frames: this.frames.map((frame) => ({ ...frame })),
 		};
 	}

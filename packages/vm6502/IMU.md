@@ -342,8 +342,10 @@ counts in BCD at the top right of the 40-column text screen, and sends its EOI. 
 handler: no `$FFFE/F`, no `$3FE`.
 
 It's written for the debugger's mini-assembler: paste the file in the debugger console (it assembles at `$300`),
-then `300G` from the Monitor or `CALL 768` from BASIC. A reset stops it (timer stopped, vectoring off). The same
-program runs in `src/machines/apple2/tests/timer.test.ts`.
+then `300G` in the console, `CALL 768` from BASIC or `300G` from the Apple Monitor. Its `CLI` matters: the //e starts
+with I set and nothing clears it, so without it the timer's line stays pending, eligible but never taken (the console's
+`G` puts the registers back when the routine returns, all but the I flag). A reset stops it (timer stopped, vectoring
+off). The same program runs in `src/machines/apple2/tests/timer.test.ts`.
 
 ## //e devices
 

@@ -29,6 +29,15 @@
 						<th class="py-1 pr-2" title="Priority: 0 highest">Prio</th>
 						<th class="py-1 pr-2" title="— : none, the IRQ goes through $FFFE/F">Handler</th>
 						<th class="py-1 pr-2">Bank</th>
+						<th class="py-1 pr-2 text-right" title="Requests: the line's rising edges since the reset">
+							Req
+						</th>
+						<th
+							class="py-1 pr-2 text-right"
+							title="Vectored: the IRQs dispatched to its handler since the reset"
+						>
+							Vec
+						</th>
 						<th v-for="col in FLAG_COLUMNS" :key="col.key" class="py-1 pr-2 text-center" :title="col.title">
 							{{ col.label }}
 						</th>
@@ -59,13 +68,14 @@
 						</td>
 						<td v-else class="py-0.5 pr-2 text-gray-600">—</td>
 						<td class="py-0.5 pr-2">{{ line.bank ? `$${toHex(line.bank, 2)}` : "" }}</td>
+						<td class="py-0.5 pr-2 text-right" :class="{ 'text-gray-600': !line.requests }">
+							{{ line.requests }}
+						</td>
+						<td class="py-0.5 pr-2 text-right" :class="{ 'text-gray-600': !line.dispatches }">
+							{{ line.dispatches }}
+						</td>
 						<td v-for="col in FLAG_COLUMNS" :key="col.key" class="py-0.5 pr-2">
-							<span
-								:class="[
-									'block mx-auto w-2.5 h-2.5 rounded-full',
-									bitClass(state[col.key], line.id, col.color),
-								]"
-							></span>
+							<span :class="['block mx-auto w-2.5 h-2.5 rounded-full', dotClass(col, line.id)]"></span>
 						</td>
 					</tr>
 				</tbody>
@@ -98,14 +108,33 @@ const vm = inject<Ref<VirtualMachine>>("vm");
 const { requestJump } = useDisassembly();
 
 type MaskKey = "pending" | "mask" | "inService" | "eligible";
-const FLAG_COLUMNS: { key: MaskKey; label: string; title: string; color: string }[] = [
-	{ key: "pending", label: "P", title: "Pending: the line is asserted", color: "bg-yellow-400" },
+type Counter = "requests" | "dispatches";
+/** `recent`: the counter that, when it moved since the last poll, shows the dot dimmed (an IRQ lasts microseconds). */
+type FlagColumn = { key: MaskKey; label: string; title: string; color: string; recent?: Counter; dim?: string };
+const FLAG_COLUMNS: FlagColumn[] = [
+	{
+		key: "pending",
+		label: "P",
+		title: "Pending: the line is asserted (dimmed: it was since the last refresh)",
+		color: "bg-yellow-400",
+		recent: "requests",
+		dim: "bg-yellow-400/40",
+	},
 	{ key: "mask", label: "M", title: "Masked", color: "bg-red-500" },
-	{ key: "inService", label: "S", title: "In service (until its EOI)", color: "bg-cyan-400" },
+	{
+		key: "inService",
+		label: "S",
+		title: "In service (until its EOI) (dimmed: its handler was vectored to since the last refresh)",
+		color: "bg-cyan-400",
+		recent: "dispatches",
+		dim: "bg-cyan-400/40",
+	},
 	{ key: "eligible", label: "E", title: "Eligible: can interrupt now", color: "bg-green-500" },
 ];
 
 const state = shallowRef<InterruptsState | null>(null);
+/** The IDs whose counter moved between the last two polls. */
+const fired = shallowRef<Record<Counter, number>>({ requests: 0, dispatches: 0 });
 
 const leds = computed(() =>
 	state.value
@@ -120,10 +149,26 @@ const leds = computed(() =>
 const toHex = (value: number, width: number) => value.toString(16).toUpperCase().padStart(width, "0");
 const ledClass = (on: boolean) =>
 	on ? "bg-green-500 shadow-[0_0_6px_rgba(34,197,94,0.6)]" : "bg-red-900 shadow-[0_0_6px_rgba(239,68,68,0.6)]";
-const bitClass = (mask: number, id: number, color: string) => (mask & (1 << id) ? color : "bg-gray-700");
+const dotClass = (col: FlagColumn, id: number) => {
+	const bit = 1 << id;
+	if (state.value![col.key] & bit) return col.color;
+	if (col.recent && fired.value[col.recent] & bit) return col.dim;
+	return "bg-gray-700";
+};
+
+const movedSince = (prev: InterruptsState | null, next: InterruptsState | null, counter: Counter) => {
+	let bits = 0;
+	if (prev && next)
+		for (const line of next.lines) if (line[counter] > (prev.lines[line.id]?.[counter] ?? 0)) bits |= 1 << line.id;
+	return bits;
+};
 
 const refresh = async () => {
-	if (vm?.value) state.value = await vm.value.getInterrupts();
+	if (!vm?.value) return;
+	const prev = state.value;
+	const next = await vm.value.getInterrupts();
+	fired.value = { requests: movedSince(prev, next, "requests"), dispatches: movedSince(prev, next, "dispatches") };
+	state.value = next;
 };
 
 // While the window is open (it unmounts this view when closed)
