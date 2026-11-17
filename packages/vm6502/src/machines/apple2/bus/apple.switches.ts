@@ -70,13 +70,12 @@ export function installSoftSwitches(bus: AppleBus) {
 	warnOnAccess("ZIPCHIP", SoftSwitches.ZIPCHIP_5F, true);
 
 	// --- Keyboard ---
-	// $C000: the latch (and the next typed key, see AppleKeyboard); $C010: AKD (a key is down) and the latch
-	onRead(SoftSwitches.KBD, () => bus.keyboard.readData());
-	onRead(SoftSwitches.KBDSTRB, () => bus.keyboard.readStrobe());
-	onWrite(SoftSwitches.KBDSTRB, () => bus.keyboard.clearStrobe());
+	// A device (devices/keyboard.device.ts) takes over $C000-$C00F reads and $C010. Without one: nothing typed.
+	for (let addr = SoftSwitches.KBD; addr <= SoftSwitches.KBDSTRB; addr++) onRead(addr, () => 0);
+	onWrite(SoftSwitches.KBDSTRB, () => {});
 
 	// The //e's status reads ($C011-$C01F): the flag in bit 7, the keyboard latch in bits 0-6 (the strobe untouched)
-	const flagWithLatch = (isOn: boolean) => (isOn ? 0x80 : 0x00) | bus.keyboard.latch;
+	const flagWithLatch = (isOn: boolean) => (isOn ? 0x80 : 0x00) | (bus.keyboard?.latch ?? 0);
 
 	// --- Annunciator for Double Res Video ---
 	onAccess(SoftSwitches.SETAN3, () => {

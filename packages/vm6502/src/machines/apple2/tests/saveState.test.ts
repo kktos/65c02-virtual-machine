@@ -1,5 +1,5 @@
 // Save states on the real //e (ROMs + AppleBus, no video) in Node: the worker side of save_state / restore_state.
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { parseHexData } from "@/lib/array.utils";
 import { initCPU, prepareForRestore, setRunning, stepInstruction } from "@/virtualmachine/cpu/cpu.65c02";
 import {
@@ -15,11 +15,18 @@ import {
 	REG_PC_OFFSET,
 	STACK_METADATA_OFFSET,
 } from "@/virtualmachine/cpu/shared-memory";
+import { loadDevices } from "@/virtualmachine/cpu/loaders/device.loader";
+import type { LoadedDevice } from "@/types/machine.interface";
 import { AppleBus } from "../apple.bus";
 import { apple2e } from "../apple.machine";
 import { APPLE_PAGE2_MASK } from "../shared-memory.consts";
 
 type Machine = { bus: AppleBus; regs: DataView; views: MachineViews };
+
+let devices: LoadedDevice[] = [];
+beforeAll(async () => {
+	devices = await loadDevices(apple2e.devices);
+});
 
 const boot = (): Machine => {
 	vi.stubGlobal("self", { postMessage: () => undefined });
@@ -31,6 +38,7 @@ const boot = (): Machine => {
 	const mem = new Uint8Array(buffer, MEMORY_OFFSET, size);
 	const stack = new Uint8Array(buffer, STACK_METADATA_OFFSET, 256);
 	const bus = new AppleBus(mem);
+	bus.installDevices(devices);
 	bus.setRegistersView(regs);
 	for (const c of apple2e.memory.chunks ?? [])
 		bus.load(c.addr, typeof c.data === "string" ? parseHexData(c.data) : (c.data as Uint8Array), c.bank, c.tag);

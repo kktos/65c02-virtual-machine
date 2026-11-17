@@ -23,12 +23,17 @@ import {
 import { generateApple2Assets } from "./bus/apple.assets";
 import type { InterruptsState } from "@/types/interrupts.interface";
 import { IMU, IMU_IDS } from "../chips/imu";
-import { AppleKeyboard, textToKeyCodes } from "./bus/apple.keyboard";
 import { loadMemoryChunks } from "./bus/apple.loader";
 import { APPLE_SEARCH_REGIONS } from "./bus/apple.search";
 import { installSoftSwitches } from "./bus/apple.switches";
 import { type AppleCardId, slotsConfig } from "./conf/slots.conf";
-import type { AppleDevice, AppleDeviceClass, AppleDeviceWiring } from "./devices/device.interface";
+import {
+	type AppleDevice,
+	type AppleDeviceClass,
+	type AppleDeviceWiring,
+	type AppleKeyboardDevice,
+	isKeyboardDevice,
+} from "./devices/device.interface";
 import {
 	APPLE_80COL_MASK,
 	APPLE_ALTCHAR_MASK,
@@ -63,12 +68,16 @@ import { type AudioSource, Speaker } from "./speaker";
 import { readTextScreen } from "./video/text.screen";
 import { PWREDUP, SOFTEV_HI } from "./bus/symbols.consts";
 import { type AppleBusSnapshot, SNAPSHOT_FIELDS, type SnapshotField } from "./bus/apple.snapshot";
+import type { KeyboardSnapshot } from "./devices/keyboard.device";
 
 // IIgs default colors - white on blue
 const DEFAULT_TEXT_COLORS = 0xf2;
 /** The I/O addresses a device can take: the slots' ($C090-$C0FF), $C000-$C08F being the //e's own soft switches. */
 const DEVICE_IO_START = 0xc090;
 const DEVICE_IO_END = 0xc0ff;
+/** The soft switches a device can take over (`switches`): the //e's own. */
+const DEVICE_SWITCHES_START = 0xc000;
+const DEVICE_SWITCHES_END = 0xc08f;
 /** Slot 3's I/O space up to here is the IMU's registers (see IMU.md). */
 const IMU_IO_START = 0xc0b0;
 const IMU_IO_END = 0xc0b7;
@@ -146,34 +155,20 @@ export class AppleBus implements IBus {
 	public tbColor = DEFAULT_TEXT_COLORS; // IIgs text/bg color (black bg, white text)
 	public brdrColor = DEFAULT_TEXT_COLORS & 0x0f; // IIgs border color
 
-	// Keyboard State
-	public keyboard = new AppleKeyboard(() => this.totalCycles);
-	get lastKey() {
-		return this.keyboard.latch;
-	}
-	set lastKey(value: number) {
-		this.keyboard.latch = value;
-	}
-	get keyStrobe() {
-		return this.keyboard.strobe;
-	}
-	set keyStrobe(value: boolean) {
-		this.keyboard.strobe = value;
-	}
+	/** The keyboard: a device (conf/devices.conf.ts), none until installed. Without it, nothing is ever typed. */
+	public keyboard?: AppleKeyboardDevice;
 
-	// Game I/O / Pushbutton State
-	public kbd_pb0 = false; // Open Apple (from keyboard)
-	public kbd_pb1 = false; // Solid Apple (from keyboard)
+	// Game I/O / Pushbutton State (the Apple keys are the keyboard's)
 	public joy_pb0 = false; // from joystick
 	public joy_pb1 = false; // from joystick
 	public joy_pb2 = false; // from joystick
 	public joy_pb3 = false; // from joystick
 
 	get pb0() {
-		return this.kbd_pb0 || this.joy_pb0;
+		return (this.keyboard?.openApple ?? false) || this.joy_pb0;
 	}
 	get pb1() {
-		return this.kbd_pb1 || this.joy_pb1;
+		return (this.keyboard?.solidApple ?? false) || this.joy_pb1;
 	}
 
 	// Paddles
@@ -294,21 +289,33 @@ export class AppleBus implements IBus {
 
 	/**
 	 * Builds the devices and wires them: their registers over the I/O addresses of `options.io` (in the slots' I/O
-	 * space, none taken by a card, the IMU or another device), their line to the IMU ID `options.irq` (8-15, free).
-	 * One that can't be wired is logged and left out.
+	 * space), the //e's soft switches of `options.switches` taken over ($C000-$C08F), none taken by a card, the IMU or
+	 * another device; their line to the IMU ID `options.irq` (8-15, free). The keyboard (at most one) is also given
+	 * the host's keys. One that can't be wired is logged and left out.
 	 */
 	public installDevices(devices: LoadedDevice[]) {
 		for (const { config, Class } of devices) {
 			const options = { ...config.options };
-			const wiring: AppleDeviceWiring = { io: options.io as AppleDeviceWiring["io"], irq: options.irq as number };
+			const wiring: AppleDeviceWiring = {
+				io: options.io as AppleDeviceWiring["io"],
+				switches: options.switches as AppleDeviceWiring["switches"],
+				irq: options.irq as number,
+			};
 			const error = this.deviceWiringError(config, wiring);
 			if (error) {
 				console.error(`AppleBus: device "${config.id}" not installed: ${error}`);
 				continue;
 			}
-			const { irq, io } = wiring;
+			const { irq, io, switches } = wiring;
 			const setIrq = irq === undefined ? () => {} : (active: boolean) => this.imu.setLine(irq, active);
 			const device = new (Class as AppleDeviceClass)({ bus: this, setIrq, options });
+			if (isKeyboardDevice(device)) {
+				if (this.keyboard) {
+					console.error(`AppleBus: device "${config.id}" not installed: there is a keyboard already`);
+					continue;
+				}
+				this.keyboard = device;
+			}
 			this.devices.push({ config, wiring, device });
 
 			if (io) {
@@ -318,39 +325,57 @@ export class AppleBus implements IBus {
 					this.writeHandlers[index] = (value) => device.write?.(offset, value);
 				}
 			}
+			for (const address of switches?.read ?? [])
+				this.readHandlers[address & 0xff] = () => device.readSwitch?.(address) ?? 0;
+			for (const address of switches?.write ?? [])
+				this.writeHandlers[address & 0xff] = (value) => device.writeSwitch?.(address, value);
 			if (device.tick) this.registerTickHandler(device.tick.bind(device));
 			device.reset?.();
 		}
 	}
 
-	private deviceWiringError({ id }: DeviceConfig, { io, irq }: AppleDeviceWiring): string | undefined {
+	private deviceWiringError({ id }: DeviceConfig, { io, switches, irq }: AppleDeviceWiring): string | undefined {
 		if (this.devices.some((other) => other.config.id === id)) return "its id is already taken";
 		if (irq !== undefined) {
 			if (!Number.isInteger(irq) || irq <= slotsConfig.count || irq >= IMU_IDS) return `no IMU ID ${irq}`;
 			if (this.devices.some((other) => other.wiring.irq === irq)) return `IMU ID ${irq} already taken`;
 		}
-		if (!io) return;
-		const { address, size } = io;
-		const end = address + size - 1;
-		if (
-			!Number.isInteger(address) ||
-			!Number.isInteger(size) ||
-			size < 1 ||
-			address < DEVICE_IO_START ||
-			end > DEVICE_IO_END
-		)
-			return `no I/O range ${hex4(address)}+${size} (it must be in ${hex4(DEVICE_IO_START)}-${hex4(DEVICE_IO_END)})`;
-		const overlaps = (start: number, last: number) => address <= last && end >= start;
-		if (overlaps(IMU_IO_START, IMU_IO_END)) return `${hex4(address)}-${hex4(end)} overlaps the IMU's registers`;
-		for (let slot = 1; slot <= slotsConfig.count; slot++) {
-			const slotIo = 0xc080 + slot * 0x10;
-			if (this.slots[slot] && overlaps(slotIo, slotIo + 0x0f))
-				return `${hex4(address)}-${hex4(end)} overlaps slot ${slot}'s card`;
+		if (io) {
+			const { address, size } = io;
+			const end = address + size - 1;
+			if (
+				!Number.isInteger(address) ||
+				!Number.isInteger(size) ||
+				size < 1 ||
+				address < DEVICE_IO_START ||
+				end > DEVICE_IO_END
+			)
+				return `no I/O range ${hex4(address)}+${size} (it must be in ${hex4(DEVICE_IO_START)}-${hex4(DEVICE_IO_END)})`;
+			const overlaps = (start: number, last: number) => address <= last && end >= start;
+			if (overlaps(IMU_IO_START, IMU_IO_END)) return `${hex4(address)}-${hex4(end)} overlaps the IMU's registers`;
+			for (let slot = 1; slot <= slotsConfig.count; slot++) {
+				const slotIo = 0xc080 + slot * 0x10;
+				if (this.slots[slot] && overlaps(slotIo, slotIo + 0x0f))
+					return `${hex4(address)}-${hex4(end)} overlaps slot ${slot}'s card`;
+			}
 		}
-		const other = this.devices.find(
-			({ wiring }) => wiring.io && overlaps(wiring.io.address, wiring.io.address + wiring.io.size - 1),
-		);
-		if (other) return `${hex4(address)}-${hex4(end)} overlaps device "${other.config.id}"`;
+		for (const address of [...(switches?.read ?? []), ...(switches?.write ?? [])]) {
+			if (!Number.isInteger(address) || address < DEVICE_SWITCHES_START || address > DEVICE_SWITCHES_END)
+				return `no soft switch ${hex4(address)} (it must be in ${hex4(DEVICE_SWITCHES_START)}-${hex4(DEVICE_SWITCHES_END)})`;
+		}
+		// What the others took, by access (their I/O range both ways)
+		const claims = (wiring: AppleDeviceWiring, access: "read" | "write") => {
+			const range = wiring.io;
+			const ioAddresses = range ? Array.from({ length: range.size }, (_, offset) => range.address + offset) : [];
+			return [...ioAddresses, ...(wiring.switches?.[access] ?? [])];
+		};
+		for (const access of ["read", "write"] as const) {
+			const mine = claims({ io, switches }, access);
+			for (const other of this.devices) {
+				const taken = claims(other.wiring, access).find((address) => mine.includes(address));
+				if (taken !== undefined) return `${hex4(taken)} (${access}) is already device "${other.config.id}"'s`;
+			}
+		}
 	}
 
 	public setInterruptLines(lines: InterruptLines) {
@@ -493,14 +518,11 @@ export class AppleBus implements IBus {
 		this.video7SeqState = 0;
 		this.video7NextBit = 0;
 
-		this.kbd_pb0 = false;
-		this.kbd_pb1 = false;
 		this.joy_pb0 = false;
 		this.joy_pb1 = false;
 		this.paddleValues.fill(127);
 		this.paddleTimers.fill(0);
 		this.totalCycles = 0;
-		this.keyboard.reset();
 
 		for (const card of this.slots) card?.reset?.();
 		this.imu.reset();
@@ -973,81 +995,38 @@ export class AppleBus implements IBus {
 		loadMemoryChunks(this, address, data, bank, tag);
 	}
 
+	// The host's keys, to the keyboard device (none: lost)
 	public pressKey(key: string, code?: string, ctrl?: boolean) {
-		if (code === "AltLeft") {
-			this.kbd_pb0 = true;
-			return;
-		} else if (code === "AltRight") {
-			this.kbd_pb1 = true;
-			return;
-		}
-
-		let ascii = 0;
-		if (key.length === 1) {
-			ascii = key.charCodeAt(0);
-			if (ctrl) ascii &= 0x1f;
-		} else {
-			switch (key) {
-				case "Enter":
-					ascii = 0x0d;
-					break;
-				case "Backspace":
-				case "ArrowLeft":
-					ascii = 0x08; // Apple II Left is BS (8)
-					break;
-				case "ArrowRight":
-					ascii = 0x15; // Apple II Right is NAK (21)
-					break;
-				case "ArrowUp":
-					ascii = 0x0b;
-					break;
-				case "ArrowDown":
-					ascii = 0x0a;
-					break;
-				case "Escape":
-					ascii = 0x1b;
-					break;
-			}
-		}
-
-		if (ascii > 0 && ascii < 0x80) this.keyboard.press(ascii, code ?? key);
+		this.keyboard?.pressKey(key, code, ctrl);
 	}
 
 	public releaseKey(key?: string, code?: string) {
-		if (key === undefined && code === undefined) {
-			this.keyboard.releaseAll();
-			this.kbd_pb0 = false;
-			this.kbd_pb1 = false;
-			return;
-		}
-		if (code === "AltLeft") this.kbd_pb0 = false;
-		else if (code === "AltRight") this.kbd_pb1 = false;
-		else this.keyboard.release(code ?? (key as string));
+		this.keyboard?.releaseKey(key, code);
 	}
 
 	public typeText(text: string) {
-		const { codes, skipped } = textToKeyCodes(text);
-		this.keyboard.type(codes);
-		return { queued: codes.length, skipped };
+		return this.requireKeyboard().typeText(text);
 	}
 
 	public holdKey(key: string | number | null) {
-		if (key === null) return this.keyboard.hold(-1);
-		const code = typeof key === "number" ? key & 0x7f : textToKeyCodes(key).codes[0];
-		if (code === undefined) throw new Error(`No key for ${JSON.stringify(key)}`);
-		this.keyboard.hold(code);
+		this.requireKeyboard().holdKey(key);
 	}
 
 	public clearKeys() {
-		this.keyboard.clear();
+		this.requireKeyboard().clearKeys();
 	}
 
 	public setKeyDelay(cycles: number) {
-		this.keyboard.keyDelay = Math.max(0, Math.round(cycles));
+		this.requireKeyboard().setKeyDelay(cycles);
 	}
 
 	public getKeyboardState(): KeyboardState {
-		return this.keyboard.state();
+		return this.requireKeyboard().getKeyboardState();
+	}
+
+	private requireKeyboard() {
+		if (!this.keyboard) throw new Error("This machine has no keyboard");
+		return this.keyboard;
 	}
 
 	search(
@@ -1125,7 +1104,6 @@ export class AppleBus implements IBus {
 			fields: fields as Record<SnapshotField, number | boolean>,
 			paddleTimers: [...this.paddleTimers],
 			cards: this.slots.map((card) => card?.snapshot?.()),
-			keyboard: this.keyboard.snapshot(),
 			imu: this.imu.snapshot(),
 			devices: Object.fromEntries(this.devices.map(({ config, device }) => [config.id, device.snapshot?.()])),
 		};
@@ -1133,9 +1111,10 @@ export class AppleBus implements IBus {
 
 	public restoreSnapshot(state: unknown) {
 		const { fields, paddleTimers, cards, keyboard, imu, devices, timer } = state as AppleBusSnapshot;
-		Object.assign(this, fields);
+		// The states saved before the keyboard device had its latch, strobe and Apple keys in the bus's fields
+		const { lastKey, keyStrobe, kbd_pb0, kbd_pb1, ...busFields } = fields;
+		Object.assign(this, busFields);
 		this.paddleTimers = [...paddleTimers];
-		this.keyboard.restoreSnapshot(keyboard);
 		this.slots.forEach((card, slot) => {
 			if (cards[slot] !== undefined) card?.restoreSnapshot?.(cards[slot]);
 		});
@@ -1143,8 +1122,18 @@ export class AppleBus implements IBus {
 		else this.imu.reset();
 		// The states saved before the devices had the timer's at the top
 		const deviceStates: Record<string, unknown> = devices ?? (timer ? { timer } : {});
+		const oldKeyboard: KeyboardSnapshot | undefined =
+			lastKey === undefined
+				? undefined
+				: {
+						...(keyboard as KeyboardSnapshot),
+						latch: lastKey as number,
+						strobe: keyStrobe as boolean,
+						openApple: kbd_pb0 as boolean,
+						solidApple: kbd_pb1 as boolean,
+					};
 		for (const { config, device } of this.devices) {
-			const deviceState = deviceStates[config.id];
+			const deviceState = deviceStates[config.id] ?? (device === this.keyboard ? oldKeyboard : undefined);
 			if (deviceState !== undefined && device.restoreSnapshot) device.restoreSnapshot(deviceState);
 			else device.reset?.();
 		}
