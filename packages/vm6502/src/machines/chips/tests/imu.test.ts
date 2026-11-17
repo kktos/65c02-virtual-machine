@@ -12,6 +12,7 @@ import {
 	IMU_REG_CTRL,
 	IMU_REG_HANDLER,
 	IMU_REG_HBANK,
+	IMU_REG_IDS,
 	IMU_REG_INSERVICE,
 	IMU_REG_MASK,
 	IMU_REG_PENDING,
@@ -132,12 +133,20 @@ describe("IMU", () => {
 			expect(get(IMU_REG_MASK)).toBe(0xa55a);
 		});
 
-		it("PRIO keeps 4 bits, CTRL its 2 defined bits", () => {
+		it("PRIO keeps 8 bits, CTRL its 2 defined bits", () => {
 			const { set8, get } = setup();
 			set8(IMU_REG_PRIO + 1, 0xfd);
-			expect(get(IMU_REG_PRIO + 1)).toBe(13);
+			expect(get(IMU_REG_PRIO + 1)).toBe(0xfd);
 			set8(IMU_REG_CTRL, 0xff);
 			expect(get(IMU_REG_CTRL)).toBe(0xc0);
+		});
+
+		it("IDS reads the number of IDs, and is read-only", () => {
+			const { imu, set8, get } = setup();
+			expect(get(IMU_REG_IDS)).toBe(IMU_IDS);
+			set8(IMU_REG_IDS, 0x55);
+			imu.write(IMU_PORT_DATAHI, 0x55);
+			expect(get(IMU_REG_IDS)).toBe(16);
 		});
 
 		it("PENDING and INSERVICE are read-only", () => {
@@ -171,7 +180,8 @@ describe("IMU", () => {
 
 		it("reserved registers and ports read 0 and ignore writes", () => {
 			const { imu, set8, get } = setup();
-			for (const reg of [0x04, 0x07, 0x20, 0xff]) {
+			// $40 and up: the pages of IDs 16 and up (IMU.md, "More than 16 IDs"), absent with 16 IDs
+			for (const reg of [0x05, 0x0f, 0x20, 0x41, 0x50, 0x60, 0xff]) {
 				set8(reg, 0xaa);
 				expect(get(reg)).toBe(0);
 			}
@@ -214,6 +224,23 @@ describe("IMU", () => {
 			imu.setLine(6, false);
 			eoi();
 			expect(imu.irqVector(0xfc)).toEqual({ id: 2, address: 0x1002 });
+		});
+
+		it("the whole 8-bit PRIO range orders the IDs and blocks the nested ones", () => {
+			const { imu, set8, setHandler, enable } = setup();
+			enable();
+			for (const id of [2, 5, 7]) setHandler(id, 0x1000 + id);
+			set8(IMU_REG_PRIO + 2, 0x80);
+			set8(IMU_REG_PRIO + 5, 0x20);
+			set8(IMU_REG_PRIO + 7, 0xff);
+			imu.setLine(2, true);
+			imu.setLine(5, true);
+			expect(imu.irqVector(0xfc)).toEqual({ id: 5, address: 0x1005 });
+			// 5 in service ($20): $80 and $FF are blocked, $1F gets through
+			imu.setLine(7, true);
+			expect(imu.irqVector(0xf9)).toBeUndefined();
+			set8(IMU_REG_PRIO + 7, 0x1f);
+			expect(imu.irqVector(0xf9)).toEqual({ id: 7, address: 0x1007 });
 		});
 
 		it("a masked ID can't interrupt", () => {

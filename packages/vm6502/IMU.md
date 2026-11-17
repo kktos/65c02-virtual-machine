@@ -3,8 +3,8 @@
 Status: implemented for the //e (`src/machines/chips/imu.ts`, CPU hooks, //e wiring, the //e timer on ID 8, save
 state, debugger window and `get_interrupts` MCP tool). Not yet: the PET, the MMU's `InterruptContext`.
 
-The IMU is vectored interrupts for the 6502: up to 16 interrupt sources (IDs), each with its own handler and
-priority. When an ID wins, the CPU jumps straight to its handler instead of going through `$FFFE/F`. An ID with no
+The IMU is vectored interrupts for the 6502: 16 interrupt sources (IDs), each with its own handler and
+priority. The register map has room for 64 (see "More than 16 IDs"). When an ID wins, the CPU jumps straight to its handler instead of going through `$FFFE/F`. An ID with no
 handler goes through `$FFFE/F` as today. It's per machine: a machine that doesn't wire an IMU is unchanged.
 
 ## Background
@@ -129,13 +129,15 @@ CURRENT and EOI have their own port so a handler never touches INDEX: an EOI is 
 | `$01` | 16 | RW | MASK | bit n = 1: ID n can't interrupt (vectoring enabled only). **Writing DATA HI commits** it |
 | `$02` | 16 | R | PENDING | `asserted`: the lines requesting, mask ignored |
 | `$03` | 16 | R | INSERVICE | ISR: one bit per ID in service |
-| `$10`–`$1F` | 8 | RW | PRIO n | priority of ID n, 0 (highest) to 15 |
+| `$04` | 8 | R | IDS | the number of IDs: 16 |
+| `$10`–`$1F` | 8 | RW | PRIO n | priority of ID n, 0 (highest) to 255 |
 | `$20`–`$2F` | 16 | RW | HANDLER n | handler of ID n. **Writing DATA HI commits** it, with HBANK n |
 | `$30`–`$3F` | 8 | RW | HBANK n | bank byte of ID n (staged), for the machine's `InterruptContext`. 0: current map |
 | others | | | | reserved: read 0, writes ignored |
 
-One block of 16 per table, the ID in the low nibble. The gaps (`$04`–`$0F`, `$40` and up) leave room for more
-control registers.
+One block of 16 per table, the ID in the low nibble. `$00`–`$3F` is the page of IDs 0–15. New control
+registers go in `$05`–`$0F`, and only there: `$40` and up is kept for the pages of more IDs (see "More than 16
+IDs").
 
 - 8-bit registers: a DATA LO write takes effect at once. DATA HI reads 0 and ignores writes.
 - 16-bit registers (MASK, HANDLER n): a DATA LO write is staged, the DATA HI write commits both bytes. An IRQ taken
@@ -143,8 +145,35 @@ control registers.
 - HBANK n is staged too, and committed by the DATA HI write of HANDLER n: the handler and its bank change together.
 - Reads return the committed values (handler, bank), so software and the debugger can see the table.
 - A handler of `$0000` means no handler, so that ID takes the fallback path.
+- PRIO uses all 8 bits, so priorities don't depend on the number of IDs.
 - Reset: CTRL = 0 (disabled), MASK = 0, all handlers `$0000`, all banks 0, PRIO n = n (so the lower ID wins by
   default), INDEX = 0, ISR = 0, no frames.
+
+### More than 16 IDs
+
+Not implemented: 16 IDs are enough for now. This is the layout that more IDs would use, so the extension needs no
+new port, no bank register, and doesn't move anything that exists today.
+
+The 256 registers are 4 pages of 64, one per group of 16 IDs. Page n holds IDs 16n to 16n+15 and is laid out like
+page 0:
+
+| Local reg | Role in page n |
+|---|---|
+| `$00`, `$04`–`$0F` | page 0: CTRL, IDS and the control registers. Pages 1–3: reserved |
+| `$01` / `$02` / `$03` | MASK / PENDING / INSERVICE of the page's 16 IDs (bit k: ID 16n+k) |
+| `$10` / `$20` / `$30` + k | PRIO / HANDLER / HBANK of ID 16n+k |
+
+```
+reg = (id >> 4) * $40 + table + (id & 15)      table: $10 PRIO, $20 HANDLER, $30 HBANK
+reg = (id >> 4) * $40 + $01                    MASK of id's page (PENDING $02, INSERVICE $03)
+```
+
+- 64 IDs at most. CURRENT stays a plain 8-bit ID, `$FF` when none, and EOI doesn't change.
+- Each page's MASK commits on its own DATA HI write, as today.
+- Priorities are global: the winner is the lowest PRIO over all the IDs, whatever their page, and the fully nested
+  blocking works across pages too.
+- Software reads IDS to find out how many pages exist. With 16 IDs, `$40` and up read 0 and ignore writes, so code
+  written for more IDs sees missing pages as IDs that never interrupt.
 
 ### INDEX and interrupts
 
@@ -259,9 +288,9 @@ in place of `AppleBus.updateIrq` / `PetBus.updateIrq`.
 
 ## Tests
 
-- IMU: arbitration (mask, priority, ties), fully nested blocking, EOI, auto-EOI, commit on DATA HI (with the
-  bank), 8-bit registers ignoring DATA HI, reserved registers and ports, fallback for `$0000`, transparent when
-  disabled, reset.
+- IMU: arbitration (mask, priority over the whole 8-bit range, ties), fully nested blocking, EOI, auto-EOI, commit
+  on DATA HI (with the bank), 8-bit registers ignoring DATA HI, IDS, reserved registers (pages 1–3 included) and
+  ports, fallback for `$0000`, transparent when disabled, reset.
 - CPU: a vectored IRQ (7 cycles, frame, I set, D clear), fallback to `$FFFE`, BRK never redirected (hypercalls
   included), NMI unchanged.
 - RTI matching with a fake `InterruptContext`: enter / exit order around the pushes and pulls, nested IRQs, an
