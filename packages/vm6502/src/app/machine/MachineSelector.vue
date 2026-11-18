@@ -11,7 +11,9 @@
 				>
 					<Cpu class="h-4 w-4 shrink-0 text-cyan-400 group-hover:text-cyan-300" />
 					<span class="hidden @[26rem]:flex flex-col items-start min-w-0 leading-tight">
-						<span class="hidden @[48rem]:block text-[10px] uppercase text-gray-400 font-bold tracking-wider">
+						<span
+							class="hidden @[48rem]:block text-[10px] uppercase text-gray-400 font-bold tracking-wider"
+						>
 							Machine
 						</span>
 						<span class="max-w-full text-xs font-mono font-normal truncate text-gray-300">
@@ -33,7 +35,12 @@
 								@select="selectMachine(machine)"
 								class="text-sm data-[highlighted]:bg-gray-700 data-[highlighted]:text-yellow-300 cursor-pointer text-gray-300"
 							>
-								<Check :class="['mr-2 h-4 w-4', selectedMachine.name === machine.name ? 'opacity-100' : 'opacity-0']" />
+								<Check
+									:class="[
+										'mr-2 h-4 w-4',
+										selectedMachine.name === machine.name ? 'opacity-100' : 'opacity-0',
+									]"
+								/>
 								{{ machine.name }}
 							</CommandItem>
 						</CommandGroup>

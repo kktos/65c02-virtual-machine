@@ -11,7 +11,10 @@ describe("Apple //e hypercalls", () => {
 	let postMessage: ReturnType<typeof vi.fn>;
 
 	const hypercalls = () =>
-		postMessage.mock.calls.map(([m]) => m).filter((m) => m.type === "hypercall").map((m) => m.call);
+		postMessage.mock.calls
+			.map(([m]) => m)
+			.filter((m) => m.type === "hypercall")
+			.map((m) => m.call);
 	const pc = () => registersView.getUint16(REG_PC_OFFSET, true);
 
 	beforeEach(() => {

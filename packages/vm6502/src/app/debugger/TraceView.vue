@@ -6,7 +6,10 @@
 				Execution Trace
 			</h2>
 			<div class="flex items-center space-x-1">
-				<div class="flex rounded border border-gray-700 overflow-hidden text-[0.65rem] leading-none mr-1" role="group">
+				<div
+					class="flex rounded border border-gray-700 overflow-hidden text-[0.65rem] leading-none mr-1"
+					role="group"
+				>
 					<button
 						v-for="m in MODES"
 						:key="m.value"
@@ -25,7 +28,12 @@
 							class="p-1 rounded text-gray-400 hover:text-gray-200 hover:bg-gray-700 transition-colors"
 							title="Trace Settings"
 						>
-							<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								class="h-4 w-4"
+								viewBox="0 0 20 20"
+								fill="currentColor"
+							>
 								<path
 									fill-rule="evenodd"
 									d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z"
@@ -139,10 +147,7 @@
 		</div>
 
 		<!-- Every instruction, most recent first like the jumps (the top row is the last one executed), registers before it -->
-		<div
-			v-else
-			class="flex-grow min-h-0 overflow-auto font-mono text-xs bg-gray-900 p-1.5 rounded-md"
-		>
+		<div v-else class="flex-grow min-h-0 overflow-auto font-mono text-xs bg-gray-900 p-1.5 rounded-md">
 			<table class="text-left border-collapse w-full whitespace-nowrap">
 				<thead class="sticky top-0 bg-gray-900">
 					<tr class="text-gray-500 border-b border-gray-700">

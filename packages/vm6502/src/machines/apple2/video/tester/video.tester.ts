@@ -329,10 +329,8 @@ export class VideoTester {
 			const lineBase = this.getHgrLineOffset(y);
 			for (let x = 0; x < 40; x++) {
 				let val = 0;
-				if (y === 0 || y === hgrLimit - 1 || x === 0 || x === 39)
-					val = 0xff; // Border
-				else if (x > 5 && x < 18 && y > 20 && y < 140)
-					val = 0x2a; // Green
+				if (y === 0 || y === hgrLimit - 1 || x === 0 || x === 39) val = 0xff; // Border
+				else if (x > 5 && x < 18 && y > 20 && y < 140) val = 0x2a; // Green
 				else if (x > 22 && x < 35 && y > 20 && y < 140) val = 0xd5; // Orange
 
 				if (val !== 0) this.bus.write(lineBase + x, val);

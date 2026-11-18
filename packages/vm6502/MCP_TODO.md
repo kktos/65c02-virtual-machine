@@ -12,9 +12,9 @@ What's already built: `MCP_CHANGELOG.md`.
    sets BPs to observe inputs, and writes findings back as labels / comments / `.db` formats.
    The metadata store becomes the shared work product ("annotate this disk's boot loader").
 2. **Dynamic debugging / hunting**
-   - find the lives counter: snapshot → play → diff → narrow (cheat-finder loop)
-   - find the copy-protection check: BP on `$C0xx` disk accesses, trace back
-   - prototype the "BP on HIRES access → identify game → apply patch" idea from TODO.md
+    - find the lives counter: snapshot → play → diff → narrow (cheat-finder loop)
+    - find the copy-protection check: BP on `$C0xx` disk accesses, trace back
+    - prototype the "BP on HIRES access → identify game → apply patch" idea from TODO.md
 3. **Emulator dev loop**
    Boot disk, type keys, read the text screen as text (decode `$400–$7FF`), run Klaus suite,
    check that a bus/video change didn't regress. Much cheaper and more reliable than
@@ -48,6 +48,7 @@ What's already built: `MCP_CHANGELOG.md`.
       copy-on-write in the card
 
 Lower: exec_command already reaches them, or they are comfort.
+
 - [ ] labels / comments / data-format CRUD as structured tools (`defLabel`, `comment`, `defData`, `labels`,
       `findLabel`, `xref` work through exec_command)
 - [ ] MCP resources: memory map, current disk symbols

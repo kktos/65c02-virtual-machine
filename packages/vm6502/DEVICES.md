@@ -73,11 +73,11 @@ device that never interrupts still takes an ID, never asserted.
 
 **A select register and a direct window** (not index + data: one select, then plain `LDA` / `STA`):
 
-| Addr | Role |
-|---|---|
-| `$C0B0`–`$C0B3` | IMU (unchanged) |
-| `$C0B4` | SELECT: the device number (8–15). Readable, for save / restore |
-| `$C0B5`–`$C0BF` | the selected device's registers 0–10 |
+| Addr            | Role                                                           |
+| --------------- | -------------------------------------------------------------- |
+| `$C0B0`–`$C0B3` | IMU (unchanged)                                                |
+| `$C0B4`         | SELECT: the device number (8–15). Readable, for save / restore |
+| `$C0B5`–`$C0BF` | the selected device's registers 0–10                           |
 
 A device needing more than 11 registers puts its own index / data pair in its window. Slot 3's I/O space is then
 fully used: a new IMU port would take one from the window (shouldn't happen).

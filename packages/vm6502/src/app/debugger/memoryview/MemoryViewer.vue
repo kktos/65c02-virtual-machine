@@ -50,7 +50,10 @@
 				variant="ghost"
 				size="icon"
 				class="h-6 w-6 text-gray-400 hover:text-cyan-300"
-				:class="[activeDebugBadges.length > 0 ? '' : 'ml-auto', { 'text-cyan-300 bg-gray-700': isSettingsOpen }]"
+				:class="[
+					activeDebugBadges.length > 0 ? '' : 'ml-auto',
+					{ 'text-cyan-300 bg-gray-700': isSettingsOpen },
+				]"
 				@click="isSettingsOpen = !isSettingsOpen"
 				title="Memory View Options"
 			>
@@ -95,9 +98,7 @@
 						<th v-for="i in bytesPerLine" :key="i" class="text-center w-[1.5rem]">
 							{{ "+" + (i - 1).toString(16).toUpperCase() }}
 						</th>
-						<th class="py-1 text-left w-auto pl-4">
-							ASCII
-						</th>
+						<th class="py-1 text-left w-auto pl-4">ASCII</th>
 					</tr>
 				</thead>
 				<tbody v-if="visibleRowCount > 0">

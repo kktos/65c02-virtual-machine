@@ -54,11 +54,11 @@ read / write / execute rights on each page.
 
 ## Address spaces and notation
 
-| Space | What it is | Notation | Example |
-|---|---|---|---|
-| CPU | what the 65C02 reads now, through the soft switches | `$xxxx` | `$0400` |
-| Virtual | the //e's 128K: `00` main, `01` aux | `$bb:xxxx` | `$01:0400` |
-| Physical | the bank pool | `$bb/ppoo` | `$05/0600` |
+| Space    | What it is                                          | Notation   | Example    |
+| -------- | --------------------------------------------------- | ---------- | ---------- |
+| CPU      | what the 65C02 reads now, through the soft switches | `$xxxx`    | `$0400`    |
+| Virtual  | the //e's 128K: `00` main, `01` aux                 | `$bb:xxxx` | `$01:0400` |
+| Physical | the bank pool                                       | `$bb/ppoo` | `$05/0600` |
 
 - The virtual and physical forms have the same length (8 characters), and the leading `$` keeps them apart from
   labels (`ns::label`).
@@ -84,15 +84,15 @@ CPU $0000-$FFFF ──[legacy //e MMU: soft switches]──► virtual $bb:xxxx 
 
 ### Legacy layer: the //e regions
 
-| CPU pages | Main or aux, chosen by | Virtual page |
-|---|---|---|
-| `$00-$01` | ALTZP | same |
-| `$02-$BF` | RAMRD (read) / RAMWR (write) | same |
-| `$04-$07` | 80STORE ? PAGE2 : RAMRD / RAMWR | same |
-| `$20-$3F` | 80STORE && HIRES ? PAGE2 : RAMRD / RAMWR | same |
-| `$C0-$CF` | (slow path: I/O, Cx ROM) | none |
+| CPU pages | Main or aux, chosen by                          | Virtual page                 |
+| --------- | ----------------------------------------------- | ---------------------------- |
+| `$00-$01` | ALTZP                                           | same                         |
+| `$02-$BF` | RAMRD (read) / RAMWR (write)                    | same                         |
+| `$04-$07` | 80STORE ? PAGE2 : RAMRD / RAMWR                 | same                         |
+| `$20-$3F` | 80STORE && HIRES ? PAGE2 : RAMRD / RAMWR        | same                         |
+| `$C0-$CF` | (slow path: I/O, Cx ROM)                        | none                         |
 | `$D0-$DF` | ALTZP; BANK2; READRAM / WRITERAM, ROM otherwise | bank 2: `$Dx`, bank 1: `$Cx` |
-| `$E0-$FF` | ALTZP; READRAM / WRITERAM, ROM otherwise | same |
+| `$E0-$FF` | ALTZP; READRAM / WRITERAM, ROM otherwise        | same                         |
 
 The table is declarative: pages, the selector, the virtual page. The LC's double-read write enable stays in the
 soft switches.
@@ -121,14 +121,14 @@ scope's name). A debugger view such as "show LC bank 2" composes a table from a 
 
 One 32-bit entry per virtual page (proposal):
 
-| Bits | Field |
-|---|---|
-| 0-7 | physical page |
-| 8-15 | physical bank |
-| 16 | R |
-| 17 | W |
-| 18 | X |
-| 19-31 | reserved, 0 |
+| Bits  | Field         |
+| ----- | ------------- |
+| 0-7   | physical page |
+| 8-15  | physical bank |
+| 16    | R             |
+| 17    | W             |
+| 18    | X             |
+| 19-31 | reserved, 0   |
 
 ## Contexts
 
@@ -146,20 +146,20 @@ contexts**, each a full 512-entry table. Context 0 is the one in effect at reset
 
 A device in the //e's I/O space (where: see "Open questions"), 16 registers:
 
-| Offset | R/W | Name | |
-|---|---|---|---|
-| `$0` | RW | CTX | the context in effect |
-| `$1` | RW | EDIT | the context the next registers edit |
-| `$2` | W | CLONE | writing n copies context n into EDIT. Reads 0 |
-| `$3` | RW | VBANK | first virtual page: bank (`$00`, `$01`) |
-| `$4` | RW | VPAGE | first virtual page: page |
-| `$5` | RW | PBANK | first physical page: bank, masked to the banks that exist |
-| `$6` | RW | PPAGE | first physical page: page |
-| `$7` | RW | RIGHTS | bit 0 R, bit 1 W, bit 2 X |
-| `$8` | W | COUNT | **writing it maps COUNT pages** (0 means 256) of EDIT, then moves the page registers past the last one. Reads 0 |
-| `$9` | RW | DISPLAY | the context the video reads |
-| `$A` | RW | RETCTX | the context the next RTI of an IMU handler returns to (see "Contexts and interrupts"). `$FF`: none |
-| `$B`-`$F` | | | faults (see "Open questions") |
+| Offset    | R/W | Name    |                                                                                                                 |
+| --------- | --- | ------- | --------------------------------------------------------------------------------------------------------------- |
+| `$0`      | RW  | CTX     | the context in effect                                                                                           |
+| `$1`      | RW  | EDIT    | the context the next registers edit                                                                             |
+| `$2`      | W   | CLONE   | writing n copies context n into EDIT. Reads 0                                                                   |
+| `$3`      | RW  | VBANK   | first virtual page: bank (`$00`, `$01`)                                                                         |
+| `$4`      | RW  | VPAGE   | first virtual page: page                                                                                        |
+| `$5`      | RW  | PBANK   | first physical page: bank, masked to the banks that exist                                                       |
+| `$6`      | RW  | PPAGE   | first physical page: page                                                                                       |
+| `$7`      | RW  | RIGHTS  | bit 0 R, bit 1 W, bit 2 X                                                                                       |
+| `$8`      | W   | COUNT   | **writing it maps COUNT pages** (0 means 256) of EDIT, then moves the page registers past the last one. Reads 0 |
+| `$9`      | RW  | DISPLAY | the context the video reads                                                                                     |
+| `$A`      | RW  | RETCTX  | the context the next RTI of an IMU handler returns to (see "Contexts and interrupts"). `$FF`: none              |
+| `$B`-`$F` |     |         | faults (see "Open questions")                                                                                   |
 
 - The page registers carry from page into bank, so ranges can cross `$00:FFxx` → `$01:00xx`. A range stops at
   `$01:FFxx`.

@@ -12,7 +12,10 @@
 					</h3>
 					<div class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 items-center">
 						<template v-for="(spec, index) in group.specs" :key="index">
-							<div v-if="Array.isArray(spec)" class="col-span-2 flex flex-wrap items-center gap-x-4 gap-y-1">
+							<div
+								v-if="Array.isArray(spec)"
+								class="col-span-2 flex flex-wrap items-center gap-x-4 gap-y-1"
+							>
 								<div v-for="subSpec in spec" :key="subSpec.id" class="flex items-center gap-3">
 									<div v-if="subSpec.type === 'led'" class="flex items-center">
 										<span

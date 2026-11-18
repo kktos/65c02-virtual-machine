@@ -23,7 +23,9 @@ export const cmdHelp = defineCommand({
 		let cmdFilter: string | undefined;
 		let output = "";
 
-		const parm = (isParamListItemIdentifier(params[0]) ? params[0].text : ((params[0] ?? "") as string)).toUpperCase();
+		const parm = (
+			isParamListItemIdentifier(params[0]) ? params[0].text : ((params[0] ?? "") as string)
+		).toUpperCase();
 
 		if (opts.group) {
 			groupFilter = parm;
@@ -54,12 +56,14 @@ export const cmdHelp = defineCommand({
 			});
 
 		let sortedGroupNames = Object.keys(groups).sort();
-		if (groupFilter) sortedGroupNames = sortedGroupNames.filter((name) => name.toUpperCase().startsWith(groupFilter));
+		if (groupFilter)
+			sortedGroupNames = sortedGroupNames.filter((name) => name.toUpperCase().startsWith(groupFilter));
 
 		for (const groupName of sortedGroupNames) {
 			let commandsInGroup = groups[groupName]!;
 			commandsInGroup.sort((a, b) => a.key.localeCompare(b.key));
-			if (cmdFilter) commandsInGroup = commandsInGroup.filter((cmd) => cmd.key.toUpperCase().startsWith(cmdFilter));
+			if (cmdFilter)
+				commandsInGroup = commandsInGroup.filter((cmd) => cmd.key.toUpperCase().startsWith(cmdFilter));
 
 			if (commandsInGroup.length === 0) continue;
 

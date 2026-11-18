@@ -12,7 +12,10 @@ const { useLogWindows } = await import("@/composables/useLogWindows");
 // A name as the parser gives it: its text and its value (a register, a label; undefined when unknown)
 const name = (text: string, value?: number) => ({ text, value });
 const run = async (...params: ParamList) => logCmd.fn({ params } as unknown as CommandContext);
-const lines = () => useLogWindows().getLines("spk").map((entry) => entry.text);
+const lines = () =>
+	useLogWindows()
+		.getLines("spk")
+		.map((entry) => entry.text);
 
 describe("LOG command", () => {
 	beforeEach(() => {

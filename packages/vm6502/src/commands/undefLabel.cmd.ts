@@ -21,7 +21,9 @@ export const undefLabel = defineCommand({
 		}
 
 		if (symbolToRemove.ns !== namespace) {
-			throw new Error(`Label '${symbolToRemove.label}' at $${formatAddress(address)} is not a user-defined label.`);
+			throw new Error(
+				`Label '${symbolToRemove.label}' at $${formatAddress(address)} is not a user-defined label.`,
+			);
 		}
 
 		if (!symbolToRemove.id) {

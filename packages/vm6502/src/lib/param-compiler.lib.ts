@@ -43,7 +43,8 @@ function parseParamDef(token: string): ParamDef {
 	// choice — must not contain "rest"
 	const choices = parts.map((p) => {
 		const parsed = parseSingleOrRest(p);
-		if (parsed.type === "rest" || parsed.type === "raw") throw new Error(`"${parsed.type}" cannot appear in a choice`);
+		if (parsed.type === "rest" || parsed.type === "raw")
+			throw new Error(`"${parsed.type}" cannot appear in a choice`);
 		return parsed as SingleParamDef;
 	});
 

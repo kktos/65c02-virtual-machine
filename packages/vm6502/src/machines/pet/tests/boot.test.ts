@@ -162,7 +162,7 @@ describe.skipIf(!romsFetched)("PET 3032 with the 4040 drive (device 8)", () => {
 		m.bus.insertMedia(buildD64({ files: [] }));
 		m.bus.typeText('save"x",8\n');
 		runUntil(m, ready(4), 20_000_000);
-		m.bus.typeText('open1,8,15:input#1,a,b$:print a;b$:close1\n');
+		m.bus.typeText("open1,8,15:input#1,a,b$:print a;b$:close1\n");
 		status(" 26 WRITE PROTECT ON");
 	});
 
