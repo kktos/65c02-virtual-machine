@@ -4,7 +4,7 @@
 # - Fully staged files are formatted in place and re-staged.
 # - Files that also have unstaged changes are only checked, so the hook never
 #   stages hunks you left out on purpose; the commit stops if they need formatting.
-# - oxlint errors stop the commit; warnings are shown but don't.
+# - Any oxlint warning or error stops the commit (--deny-warnings).
 #
 # Installed by `pnpm install` (the root `prepare` script sets core.hooksPath).
 # Skip once with: git commit --no-verify
@@ -58,5 +58,5 @@ fi
 lint=$(printf '%s\n' $staged | grep -E "$lint_ext" || true)
 if [ -n "$lint" ]; then
 	# shellcheck disable=SC2086
-	"$bin/oxlint" -c .oxlintrc.json $lint
+	"$bin/oxlint" -c .oxlintrc.json --deny-warnings $lint
 fi
