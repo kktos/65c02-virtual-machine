@@ -39,8 +39,8 @@ read / write / execute rights on each page.
    every context, and context 0 is in effect. A program that never touches it sees a plain //e.
 8. **BANKSEL is a special case of the new MMU**: writing N maps the 256 pages of `$01` of the current context onto
    physical bank N (identity pages, RWX), masked to the banks that exist. It replaces whatever mapping `$01` had.
-9. **The video reads the virtual 128K**, through the table of the display context (see "Contexts"): 40-column text
-   is `$00:0400`, wherever it's mapped. It translates once per page, not per byte.
+9. **The video reads the virtual 128K**, through the table of the focused context (see "Focus"). It translates once
+   per page, not per byte.
 10. **Everything lives in the shared memory**: the RAM pool, the ROMs, the new MMU table and the CPU-side tables.
     The UI thread, the CPU worker and the video read the same mapping, instead of syncing flags and redoing the
     rules.
@@ -138,33 +138,31 @@ contexts**, each a full 512-entry table. Context 0 is the one in effect at reset
 
 - **Building a context** is done once, through range commands (below).
 - **Switching** is one write to `CTX`: the CPU tables are rebuilt from the new context, all at once.
-- **The video** reads through the `DISPLAY` context, not `CTX`, so a context switch doesn't change what's on
-  screen. Reset: 0.
+- **The video** reads through the `FOCUS` context, not `CTX`, so a context switch doesn't change what's on screen.
 - **BANKSEL** rewrites `$01` in the current context.
 
 ### Registers
 
 A device in the //e's I/O space (where: see "Open questions"), 16 registers:
 
-| Offset    | R/W | Name    |                                                                                                                 |
-| --------- | --- | ------- | --------------------------------------------------------------------------------------------------------------- |
-| `$0`      | RW  | CTX     | the context in effect                                                                                           |
-| `$1`      | RW  | EDIT    | the context the next registers edit                                                                             |
-| `$2`      | W   | CLONE   | writing n copies context n into EDIT. Reads 0                                                                   |
-| `$3`      | RW  | VBANK   | first virtual page: bank (`$00`, `$01`)                                                                         |
-| `$4`      | RW  | VPAGE   | first virtual page: page                                                                                        |
-| `$5`      | RW  | PBANK   | first physical page: bank, masked to the banks that exist                                                       |
-| `$6`      | RW  | PPAGE   | first physical page: page                                                                                       |
-| `$7`      | RW  | RIGHTS  | bit 0 R, bit 1 W, bit 2 X                                                                                       |
-| `$8`      | W   | COUNT   | **writing it maps COUNT pages** (0 means 256) of EDIT, then moves the page registers past the last one. Reads 0 |
-| `$9`      | RW  | DISPLAY | the context the video reads                                                                                     |
-| `$A`      | RW  | RETCTX  | the context the next RTI of an IMU handler returns to (see "Contexts and interrupts"). `$FF`: none              |
-| `$B`-`$F` |     |         | faults (see "Open questions")                                                                                   |
+| Offset    | R/W | Name   |                                                                                                                 |
+| --------- | --- | ------ | --------------------------------------------------------------------------------------------------------------- |
+| `$0`      | RW  | CTX    | the context in effect                                                                                           |
+| `$1`      | RW  | EDIT   | the context the next registers edit                                                                             |
+| `$2`      | W   | CLONE  | writing n copies context n into EDIT. Reads 0                                                                   |
+| `$3`      | RW  | VBANK  | first virtual page: bank (`$00`, `$01`)                                                                         |
+| `$4`      | RW  | VPAGE  | first virtual page: page                                                                                        |
+| `$5`      | RW  | PBANK  | first physical page: bank, masked to the banks that exist                                                       |
+| `$6`      | RW  | PPAGE  | first physical page: page                                                                                       |
+| `$7`      | RW  | RIGHTS | bit 0 R, bit 1 W, bit 2 X                                                                                       |
+| `$8`      | W   | COUNT  | **writing it maps COUNT pages** (0 means 256) of EDIT, then moves the page registers past the last one. Reads 0 |
+| `$9`      | RW  | RETCTX | the context the next RTI of an IMU handler returns to (see "Contexts and interrupts"). `$FF`: none              |
+| `$A`-`$F` |     |        | faults (see "Open questions")                                                                                   |
 
 - The page registers carry from page into bank, so ranges can cross `$00:FFxx` → `$01:00xx`. A range stops at
   `$01:FFxx`.
 - A COUNT write on the context in effect changes the CPU tables at once (only the CPU pages it maps).
-- Reset: CTX = EDIT = DISPLAY = 0, RETCTX = `$FF`, every context the identity.
+- Reset: CTX = EDIT = 0, RETCTX = `$FF`, every context the identity.
 
 ### Example: a window
 
@@ -217,7 +215,7 @@ lowest priority, with I set.
 A process is a context: its own virtual 128K, its own ZP and stack, backed by its own physical banks. Three
 processes of 128K each need `banks: 6`, plus room for the kernel's context.
 
-- The kernel decides which process has the screen (DISPLAY) and the keyboard.
+- The kernel gives the screen and the keyboard to a process by writing its context to `FOCUS`.
 - The //e soft switches (RAMRD, ALTZP, 80STORE, the LC, the video modes) aren't part of a context. The kernel can't
   save them all in software: the LC's write enable and its pre-write state can't be read back. Processes are
   written for the kernel (see "Open questions").
@@ -225,13 +223,26 @@ processes of 128K each need `banks: 6`, plus room for the kernel's context.
   reentrant, and preemption breaks timing loops. Three independent machines are an emulator feature, not an MMU
   one.
 
+## Focus
+
+Like the focused window of a modern OS, one context is the user's: it has the screen and the keyboard. `FOCUS` is
+a context id held by the VM, not the MMU. Reset: 0.
+
+- **The video** reads through the `FOCUS` context's table.
+- **The keyboard**: `$C000` / `$C010` give the key only to code running in the focused context (`CTX == FOCUS`).
+  Another context reads no key, and its `$C010` doesn't clear the strobe.
+- **Who sets it**: the guest, through an I/O register of the VM (the kernel's task switcher), and the user, from the
+  emulator's UI or MCP.
+- **The register**: one byte, RW. Written, it gives the focus to a context; read, it tells the kernel which context
+  has it, also after the user changed it from the UI.
+
 ## Shared memory layout
 
 ```
 [ system ROM $D000-$FFFF 12K | internal Cx ROM 4K | slot ROMs 4K | sink page ]     static
 [ bank 0 ][ bank 1 ][ bank 2 ] … [ bank N-1 ]                                        64K each
 [ contexts: 16 × 512 × 32 bits ][ CPU tables: read, write, exec, 256 × 32 bits each ]
-[ MMU registers: CTX, EDIT, DISPLAY, RETCTX, the page registers ]
+[ MMU registers: CTX, EDIT, RETCTX, the page registers ][ FOCUS ]
 ```
 
 The Cx ROMs keep 4K each (`$C000-$CFFF`) so their pages stay aligned; `$C0xx` is unused.
@@ -245,7 +256,9 @@ The Cx ROMs keep 4K each (`$C000-$CFFF`) so their pages stay aligned; `$C0xx` is
 - `bus/apple.loader.ts`: `bank` is a virtual bank; `lgcard.bank2` loads at `$bb:D000`, `lgcard.rom` / `int.rom.cx` /
   `slot(s).rom` into the ROM area.
 - The MMU registers: a device (see DEVICES.md), and the `InterruptContext` given to the IMU.
-- Video (`apple.video.ts`, `text.ts`, `gr.ts`, `hgr.ts`): read the virtual 128K through the display context.
+- Video (`apple.video.ts`, `text.ts`, `gr.ts`, `hgr.ts`): read the virtual 128K through the focused context.
+- Keyboard: `$C000` / `$C010` check `CTX == FOCUS`.
+- `FOCUS`: its I/O register, and a setter in the UI and MCP.
 - MCP (`lib/mcp/tools.ts`): `toAddress` / `hexAddr` for the three notations.
 - Debugger UI: the notations and their colors; the overrides replaced by addresses where they name a location.
 - Save states: version bump.
@@ -253,7 +266,8 @@ The Cx ROMs keep 4K each (`$C000-$CFFF`) so their pages stay aligned; `$C0xx` is
 ## Open questions
 
 - **Where the registers go.** Slot 3's I/O (`$C0B0-$C0BF`) is the IMU's and the timer's. Another slot's 16 bytes
-  in `$C090-$C0FF`?
+  in `$C090-$C0FF`? And `FOCUS`'s.
+- **A focus change event**: an IMU interrupt when the UI changes `FOCUS`, so the kernel can follow it.
 - **How many contexts**: 8 or 16. 16 tables are 32K of shared memory.
 - **The soft switches in a context**: a flag per context so it also holds the //e switches, saved and restored by
   a switch. Needed to isolate processes that set them.
@@ -261,4 +275,4 @@ The Cx ROMs keep 4K each (`$C000-$CFFF`) so their pages stay aligned; `$C0xx` is
   process can remap anything.
 - **ROM in the new MMU**: mappable, so RAM can be put under the system ROM?
 - **Faults**: per page or global mode? Which IMU ID? What a faulting read returns, and what the CPU executes on an
-  exec fault (a BRK in place of the opcode?). Registers `$B`-`$F`: faulting CPU address, access kind, context.
+  exec fault (a BRK in place of the opcode?). Registers `$A`-`$F`: faulting CPU address, access kind, context.
