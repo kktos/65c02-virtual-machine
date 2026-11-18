@@ -5,7 +5,8 @@
 		"dev:legacy": "pnpm --filter 65c02-virtual-machine dev",
 		"build": "pnpm --filter vm6502 build",
 		"build:legacy": "pnpm --filter 65c02-virtual-machine build",
-		"test": "vitest"
+		"test": "vitest",
+		"prepare": "git config core.hooksPath .githooks"
 	},
 	"devDependencies": {
 		"oxfmt": "^0.77.0",
