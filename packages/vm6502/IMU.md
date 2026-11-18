@@ -92,8 +92,8 @@ foreign RTI at exactly the recorded SP would be taken for the matching one.
   nested mode). With auto-EOI, nothing is in service, so nothing is blocked.
 - The winner is the eligible ID with the lowest PRIO value. Ties go to the lowest ID.
 - The CPU's IRQ line:
-  - IMU disabled: the OR of `asserted`. That's today's behaviour, so the IMU is transparent.
-  - IMU enabled: `eligible ≠ 0`.
+    - IMU disabled: the OR of `asserted`. That's today's behaviour, so the IMU is transparent.
+    - IMU enabled: `eligible ≠ 0`.
 - The winner is picked when the vector is requested (that plays the role of INTA), not when a line rises. The lines
   are updated synchronously, so there are no spurious interrupts. If `eligible` is empty at that point anyway,
   `irqVector` returns `undefined`.
@@ -110,30 +110,30 @@ like the AY of the Mockingboard or the 6845 of a Videx.
 
 ### Ports
 
-| Off | R/W | Name | Role |
-|---|---|---|---|
-| 0 | RW | INDEX | the register (`$00`–`$FF`) that DATA LO / DATA HI refer to. Readable, for save / restore |
-| 1 | RW | DATA LO | the selected register, low byte |
-| 2 | RW | DATA HI | the selected register, high byte |
-| 3 | R | CURRENT | the in-service ID with the highest priority (the handler running), `$FF` if none. With auto-EOI (nothing in service): the ID of the innermost vectored handler not yet returned from (the top frame) |
-| 3 | W | EOI | any value: clears the ISR bit of `CURRENT` (non-specific EOI) |
-| 4–15 | | | reserved: read 0, writes ignored |
+| Off  | R/W | Name    | Role                                                                                                                                                                                                 |
+| ---- | --- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0    | RW  | INDEX   | the register (`$00`–`$FF`) that DATA LO / DATA HI refer to. Readable, for save / restore                                                                                                             |
+| 1    | RW  | DATA LO | the selected register, low byte                                                                                                                                                                      |
+| 2    | RW  | DATA HI | the selected register, high byte                                                                                                                                                                     |
+| 3    | R   | CURRENT | the in-service ID with the highest priority (the handler running), `$FF` if none. With auto-EOI (nothing in service): the ID of the innermost vectored handler not yet returned from (the top frame) |
+| 3    | W   | EOI     | any value: clears the ISR bit of `CURRENT` (non-specific EOI)                                                                                                                                        |
+| 4–15 |     |         | reserved: read 0, writes ignored                                                                                                                                                                     |
 
 CURRENT and EOI have their own port so a handler never touches INDEX: an EOI is a single `STA`.
 
 ### Registers
 
-| Reg | Width | R/W | Name | Role |
-|---|---|---|---|---|
-| `$00` | 8 | RW | CTRL | bit 7: vectoring enabled. bit 6: auto-EOI. Others reserved, 0 |
-| `$01` | 16 | RW | MASK | bit n = 1: ID n can't interrupt (vectoring enabled only). **Writing DATA HI commits** it |
-| `$02` | 16 | R | PENDING | `asserted`: the lines requesting, mask ignored |
-| `$03` | 16 | R | INSERVICE | ISR: one bit per ID in service |
-| `$04` | 8 | R | IDS | the number of IDs: 16 |
-| `$10`–`$1F` | 8 | RW | PRIO n | priority of ID n, 0 (highest) to 255 |
-| `$20`–`$2F` | 16 | RW | HANDLER n | handler of ID n. **Writing DATA HI commits** it, with HBANK n |
-| `$30`–`$3F` | 8 | RW | HBANK n | bank byte of ID n (staged), for the machine's `InterruptContext`. 0: current map |
-| others | | | | reserved: read 0, writes ignored |
+| Reg         | Width | R/W | Name      | Role                                                                                     |
+| ----------- | ----- | --- | --------- | ---------------------------------------------------------------------------------------- |
+| `$00`       | 8     | RW  | CTRL      | bit 7: vectoring enabled. bit 6: auto-EOI. Others reserved, 0                            |
+| `$01`       | 16    | RW  | MASK      | bit n = 1: ID n can't interrupt (vectoring enabled only). **Writing DATA HI commits** it |
+| `$02`       | 16    | R   | PENDING   | `asserted`: the lines requesting, mask ignored                                           |
+| `$03`       | 16    | R   | INSERVICE | ISR: one bit per ID in service                                                           |
+| `$04`       | 8     | R   | IDS       | the number of IDs: 16                                                                    |
+| `$10`–`$1F` | 8     | RW  | PRIO n    | priority of ID n, 0 (highest) to 255                                                     |
+| `$20`–`$2F` | 16    | RW  | HANDLER n | handler of ID n. **Writing DATA HI commits** it, with HBANK n                            |
+| `$30`–`$3F` | 8     | RW  | HBANK n   | bank byte of ID n (staged), for the machine's `InterruptContext`. 0: current map         |
+| others      |       |     |           | reserved: read 0, writes ignored                                                         |
 
 One block of 16 per table, the ID in the low nibble. `$00`–`$3F` is the page of IDs 0–15. New control
 registers go in `$05`–`$0F`, and only there: `$40` and up is kept for the pages of more IDs (see "More than 16
@@ -157,11 +157,11 @@ new port, no bank register, and doesn't move anything that exists today.
 The 256 registers are 4 pages of 64, one per group of 16 IDs. Page n holds IDs 16n to 16n+15 and is laid out like
 page 0:
 
-| Local reg | Role in page n |
-|---|---|
-| `$00`, `$04`–`$0F` | page 0: CTRL, IDS and the control registers. Pages 1–3: reserved |
-| `$01` / `$02` / `$03` | MASK / PENDING / INSERVICE of the page's 16 IDs (bit k: ID 16n+k) |
-| `$10` / `$20` / `$30` + k | PRIO / HANDLER / HBANK of ID 16n+k |
+| Local reg                 | Role in page n                                                    |
+| ------------------------- | ----------------------------------------------------------------- |
+| `$00`, `$04`–`$0F`        | page 0: CTRL, IDS and the control registers. Pages 1–3: reserved  |
+| `$01` / `$02` / `$03`     | MASK / PENDING / INSERVICE of the page's 16 IDs (bit k: ID 16n+k) |
+| `$10` / `$20` / `$30` + k | PRIO / HANDLER / HBANK of ID 16n+k                                |
 
 ```
 reg = (id >> 4) * $40 + table + (id & 15)      table: $10 PRIO, $20 HANDLER, $30 HBANK
@@ -267,9 +267,9 @@ in place of `AppleBus.updateIrq` / `PetBus.updateIrq`.
 ## Changes
 
 - **CPU** (`cpu.65c02.ts`):
-  - `serviceInterrupt`: for an IRQ, `to = bus.irqVector?.(sp) ?? read($FFFE/F)`. Trace: `IRQ#n` when vectored.
-  - `RTI` (`0x40`): `bus.onRti?.(sp)` before the pulls.
-  - Nothing else: the I gating, NMI, BRK, hypercalls and step out are unchanged.
+    - `serviceInterrupt`: for an IRQ, `to = bus.irqVector?.(sp) ?? read($FFFE/F)`. Trace: `IRQ#n` when vectored.
+    - `RTI` (`0x40`): `bus.onRti?.(sp)` before the pulls.
+    - Nothing else: the I gating, NMI, BRK, hypercalls and step out are unchanged.
 - **IMU**: `src/machines/chips/imu.ts`, next to `via6522.ts` / `pia6821.ts`: shared by the machines, and wired like
   them.
 - **Apple //e**: ID n = slot n (1–7): a card has a single IRQ line, so one ID per slot. IDs 8–15 are for the
@@ -321,12 +321,12 @@ A periodic interrupt source built into the //e (no card), on **ID 8**, its regis
 stopped at reset, so it never interrupts a program that didn't start it. Without vectoring it raises the plain IRQ
 like a card does (`$FFFE/F`).
 
-| Addr | R/W | Name | Role |
-|---|---|---|---|
-| `$C0B8` | RW | CTRL | W: bit 7 = 1 starts it (a full period from now), 0 stops it. R: bit 7 running, bit 0 fired |
-| `$C0B9` | W | ACK | any value: releases the line (reads 0) |
-| `$C0BA` | RW | PERIOD | in frames (1/60 s, 17030 cycles), 0 = 256. Reset: 60 (about a second). Taken at the next start or pulse |
-| `$C0BB`–`$C0BF` | | | reserved: read 0, writes ignored |
+| Addr            | R/W | Name   | Role                                                                                                    |
+| --------------- | --- | ------ | ------------------------------------------------------------------------------------------------------- |
+| `$C0B8`         | RW  | CTRL   | W: bit 7 = 1 starts it (a full period from now), 0 stops it. R: bit 7 running, bit 0 fired              |
+| `$C0B9`         | W   | ACK    | any value: releases the line (reads 0)                                                                  |
+| `$C0BA`         | RW  | PERIOD | in frames (1/60 s, 17030 cycles), 0 = 256. Reset: 60 (about a second). Taken at the next start or pulse |
+| `$C0BB`–`$C0BF` |     |        | reserved: read 0, writes ignored                                                                        |
 
 Every PERIOD frames it asserts its line, and holds it until ACK. It keeps its phase: the next pulse comes one period
 after the previous one, whenever it was acknowledged. Reset stops it and releases the line; it's in the save state.

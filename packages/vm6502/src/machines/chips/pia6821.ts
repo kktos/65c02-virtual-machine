@@ -171,4 +171,5 @@ export class PIA6821 {
 	}
 }
 
-const c2Level = (cr: number) => (cr & (CR_C2_OUTPUT | CR_C2_MANUAL)) !== (CR_C2_OUTPUT | CR_C2_MANUAL) || (cr & CR_C2_LEVEL) !== 0;
+const c2Level = (cr: number) =>
+	(cr & (CR_C2_OUTPUT | CR_C2_MANUAL)) !== (CR_C2_OUTPUT | CR_C2_MANUAL) || (cr & CR_C2_LEVEL) !== 0;

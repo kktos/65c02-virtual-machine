@@ -21,6 +21,7 @@ What's been built. Still open: `MCP_TODO.md`.
 ## Tools
 
 MVP:
+
 - `exec_command(line)` — reuse the whole command language
 - `read_memory(addr, len)` — structured (hex / bytes)
 - `screen_text()` — decode Apple II text page to plain text
@@ -28,6 +29,7 @@ MVP:
 - `type_keys(text)`
 
 Next:
+
 - `get_registers`, `pause`, `status`
 - `step(n)`, `reset` — both wait for the worker: `VirtualMachine.step(count)` / `reset()` return promises
   (a worker command sent with an `id` gets a `reply` message). `step` runs up to n instructions in the worker
@@ -61,7 +63,7 @@ Priorities reviewed 2026-11-08 (what blocked the use cases):
    Raw bytes only: no DOS 3.3 header (address + length) or AppleSingle is decoded.
 2. **Execution trace**: `get_trace({ enable?, size?, count? })`. The existing trace (`vm.getTrace`, `TraceView`)
    only logs JSR / JMP, so this is a new one: a ring buffer in the worker (`cpu/instructionTrace.ts`, 2 words per
-   entry, default 4096, max 65536) of every executed instruction with A X Y P SP *before* it, recorded in
+   entry, default 4096, max 65536) of every executed instruction with A X Y P SP _before_ it, recorded in
    `executeInstruction` after the breakpoint check (an instruction stopped on isn't recorded). Off by default:
    one flag check per instruction. Read with a worker request; the tool disassembles the entries (memory as it is
    now) with labels. Recording is lost when the VM is rebuilt (reload, `reboot`).
@@ -108,7 +110,7 @@ Priorities reviewed 2026-11-08 (what blocked the use cases):
 
 ## Follow-ups fixed
 
-- `run_until` reports *why* it stopped. The worker sends a `StopInfo` (`src/types/stopinfo.interface.ts`)
+- `run_until` reports _why_ it stopped. The worker sends a `StopInfo` (`src/types/stopinfo.interface.ts`)
   in the `isRunning: false` message; the VM keeps it as `vm.lastStop` (BRK + hypercall byte → `hypercall`).
   `run_until` returns `reached_address` / `breakpoint` (type + address) / `brk` / `step` / `error` /
   `pause` / `reset`, keeps waiting through hypercalls; `get_registers` adds `last_stop`.
@@ -117,7 +119,7 @@ Priorities reviewed 2026-11-08 (what blocked the use cases):
   `stopped: breakpoint $0309` while the machine went on running (the harness's results at `$3F57` were
   written after). The machine isn't stopped when the result says so: keep waiting when the hook resumes, or
   say the hook resumed it.
-  Fixed: `run_until` waits for a *settled* stop (`useRunUntil().onSettledStop`): a breakpoint's stop is only
+  Fixed: `run_until` waits for a _settled_ stop (`useRunUntil().onSettledStop`): a breakpoint's stop is only
   final once the main thread is done with it (hook command run, not resumed). `run_until` also takes
   `breakpoints: "honour" | "through"`, and an unreached target stays armed (`pending_target`)
 - hook commands never ran on range or `access` breakpoints: on a hit, `useMachine` looked the breakpoint up
@@ -133,7 +135,7 @@ Priorities reviewed 2026-11-08 (what blocked the use cases):
   `DiskDriveControl.vue` to `useDiskDrive` (shared with the MCP tools); `eject` empties the drive
   (`vm.ejectDisk` → `ejectMedia` → SmartPort card: calls answer $2F, the boot resumes the slot scan), forgets
   the disk and puts the metadata back on "no disk"; the library popover shows what's in the drive + Eject.
-  Also: a URL disk's `.sym` symbols were added to the *previous* disk (before the metadata switched), and a
+  Also: a URL disk's `.sym` symbols were added to the _previous_ disk (before the metadata switched), and a
   renamed `.2mg` lost its header handling (the card got the display name, not the file name)
 - the disassembler reads operand values (`info`, e.g. `LDA $C030,X`) with `readByte(addr, false)`, which
   the `d` / `L` / `explain` commands and the disassembly view sent to `vm.read`: on $C000-$CFFF that runs soft
@@ -204,12 +206,12 @@ too; they were plain BRKs before and nothing in the repo used them.)
 
 1. Decode the call, reading memory now, as it is at the call:
 
-   | cmd | read in the worker | in the call |
-   |---|---|---|
-   | `$01` LOG_STRING | format string + `%h` argument bytes, formatted | `stringAddr`, `message` |
-   | `$02` LOG_REGS | A X Y P SP (from the registers view the CPU passes) | `regs` |
-   | `$03` ADD_REGION | start, size, bank, name string | `region: { start, size, bank, name }` |
-   | `$04` REMOVE_REGIONS | count + name strings | `names` |
+    | cmd                  | read in the worker                                  | in the call                           |
+    | -------------------- | --------------------------------------------------- | ------------------------------------- |
+    | `$01` LOG_STRING     | format string + `%h` argument bytes, formatted      | `stringAddr`, `message`               |
+    | `$02` LOG_REGS       | A X Y P SP (from the registers view the CPU passes) | `regs`                                |
+    | `$03` ADD_REGION     | start, size, bank, name string                      | `region: { start, size, bank, name }` |
+    | `$04` REMOVE_REGIONS | count + name strings                                | `names`                               |
 
 2. Move PC past the call (length from the decode) and charge the cycles (7, like a BRK).
 3. Post a fire-and-forget `{ type: "hypercall", call }`, `call` being the decoded call

@@ -34,7 +34,8 @@ const parseHookTail = (tail: string | undefined, vm: VirtualMachine) => {
 
 	const tokens = new ExpressionParser(text, vm).getTokens().filter((t) => t.type !== TokenType.EOF);
 	if (tokens[0].type === TokenType.STRING) {
-		if (tokens.length > 1) throw new Error(`Nothing expected after the quoted command, got '${text.slice(tokens[1].start)}'.`);
+		if (tokens.length > 1)
+			throw new Error(`Nothing expected after the quoted command, got '${text.slice(tokens[1].start)}'.`);
 		return { once, command: tokens[0].text };
 	}
 

@@ -61,7 +61,9 @@
 							</div>
 							<span class="font-mono text-gray-400">$</span>
 							<span class="font-mono font-medium">{{ formatAddress(addr) }}</span>
-							<span class="text-gray-500 truncate ml-auto max-w-[80px]">{{ getLabelForAddress(addr) }}</span>
+							<span class="text-gray-500 truncate ml-auto max-w-[80px]">{{
+								getLabelForAddress(addr)
+							}}</span>
 						</button>
 					</div>
 					<div v-else class="text-center text-xs text-gray-500 py-4">History is empty.</div>
@@ -148,8 +150,9 @@ const props = withDefaults(
 const emit = defineEmits<(e: "goto", address: number) => void>();
 
 const { getAddressForLabel, getLabelForAddress, findSymbols } = useSymbols();
-const { historyIndex, jumpHistory, recordJump, navigateHistory, jumpToHistoryIndex, clearHistory } =
-	useAddressHistory(props.name);
+const { historyIndex, jumpHistory, recordJump, navigateHistory, jumpToHistoryIndex, clearHistory } = useAddressHistory(
+	props.name,
+);
 const inputValue = ref("");
 const isHistoryOpen = ref(false);
 const suggestions = ref<SuggestionItem[]>([]);

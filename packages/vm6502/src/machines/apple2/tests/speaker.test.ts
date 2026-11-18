@@ -45,7 +45,10 @@ describe("Speaker", () => {
 			speaker.toggle();
 		}
 		const wave = chunks[0]!;
-		const transitions = wave.reduce((count, value, index) => count + (index > 0 && value !== wave[index - 1] ? 1 : 0), 0);
+		const transitions = wave.reduce(
+			(count, value, index) => count + (index > 0 && value !== wave[index - 1] ? 1 : 0),
+			0,
+		);
 		// 512 samples = ~23 ms of a 1 kHz tone: ~46 half periods
 		expect(transitions).toBeGreaterThanOrEqual(44);
 		expect(transitions).toBeLessThanOrEqual(48);

@@ -72,7 +72,7 @@ describe("command history", () => {
 		const nov9 = new Date(2026, 10, 9, 9, 5, 7).getTime();
 		commandHistory.value = [
 			{ cmd: "d $300", source: "user" },
-			{ cmd: "hd $300 $3ff |> tr text |> sed //x// \"$1\" |> write a.txt", source: "mcp", time: nov9 },
+			{ cmd: 'hd $300 $3ff |> tr text |> sed //x// "$1" |> write a.txt', source: "mcp", time: nov9 },
 			{ cmd: "asm $300\nlda #1\nend", source: "bp", time: new Date(2026, 0, 2, 3, 4, 5).getTime() },
 			{ cmd: "say `hi`", source: "init", time: nov9 },
 		];

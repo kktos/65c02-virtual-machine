@@ -46,10 +46,7 @@ export const logCmd = defineCommand({
 			// Not a subcommand: a first arg that is a name (a register, a label: `log spk PC`), logged by its value
 		}
 
-		const line = params
-			.slice(1)
-			.map(formatArg)
-			.join(" ");
+		const line = params.slice(1).map(formatArg).join(" ");
 		trace(name.text, line);
 
 		return "";

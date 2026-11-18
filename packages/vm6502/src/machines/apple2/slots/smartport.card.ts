@@ -116,6 +116,7 @@ export class SmartPortCard implements ISlotCard {
 		at(0xff, [0x0a]); // block-level interface entry point: $Cn0A ($00 would mean a Disk II)
 
 		// --- Boot ($Cn20): READ block 0 to $0800, then enter $0801 as the Disk II ROM does ---
+		// oxfmt-ignore
 		let addr = at(BOOT, [
 			0x64, 0x44, // STZ $44   buffer lo
 			0x64, 0x46, // STZ $46   block lo
@@ -134,6 +135,7 @@ export class SmartPortCard implements ISlotCard {
 		// The zero page the Disk II ROM leaves after reading sector 0 (a DOS 3.3 BOOT1 relies on it):
 		// data_ptr $26/$27 = $0900, sector $3D = 1, track $41 = 0, slot_index $2B = $n0.
 		// Then on to the ROM's "more sectors?" test, which ends in JMP $0801 with X = $n0.
+		// oxfmt-ignore
 		at(addr, [
 			0x64, 0x26, // STZ $26
 			0x64, 0x41, // STZ $41
@@ -153,6 +155,7 @@ export class SmartPortCard implements ISlotCard {
 		addr = at(READ_SECTOR, [0x8d, ...io(2)]); // STA $C0n2: read the sector, INC $27 / $3D; C = error
 		addr = at(addr, [0xb0, branch(addr, BOOT_ERROR)]); // BCS BootError
 		// ReadSectorNext: where the boot joins, sector 0 being already in $0800
+		// oxfmt-ignore
 		addr = at(READ_SECTOR_NEXT, [
 			0xa5, 0x3d, // LDA $3D
 			0xcd, 0x00, 0x08, // CMP $0800
@@ -165,6 +168,7 @@ export class SmartPortCard implements ISlotCard {
 		// The autostart ROM enters with JMP ($0000), not JSR: there is nothing to return to.
 		// Like real boot ROMs: if called by the slot scan ($00/$01 = $Cn00), resume it at SLOOP ($FABA),
 		// which tries the next slots and ends in BASIC; otherwise (PR#n, CnnnG) cold-start BASIC.
+		// oxfmt-ignore
 		at(BOOT_ERROR, [
 			0xa5, 0x00, // LDA $00
 			0xd0, 0x09, // BNE Basic
@@ -198,11 +202,23 @@ export class SmartPortCard implements ISlotCard {
 	}
 
 	writeIo(offset: number, _value: number): void {
-		if (offset === 0) this.handleBlockCommand();
-		if (offset === 1) this.handleSmartPortCommand();
-		if (offset === 2) this.handleReadSector();
-		if (offset === 3) this.handleRwtsCall();
-		if (offset === 4) this.resumeRwtsCall();
+		switch (offset) {
+			case 0:
+				this.handleBlockCommand();
+				break;
+			case 1:
+				this.handleSmartPortCommand();
+				break;
+			case 2:
+				this.handleReadSector();
+				break;
+			case 3:
+				this.handleRwtsCall();
+				break;
+			case 4:
+				this.resumeRwtsCall();
+				break;
+		}
 	}
 
 	/**

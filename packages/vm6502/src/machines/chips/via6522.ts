@@ -121,13 +121,15 @@ export class VIA6522 {
 		switch (offset) {
 			case 0x00: // ORB / IRB
 				return (
-					((this.handlers.readPortB ? this.handlers.readPortB() : this.regs[REG_ORB]!) & ~this.regs[REG_DDRB]!) |
+					((this.handlers.readPortB ? this.handlers.readPortB() : this.regs[REG_ORB]!) &
+						~this.regs[REG_DDRB]!) |
 					(this.regs[REG_ORB]! & this.regs[REG_DDRB]!)
 				);
 			case 0x01: // ORA / IRA
 			case 0x0f: // ORA / IRA, no handshake
 				return (
-					((this.handlers.readPortA ? this.handlers.readPortA() : this.regs[REG_ORA]!) & ~this.regs[REG_DDRA]!) |
+					((this.handlers.readPortA ? this.handlers.readPortA() : this.regs[REG_ORA]!) &
+						~this.regs[REG_DDRA]!) |
 					(this.regs[REG_ORA]! & this.regs[REG_DDRA]!)
 				);
 			case 0x04: // T1C-L
