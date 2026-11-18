@@ -1,0 +1,62 @@
+#!/bin/sh
+# Format (oxfmt) and lint (oxlint) the files staged under packages/vm6502.
+#
+# - Fully staged files are formatted in place and re-staged.
+# - Files that also have unstaged changes are only checked, so the hook never
+#   stages hunks you left out on purpose; the commit stops if they need formatting.
+# - Any oxlint warning or error stops the commit (--deny-warnings).
+#
+# Installed by `pnpm install` (the root `prepare` script sets core.hooksPath).
+# Skip once with: git commit --no-verify
+
+set -e
+cd "$(git rev-parse --show-toplevel)"
+
+bin=node_modules/.bin
+if [ ! -x "$bin/oxfmt" ] || [ ! -x "$bin/oxlint" ]; then
+	echo "pre-commit: oxfmt/oxlint not installed, run 'pnpm install'. Skipping." >&2
+	exit 0
+fi
+
+# Newline-separated lists, so paths with spaces survive.
+IFS='
+'
+fmt_ext='\.(js|mjs|cjs|jsx|ts|mts|cts|tsx|vue|json|jsonc|md|css|scss|html|yml|yaml)$'
+lint_ext='\.(js|mjs|cjs|jsx|ts|mts|cts|tsx|vue)$'
+
+staged=$(git diff --cached --name-only --diff-filter=ACMR -- packages/vm6502 | grep -E "$fmt_ext" || true)
+[ -z "$staged" ] && exit 0
+
+to_write=""
+to_check=""
+for f in $staged; do
+	if git diff --quiet -- "$f"; then
+		to_write="$to_write$f
+"
+	else
+		to_check="$to_check$f
+"
+	fi
+done
+
+if [ -n "$to_write" ]; then
+	# shellcheck disable=SC2086
+	"$bin/oxfmt" --write $to_write >/dev/null
+	# shellcheck disable=SC2086
+	git add -- $to_write
+fi
+
+if [ -n "$to_check" ]; then
+	# shellcheck disable=SC2086
+	if ! "$bin/oxfmt" --list-different $to_check; then
+		echo "pre-commit: the files above are partly staged and need formatting." >&2
+		echo "            Run '$bin/oxfmt <file>', re-stage, and commit again." >&2
+		exit 1
+	fi
+fi
+
+lint=$(printf '%s\n' $staged | grep -E "$lint_ext" || true)
+if [ -n "$lint" ]; then
+	# shellcheck disable=SC2086
+	"$bin/oxlint" -c .oxlintrc.json --deny-warnings $lint
+fi
