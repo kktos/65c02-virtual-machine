@@ -35,12 +35,12 @@ read / write / execute rights on each page.
    register. Ignored, a write is dropped (as a write to ROM).
 6. **The physical memory is a pool of 64K banks**, as many as `memory.conf.ts`'s `banks` (2 at least). Any virtual
    page can be mapped to any physical page: the main and aux banks are not tied to each other.
-7. **At reset the new MMU is the identity**: `$00` on physical bank 0, `$01` on physical bank 1, all pages RWX. A
-   program that never touches it sees a plain //e.
-8. **BANKSEL is a special case of the new MMU**: writing N maps the 256 pages of `$01` onto physical bank N
-   (identity pages, RWX), masked to the banks that exist. It replaces whatever mapping `$01` had.
-9. **The video reads the virtual 128K**, through the new MMU table: 40-column text is `$00:0400`, wherever it's
-   mapped. It translates once per page, not per byte.
+7. **At reset the new MMU is the identity**: `$00` on physical bank 0, `$01` on physical bank 1, all pages RWX, in
+   every context, and context 0 is in effect. A program that never touches it sees a plain //e.
+8. **BANKSEL is a special case of the new MMU**: writing N maps the 256 pages of `$01` of the current context onto
+   physical bank N (identity pages, RWX), masked to the banks that exist. It replaces whatever mapping `$01` had.
+9. **The video reads the virtual 128K**, through the table of the display context (see "Contexts"): 40-column text
+   is `$00:0400`, wherever it's mapped. It translates once per page, not per byte.
 10. **Everything lives in the shared memory**: the RAM pool, the ROMs, the new MMU table and the CPU-side tables.
     The UI thread, the CPU worker and the video read the same mapping, instead of syncing flags and redoing the
     rules.
@@ -49,6 +49,8 @@ read / write / execute rights on each page.
 12. **`$C000-$CFFF` stays on the slow path**, with today's code: soft switches, `$CFFF`, the `$C3xx` → INTC8ROM
     latch, the active expansion slot, the cards' `readRom` / `readExpansion`.
 13. **Save states**: the format's version is bumped, older states are rejected (no converter).
+14. **Several maps, picked by an id (contexts).** The new MMU holds 16 tables of 512 entries. Building one is slow
+    and done once; switching to it is one write. A process is a context.
 
 ## Address spaces and notation
 
@@ -109,8 +111,8 @@ read(a)     { const p = this.rd[a >> 8]; return p >= 0 ? mem[p | (a & 0xff)] : t
 write(a, v) { const p = this.wr[a >> 8]; if (p >= 0) mem[p | (a & 0xff)] = v; else this.slowWrite(a, v); }
 ```
 
-They are rebuilt when a soft switch that changes the mapping is hit, when the new MMU table is written, and on
-BANKSEL; only the CPU pages of the regions that changed.
+They are rebuilt when a soft switch that changes the mapping is hit, when the current context's table is written,
+and on BANKSEL: only the CPU pages of the regions that changed. A context switch rebuilds all 256 entries.
 
 `readDebug`, `readDebugRange`, `getScope` and `getBank` all go through the same translation (the region gives the
 scope's name). A debugger view such as "show LC bank 2" composes a table from a modified copy of the switches.
@@ -128,12 +130,108 @@ One 32-bit entry per virtual page (proposal):
 | 18 | X |
 | 19-31 | reserved, 0 |
 
+## Contexts
+
+A single table isn't enough to swap memory: swapping a 16K window rewrites 64 entries, the map is half old and half
+new until the last write, and the code doing it may be in the window it swaps. So the new MMU holds **16
+contexts**, each a full 512-entry table. Context 0 is the one in effect at reset.
+
+- **Building a context** is done once, through range commands (below).
+- **Switching** is one write to `CTX`: the CPU tables are rebuilt from the new context, all at once.
+- **The video** reads through the `DISPLAY` context, not `CTX`, so a context switch doesn't change what's on
+  screen. Reset: 0.
+- **BANKSEL** rewrites `$01` in the current context.
+
+### Registers
+
+A device in the //e's I/O space (where: see "Open questions"), 16 registers:
+
+| Offset | R/W | Name | |
+|---|---|---|---|
+| `$0` | RW | CTX | the context in effect |
+| `$1` | RW | EDIT | the context the next registers edit |
+| `$2` | W | CLONE | writing n copies context n into EDIT. Reads 0 |
+| `$3` | RW | VBANK | first virtual page: bank (`$00`, `$01`) |
+| `$4` | RW | VPAGE | first virtual page: page |
+| `$5` | RW | PBANK | first physical page: bank, masked to the banks that exist |
+| `$6` | RW | PPAGE | first physical page: page |
+| `$7` | RW | RIGHTS | bit 0 R, bit 1 W, bit 2 X |
+| `$8` | W | COUNT | **writing it maps COUNT pages** (0 means 256) of EDIT, then moves the page registers past the last one. Reads 0 |
+| `$9` | RW | DISPLAY | the context the video reads |
+| `$A` | RW | RETCTX | the context the next RTI of an IMU handler returns to (see "Contexts and interrupts"). `$FF`: none |
+| `$B`-`$F` | | | faults (see "Open questions") |
+
+- The page registers carry from page into bank, so ranges can cross `$00:FFxx` → `$01:00xx`. A range stops at
+  `$01:FFxx`.
+- A COUNT write on the context in effect changes the CPU tables at once (only the CPU pages it maps).
+- Reset: CTX = EDIT = DISPLAY = 0, RETCTX = `$FF`, every context the identity.
+
+### Example: a window
+
+```
+        LDA #1   : STA MMU_EDIT
+        LDA #0   : STA MMU_CLONE    ; ctx 1 := ctx 0
+        LDA #$00 : STA MMU_VBANK
+        LDA #$60 : STA MMU_VPAGE    ; $00:6000
+        LDA #$02 : STA MMU_PBANK
+        LDA #$00 : STA MMU_PPAGE    ; $02/0000
+        LDA #3   : STA MMU_RIGHTS   ; RW
+        LDA #$40 : STA MMU_COUNT    ; 64 pages: $00:6000-$9FFF -> $02/0000-$3FFF
+        ...
+        LDA #1 : STA MMU_CTX        ; window in
+        LDA #0 : STA MMU_CTX        ; window out
+```
+
+**The `STA MMU_CTX` has to be in a page mapped the same in both contexts**: the next opcode is fetched through the
+new map. The LC area, or any page left shared, works.
+
+### Contexts and interrupts
+
+The IMU's HBANK (see IMU.md, `InterruptContext`) is a context id. 0 means "stay in the current context", so context
+0 can't be a handler's context: it's the one programs that know nothing of the MMU run in.
+
+- `enter(bank)`: if bank is not 0, switch to that context, after the pushes and before the handler's first fetch.
+  Returns the context that was in effect.
+- `exit(saved)`: before the RTI's pulls, switch to RETCTX if it's set (then clear it), to `saved` otherwise.
+
+The pushes go to the interrupted context's stack, and the pulls come from the stack of the context `exit` switches
+to. That is all a preemptive scheduler needs, on the timer (ID 8) with HBANK = the kernel's context:
+
+```
+TIMER   STA SAVE_A : STX SAVE_X : STY SAVE_Y   ; kernel ZP: process table of the current process
+        TSX : STX SAVE_SP
+        ...                                    ; pick the next process, B
+        LDX B_SP : TXS
+        LDA #B_CTX : STA MMU_RETCTX
+        STA IMU_EOI
+        LDA B_A : LDX B_X : LDY B_Y
+        RTI                                    ; to B's context: pulls the frame B pushed when it was preempted
+```
+
+The handler runs with the interrupted SP, on its own context's stack page. RETCTX is a single latch: a handler
+interrupted by a higher priority one between the RETCTX write and its RTI loses it. The scheduler runs at the
+lowest priority, with I set.
+
+### Processes
+
+A process is a context: its own virtual 128K, its own ZP and stack, backed by its own physical banks. Three
+processes of 128K each need `banks: 6`, plus room for the kernel's context.
+
+- The kernel decides which process has the screen (DISPLAY) and the keyboard.
+- The //e soft switches (RAMRD, ALTZP, 80STORE, the LC, the video modes) aren't part of a context. The kernel can't
+  save them all in software: the LC's write enable and its pre-write state can't be read back. Processes are
+  written for the kernel (see "Open questions").
+- Running unmodified Apple software side by side is out of scope: the `$C0xx` I/O is shared, the firmware isn't
+  reentrant, and preemption breaks timing loops. Three independent machines are an emulator feature, not an MMU
+  one.
+
 ## Shared memory layout
 
 ```
 [ system ROM $D000-$FFFF 12K | internal Cx ROM 4K | slot ROMs 4K | sink page ]     static
 [ bank 0 ][ bank 1 ][ bank 2 ] … [ bank N-1 ]                                        64K each
-[ new MMU table: 512 × 32 bits ][ CPU tables: read, write, exec, 256 × 32 bits each ]
+[ contexts: 16 × 512 × 32 bits ][ CPU tables: read, write, exec, 256 × 32 bits each ]
+[ MMU registers: CTX, EDIT, DISPLAY, RETCTX, the page registers ]
 ```
 
 The Cx ROMs keep 4K each (`$C000-$CFFF`) so their pages stay aligned; `$C0xx` is unused.
@@ -146,17 +244,21 @@ The Cx ROMs keep 4K each (`$C000-$CFFF`) so their pages stay aligned; `$C0xx` is
 - `apple.switches.ts`: the switches that change the mapping call `remap` for their regions; BANKSEL rewrites `$01`.
 - `bus/apple.loader.ts`: `bank` is a virtual bank; `lgcard.bank2` loads at `$bb:D000`, `lgcard.rom` / `int.rom.cx` /
   `slot(s).rom` into the ROM area.
-- Video (`apple.video.ts`, `text.ts`, `gr.ts`, `hgr.ts`): read the virtual 128K through the new MMU table.
+- The MMU registers: a device (see DEVICES.md), and the `InterruptContext` given to the IMU.
+- Video (`apple.video.ts`, `text.ts`, `gr.ts`, `hgr.ts`): read the virtual 128K through the display context.
 - MCP (`lib/mcp/tools.ts`): `toAddress` / `hexAddr` for the three notations.
 - Debugger UI: the notations and their colors; the overrides replaced by addresses where they name a location.
 - Save states: version bump.
 
 ## Open questions
 
-- **How 6502 code programs the new MMU.** Slot 3's I/O (`$C0B0-$C0BF`) is the IMU's and the timer's. A register
-  window as a device in `$C090-$C0FF` (virtual page index, physical page and bank, rights, auto-increment)?
+- **Where the registers go.** Slot 3's I/O (`$C0B0-$C0BF`) is the IMU's and the timer's. Another slot's 16 bytes
+  in `$C090-$C0FF`?
+- **How many contexts**: 8 or 16. 16 tables are 32K of shared memory.
+- **The soft switches in a context**: a flag per context so it also holds the //e switches, saved and restored by
+  a switch. Needed to isolate processes that set them.
+- **A supervisor bit**: only a context with it may write the MMU registers, the others fault. Without it, any
+  process can remap anything.
 - **ROM in the new MMU**: mappable, so RAM can be put under the system ROM?
 - **Faults**: per page or global mode? Which IMU ID? What a faulting read returns, and what the CPU executes on an
-  exec fault (a BRK in place of the opcode?).
-- **The IMU's HBANK** (see IMU.md, `InterruptContext`): what a handler's bank byte means for the MMU, and how
-  `enter` / `exit` switch maps.
+  exec fault (a BRK in place of the opcode?). Registers `$B`-`$F`: faulting CPU address, access kind, context.
