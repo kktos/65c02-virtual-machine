@@ -38,7 +38,7 @@
 							:value="formatRegisterValue(reg)"
 							@keyup.enter="onRegisterUpdate($event, reg)"
 							@blur="onRegisterUpdate($event, reg)"
-							:disabled="!reg.write"
+							:disabled="!reg.write || isRunning"
 							:style="{ width: `calc(${reg.size * 2}ch + 1rem)` }"
 							class="bg-transparent text-center px-2 py-0.5 text-indigo-300 outline-none focus:bg-black/20 disabled:opacity-60"
 							:aria-label="`Register ${reg.label}`"
@@ -54,6 +54,7 @@
 
 <script setup lang="ts">
 import { computed, inject, type Ref } from "vue";
+import { useMachine } from "@/composables/useMachine";
 import type { EmulatorRegisters } from "@/types/emulatorstate.interface";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import DebuggerPanelTitle from "./DebuggerPanelTitle.vue";
@@ -61,6 +62,8 @@ import StatusFlagsView from "./StatusFlagsView.vue";
 import type { RegisterDescriptor } from "@/types/registers";
 
 const vm = inject<Ref<VirtualMachine>>("vm");
+// Read-only while the machine runs: the frame loop overwrites the values faster than one can type
+const { isRunning } = useMachine();
 
 interface Props {
 	registers: EmulatorRegisters;
@@ -133,7 +136,7 @@ const formatRegisterValue = (reg: RegisterDescriptor) => {
 };
 
 const onRegisterUpdate = (event: Event, reg: RegisterDescriptor) => {
-	if (!reg.write) return;
+	if (!reg.write || isRunning.value) return;
 	const input = event.target as HTMLInputElement;
 	const parsedValue = parseInt(input.value.replace("$", ""), 16);
 
