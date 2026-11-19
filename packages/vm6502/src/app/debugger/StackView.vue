@@ -41,7 +41,8 @@
 									@input="handleInput(item.address, $event)"
 									@keydown="handleKeyDown($event)"
 									maxlength="2"
-									class="h-5 w-8 text-center bg-transparent focus:bg-gray-600 focus:outline-none focus:ring-1 focus:ring-cyan-500 rounded-none tabular-nums"
+									:disabled="isRunning"
+									class="h-5 w-8 text-center bg-transparent disabled:cursor-default focus:bg-gray-600 focus:outline-none focus:ring-1 focus:ring-cyan-500 rounded-none tabular-nums"
 								/>
 								<!--
 									Always there, "$XXXX:JSR $XXXX" wide (15 ch, monospace), empty on the other rows:
@@ -86,6 +87,7 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import DebuggerPanelTitle from "./DebuggerPanelTitle.vue";
 import { formatAddress, toHex } from "@/lib/hex.utils";
 import { useAddressHistory } from "@/composables/useAddressHistory.ts";
+import { useMachine } from "@/composables/useMachine";
 
 const stackBase = 0x0100;
 
@@ -94,6 +96,8 @@ const stackBase = 0x0100;
 const addr16 = (addr: number) => `$${toHex(addr, 4)}`;
 
 const vm = inject<Ref<VirtualMachine>>("vm");
+// Read-only while the machine runs: the stack changes under the edit
+const { isRunning } = useMachine();
 
 interface Props {
 	registers: EmulatorRegisters;
@@ -269,7 +273,13 @@ watch(isEditing, (editing) => {
 	}
 });
 
+// Started while editing: drop the edit (a disabled input may keep its focus)
+watch(isRunning, (running) => {
+	if (running && isEditing.value) (document.activeElement as HTMLElement | null)?.blur();
+});
+
 const startEdit = (address: number, value: number, event: FocusEvent) => {
+	if (isRunning.value) return;
 	isEditing.value = true;
 	editingAddress.value = address;
 	editingValue.value = toHex(value, 2);
@@ -284,7 +294,7 @@ const cancelEdit = () => {
 
 const commitEdit = (addr: number, val: string, target: HTMLElement | null) => {
 	const value = parseInt(val, 16);
-	if (!Number.isNaN(value)) {
+	if (!Number.isNaN(value) && !isRunning.value) {
 		vm?.value.writeDebug(addr, value);
 	}
 	target?.blur();
