@@ -7,8 +7,8 @@
 		]"
 	>
 		<!-- Toolbar flush against the panel frame -->
-		<div class="flex flex-wrap items-center gap-2 p-1 shrink-0 bg-gray-800 border-b border-gray-700">
-			<div class="flex flex-1 items-center gap-2">
+		<div class="flex flex-wrap items-center gap-1 shrink-0 bg-gray-800 border-b border-gray-700">
+			<div class="flex flex-1 items-center gap-1">
 				<AddressNavigator
 					name="memory"
 					@goto="handleGoto"
@@ -16,7 +16,7 @@
 					:placeholder="placeholder"
 					title='Enter address, symbol, start with " for text search (e.g. "HELLO), or hex bytes (e.g. A9 00)'
 				/>
-				<div class="flex items-center pl-2 border-l border-gray-700">
+				<div class="flex items-center pl-1 border-l border-gray-700">
 					<Button
 						variant="ghost"
 						size="icon"
@@ -34,7 +34,7 @@
 			<BinaryLoader :address="startAddress" :debug-overrides="debugOverrides" />
 
 			<!-- Active Debug Badges -->
-			<div v-if="activeDebugBadges.length > 0" class="flex items-center gap-2 ml-auto">
+			<div v-if="activeDebugBadges.length > 0" class="flex items-center gap-1 ml-auto">
 				<div
 					v-for="badge in activeDebugBadges"
 					:key="badge.id"
@@ -60,7 +60,7 @@
 				<Settings2 class="h-4 w-4" />
 			</Button>
 
-			<div class="flex items-center space-x-1 ml-2 border-l border-gray-700 pl-2">
+			<div class="flex items-center border-l border-gray-700 pl-1">
 				<Button
 					variant="ghost"
 					size="icon"

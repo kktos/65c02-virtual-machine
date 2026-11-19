@@ -4,7 +4,7 @@
 			<Button
 				variant="ghost"
 				size="icon"
-				class="h-[30px] w-[30px] text-gray-400 hover:text-yellow-300 hover:bg-gray-700"
+				class="h-6 w-6 text-gray-400 hover:text-yellow-300 hover:bg-gray-700"
 				title="Load Binary to Memory"
 				@click="refreshLibrary"
 			>
