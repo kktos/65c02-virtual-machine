@@ -2,6 +2,7 @@
 	<!--
 		Rendered in every layout, so the slot content keeps its element (no remount, scroll kept):
 		docked, it's a plain grid cell; floating, it's moved out of the grid (fixed) and gets a title bar.
+		Closed, it's only hidden (display: none): the content stays mounted, the debugger menu opens it again.
 		No transform / filter / backdrop-filter here: they'd become the containing block of the
 		position: fixed elements inside (the maximized disassembly…).
 	-->
@@ -15,35 +16,27 @@
 	>
 		<div
 			v-if="floating"
-			class="flex h-6 shrink-0 cursor-move select-none items-center gap-1.5 rounded-t-md bg-gray-800 pl-2 pr-1 text-[11px] font-medium uppercase tracking-wider text-gray-400"
-			:class="!geometry.collapsed && 'border-b border-gray-700'"
-			title="Drag to move · double-click: collapse / expand"
+			class="flex h-6 shrink-0 cursor-move select-none items-center gap-1.5 rounded-t-md border-b border-gray-700 bg-gray-800 pl-2 pr-1 text-[11px] font-medium uppercase tracking-wider text-gray-400"
+			title="Drag to move"
 			@pointerdown="startDrag"
-			@dblclick="toggleCollapsed"
 		>
 			<GripHorizontal class="h-3.5 w-3.5 shrink-0 text-gray-500" />
 			<span class="truncate">{{ title }}</span>
 			<button
 				class="ml-auto rounded p-0.5 text-gray-400 hover:bg-gray-700 hover:text-cyan-300"
-				:title="geometry.collapsed ? 'Expand' : 'Collapse'"
+				title="Close · the debugger menu opens it again"
 				@pointerdown.stop
-				@dblclick.stop
-				@click="toggleCollapsed"
+				@click="setPanelOpen(id, false)"
 			>
-				<ChevronDown v-if="geometry.collapsed" class="h-3.5 w-3.5" />
-				<ChevronUp v-else class="h-3.5 w-3.5" />
+				<X class="h-3.5 w-3.5" />
 			</button>
 		</div>
 
-		<div
-			v-show="!(floating && geometry.collapsed)"
-			class="flex-1 min-h-0 min-w-0"
-			:class="floating && 'overflow-hidden rounded-b-md'"
-		>
+		<div class="flex-1 min-h-0 min-w-0" :class="floating && 'overflow-hidden rounded-b-md'">
 			<slot />
 		</div>
 
-		<template v-if="floating && !geometry.collapsed">
+		<template v-if="floating">
 			<div
 				v-for="edge in EDGES"
 				:key="edge"
@@ -56,10 +49,11 @@
 </template>
 
 <script setup lang="ts">
-import { ChevronDown, ChevronUp, GripHorizontal } from "lucide-vue-next";
+import { GripHorizontal, X } from "lucide-vue-next";
 import { computed, ref, watch } from "vue";
 import { type PanelId, useAppLayout } from "@/composables/useAppLayout";
 import { useFloatingWindows } from "@/composables/useFloatingWindows";
+import { clamp, snapToEdge as snap, trackPointer } from "./trackPointer";
 
 const props = defineProps<{
 	id: PanelId;
@@ -85,24 +79,17 @@ const EDGE_CLASS: Record<Edge, string> = {
 	se: "-bottom-1 -right-1 h-3 w-3 cursor-nwse-resize",
 };
 
-/** The title bar's height (h-6) + the borders: a collapsed panel's height */
-const TITLE_HEIGHT = 26;
-/** Distance under which a moved or resized edge sticks to the window's edge (px) */
-const SNAP = 12;
-
-const { panels, opacity, revealed, save } = useAppLayout();
+const { panels, opacity, revealed, setPanelOpen, save } = useAppLayout();
 const { nextZIndex } = useFloatingWindows();
 
 const geometry = computed(() => panels[props.id]);
-
-const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(Math.max(min, max), value));
 
 /** The panel in px, kept inside the bounds whatever the window size */
 const rect = computed(() => {
 	const { width: W, height: H } = props.bounds;
 	const g = geometry.value;
 	const w = clamp(g.w * W, Math.min(props.minWidth, W), W);
-	const h = g.collapsed ? TITLE_HEIGHT : clamp(g.h * H, Math.min(props.minHeight, H), H);
+	const h = clamp(g.h * H, Math.min(props.minHeight, H), H);
 	return { x: clamp(g.x * W, 0, W - w), y: clamp(g.y * H, 0, H - h), w, h };
 });
 
@@ -110,26 +97,28 @@ const zIndex = ref(0);
 const raise = () => {
 	zIndex.value = nextZIndex();
 };
-// Above the floating windows already open when the panels show up
+// Above the floating windows already open when the panels show up, or when it's opened again
 watch(
-	() => props.floating,
-	(floating) => floating && raise(),
+	() => props.floating && geometry.value.open,
+	(shown) => shown && raise(),
 	{ immediate: true },
 );
 
-// Asked for (a jump to the disassembly / memory…): to the front, expanded
+// Asked for (a jump to the disassembly / memory…): opened, to the front
 watch(revealed, (value) => {
 	if (!props.floating || value?.id !== props.id) return;
 	raise();
-	if (geometry.value.collapsed) toggleCollapsed();
+	if (!geometry.value.open) setPanelOpen(props.id, true);
 });
 
 const floatingStyle = computed(() => ({
 	left: `${rect.value.x}px`,
 	top: `${rect.value.y}px`,
 	width: `${rect.value.w}px`,
-	height: geometry.value.collapsed ? "auto" : `${rect.value.h}px`,
+	height: `${rect.value.h}px`,
 	zIndex: zIndex.value,
+	// Plays along with a v-show on the component (stack / trace): either one hides it
+	...(geometry.value.open ? {} : { display: "none" }),
 	"--panel-opacity": opacity.value,
 }));
 
@@ -140,36 +129,11 @@ const store = (x: number, y: number, w: number, h: number) => {
 	g.x = x / W;
 	g.y = y / H;
 	g.w = w / W;
-	if (!g.collapsed) g.h = h / H;
-};
-
-const toggleCollapsed = () => {
-	geometry.value.collapsed = !geometry.value.collapsed;
-	save();
+	g.h = h / H;
 };
 
 /** Follow the pointer until it's released, then save */
-const track = (event: PointerEvent, onMove: (dx: number, dy: number) => void) => {
-	if (event.button !== 0) return;
-	event.preventDefault();
-	const target = event.currentTarget as HTMLElement;
-	const startX = event.clientX;
-	const startY = event.clientY;
-	target.setPointerCapture(event.pointerId);
-
-	const move = (e: PointerEvent) => onMove(e.clientX - startX, e.clientY - startY);
-	const up = () => {
-		target.removeEventListener("pointermove", move);
-		target.removeEventListener("pointerup", up);
-		target.removeEventListener("pointercancel", up);
-		save();
-	};
-	target.addEventListener("pointermove", move);
-	target.addEventListener("pointerup", up);
-	target.addEventListener("pointercancel", up);
-};
-
-const snap = (value: number, max: number) => (value < SNAP ? 0 : max - value < SNAP ? max : value);
+const track = (event: PointerEvent, onMove: (dx: number, dy: number) => void) => trackPointer(event, onMove, save);
 
 const startDrag = (event: PointerEvent) => {
 	const start = { ...rect.value };

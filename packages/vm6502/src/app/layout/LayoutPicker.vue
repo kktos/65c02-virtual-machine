@@ -46,7 +46,7 @@
 					@click="resetPanels"
 				>
 					<RotateCcw class="h-3.5 w-3.5" />
-					Reset the panels' positions
+					Reset the panels (all open, back in place)
 				</button>
 			</div>
 		</PopoverContent>
