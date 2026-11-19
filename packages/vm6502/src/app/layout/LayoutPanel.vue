@@ -4,7 +4,7 @@
 		docked, it's a plain grid cell; floating, it's moved out of the grid (fixed) and gets a title bar.
 		Closed, it's only hidden (display: none): the content stays mounted, the debugger menu opens it again.
 		No transform / filter / backdrop-filter here: they'd become the containing block of the
-		position: fixed elements inside (the maximized disassembly…).
+		position: fixed elements inside.
 	-->
 	<div
 		ref="el"

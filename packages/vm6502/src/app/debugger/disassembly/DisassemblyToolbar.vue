@@ -1,10 +1,8 @@
 <template>
-	<div
-		class="grid grid-cols-[auto_1fr_auto] justify-between items-center gap-2 p-1 shrink-0 bg-gray-800 border-b border-gray-700"
-	>
+	<div class="flex items-center gap-1 shrink-0 bg-gray-800 border-b border-gray-700">
 		<AddressNavigator name="disassembly" @goto="(addr) => $emit('gotoAddress', addr)" />
 
-		<div class="flex space-x-2 mx-2" ref="toolbarRef">
+		<div class="flex items-center">
 			<button
 				@click="$emit('syncToPc')"
 				:class="[
@@ -33,9 +31,6 @@
 			>
 				<Binary class="h-4 w-4" />
 			</button>
-		</div>
-
-		<div class="flex space-x-2">
 			<button
 				ref="settingsBtnRef"
 				@click="$emit('toggle-settings')"
@@ -45,14 +40,6 @@
 			>
 				<Settings2 class="h-4 w-4" />
 			</button>
-
-			<button
-				@click="$emit('toggle-maximize')"
-				:title="isMaximized ? 'Minimize View' : 'Maximize View'"
-				class="p-1 rounded hover:bg-gray-700 text-gray-400 hover:text-white transition-colors"
-			>
-				<component :is="isMaximized ? Minimize : Maximize" class="w-4 h-4" />
-			</button>
 		</div>
 	</div>
 </template>
@@ -61,13 +48,12 @@
 import { ref } from "vue";
 import AddressNavigator from "@/app/debugger/AddressNavigator.vue";
 import { useFloatingWindows } from "@/composables/useFloatingWindows";
-import { Binary, Lock, LockOpen, Maximize, Minimize, Settings2, Tags } from "lucide-vue-next";
+import { Binary, Lock, LockOpen, Settings2, Tags } from "lucide-vue-next";
 
 const props = defineProps<{
 	isFollowingPc: boolean;
 	hasDisassembly: boolean;
 	availableScopes: string[];
-	isMaximized: boolean;
 	hasSelection: boolean;
 	isSettingsOpen?: boolean;
 }>();
@@ -75,7 +61,6 @@ const props = defineProps<{
 const emit = defineEmits<{
 	(e: "syncToPc"): void;
 	(e: "gotoAddress", address: number): void;
-	(e: "toggle-maximize"): void;
 	(e: "toggle-settings"): void;
 }>();
 

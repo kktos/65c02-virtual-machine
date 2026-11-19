@@ -1,45 +1,42 @@
 <template>
 	<!-- This anchor div holds the component's place in the layout -->
 	<div class="h-full w-full relative">
-		<Teleport to="body" :disabled="!isMaximized">
-			<div :class="containerClasses">
-				<!-- Header combining title, count, and action button -->
-				<DisassemblyToolbar
-					:is-following-pc="isFollowingPc"
-					:has-disassembly="!!(disassembly && disassembly.length > 0)"
-					:available-scopes="availableScopes"
-					:is-maximized="isMaximized"
-					:has-selection="hasSelection"
-					:is-settings-open="isSettingsOpen"
-					ref="toolbarInstance"
-					@toggle-maximize="isMaximized = !isMaximized"
-					@sync-to-pc="syncToPc"
-					@goto-address="gotoAddress"
-					@toggle-settings="isSettingsOpen = !isSettingsOpen"
-				/>
+		<div class="bg-black h-full flex flex-col relative">
+			<!-- Header combining title, count, and action button -->
+			<DisassemblyToolbar
+				:is-following-pc="isFollowingPc"
+				:has-disassembly="!!(disassembly && disassembly.length > 0)"
+				:available-scopes="availableScopes"
+				:has-selection="hasSelection"
+				:is-settings-open="isSettingsOpen"
+				ref="toolbarInstance"
+				@sync-to-pc="syncToPc"
+				@goto-address="gotoAddress"
+				@toggle-settings="isSettingsOpen = !isSettingsOpen"
+			/>
 
-				<!-- Scrollable disassembly table; its height drives the visible row count -->
-				<div
-					ref="scrollContainer"
-					class="font-mono text-xs overflow-y-hidden flex-grow min-h-0 bg-black px-1 focus:outline-none focus:ring-1 focus:ring-inset focus:ring-cyan-500"
-					tabindex="0"
-					@wheel.prevent="handleScroll"
-					@keydown="handleKeyDown"
-				>
-					<p v-if="!disassembly || disassembly.length === 0" class="text-gray-500 italic p-4 text-center">
-						Disassembly data is empty or unavailable. (Check console for debug logs)
-					</p>
-					<div class="grid grid-rows-[400px_1fr]" style="grid-template-rows: auto" v-else>
-						<div class="min-h-0 overflow-y-auto">
-							<DisasmTable
-								:lines="disassembly"
-								:address="fullPcAddress"
-								:registers="registers"
-								@cell-click="onCellClick"
-							/>
-						</div>
-						<div class="min-h-0 overflow-y-auto" style="display: none">
-							<!-- <DisassemblyTable
+			<!-- Scrollable disassembly table; its height drives the visible row count -->
+			<div
+				ref="scrollContainer"
+				class="font-mono text-xs overflow-y-hidden flex-grow min-h-0 bg-black px-1 focus:outline-none focus:ring-1 focus:ring-inset focus:ring-cyan-500"
+				tabindex="0"
+				@wheel.prevent="handleScroll"
+				@keydown="handleKeyDown"
+			>
+				<p v-if="!disassembly || disassembly.length === 0" class="text-gray-500 italic p-4 text-center">
+					Disassembly data is empty or unavailable. (Check console for debug logs)
+				</p>
+				<div class="grid grid-rows-[400px_1fr]" style="grid-template-rows: auto" v-else>
+					<div class="min-h-0 overflow-y-auto">
+						<DisasmTable
+							:lines="disassembly"
+							:address="fullPcAddress"
+							:registers="registers"
+							@cell-click="onCellClick"
+						/>
+					</div>
+					<div class="min-h-0 overflow-y-auto" style="display: none">
+						<!-- <DisassemblyTable
 								:registers="registers"
 								:disassembly="disassembly"
 								:address="fullPcAddress"
@@ -52,18 +49,17 @@
 								@set-selection-start="(addr) => (selectionStart = addr)"
 								@set-selection-end="(addr) => (selectionEnd = addr)"
 							/> -->
-						</div>
 					</div>
 				</div>
-				<DisasmSelectionStatus v-if="hasSelection" />
 			</div>
-			<DisassemblySettingsPanel
-				:is-open="isSettingsOpen"
-				:available-scopes="availableScopes"
-				:ignore-ref="toolbarInstance?.settingsBtnRef"
-				@close="isSettingsOpen = false"
-			/>
-		</Teleport>
+			<DisasmSelectionStatus v-if="hasSelection" />
+		</div>
+		<DisassemblySettingsPanel
+			:is-open="isSettingsOpen"
+			:available-scopes="availableScopes"
+			:ignore-ref="toolbarInstance?.settingsBtnRef"
+			@close="isSettingsOpen = false"
+		/>
 	</div>
 	<ExplanationDrawer
 		v-model:open="isExplanationOpen"
@@ -106,18 +102,6 @@ interface Props {
 	registers: EmulatorRegisters;
 }
 const { address, memory, registers } = defineProps<Props>();
-
-const isMaximized = ref(false);
-
-const containerClasses = computed(() => {
-	if (isMaximized.value) return "fixed inset-0 bg-black z-50 flex flex-col border border-cyan-500";
-	// Classes for inline mode: no padding, the toolbar sits flush against the panel frame
-	return "bg-black h-full flex flex-col relative";
-});
-
-watch(isMaximized, (isMax) => {
-	if (isMax) window.dispatchEvent(new Event("resize"));
-});
 
 const { jumpEvent, takeUnapplied, isNewVm } = useDisassembly();
 const { setMemoryViewAddress, setActiveTab } = useDebuggerNav();
