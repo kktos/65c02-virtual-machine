@@ -1,8 +1,14 @@
 <template>
-	<!-- Same frame and title style as the Stack panel next to it -->
-	<div class="p-2 bg-gray-800 rounded-lg shadow-xl h-full flex flex-col">
-		<div class="flex justify-between items-center -mt-1 mb-0.5 shrink-0">
-			<h2 class="text-[0.65rem] leading-none font-semibold text-cyan-400 uppercase tracking-wider">
+	<!-- Same frame and title style as the Stack panel next to it; in a floating panel, neither: the panel has them -->
+	<div
+		class="p-2 bg-black rounded-lg shadow-xl h-full flex flex-col in-[.floating-panel]:p-1 in-[.floating-panel]:rounded-none"
+	>
+		<div
+			class="flex justify-between items-center -mt-1 mb-0.5 shrink-0 in-[.floating-panel]:mt-0 in-[.floating-panel]:justify-end"
+		>
+			<h2
+				class="in-[.floating-panel]:hidden text-[0.65rem] leading-none font-semibold text-cyan-400 uppercase tracking-wider"
+			>
 				Execution Trace
 			</h2>
 			<div class="flex items-center space-x-1">
@@ -109,10 +115,10 @@
 
 		<div
 			v-if="mode === 'jumps'"
-			class="flex-grow min-h-0 overflow-y-auto font-mono text-xs bg-gray-900 p-1.5 rounded-md"
+			class="flex-grow min-h-0 overflow-y-auto font-mono text-xs bg-black p-1.5 rounded-md"
 		>
 			<table class="text-left border-collapse w-full">
-				<thead class="sticky top-0 bg-gray-900">
+				<thead class="sticky top-0 bg-black">
 					<tr class="text-gray-500 border-b border-gray-700">
 						<th class="py-1 w-12">Source</th>
 						<th class="py-1 w-15 text-center">Type</th>
@@ -147,9 +153,9 @@
 		</div>
 
 		<!-- Every instruction, most recent first like the jumps (the top row is the last one executed), registers before it -->
-		<div v-else class="flex-grow min-h-0 overflow-auto font-mono text-xs bg-gray-900 p-1.5 rounded-md">
+		<div v-else class="flex-grow min-h-0 overflow-auto font-mono text-xs bg-black p-1.5 rounded-md">
 			<table class="text-left border-collapse w-full whitespace-nowrap">
-				<thead class="sticky top-0 bg-gray-900">
+				<thead class="sticky top-0 bg-black">
 					<tr class="text-gray-500 border-b border-gray-700">
 						<th class="py-1 pr-2">Address</th>
 						<th class="py-1 pr-2">Instruction</th>

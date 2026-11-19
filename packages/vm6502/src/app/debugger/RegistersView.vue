@@ -1,5 +1,5 @@
 <template>
-	<div class="p-2 bg-gray-800 rounded-lg shadow-lg">
+	<div class="p-2 bg-black rounded-lg shadow-lg">
 		<DebuggerPanelTitle title="Registers" />
 		<!-- Each cell is sized to its content: label + 2 hex digits per byte -->
 		<div class="flex flex-wrap gap-1.5 font-mono text-xs text-gray-300">
