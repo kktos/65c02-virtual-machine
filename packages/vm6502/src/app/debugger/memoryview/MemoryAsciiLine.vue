@@ -8,7 +8,7 @@
 			@input="onInput(byteOffsetInLine, $event)"
 			@blur="onBlur(byteOffsetInLine)"
 			maxlength="1"
-			class="w-[1.2ch] text-center bg-yellow-600 focus:bg-gray-600 focus:outline-none focus:ring-1 focus:ring-cyan-500 rounded-none tabular-nums text-xs p-0 border-none font-bold"
+			class="w-[1.2ch] text-center bg-yellow-600 focus:bg-gray-600 focus:outline-none focus:ring-1 focus:ring-cyan-500 rounded-none tabular-nums text-xs h-[18px] p-0 leading-[18px] border-none font-bold"
 		/>
 	</template>
 	<template v-else>
@@ -17,7 +17,7 @@
 			@mousedown="onMouseDown(byteOffsetInLine, $event)"
 			@mouseenter="onMouseEnter(byteOffsetInLine)"
 			:class="[
-				'w-[1.2ch] text-center tabular-nums text-xs p-0 font-bold cursor-text select-none',
+				'w-[1.2ch] text-center tabular-nums text-xs leading-[18px] p-0 font-bold cursor-text select-none',
 				getAsciiClass(
 					lineData[byteOffsetInLine],
 					isHighlighted(byteOffsetInLine),

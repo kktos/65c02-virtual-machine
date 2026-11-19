@@ -1,7 +1,8 @@
 <template>
 	<!--
-		One grid for both layouts (see useAppLayout): only grid-template-areas changes between them,
-		so no slot content is moved or remounted.
+		One grid for every layout (see useAppLayout): only grid-template-areas changes between them,
+		so no slot content is moved or remounted. Floating, the grid is the video alone: the state and
+		code panels are taken out of it (position: fixed) and float over it.
 	-->
 	<div
 		ref="root"
@@ -12,8 +13,16 @@
 		<div
 			class="[grid-area:video] flex flex-col min-w-0 min-h-0 overflow-hidden bg-[conic-gradient(#000_0_25%,#333_0_50%,#000_0_75%,#333_0_100%)] [background-size:1rem_1rem]"
 		>
-			<div ref="header" class="shrink-0">
-				<slot name="video-header" />
+			<!-- Floating, the header is the top bar: the debugger toolbar is teleported beside the machine one -->
+			<div ref="header" class="flex shrink-0 flex-wrap bg-gray-800">
+				<div class="min-w-0 flex-1" :class="floating && 'basis-0 min-w-80'">
+					<slot name="video-header" />
+				</div>
+				<div
+					v-show="floating"
+					:id="LAYOUT_TOOLBAR_ID"
+					class="min-w-80 flex-1 basis-0 border-l border-gray-700"
+				></div>
 			</div>
 			<div class="relative flex-1 min-h-0">
 				<slot name="video" />
@@ -21,6 +30,7 @@
 		</div>
 
 		<div
+			v-if="!floating"
 			class="[grid-area:vsplit]"
 			:class="handleClass('col')"
 			role="separator"
@@ -36,11 +46,20 @@
 			@keydown="onKey('col', $event)"
 		></div>
 
-		<div class="[grid-area:state] min-w-0 min-h-0 overflow-hidden">
+		<LayoutPanel
+			id="state"
+			class="[grid-area:state]"
+			title="CPU state"
+			:floating="floating"
+			:bounds="{ width, height }"
+			:min-width="MIN_RIGHT"
+			:min-height="MIN_STATE"
+		>
 			<slot name="state" />
-		</div>
+		</LayoutPanel>
 
 		<div
+			v-if="!floating"
 			class="[grid-area:hsplit]"
 			:class="handleClass('row')"
 			role="separator"
@@ -56,16 +75,39 @@
 			@keydown="onKey('row', $event)"
 		></div>
 
-		<div class="[grid-area:code] min-w-0 min-h-0 overflow-hidden">
+		<LayoutPanel
+			id="code"
+			class="[grid-area:code]"
+			title="Disassembly"
+			:floating="floating"
+			:bounds="{ width, height }"
+			:min-width="MIN_RIGHT"
+			:min-height="MIN_CODE"
+		>
 			<slot name="code" />
-		</div>
+		</LayoutPanel>
+
+		<!-- Floating only: docked, the memory viewer is a tab of the code panel -->
+		<LayoutPanel
+			v-if="floating"
+			id="memory"
+			title="Memory"
+			:floating="floating"
+			:bounds="{ width, height }"
+			:min-width="MIN_RIGHT"
+			:min-height="MIN_CODE"
+		>
+			<slot name="memory" />
+		</LayoutPanel>
 	</div>
 </template>
 
 <script setup lang="ts">
 import { useElementSize } from "@vueuse/core";
 import { computed, ref, watch } from "vue";
-import { autoLayout, type LayoutKind, useAppLayout } from "@/composables/useAppLayout";
+import { autoLayout, type GridKind, type LayoutKind, useAppLayout } from "@/composables/useAppLayout";
+import LayoutPanel from "./LayoutPanel.vue";
+import { LAYOUT_TOOLBAR_ID } from "./layoutToolbar";
 
 const props = defineProps<{
 	/** Video width / height */
@@ -93,7 +135,7 @@ const rowPx = computed(() => Math.round(clamp(row.value * height.value, MIN_STAT
 
 // While a split is dragged, the layout stays as it was: it's evaluated again on release
 const dragging = ref<Split | null>(null);
-const autoKind = ref<LayoutKind>(kind.value);
+const autoKind = ref<GridKind>(kind.value === "floating" ? "column" : kind.value);
 watch(
 	[colPx, rowPx, () => props.aspect, headerHeight, dragging],
 	() => {
@@ -105,17 +147,27 @@ watch(
 
 const layout = computed<LayoutKind>(() => (mode.value === "auto" ? autoKind.value : mode.value));
 watch(layout, (value) => (kind.value = value), { immediate: true });
+const floating = computed(() => layout.value === "floating");
 
 const AREAS: Record<LayoutKind, string> = {
 	column: `"video vsplit state" "video vsplit hsplit" "video vsplit code"`,
 	top: `"video vsplit state" "hsplit hsplit hsplit" "code code code"`,
+	floating: `"video"`,
 };
 
-const gridStyle = computed(() => ({
-	gridTemplateColumns: `${colPx.value}px 1px minmax(0, 1fr)`,
-	gridTemplateRows: `${rowPx.value}px 1px minmax(0, 1fr)`,
-	gridTemplateAreas: AREAS[layout.value],
-}));
+const gridStyle = computed(() =>
+	floating.value
+		? {
+				gridTemplateColumns: "minmax(0, 1fr)",
+				gridTemplateRows: "minmax(0, 1fr)",
+				gridTemplateAreas: AREAS.floating,
+			}
+		: {
+				gridTemplateColumns: `${colPx.value}px 1px minmax(0, 1fr)`,
+				gridTemplateRows: `${rowPx.value}px 1px minmax(0, 1fr)`,
+				gridTemplateAreas: AREAS[layout.value],
+			},
+);
 
 // 1px line, with a wider invisible grab area over the neighbours
 const handleClass = (split: Split) => [
