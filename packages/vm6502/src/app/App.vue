@@ -52,26 +52,26 @@
 
 				<!--
 					The panel width drives the layout (container query):
-					- narrow: CPU strip (registers + flags) across the top, Stack | Trace below
-					- wide (>= 54rem): 3 columns, CPU stacked vertically | Stack | Trace
-					- floating: the CPU strip alone, the stack and the trace have panels of their own
+					- narrow: the registers across the top, Stack | Trace below
+					- wide (>= 54rem): 3 columns, Registers | Stack | Trace
+					- floating: the registers alone, the stack and the trace have panels of their own
 					Breakpoints live in a drawer opened from the debugger toolbar.
 				-->
-				<div class="@container min-h-0 flex-1 p-2" :class="floating && 'overflow-auto'">
+				<!--
+					Floating, no @container: its inline-size containment would give it no width of its own,
+					and the panel's width fits the registers. A stable gutter: the scrollbar doesn't eat into them.
+				-->
+				<div
+					class="min-h-0 flex-1 p-2"
+					:class="floating ? 'overflow-y-auto overflow-x-hidden [scrollbar-gutter:stable]' : '@container'"
+				>
 					<div :class="!floating && DOCKED_STATE_GRID">
-						<!-- Registers and flags: side by side (wrapping) when narrow or floating, stacked when wide -->
-						<div
-							class="[grid-area:cpu] flex flex-wrap gap-2 min-w-0"
-							:class="!floating && '@[54rem]:flex-col @[54rem]:flex-nowrap'"
-						>
-							<RegistersView
-								class="flex-[1_1_15rem] min-w-0"
-								:class="!floating && '@[54rem]:flex-none'"
-								:registers="registers"
-								:virtual-registers="virtualRegisters"
-							/>
-							<StatusFlagsView class="shrink-0" :registers="registers" />
-						</div>
+						<!-- Registers, with the status flags beside P (the flags are part of it) -->
+						<RegistersView
+							class="[grid-area:cpu] min-w-0"
+							:registers="registers"
+							:virtual-registers="virtualRegisters"
+						/>
 
 						<!-- Floating: moved to their own panels (not remounted: the trace and the scroll are kept) -->
 						<Teleport defer :to="`#${STACK_PANEL_ID}`" :disabled="!floating">
@@ -123,7 +123,6 @@ import DisassemblyView from "./debugger/disassembly/DisassemblyView.vue";
 import MultiMemoryViewer from "./debugger/memoryview/MultiMemoryViewer.vue";
 import RegistersView from "./debugger/RegistersView.vue";
 import StackView from "./debugger/StackView.vue";
-import StatusFlagsView from "./debugger/StatusFlagsView.vue";
 import TraceView from "./debugger/TraceView.vue";
 import DiskDriveControl from "./machine/diskdrivecontrol/DiskDriveControl.vue";
 import GamepadControl from "./machine/GamepadControl.vue";

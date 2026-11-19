@@ -7,6 +7,7 @@
 		position: fixed elements inside (the maximized disassembly…).
 	-->
 	<div
+		ref="el"
 		class="min-w-0 min-h-0 flex flex-col"
 		:class="
 			floating ? 'floating-panel fixed rounded-md border border-gray-600 bg-black shadow-2xl' : 'overflow-hidden'
@@ -38,7 +39,7 @@
 
 		<template v-if="floating">
 			<div
-				v-for="edge in EDGES"
+				v-for="edge in edges"
 				:key="edge"
 				class="absolute z-10"
 				:class="EDGE_CLASS[edge]"
@@ -50,6 +51,7 @@
 
 <script setup lang="ts">
 import { GripHorizontal, X } from "lucide-vue-next";
+import { useElementSize } from "@vueuse/core";
 import { computed, ref, watch } from "vue";
 import { type PanelId, useAppLayout } from "@/composables/useAppLayout";
 import { useFloatingWindows } from "@/composables/useFloatingWindows";
@@ -61,9 +63,21 @@ const props = defineProps<{
 	floating: boolean;
 	/** The area the panel floats over (the layout's size, px) */
 	bounds: { width: number; height: number };
-	minWidth: number;
-	minHeight: number;
+	minWidth?: number;
+	minHeight?: number;
+	/**
+	 * What the user can resize: "height" only, the width fits the content (its widest row); "width" only,
+	 * the height fits the content; "both" (the default)
+	 */
+	resize?: "both" | "width" | "height";
 }>();
+
+const resize = computed(() => props.resize ?? "both");
+/** The size follows the content on that axis: no stored value, no handle */
+const fitWidth = computed(() => resize.value === "height");
+const fitHeight = computed(() => resize.value === "width");
+const minWidth = computed(() => props.minWidth ?? 0);
+const minHeight = computed(() => props.minHeight ?? 0);
 
 type Edge = "n" | "s" | "e" | "w" | "ne" | "nw" | "se" | "sw";
 const EDGES: Edge[] = ["n", "s", "e", "w", "ne", "nw", "se", "sw"];
@@ -78,18 +92,30 @@ const EDGE_CLASS: Record<Edge, string> = {
 	nw: "-top-1 -left-1 h-3 w-3 cursor-nwse-resize",
 	se: "-bottom-1 -right-1 h-3 w-3 cursor-nwse-resize",
 };
+const edges = computed(() =>
+	EDGES.filter((edge) =>
+		fitWidth.value ? edge === "n" || edge === "s" : fitHeight.value ? edge === "e" || edge === "w" : true,
+	),
+);
 
 const { panels, opacity, revealed, setPanelOpen, save } = useAppLayout();
 const { nextZIndex } = useFloatingWindows();
 
 const geometry = computed(() => panels[props.id]);
 
+// The panel's own size: the content's, on the axis that fits it
+const el = ref<HTMLElement | null>(null);
+const natural = useElementSize(el, undefined, { box: "border-box" });
+
 /** The panel in px, kept inside the bounds whatever the window size */
 const rect = computed(() => {
 	const { width: W, height: H } = props.bounds;
 	const g = geometry.value;
-	const w = clamp(g.w * W, Math.min(props.minWidth, W), W);
-	const h = clamp(g.h * H, Math.min(props.minHeight, H), H);
+	// Not measured yet (just shown): the stored size meanwhile
+	const fitW = fitWidth.value && natural.width.value > 0;
+	const fitH = fitHeight.value && natural.height.value > 0;
+	const w = fitW ? Math.min(natural.width.value, W) : clamp(g.w * W, Math.min(minWidth.value, W), W);
+	const h = fitH ? Math.min(natural.height.value, H) : clamp(g.h * H, Math.min(minHeight.value, H), H);
 	return { x: clamp(g.x * W, 0, W - w), y: clamp(g.y * H, 0, H - h), w, h };
 });
 
@@ -114,8 +140,11 @@ watch(revealed, (value) => {
 const floatingStyle = computed(() => ({
 	left: `${rect.value.x}px`,
 	top: `${rect.value.y}px`,
-	width: `${rect.value.w}px`,
-	height: `${rect.value.h}px`,
+	// Fitted: as wide (tall) as the content, wherever the panel is (auto would shrink it near the right edge)
+	width: fitWidth.value ? "max-content" : `${rect.value.w}px`,
+	height: fitHeight.value ? "max-content" : `${rect.value.h}px`,
+	maxWidth: fitWidth.value ? `${props.bounds.width}px` : undefined,
+	maxHeight: fitHeight.value ? `${props.bounds.height}px` : undefined,
 	zIndex: zIndex.value,
 	// Plays along with a v-show on the component (stack / trace): either one hides it
 	...(geometry.value.open ? {} : { display: "none" }),
@@ -153,10 +182,10 @@ const startResize = (edge: Edge, event: PointerEvent) => {
 		let top = start.y;
 		let right = start.x + start.w;
 		let bottom = start.y + start.h;
-		if (edge.includes("w")) left = snap(clamp(left + dx, 0, right - props.minWidth), W);
-		if (edge.includes("e")) right = snap(clamp(right + dx, left + props.minWidth, W), W);
-		if (edge.includes("n")) top = snap(clamp(top + dy, 0, bottom - props.minHeight), H);
-		if (edge.includes("s")) bottom = snap(clamp(bottom + dy, top + props.minHeight, H), H);
+		if (edge.includes("w")) left = snap(clamp(left + dx, 0, right - minWidth.value), W);
+		if (edge.includes("e")) right = snap(clamp(right + dx, left + minWidth.value, W), W);
+		if (edge.includes("n")) top = snap(clamp(top + dy, 0, bottom - minHeight.value), H);
+		if (edge.includes("s")) bottom = snap(clamp(bottom + dy, top + minHeight.value, H), H);
 		store(left, top, right - left, bottom - top);
 	});
 };

@@ -48,7 +48,7 @@ const props = defineProps<{
 }>();
 
 const ITEMS: { id: PanelId; label: string; title: string }[] = [
-	{ id: "state", label: "CPU", title: "CPU state" },
+	{ id: "state", label: "Registers", title: "registers" },
 	{ id: "stack", label: "Stack", title: "stack" },
 	{ id: "trace", label: "Trace", title: "execution trace" },
 	{ id: "code", label: "Disassembly", title: "disassembly" },

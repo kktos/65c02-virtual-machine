@@ -1,37 +1,52 @@
 <template>
-	<div class="p-2 bg-black rounded-lg shadow-lg">
-		<DebuggerPanelTitle title="Registers" />
-		<!-- Each cell is sized to its content: label + 2 hex digits per byte -->
-		<div class="flex flex-wrap gap-1.5 font-mono text-xs text-gray-300">
+	<!-- In a floating panel: no frame nor title, the panel has them -->
+	<div class="p-2 bg-black rounded-lg shadow-lg in-[.floating-panel]:p-0 in-[.floating-panel]:rounded-none">
+		<DebuggerPanelTitle class="in-[.floating-panel]:hidden" title="Registers" />
+		<!--
+			A X Y / PC SP / P and the flags / the virtual registers (wrapping).
+			Each cell is sized to its content: label + 2 hex digits per byte.
+			The hardware rows set the width (the floating panel fits it): the virtual registers' row only asks
+			for its widest cell (min-content), then takes the whole width (min-w-full) and wraps in it.
+		-->
+		<div class="flex flex-col items-start gap-1.5 font-mono text-xs text-gray-300">
 			<div
-				v-for="reg in allRegisters"
-				:key="reg.key"
-				class="flex items-center flex-none border focus-within:border-gray-500 border-transparent"
+				v-for="(row, index) in rows"
+				:key="index"
+				class="flex items-center gap-1.5"
+				:class="row.wrap ? 'flex-wrap w-min min-w-full' : 'flex-nowrap'"
 			>
 				<div
-					class="flex items-center overflow-hidden font-mono text-xs tabular-nums border border-gray-700"
-					:class="[
-						reg.write ? 'bg-gray-900' : 'bg-gray-850',
-						reg.isVirtual ? 'border-indigo-500/40' : 'border-gray-700',
-					]"
+					v-for="reg in row.registers"
+					:key="reg.key"
+					class="flex items-center flex-none border focus-within:border-gray-500 border-transparent"
 				>
-					<span
-						class="shrink-0 px-1.5 py-0.5 font-bold text-gray-200 select-none border-r border-black/40"
-						:class="reg.isVirtual ? 'bg-indigo-700/40 text-indigo-200' : 'bg-gray-700'"
+					<div
+						class="flex items-center overflow-hidden font-mono text-xs tabular-nums border border-gray-700"
+						:class="[
+							reg.write ? 'bg-gray-900' : 'bg-gray-850',
+							reg.isVirtual ? 'border-indigo-500/40' : 'border-gray-700',
+						]"
 					>
-						{{ reg.label }}
-					</span>
-					<input
-						type="text"
-						:value="formatRegisterValue(reg)"
-						@keyup.enter="onRegisterUpdate($event, reg)"
-						@blur="onRegisterUpdate($event, reg)"
-						:disabled="!reg.write"
-						:style="{ width: `calc(${reg.size * 2}ch + 1rem)` }"
-						class="bg-transparent text-center px-2 py-0.5 text-indigo-300 outline-none focus:bg-black/20 disabled:opacity-60"
-						:aria-label="`Register ${reg.label}`"
-					/>
+						<span
+							class="shrink-0 px-1.5 py-0.5 font-bold text-gray-200 select-none border-r border-black/40"
+							:class="reg.isVirtual ? 'bg-indigo-700/40 text-indigo-200' : 'bg-gray-700'"
+						>
+							{{ reg.label }}
+						</span>
+						<input
+							type="text"
+							:value="formatRegisterValue(reg)"
+							@keyup.enter="onRegisterUpdate($event, reg)"
+							@blur="onRegisterUpdate($event, reg)"
+							:disabled="!reg.write"
+							:style="{ width: `calc(${reg.size * 2}ch + 1rem)` }"
+							class="bg-transparent text-center px-2 py-0.5 text-indigo-300 outline-none focus:bg-black/20 disabled:opacity-60"
+							:aria-label="`Register ${reg.label}`"
+						/>
+					</div>
 				</div>
+				<!-- P's bits, beside it -->
+				<StatusFlagsView v-if="row.registers.some((reg) => reg.key === 'P')" :registers="registers" />
 			</div>
 		</div>
 	</div>
@@ -42,6 +57,7 @@ import { computed, inject, type Ref } from "vue";
 import type { EmulatorRegisters } from "@/types/emulatorstate.interface";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import DebuggerPanelTitle from "./DebuggerPanelTitle.vue";
+import StatusFlagsView from "./StatusFlagsView.vue";
 import type { RegisterDescriptor } from "@/types/registers";
 
 const vm = inject<Ref<VirtualMachine>>("vm");
@@ -95,7 +111,17 @@ const hardwareRegisters: RegisterDescriptor[] = [
 		read: () => props.registers.P,
 	},
 ];
-const allRegisters = computed(() => [...hardwareRegisters, ...(props.virtualRegisters ?? [])]);
+const byKey = (...keys: string[]) => keys.map((key) => hardwareRegisters.find((reg) => reg.key === key)!);
+type Row = { registers: readonly RegisterDescriptor[]; wrap?: boolean };
+const HARDWARE_ROWS: Row[] = [
+	{ registers: byKey("A", "X", "Y") },
+	{ registers: byKey("PC", "SP") },
+	{ registers: byKey("P") },
+];
+const rows = computed<Row[]>(() => {
+	const virtual = props.virtualRegisters ?? [];
+	return virtual.length ? [...HARDWARE_ROWS, { registers: virtual, wrap: true }] : HARDWARE_ROWS;
+});
 
 const formatRegisterValue = (reg: RegisterDescriptor) => {
 	const value = reg.read();

@@ -43,25 +43,30 @@
 									maxlength="2"
 									class="h-5 w-8 text-center bg-transparent focus:bg-gray-600 focus:outline-none focus:ring-1 focus:ring-cyan-500 rounded-none tabular-nums"
 								/>
+								<!--
+									Always there, "$XXXX:JSR $XXXX" wide (15 ch, monospace), empty on the other rows:
+									every row is as wide as the widest, the floating panel's width fits it and never jumps
+								-->
 								<div
-									v-if="item.isLowByteForReturn"
-									class="flex items-center text-xs text-emerald-400/80 px-2 whitespace-nowrap tabular-nums shrink-0"
+									class="flex items-center text-xs text-emerald-400/80 px-2 box-content w-[15ch] whitespace-nowrap tabular-nums shrink-0"
 								>
-									<span
-										@click="handleJump(item.jsrSite!)"
-										class="cursor-pointer hover:underline"
-										:title="`Jump to call site ${formatAddress(item.jsrSite ?? 0)}`"
-									>
-										{{ addr16(item.jsrSite ?? 0) }}
-									</span>
-									<span>:JSR&nbsp;</span>
-									<span
-										@click="handleJump(item.subroutineAddr!)"
-										class="cursor-pointer hover:underline"
-										:title="`Jump to subroutine ${formatAddress(item.subroutineAddr ?? 0)}`"
-									>
-										{{ addr16(item.subroutineAddr ?? 0) }}
-									</span>
+									<template v-if="item.isLowByteForReturn">
+										<span
+											@click="handleJump(item.jsrSite!)"
+											class="cursor-pointer hover:underline"
+											:title="`Jump to call site ${formatAddress(item.jsrSite ?? 0)}`"
+										>
+											{{ addr16(item.jsrSite ?? 0) }}
+										</span>
+										<span>:JSR&nbsp;</span>
+										<span
+											@click="handleJump(item.subroutineAddr!)"
+											class="cursor-pointer hover:underline"
+											:title="`Jump to subroutine ${formatAddress(item.subroutineAddr ?? 0)}`"
+										>
+											{{ addr16(item.subroutineAddr ?? 0) }}
+										</span>
+									</template>
 								</div>
 							</div>
 						</td>
