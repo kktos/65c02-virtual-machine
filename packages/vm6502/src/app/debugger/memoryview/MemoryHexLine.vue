@@ -8,7 +8,7 @@
 			@input="onInput(byteOffsetInLine, $event)"
 			@blur="emit('blur', getGlobalIndex(byteOffsetInLine))"
 			maxlength="2"
-			class="w-full text-center bg-yellow-600 focus:bg-gray-600 focus:outline-none focus:ring-1 focus:ring-cyan-500 rounded-none tabular-nums text-xs"
+			class="w-full text-center bg-yellow-600 focus:bg-gray-600 focus:outline-none focus:ring-1 focus:ring-cyan-500 rounded-none tabular-nums text-xs h-[18px] p-0 leading-[18px]"
 		/>
 	</template>
 	<template v-else>
@@ -18,7 +18,7 @@
 			@mouseenter="onMouseEnter(byteOffsetInLine)"
 			@contextmenu.prevent="onContextMenu(byteOffsetInLine, $event)"
 			:class="[
-				'w-full text-center tabular-nums text-xs py-0.5 cursor-text select-none',
+				'w-full text-center tabular-nums text-xs leading-[18px] cursor-text select-none',
 				isCellSelected(byteOffsetInLine)
 					? 'bg-blue-700 text-white'
 					: isHighlighted(byteOffsetInLine)

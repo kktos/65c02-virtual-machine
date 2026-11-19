@@ -54,11 +54,11 @@
 						v-if="row.line.label"
 						:line="row.line"
 						@show-x-ref="onShowXRef"
-						class="col-span-full flex items-center h-[1.6rem] px-2 even:bg-[#00000050]"
+						class="col-span-full flex items-center h-5 px-2 even:bg-white/[0.06]"
 					/>
 
 					<div
-						class="col-span-full grid items-top cursor-pointer transition-colors duration-75 select-none even:bg-[#00000050] hover:bg-[#3194f969]"
+						class="col-span-full grid items-top cursor-pointer transition-colors duration-75 select-none even:bg-white/[0.06] hover:bg-[#3194f969]"
 						:class="rowBorderClass(row)"
 						:style="{
 							gridTemplateColumns,
@@ -71,7 +71,7 @@
 						<div class="flex items-center justify-center">
 							<div
 								:class="{ 'border-yellow-500': row.highlight === 'pc' }"
-								class="border-l-4 border-transparent min-h-6"
+								class="border-l-4 border-transparent min-h-5"
 							></div>
 							<button
 								@click.stop="onToggleBreakpoint(row.line.addr)"
@@ -88,7 +88,7 @@
 						<div
 							v-for="col in columns"
 							:key="col.key"
-							class="px-1.5"
+							class="px-1.5 leading-5"
 							:style="{ color: columnColors[col.key] }"
 							:class="[cellTextClass(row)]"
 						>

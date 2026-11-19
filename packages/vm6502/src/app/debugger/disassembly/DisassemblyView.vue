@@ -21,7 +21,7 @@
 				<!-- Scrollable disassembly table; its height drives the visible row count -->
 				<div
 					ref="scrollContainer"
-					class="font-mono text-xs overflow-y-hidden flex-grow min-h-0 bg-gray-900 px-1 focus:outline-none focus:ring-1 focus:ring-inset focus:ring-cyan-500"
+					class="font-mono text-xs overflow-y-hidden flex-grow min-h-0 bg-black px-1 focus:outline-none focus:ring-1 focus:ring-inset focus:ring-cyan-500"
 					tabindex="0"
 					@wheel.prevent="handleScroll"
 					@keydown="handleKeyDown"
@@ -110,9 +110,9 @@ const { address, memory, registers } = defineProps<Props>();
 const isMaximized = ref(false);
 
 const containerClasses = computed(() => {
-	if (isMaximized.value) return "fixed inset-0 bg-gray-900 z-50 flex flex-col border border-cyan-500";
+	if (isMaximized.value) return "fixed inset-0 bg-black z-50 flex flex-col border border-cyan-500";
 	// Classes for inline mode: no padding, the toolbar sits flush against the panel frame
-	return "bg-gray-900 h-full flex flex-col relative";
+	return "bg-black h-full flex flex-col relative";
 });
 
 watch(isMaximized, (isMax) => {

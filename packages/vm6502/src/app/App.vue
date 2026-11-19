@@ -44,8 +44,11 @@
 		</template>
 
 		<template #state>
-			<div class="grid h-full grid-rows-[auto_1fr]">
-				<DebuggerControls :isRunning="isRunning" />
+			<div class="flex h-full flex-col">
+				<!-- Floating layout: in the top bar, beside the machine toolbar (moved, not remounted) -->
+				<Teleport defer :to="`#${LAYOUT_TOOLBAR_ID}`" :disabled="kind !== 'floating'">
+					<DebuggerControls :isRunning="isRunning" />
+				</Teleport>
 
 				<!--
 					The panel width drives the layout (container query):
@@ -53,7 +56,7 @@
 					- wide (>= 54rem): 3 columns, CPU stacked vertically | Stack | Trace
 					Breakpoints live in a drawer opened from the debugger toolbar.
 				-->
-				<div class="@container min-h-0 p-2">
+				<div class="@container min-h-0 flex-1 p-2">
 					<div
 						class="grid h-full gap-2 grid-cols-[16rem_minmax(0,1fr)] grid-rows-[auto_minmax(0,1fr)] [grid-template-areas:'cpu_cpu'_'stack_trace'] @[54rem]:grid-cols-[minmax(13rem,300px)_16rem_minmax(0,1fr)] @[54rem]:grid-rows-[minmax(0,1fr)] @[54rem]:[grid-template-areas:'cpu_stack_trace']"
 					>
@@ -77,8 +80,15 @@
 			</div>
 		</template>
 
+		<!-- Floating: the disassembly and the memory viewer each get a panel; docked: tabs (or split) -->
 		<template #code>
-			<TogglableDisplay id="disasm-mem-view" v-model:activeTab="debuggerTab">
+			<DisassemblyView
+				v-if="kind === 'floating'"
+				:address="registers.PC"
+				:memory="vm.sharedMemory"
+				:registers="registers"
+			/>
+			<TogglableDisplay v-else id="disasm-mem-view" v-model:activeTab="debuggerTab">
 				<template #tab1-title> Disassembly </template>
 				<template #tab2-title> Memory Viewer </template>
 				<template #tab1-content>
@@ -88,6 +98,10 @@
 					<MultiMemoryViewer />
 				</template>
 			</TogglableDisplay>
+		</template>
+
+		<template #memory>
+			<MultiMemoryViewer />
 		</template>
 	</AppLayout>
 </template>
@@ -99,6 +113,8 @@ import "vue-sonner/style.css";
 import TogglableDisplay from "../components/TogglableDisplay.vue";
 import { useMachine } from "../composables/useMachine";
 import AppLayout from "./layout/AppLayout.vue";
+import { LAYOUT_TOOLBAR_ID } from "./layout/layoutToolbar";
+import { useAppLayout } from "@/composables/useAppLayout";
 import { useDebuggerNav } from "../composables/useDebuggerNav";
 import { availableMachines } from "../machines";
 import type { MachineConfig } from "../types/machine.interface";
@@ -130,6 +146,7 @@ import { useDisassembly } from "@/composables/useDisassembly";
 const { vm, registers, selectedMachine, isRunning, videoCanvas, loadMachine, virtualRegisters } = useMachine();
 const { showConsole } = useCmdConsole();
 const { logWindows } = useLogWindows();
+const { kind } = useAppLayout();
 
 const hasGamepad = computed(
 	() => selectedMachine.value.inputs?.some((d) => d.type === "joystick" || d.type === "gamepad") ?? false,

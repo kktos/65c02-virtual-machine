@@ -2,7 +2,7 @@
 	<div
 		:id="id"
 		:class="[
-			'relative h-full flex flex-col bg-gray-900 transition-all duration-200',
+			'relative h-full flex flex-col bg-black transition-all duration-200',
 			isActive ? 'ring-1 ring-inset ring-cyan-500' : '',
 		]"
 	>
@@ -86,14 +86,14 @@
 		<!-- Table viewport: its size drives the visible rows and bytes per line -->
 		<div
 			ref="scrollContainer"
-			class="font-mono text-xs overflow-y-hidden flex-grow min-h-0 bg-gray-900 px-1"
+			class="font-mono text-xs overflow-y-hidden flex-grow min-h-0 bg-black px-1"
 			@wheel="throttledWheelHandler"
 			@mouseup="endSelection"
 			@mouseleave="endSelection"
 		>
 			<table class="w-full table-fixed">
 				<thead>
-					<tr class="text-gray-400 sticky top-0 bg-gray-900 border-b border-gray-700 shadow-md">
+					<tr class="text-gray-400 sticky top-0 bg-black border-b border-gray-700 shadow-md">
 						<th class="py-1 text-left w-16">Addr</th>
 						<th v-for="i in bytesPerLine" :key="i" class="text-center w-[1.5rem]">
 							{{ "+" + (i - 1).toString(16).toUpperCase() }}
@@ -105,9 +105,9 @@
 					<tr
 						v-for="lineIndex in visibleRowCount"
 						:key="lineIndex"
-						class="hover:bg-gray-700/50 transition duration-100 text-gray-300"
+						class="h-[18px] leading-[18px] hover:bg-gray-700/50 transition duration-100 text-gray-300"
 					>
-						<td class="py-0.5 text-left text-indigo-300 font-bold font-mono">
+						<td class="p-0 text-left text-indigo-300 font-bold font-mono">
 							{{ formatAddress(startAddress + (lineIndex - 1) * bytesPerLine) }}
 						</td>
 
@@ -142,7 +142,7 @@
 							/>
 						</td>
 
-						<td class="py-0.5 pl-4 whitespace-nowrap flex">
+						<td class="p-0 pl-4 whitespace-nowrap flex">
 							<template v-for="byteIndex in bytesPerLine" :key="byteIndex">
 								<MemoryAsciiLine
 									:line-index="lineIndex"
@@ -310,7 +310,7 @@ const startAddress = ref<number>(props.initialAddress ?? 0x0000);
 
 const scrollContainer = ref<HTMLElement | null>(null);
 const containerHeight = ref(0);
-const ROW_HEIGHT_ESTIMATE = 20.5; // Height of a row in pixels
+const ROW_HEIGHT_ESTIMATE = 18; // Height of a row in pixels (the tbody rows: h-[18px])
 const HEADER_HEIGHT_ESTIMATE = 24.5; // Height of the sticky column header row
 let resizeObserver: ResizeObserver | null = null;
 

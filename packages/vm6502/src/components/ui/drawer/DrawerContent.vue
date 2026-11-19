@@ -6,6 +6,7 @@ import { DrawerContent, DrawerPortal } from "vaul-vue";
 import { cn } from "@/lib/utils";
 import DrawerOverlay from "./DrawerOverlay.vue";
 import { reactiveOmit } from "@vueuse/core";
+import { useFloatingWindows } from "@/composables/useFloatingWindows";
 
 defineOptions({
 	inheritAttrs: false,
@@ -21,14 +22,18 @@ const emits = defineEmits<DialogContentEmits>();
 
 const delegatedProps = reactiveOmit(props, "overlayClass");
 const forwarded = useForwardPropsEmits(delegatedProps, emits);
+
+// Above the floating windows and the floating layout panels, like the popovers
+const { overlayZIndex } = useFloatingWindows();
 </script>
 
 <template>
 	<DrawerPortal>
-		<DrawerOverlay :class="props.overlayClass" />
+		<DrawerOverlay :class="props.overlayClass" :style="{ zIndex: overlayZIndex }" />
 		<DrawerContent
 			data-slot="drawer-content"
 			v-bind="{ ...$attrs, ...forwarded }"
+			:style="{ zIndex: overlayZIndex }"
 			:class="
 				cn(
 					'group/drawer-content bg-background fixed z-50 flex h-auto flex-col',

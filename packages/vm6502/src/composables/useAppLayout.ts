@@ -1,7 +1,7 @@
-import { ref } from "vue";
+import { reactive, ref } from "vue";
 
 /**
- * The app layout: video, debugger state and code (disassembly / memory) in one grid with two splits.
+ * The app layout: video, debugger state and code (disassembly / memory).
  *
  *   column: the video takes the whole height     top: the code takes the whole width
  *   ┌───────┬───────┐                            ┌───────┬───────┐
@@ -10,44 +10,100 @@ import { ref } from "vue";
  *   │       │ code  │                            │     code      │
  *   └───────┴───────┘                            └───────────────┘
  *
- * Both layouts share the split positions (the video column width, the top row height), so switching
+ *   floating: the video takes the whole window, state, disassembly and memory float over it
+ *   ┌───────────────┐
+ *   │ video ┌state┐ │
+ *   │       └─────┘ │
+ *   │┌mem─┐ ┌code─┐ │
+ *   └┴────┴─┴─────┴─┘
+ *
+ * column and top share the split positions (the video column width, the top row height), so switching
  * moves no element: the canvas, the disassembly scroll, the floating panels are left as they are.
- * "auto" picks the layout from those positions: see `autoLayout`.
+ * floating keeps the state panel's elements: only its position changes (see LayoutPanel). The code panel
+ * holds the disassembly alone there, the memory viewer gets a panel of its own.
+ * "auto" picks between column and top from the split positions: see `autoLayout`.
  */
-export type LayoutMode = "auto" | "column" | "top";
+export type LayoutMode = "auto" | "column" | "top" | "floating";
 export type LayoutKind = Exclude<LayoutMode, "auto">;
+/** The layouts with splits, the ones "auto" chooses from */
+export type GridKind = Exclude<LayoutKind, "floating">;
+
+export type PanelId = "state" | "code" | "memory";
+/** A floating panel: position and size as fractions of the window, so they follow its size */
+export interface PanelGeometry {
+	x: number;
+	y: number;
+	w: number;
+	h: number;
+	collapsed: boolean;
+}
 
 const LS_KEY = "vm6502-app-layout";
+const MODES: LayoutMode[] = ["auto", "column", "top", "floating"];
 
 /** Split positions, as fractions of the layout's width / height, so they follow the window size */
-const DEFAULTS = { mode: "auto" as LayoutMode, col: 0.4, row: 0.41 };
+const DEFAULTS = { mode: "auto" as LayoutMode, col: 0.4, row: 0.41, opacity: 0.8 };
 
-const clampFraction = (value: unknown, fallback: number) =>
-	typeof value === "number" && Number.isFinite(value) ? Math.min(0.95, Math.max(0.05, value)) : fallback;
+/** State top right, disassembly below it, memory bottom left */
+const PANEL_DEFAULTS: Record<PanelId, PanelGeometry> = {
+	state: { x: 0.56, y: 0.05, w: 0.43, h: 0.36, collapsed: false },
+	code: { x: 0.56, y: 0.42, w: 0.43, h: 0.56, collapsed: false },
+	memory: { x: 0.01, y: 0.6, w: 0.45, h: 0.38, collapsed: false },
+};
+
+/** The lowest opacity: below it the panels can't be found again */
+export const MIN_PANEL_OPACITY = 0.2;
+
+const clampNumber = (value: unknown, min: number, max: number, fallback: number) =>
+	typeof value === "number" && Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : fallback;
+const clampFraction = (value: unknown, fallback: number) => clampNumber(value, 0.05, 0.95, fallback);
+
+const loadPanel = (saved: Partial<PanelGeometry> | undefined, defaults: PanelGeometry): PanelGeometry => ({
+	x: clampNumber(saved?.x, 0, 1, defaults.x),
+	y: clampNumber(saved?.y, 0, 1, defaults.y),
+	w: clampNumber(saved?.w, 0.05, 1, defaults.w),
+	h: clampNumber(saved?.h, 0.05, 1, defaults.h),
+	collapsed: typeof saved?.collapsed === "boolean" ? saved.collapsed : defaults.collapsed,
+});
 
 const load = () => {
+	let saved: Record<string, any> = {};
 	try {
-		const saved = JSON.parse(localStorage.getItem(LS_KEY) ?? "{}");
-		return {
-			mode: ["auto", "column", "top"].includes(saved.mode) ? (saved.mode as LayoutMode) : DEFAULTS.mode,
-			col: clampFraction(saved.col, DEFAULTS.col),
-			row: clampFraction(saved.row, DEFAULTS.row),
-		};
+		saved = JSON.parse(localStorage.getItem(LS_KEY) ?? "{}") ?? {};
 	} catch {
-		return { ...DEFAULTS };
+		// Unreadable: the defaults
 	}
+	return {
+		mode: MODES.includes(saved.mode) ? (saved.mode as LayoutMode) : DEFAULTS.mode,
+		col: clampFraction(saved.col, DEFAULTS.col),
+		row: clampFraction(saved.row, DEFAULTS.row),
+		opacity: clampNumber(saved.opacity, MIN_PANEL_OPACITY, 1, DEFAULTS.opacity),
+		panels: {
+			state: loadPanel(saved.panels?.state, PANEL_DEFAULTS.state),
+			code: loadPanel(saved.panels?.code, PANEL_DEFAULTS.code),
+			memory: loadPanel(saved.panels?.memory, PANEL_DEFAULTS.memory),
+		},
+	};
 };
 
 const saved = load();
 const mode = ref<LayoutMode>(saved.mode);
 const col = ref(saved.col);
 const row = ref(saved.row);
+/** The floating panels' opacity */
+const opacity = ref(saved.opacity);
+const panels = reactive<Record<PanelId, PanelGeometry>>(saved.panels);
+/** The last panel asked to be shown (seq: so asking again for the same one is seen) */
+const revealed = ref<{ id: PanelId; seq: number } | null>(null);
 /** The layout actually displayed (auto resolved): set by the layout component, shown by the picker */
-const kind = ref<LayoutKind>(saved.mode === "top" ? "top" : "column");
+const kind = ref<LayoutKind>(saved.mode === "auto" ? "column" : saved.mode);
 
 const save = () => {
 	try {
-		localStorage.setItem(LS_KEY, JSON.stringify({ mode: mode.value, col: col.value, row: row.value }));
+		localStorage.setItem(
+			LS_KEY,
+			JSON.stringify({ mode: mode.value, col: col.value, row: row.value, opacity: opacity.value, panels }),
+		);
 	} catch {
 		// Storage unavailable (private mode, quota): the layout just won't be remembered
 	}
@@ -63,7 +119,7 @@ const save = () => {
  * @param aspect        the video width / height
  * @param headerHeight  what sits above the video in its column (the machine toolbar, px)
  */
-export const autoLayout = (colWidth: number, rowHeight: number, aspect: number, headerHeight: number): LayoutKind => {
+export const autoLayout = (colWidth: number, rowHeight: number, aspect: number, headerHeight: number): GridKind => {
 	if (colWidth <= 0 || rowHeight <= 0 || !(aspect > 0)) return "column";
 	const videoHeight = colWidth / aspect + headerHeight;
 	// A pixel of slack: a split fitted to the video lands on it, give or take the rounding
@@ -76,5 +132,21 @@ export function useAppLayout() {
 		save();
 	};
 
-	return { mode, col, row, kind, setMode, save };
+	const setOpacity = (value: number) => {
+		opacity.value = clampNumber(value, MIN_PANEL_OPACITY, 1, DEFAULTS.opacity);
+		save();
+	};
+
+	/** Put the floating panels back where they start, expanded */
+	const resetPanels = () => {
+		for (const id of Object.keys(PANEL_DEFAULTS) as PanelId[]) Object.assign(panels[id], PANEL_DEFAULTS[id]);
+		save();
+	};
+
+	/** Bring a floating panel to the front, expanded (nothing happens when docked) */
+	const revealPanel = (id: PanelId) => {
+		revealed.value = { id, seq: (revealed.value?.seq ?? 0) + 1 };
+	};
+
+	return { mode, col, row, kind, opacity, panels, revealed, setMode, setOpacity, resetPanels, revealPanel, save };
 }

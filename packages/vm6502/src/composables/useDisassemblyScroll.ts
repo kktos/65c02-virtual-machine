@@ -12,7 +12,8 @@ export function useDisassemblyScroll(
 ) {
 	const scrollContainer = ref<HTMLElement | null>(null);
 	const containerHeight = ref(0);
-	const TABLE_ROW_HEIGHT = 24;
+	/** The rows' height (DisasmTable: min-h-5 / h-5) */
+	const TABLE_ROW_HEIGHT = 20;
 	const TABLE_HEADER_HEIGHT = 22;
 	let resizeObserver: ResizeObserver | null = null;
 
