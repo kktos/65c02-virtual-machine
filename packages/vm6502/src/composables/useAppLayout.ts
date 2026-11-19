@@ -10,17 +10,19 @@ import { reactive, ref } from "vue";
  *   │       │ code  │                            │     code      │
  *   └───────┴───────┘                            └───────────────┘
  *
- *   floating: the video takes the whole window, state, disassembly and memory float over it
- *   ┌───────────────┐
- *   │ video ┌state┐ │
- *   │       └─────┘ │
- *   │┌mem─┐ ┌code─┐ │
- *   └┴────┴─┴─────┴─┘
+ *   floating: the video takes the whole window, the debugger panels float over it
+ *   ┌───────────────────┐
+ *   │┌stk┐┌trace┐┌state┐│
+ *   ││   ││     │└─────┘│
+ *   │└───┘└─────┘┌code─┐│
+ *   │┌mem───────┐│     ││
+ *   └┴──────────┴┴─────┴┘
  *
  * column and top share the split positions (the video column width, the top row height), so switching
  * moves no element: the canvas, the disassembly scroll, the floating panels are left as they are.
- * floating keeps the state panel's elements: only its position changes (see LayoutPanel). The code panel
- * holds the disassembly alone there, the memory viewer gets a panel of its own.
+ * floating keeps the state panel's elements: only its position changes (see LayoutPanel). It holds the
+ * registers and flags alone there: the stack and the trace are moved (teleported) to panels of their own.
+ * The code panel holds the disassembly alone, the memory viewer gets a panel of its own.
  * "auto" picks between column and top from the split positions: see `autoLayout`.
  */
 export type LayoutMode = "auto" | "column" | "top" | "floating";
@@ -28,7 +30,7 @@ export type LayoutKind = Exclude<LayoutMode, "auto">;
 /** The layouts with splits, the ones "auto" chooses from */
 export type GridKind = Exclude<LayoutKind, "floating">;
 
-export type PanelId = "state" | "code" | "memory";
+export type PanelId = "state" | "stack" | "trace" | "code" | "memory";
 /** A floating panel: position and size as fractions of the window, so they follow its size */
 export interface PanelGeometry {
 	x: number;
@@ -44,12 +46,16 @@ const MODES: LayoutMode[] = ["auto", "column", "top", "floating"];
 /** Split positions, as fractions of the layout's width / height, so they follow the window size */
 const DEFAULTS = { mode: "auto" as LayoutMode, col: 0.4, row: 0.41, opacity: 0.8 };
 
-/** State top right, disassembly below it, memory bottom left */
+/** Registers top right, disassembly below them; stack and trace top left, memory below them */
 const PANEL_DEFAULTS: Record<PanelId, PanelGeometry> = {
-	state: { x: 0.56, y: 0.05, w: 0.43, h: 0.36, collapsed: false },
-	code: { x: 0.56, y: 0.42, w: 0.43, h: 0.56, collapsed: false },
-	memory: { x: 0.01, y: 0.6, w: 0.45, h: 0.38, collapsed: false },
+	state: { x: 0.56, y: 0.05, w: 0.43, h: 0.14, collapsed: false },
+	stack: { x: 0.01, y: 0.05, w: 0.15, h: 0.53, collapsed: false },
+	trace: { x: 0.17, y: 0.05, w: 0.38, h: 0.53, collapsed: false },
+	code: { x: 0.56, y: 0.2, w: 0.43, h: 0.78, collapsed: false },
+	memory: { x: 0.01, y: 0.6, w: 0.54, h: 0.38, collapsed: false },
 };
+
+const PANEL_IDS = Object.keys(PANEL_DEFAULTS) as PanelId[];
 
 /** The lowest opacity: below it the panels can't be found again */
 export const MIN_PANEL_OPACITY = 0.2;
@@ -78,11 +84,9 @@ const load = () => {
 		col: clampFraction(saved.col, DEFAULTS.col),
 		row: clampFraction(saved.row, DEFAULTS.row),
 		opacity: clampNumber(saved.opacity, MIN_PANEL_OPACITY, 1, DEFAULTS.opacity),
-		panels: {
-			state: loadPanel(saved.panels?.state, PANEL_DEFAULTS.state),
-			code: loadPanel(saved.panels?.code, PANEL_DEFAULTS.code),
-			memory: loadPanel(saved.panels?.memory, PANEL_DEFAULTS.memory),
-		},
+		panels: Object.fromEntries(
+			PANEL_IDS.map((id) => [id, loadPanel(saved.panels?.[id], PANEL_DEFAULTS[id])]),
+		) as Record<PanelId, PanelGeometry>,
 	};
 };
 
@@ -139,7 +143,7 @@ export function useAppLayout() {
 
 	/** Put the floating panels back where they start, expanded */
 	const resetPanels = () => {
-		for (const id of Object.keys(PANEL_DEFAULTS) as PanelId[]) Object.assign(panels[id], PANEL_DEFAULTS[id]);
+		for (const id of PANEL_IDS) Object.assign(panels[id], PANEL_DEFAULTS[id]);
 		save();
 	};
 

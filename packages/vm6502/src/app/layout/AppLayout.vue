@@ -1,8 +1,8 @@
 <template>
 	<!--
 		One grid for every layout (see useAppLayout): only grid-template-areas changes between them,
-		so no slot content is moved or remounted. Floating, the grid is the video alone: the state and
-		code panels are taken out of it (position: fixed) and float over it.
+		so no slot content is moved or remounted. Floating, the grid is the video alone: the debugger panels
+		are taken out of it (position: fixed) and float over it.
 	-->
 	<div
 		ref="root"
@@ -58,6 +58,33 @@
 			<slot name="state" />
 		</LayoutPanel>
 
+		<!--
+			Floating only: docked, the stack and the trace are in the state panel. Their content is
+			teleported here (see layoutTargets): the targets must stay in the DOM, hence v-show, not v-if.
+		-->
+		<LayoutPanel
+			v-show="floating"
+			id="stack"
+			title="Stack"
+			:floating="floating"
+			:bounds="{ width, height }"
+			:min-width="MIN_STACK"
+			:min-height="MIN_CODE"
+		>
+			<div :id="STACK_PANEL_ID" class="h-full"></div>
+		</LayoutPanel>
+		<LayoutPanel
+			v-show="floating"
+			id="trace"
+			title="Execution trace"
+			:floating="floating"
+			:bounds="{ width, height }"
+			:min-width="MIN_RIGHT"
+			:min-height="MIN_CODE"
+		>
+			<div :id="TRACE_PANEL_ID" class="h-full"></div>
+		</LayoutPanel>
+
 		<div
 			v-if="!floating"
 			class="[grid-area:hsplit]"
@@ -107,7 +134,7 @@ import { useElementSize } from "@vueuse/core";
 import { computed, ref, watch } from "vue";
 import { autoLayout, type GridKind, type LayoutKind, useAppLayout } from "@/composables/useAppLayout";
 import LayoutPanel from "./LayoutPanel.vue";
-import { LAYOUT_TOOLBAR_ID } from "./layoutToolbar";
+import { LAYOUT_TOOLBAR_ID, STACK_PANEL_ID, TRACE_PANEL_ID } from "./layoutTargets";
 
 const props = defineProps<{
 	/** Video width / height */
@@ -121,6 +148,7 @@ type Split = "col" | "row";
 // Smallest sizes the splits leave (px)
 const MIN_VIDEO = 160;
 const MIN_RIGHT = 320;
+const MIN_STACK = 200;
 const MIN_STATE = 120;
 const MIN_CODE = 160;
 

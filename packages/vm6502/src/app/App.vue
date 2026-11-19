@@ -46,7 +46,7 @@
 		<template #state>
 			<div class="flex h-full flex-col">
 				<!-- Floating layout: in the top bar, beside the machine toolbar (moved, not remounted) -->
-				<Teleport defer :to="`#${LAYOUT_TOOLBAR_ID}`" :disabled="kind !== 'floating'">
+				<Teleport defer :to="`#${LAYOUT_TOOLBAR_ID}`" :disabled="!floating">
 					<DebuggerControls :isRunning="isRunning" />
 				</Teleport>
 
@@ -54,27 +54,32 @@
 					The panel width drives the layout (container query):
 					- narrow: CPU strip (registers + flags) across the top, Stack | Trace below
 					- wide (>= 54rem): 3 columns, CPU stacked vertically | Stack | Trace
+					- floating: the CPU strip alone, the stack and the trace have panels of their own
 					Breakpoints live in a drawer opened from the debugger toolbar.
 				-->
-				<div class="@container min-h-0 flex-1 p-2">
-					<div
-						class="grid h-full gap-2 grid-cols-[16rem_minmax(0,1fr)] grid-rows-[auto_minmax(0,1fr)] [grid-template-areas:'cpu_cpu'_'stack_trace'] @[54rem]:grid-cols-[minmax(13rem,300px)_16rem_minmax(0,1fr)] @[54rem]:grid-rows-[minmax(0,1fr)] @[54rem]:[grid-template-areas:'cpu_stack_trace']"
-					>
-						<!-- Registers and flags: side by side (wrapping) when narrow, stacked when wide -->
+				<div class="@container min-h-0 flex-1 p-2" :class="floating && 'overflow-auto'">
+					<div :class="!floating && DOCKED_STATE_GRID">
+						<!-- Registers and flags: side by side (wrapping) when narrow or floating, stacked when wide -->
 						<div
-							class="[grid-area:cpu] flex flex-wrap gap-2 min-w-0 @[54rem]:flex-col @[54rem]:flex-nowrap"
+							class="[grid-area:cpu] flex flex-wrap gap-2 min-w-0"
+							:class="!floating && '@[54rem]:flex-col @[54rem]:flex-nowrap'"
 						>
 							<RegistersView
-								class="flex-[1_1_15rem] min-w-0 @[54rem]:flex-none"
+								class="flex-[1_1_15rem] min-w-0"
+								:class="!floating && '@[54rem]:flex-none'"
 								:registers="registers"
 								:virtual-registers="virtualRegisters"
 							/>
 							<StatusFlagsView class="shrink-0" :registers="registers" />
 						</div>
 
-						<StackView class="[grid-area:stack] min-h-0" :registers="registers" />
-
-						<TraceView class="[grid-area:trace] min-h-0 min-w-0" />
+						<!-- Floating: moved to their own panels (not remounted: the trace and the scroll are kept) -->
+						<Teleport defer :to="`#${STACK_PANEL_ID}`" :disabled="!floating">
+							<StackView class="[grid-area:stack] min-h-0" :registers="registers" />
+						</Teleport>
+						<Teleport defer :to="`#${TRACE_PANEL_ID}`" :disabled="!floating">
+							<TraceView class="[grid-area:trace] min-h-0 min-w-0" />
+						</Teleport>
 					</div>
 				</div>
 			</div>
@@ -82,12 +87,7 @@
 
 		<!-- Floating: the disassembly and the memory viewer each get a panel; docked: tabs (or split) -->
 		<template #code>
-			<DisassemblyView
-				v-if="kind === 'floating'"
-				:address="registers.PC"
-				:memory="vm.sharedMemory"
-				:registers="registers"
-			/>
+			<DisassemblyView v-if="floating" :address="registers.PC" :memory="vm.sharedMemory" :registers="registers" />
 			<TogglableDisplay v-else id="disasm-mem-view" v-model:activeTab="debuggerTab">
 				<template #tab1-title> Disassembly </template>
 				<template #tab2-title> Memory Viewer </template>
@@ -113,7 +113,7 @@ import "vue-sonner/style.css";
 import TogglableDisplay from "../components/TogglableDisplay.vue";
 import { useMachine } from "../composables/useMachine";
 import AppLayout from "./layout/AppLayout.vue";
-import { LAYOUT_TOOLBAR_ID } from "./layout/layoutToolbar";
+import { LAYOUT_TOOLBAR_ID, STACK_PANEL_ID, TRACE_PANEL_ID } from "./layout/layoutTargets";
 import { useAppLayout } from "@/composables/useAppLayout";
 import { useDebuggerNav } from "../composables/useDebuggerNav";
 import { availableMachines } from "../machines";
@@ -147,6 +147,10 @@ const { vm, registers, selectedMachine, isRunning, videoCanvas, loadMachine, vir
 const { showConsole } = useCmdConsole();
 const { logWindows } = useLogWindows();
 const { kind } = useAppLayout();
+const floating = computed(() => kind.value === "floating");
+/** The state panel's grid when docked: see the template */
+const DOCKED_STATE_GRID =
+	"grid h-full gap-2 grid-cols-[16rem_minmax(0,1fr)] grid-rows-[auto_minmax(0,1fr)] [grid-template-areas:'cpu_cpu'_'stack_trace'] @[54rem]:grid-cols-[minmax(13rem,300px)_16rem_minmax(0,1fr)] @[54rem]:grid-rows-[minmax(0,1fr)] @[54rem]:[grid-template-areas:'cpu_stack_trace']";
 
 const hasGamepad = computed(
 	() => selectedMachine.value.inputs?.some((d) => d.type === "joystick" || d.type === "gamepad") ?? false,
