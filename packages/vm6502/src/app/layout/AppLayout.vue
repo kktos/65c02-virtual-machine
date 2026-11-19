@@ -126,6 +126,9 @@
 		>
 			<slot name="memory" />
 		</LayoutPanel>
+
+		<!-- Floating only: the debugger menu opens the panels closed with their close box -->
+		<DebuggerMenu v-if="floating" :bounds="{ width, height }" />
 	</div>
 </template>
 
@@ -134,6 +137,7 @@ import { useElementSize } from "@vueuse/core";
 import { computed, ref, watch } from "vue";
 import { autoLayout, type GridKind, type LayoutKind, useAppLayout } from "@/composables/useAppLayout";
 import LayoutPanel from "./LayoutPanel.vue";
+import DebuggerMenu from "./DebuggerMenu.vue";
 import { LAYOUT_TOOLBAR_ID, STACK_PANEL_ID, TRACE_PANEL_ID } from "./layoutTargets";
 
 const props = defineProps<{

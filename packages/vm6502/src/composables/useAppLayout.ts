@@ -23,6 +23,7 @@ import { reactive, ref } from "vue";
  * floating keeps the state panel's elements: only its position changes (see LayoutPanel). It holds the
  * registers and flags alone there: the stack and the trace are moved (teleported) to panels of their own.
  * The code panel holds the disassembly alone, the memory viewer gets a panel of its own.
+ * A floating panel can be closed: the debugger menu (a small floating menu) lists them and opens them again.
  * "auto" picks between column and top from the split positions: see `autoLayout`.
  */
 export type LayoutMode = "auto" | "column" | "top" | "floating";
@@ -37,7 +38,13 @@ export interface PanelGeometry {
 	y: number;
 	w: number;
 	h: number;
-	collapsed: boolean;
+	/** Closed panels are hidden (not unmounted): the debugger menu opens them again */
+	open: boolean;
+}
+/** The debugger menu's position, as fractions of the room beside it (1: flush with the right / bottom edge) */
+export interface MenuPosition {
+	x: number;
+	y: number;
 }
 
 const LS_KEY = "vm6502-app-layout";
@@ -48,14 +55,17 @@ const DEFAULTS = { mode: "auto" as LayoutMode, col: 0.4, row: 0.41, opacity: 0.8
 
 /** Registers top right, disassembly below them; stack and trace top left, memory below them */
 const PANEL_DEFAULTS: Record<PanelId, PanelGeometry> = {
-	state: { x: 0.56, y: 0.05, w: 0.43, h: 0.14, collapsed: false },
-	stack: { x: 0.01, y: 0.05, w: 0.15, h: 0.53, collapsed: false },
-	trace: { x: 0.17, y: 0.05, w: 0.38, h: 0.53, collapsed: false },
-	code: { x: 0.56, y: 0.2, w: 0.43, h: 0.78, collapsed: false },
-	memory: { x: 0.01, y: 0.6, w: 0.54, h: 0.38, collapsed: false },
+	state: { x: 0.56, y: 0.05, w: 0.43, h: 0.14, open: true },
+	stack: { x: 0.01, y: 0.05, w: 0.15, h: 0.53, open: true },
+	trace: { x: 0.17, y: 0.05, w: 0.38, h: 0.53, open: true },
+	code: { x: 0.56, y: 0.2, w: 0.43, h: 0.78, open: true },
+	memory: { x: 0.01, y: 0.6, w: 0.54, h: 0.38, open: true },
 };
 
-const PANEL_IDS = Object.keys(PANEL_DEFAULTS) as PanelId[];
+export const PANEL_IDS = Object.keys(PANEL_DEFAULTS) as PanelId[];
+
+/** The debugger menu starts in the bottom right corner */
+const MENU_DEFAULT: MenuPosition = { x: 1, y: 1 };
 
 /** The lowest opacity: below it the panels can't be found again */
 export const MIN_PANEL_OPACITY = 0.2;
@@ -69,7 +79,7 @@ const loadPanel = (saved: Partial<PanelGeometry> | undefined, defaults: PanelGeo
 	y: clampNumber(saved?.y, 0, 1, defaults.y),
 	w: clampNumber(saved?.w, 0.05, 1, defaults.w),
 	h: clampNumber(saved?.h, 0.05, 1, defaults.h),
-	collapsed: typeof saved?.collapsed === "boolean" ? saved.collapsed : defaults.collapsed,
+	open: typeof saved?.open === "boolean" ? saved.open : defaults.open,
 });
 
 const load = () => {
@@ -87,6 +97,10 @@ const load = () => {
 		panels: Object.fromEntries(
 			PANEL_IDS.map((id) => [id, loadPanel(saved.panels?.[id], PANEL_DEFAULTS[id])]),
 		) as Record<PanelId, PanelGeometry>,
+		menu: {
+			x: clampNumber(saved.menu?.x, 0, 1, MENU_DEFAULT.x),
+			y: clampNumber(saved.menu?.y, 0, 1, MENU_DEFAULT.y),
+		},
 	};
 };
 
@@ -97,6 +111,7 @@ const row = ref(saved.row);
 /** The floating panels' opacity */
 const opacity = ref(saved.opacity);
 const panels = reactive<Record<PanelId, PanelGeometry>>(saved.panels);
+const menu = reactive<MenuPosition>(saved.menu);
 /** The last panel asked to be shown (seq: so asking again for the same one is seen) */
 const revealed = ref<{ id: PanelId; seq: number } | null>(null);
 /** The layout actually displayed (auto resolved): set by the layout component, shown by the picker */
@@ -106,7 +121,7 @@ const save = () => {
 	try {
 		localStorage.setItem(
 			LS_KEY,
-			JSON.stringify({ mode: mode.value, col: col.value, row: row.value, opacity: opacity.value, panels }),
+			JSON.stringify({ mode: mode.value, col: col.value, row: row.value, opacity: opacity.value, panels, menu }),
 		);
 	} catch {
 		// Storage unavailable (private mode, quota): the layout just won't be remembered
@@ -141,16 +156,37 @@ export function useAppLayout() {
 		save();
 	};
 
-	/** Put the floating panels back where they start, expanded */
+	/** Put the floating panels back where they start, all open, and the debugger menu in its corner */
 	const resetPanels = () => {
 		for (const id of PANEL_IDS) Object.assign(panels[id], PANEL_DEFAULTS[id]);
+		Object.assign(menu, MENU_DEFAULT);
 		save();
 	};
 
-	/** Bring a floating panel to the front, expanded (nothing happens when docked) */
+	const setPanelOpen = (id: PanelId, value: boolean) => {
+		panels[id].open = value;
+		save();
+	};
+
+	/** Bring a floating panel to the front, opened if closed (nothing happens when docked) */
 	const revealPanel = (id: PanelId) => {
 		revealed.value = { id, seq: (revealed.value?.seq ?? 0) + 1 };
 	};
 
-	return { mode, col, row, kind, opacity, panels, revealed, setMode, setOpacity, resetPanels, revealPanel, save };
+	return {
+		mode,
+		col,
+		row,
+		kind,
+		opacity,
+		panels,
+		menu,
+		revealed,
+		setMode,
+		setOpacity,
+		resetPanels,
+		setPanelOpen,
+		revealPanel,
+		save,
+	};
 }
