@@ -49,10 +49,10 @@
 		<LayoutPanel
 			id="state"
 			class="[grid-area:state]"
-			title="CPU state"
+			title="Registers"
 			:floating="floating"
 			:bounds="{ width, height }"
-			:min-width="MIN_RIGHT"
+			resize="height"
 			:min-height="MIN_STATE"
 		>
 			<slot name="state" />
@@ -68,7 +68,7 @@
 			title="Stack"
 			:floating="floating"
 			:bounds="{ width, height }"
-			:min-width="MIN_STACK"
+			resize="height"
 			:min-height="MIN_CODE"
 		>
 			<div :id="STACK_PANEL_ID" class="h-full"></div>
@@ -152,7 +152,6 @@ type Split = "col" | "row";
 // Smallest sizes the splits leave (px)
 const MIN_VIDEO = 160;
 const MIN_RIGHT = 320;
-const MIN_STACK = 200;
 const MIN_STATE = 120;
 const MIN_CODE = 160;
 

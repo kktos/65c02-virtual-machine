@@ -1,26 +1,27 @@
 <template>
-	<div class="p-2 bg-black rounded-lg shadow-xl">
-		<DebuggerPanelTitle title="Status Flags" />
-		<div class="flex flex-wrap justify-center gap-x-2 gap-y-1">
-			<div v-for="(group, idx) in flagGroups" :key="idx" class="flex gap-1">
-				<button
-					v-for="{ name, key } in group"
-					:key="key"
-					@click="handleFlagToggle(key)"
-					:disabled="name === '-'"
-					class="py-0.5 text-[0.7rem] font-medium transition duration-150 w-5.5"
-					:class="[
-						key !== 'U' && registers[key]
-							? 'bg-green-600 text-white hover:bg-green-500'
-							: 'bg-gray-600 text-gray-300 hover:bg-gray-500',
-						name === '-' ? 'opacity-50 cursor-not-allowed ' : '',
-					]"
-					:title="name"
-				>
-					{{ key }}
-				</button>
-			</div>
-		</div>
+	<!--
+		P's bits, NV-BDIZC, side by side: a letter is uppercase (green) when the flag is set, lowercase when clear.
+		Click one to flip it.
+	-->
+	<div class="flex border border-gray-700 font-mono text-xs leading-none" role="group" aria-label="Status flags">
+		<button
+			v-for="{ name, key } in FLAGS"
+			:key="key"
+			@click="handleFlagToggle(key)"
+			:disabled="key === 'U'"
+			class="w-[1.5ch] box-content px-0.5 py-1 font-bold transition-colors duration-150"
+			:class="
+				key === 'U'
+					? 'bg-gray-800 text-gray-600 cursor-not-allowed'
+					: registers[key]
+						? 'bg-green-700 text-white hover:bg-green-600'
+						: 'bg-gray-800 text-gray-500 hover:bg-gray-700'
+			"
+			:title="key === 'U' ? name : `${name}: ${registers[key] ? 'set' : 'clear'}`"
+			:aria-pressed="key === 'U' ? undefined : !!registers[key]"
+		>
+			{{ key === "U" ? "-" : registers[key] ? key : key.toLowerCase() }}
+		</button>
 	</div>
 </template>
 
@@ -28,7 +29,6 @@
 import { inject, type Ref } from "vue";
 import type { EmulatorRegisters } from "@/types/emulatorstate.interface";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
-import DebuggerPanelTitle from "./DebuggerPanelTitle.vue";
 
 const vm = inject<Ref<VirtualMachine>>("vm");
 
@@ -39,20 +39,15 @@ const { registers } = defineProps<Props>();
 
 type Flag = { name: string; key: "U" | keyof EmulatorRegisters };
 
-// Two nibbles of 4 bits: they sit side by side, and wrap into 2 rows when the panel is too narrow.
-const flagGroups: Flag[][] = [
-	[
-		{ key: "N", name: "N (Negative)" },
-		{ key: "V", name: "V (Overflow)" },
-		{ key: "U", name: "-" },
-		{ key: "B", name: "B (Break)" },
-	],
-	[
-		{ key: "D", name: "D (Decimal)" },
-		{ key: "I", name: "I (Interrupt)" },
-		{ key: "Z", name: "Z (Zero)" },
-		{ key: "C", name: "C (Carry)" },
-	],
+const FLAGS: Flag[] = [
+	{ key: "N", name: "N (Negative)" },
+	{ key: "V", name: "V (Overflow)" },
+	{ key: "U", name: "- (unused)" },
+	{ key: "B", name: "B (Break)" },
+	{ key: "D", name: "D (Decimal)" },
+	{ key: "I", name: "I (Interrupt)" },
+	{ key: "Z", name: "Z (Zero)" },
+	{ key: "C", name: "C (Carry)" },
 ];
 
 const handleFlagToggle = (reg: "U" | keyof EmulatorRegisters) => {
