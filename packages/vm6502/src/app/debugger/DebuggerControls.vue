@@ -1,6 +1,6 @@
 <template>
 	<!-- Same frame as the machine toolbar (App.vue) so both bars line up edge to edge -->
-	<!-- @container: the BRK / Trace text labels are dropped (icons + tooltips remain) when the toolbar is narrow -->
+	<!-- @container: the BRK text label are dropped (icons + tooltips remain) when the toolbar is narrow -->
 	<div
 		ref="toolbarRoot"
 		class="@container flex flex-wrap items-center gap-1 p-1 bg-gray-800 border-b border-gray-700"
@@ -37,7 +37,6 @@
 
 		<div class="toolbar-sep"></div>
 
-		<!-- Toggles -->
 		<button
 			@click="toggleBreakOnBrk"
 			class="toolbar-btn px-2"
@@ -47,24 +46,6 @@
 		>
 			<Octagon class="h-4 w-4" />
 			<span class="hidden @[35rem]:inline">BRK</span>
-		</button>
-		<button
-			@click="toggleTrace"
-			class="toolbar-btn px-2"
-			:class="{ 'bg-purple-600 hover:bg-purple-500 text-white': traceEnabled }"
-			:aria-pressed="traceEnabled"
-			:title="
-				vm?.traceOverflow?.value
-					? 'Execution tracing (jumps and instructions) — jumps buffer overflow'
-					: 'Enable execution tracing (jumps and instructions)'
-			"
-		>
-			<span
-				v-if="vm?.traceOverflow?.value"
-				class="absolute top-1 right-1 w-1.5 h-1.5 bg-orange-400 rounded-full animate-pulse shadow-[0_0_4px_rgba(251,146,60,0.6)]"
-			></span>
-			<ScrollText class="h-4 w-4" />
-			<span class="hidden @[35rem]:inline">Trace</span>
 		</button>
 
 		<div class="toolbar-sep"></div>
@@ -120,7 +101,6 @@ import {
 	RedoDot,
 	RefreshCw,
 	RotateCcw,
-	ScrollText,
 	Terminal,
 } from "lucide-vue-next";
 import { inject, type Ref, ref } from "vue";
@@ -152,9 +132,6 @@ const toggle = () => {
 
 const { breakOnBrk, setBreakOnBrk } = useMachine();
 const toggleBreakOnBrk = () => setBreakOnBrk(!breakOnBrk.value);
-
-const { traceEnabled, setTraceEnabled } = useMachine();
-const toggleTrace = () => setTraceEnabled(!traceEnabled.value);
 
 const pasteFromClipboard = async () => {
 	if (!vm?.value) return;

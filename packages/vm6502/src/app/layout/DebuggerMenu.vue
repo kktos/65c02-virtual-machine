@@ -2,7 +2,8 @@
 	<!--
 		The floating layout's debugger menu, after the NeXTSTEP menus, in the floating panels' colours:
 		a title bar to drag it, one item per panel below. An item opens or closes its panel; open ones
-		get a green dot (an empty ring when closed: same size, so the rows never move).
+		get a green dot (an empty ring when closed: same size, so the rows never move). Trace gets
+		a red one at the end while tracing.
 		Always above the panels (the overlay z-index), it can't get lost under them.
 	-->
 	<nav
@@ -31,6 +32,12 @@
 				:class="panels[item.id].open ? 'border-green-500 bg-green-500' : 'border-gray-500'"
 			></span>
 			{{ item.label }}
+			<!-- Tracing slows the CPU and goes on with the panel closed: say so here -->
+			<span
+				v-if="item.id === 'trace' && traceEnabled"
+				class="ml-auto h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-red-500"
+				title="Tracing"
+			></span>
 		</button>
 	</nav>
 </template>
@@ -40,6 +47,7 @@ import { useElementSize } from "@vueuse/core";
 import { computed, ref } from "vue";
 import { type PanelId, useAppLayout } from "@/composables/useAppLayout";
 import { useFloatingWindows } from "@/composables/useFloatingWindows";
+import { useMachine } from "@/composables/useMachine";
 import { clamp, snapToEdge, trackPointer } from "./trackPointer";
 
 const props = defineProps<{
@@ -57,6 +65,7 @@ const ITEMS: { id: PanelId; label: string; title: string }[] = [
 
 const { panels, menu, setPanelOpen, save } = useAppLayout();
 const { overlayZIndex } = useFloatingWindows();
+const { traceEnabled } = useMachine();
 
 const el = ref<HTMLElement | null>(null);
 const { width, height } = useElementSize(el, undefined, { box: "border-box" });
