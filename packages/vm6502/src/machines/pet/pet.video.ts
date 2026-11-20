@@ -1,4 +1,4 @@
-import type { Video } from "@/types/video.interface";
+import type { ScreenLocation, Video } from "@/types/video.interface";
 import { MACHINE_STATE_OFFSET1 } from "@/virtualmachine/cpu/shared-memory";
 import { CHARGEN, PET_LOWERCASE_MASK, SCREEN, SCREEN_COLS, SCREEN_ROWS } from "./pet.bus";
 
@@ -39,6 +39,13 @@ export class PetVideo implements Video {
 				}
 			}
 		}
+	}
+
+	screenToAddress(x: number, y: number): ScreenLocation | undefined {
+		const row = y >> 3;
+		const col = x >> 3;
+		if (x < 0 || y < 0 || col >= SCREEN_COLS || row >= SCREEN_ROWS) return undefined;
+		return { address: SCREEN + row * SCREEN_COLS + col, length: 1, label: `row ${row} · col ${col}` };
 	}
 
 	reset() {

@@ -245,6 +245,9 @@ async function handleMessage(event: MessageEvent) {
 			resetCPU();
 			reply(event);
 			break;
+		case "screenToAddress":
+			reply(event, { location: video?.screenToAddress?.(event.data.x, event.data.y) });
+			break;
 		case "addBP":
 			addBreakpoint(event.data.type, event.data.address, event.data.endAddress);
 			break;

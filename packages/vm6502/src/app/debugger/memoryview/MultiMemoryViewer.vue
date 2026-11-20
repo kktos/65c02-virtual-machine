@@ -6,6 +6,7 @@
 					:id="`mem-viewer-${viewer.id}`"
 					:can-close="viewers.length > 1"
 					:initial-address="viewer.address"
+					:highlight="viewer.highlight"
 					:listen-to-nav="viewer.id === activeViewerId"
 					:is-active="viewer.id === activeViewerId"
 					@click="activeViewerId = viewer.id"
