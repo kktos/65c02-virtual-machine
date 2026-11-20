@@ -86,33 +86,6 @@
 			/>
 		</SettingsGroup>
 
-		<SettingsGroup label="A.I.">
-			<SettingRow label="Gemini API Key">
-				<template #info>
-					<div class="flex gap-1" title="Stored in Local Storage">
-						<CircleAlert class="w-4 h-4" />
-					</div>
-				</template>
-				<input
-					type="password"
-					v-model="geminiApiKey"
-					placeholder="none"
-					class="w-full bg-[#181818] border border-[#2a2a2a] rounded-none text-[#c0c0c0] placeholder-[#383838] px-1.5 py-0.5 text-[10px] font-mono focus:outline-none focus:border-[#4afa8a] focus:text-[#4afa8a] transition-colors"
-				/>
-			</SettingRow>
-			<SettingRow label="Gemini Model">
-				<select
-					id="geminiModel"
-					v-model="geminiUrl"
-					class="flex h-7 w-full rounded-md border border-gray-600 bg-gray-900 px-2 py-1 text-xs shadow-sm transition-colors focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500"
-				>
-					<option v-for="model in geminiModels" :key="model.url" :value="model.url">
-						{{ model.name }}
-					</option>
-				</select>
-			</SettingRow>
-		</SettingsGroup>
-
 		<!--
 		<SettingsGroup label="Navigation">
 			<SettingRow label="Follow PC">
@@ -145,16 +118,14 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, ref } from "vue";
+import { ref } from "vue";
 import CheckBox from "@/components/settings/CheckBox.vue";
 import ColorRow from "@/components/settings/ColorRow.vue";
 import SegmentControl from "@/components/settings/SegmentControl.vue";
 import SettingsGroup from "@/components/settings/SettingsGroup.vue";
 import SettingRow from "@/components/settings/SettingRow.vue";
 import SettingsPanel from "@/components/settings/SettingsPanel.vue";
-import { CircleAlert } from "lucide-vue-next";
 import { useSettings } from "@/composables/useSettings";
-import { useGemini } from "@/composables/useGemini";
 import { useFormatting } from "@/composables/useDataFormattings";
 import { useSymbols } from "@/composables/useSymbols";
 
@@ -169,22 +140,8 @@ defineEmits<{
 }>();
 
 const { settings } = useSettings();
-const { geminiModels } = useGemini();
 const { getFormattingGroups, toggleFormattingGroup } = useFormatting();
 const { getNamespaceList, toggleNamespace } = useSymbols();
-
-const geminiApiKey = computed({
-	get: () => settings.disassembly.gemini.apiKey,
-	set: (val: string) => {
-		settings.disassembly.gemini.apiKey = val;
-	},
-});
-const geminiUrl = computed({
-	get: () => settings.disassembly.gemini.url,
-	set: (val: string) => {
-		settings.disassembly.gemini.url = val;
-	},
-});
 
 const branchArrows = ref(true);
 // const colorComment = ref("#4afa8a");

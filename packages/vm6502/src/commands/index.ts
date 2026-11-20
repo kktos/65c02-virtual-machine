@@ -27,7 +27,6 @@ import { speed } from "./speed.cmd";
 import { keyCmd } from "./key.cmd";
 import { undefLabel } from "./undefLabel.cmd";
 import { routineCmd } from "./routine.cmd";
-import { explainCmd } from "./explainCode.cmd";
 import { useCommands } from "@/composables/useCommands";
 import { stepCmd } from "./step.cmd";
 import { glCmd } from "./gl.cmd";
@@ -246,7 +245,6 @@ export const COMMANDDEF_LIST = {
 	},
 	BRK: brkCmd,
 
-	EXPLAIN: explainCmd,
 	LOG: logCmd,
 	ROUTINE: routineCmd,
 

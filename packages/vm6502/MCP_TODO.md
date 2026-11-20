@@ -1,7 +1,7 @@
 # MCP server for the emulator — TODO
 
 Goal: let an agent (Claude Code, etc.) drive the emulator — debugger, metadata, I/O —
-instead of the app pushing a snapshot to an LLM (`explain` / Gemini).
+instead of the app pushing a snapshot to an LLM (the former `explain` / Gemini, now removed).
 
 What's already built: `MCP_CHANGELOG.md`.
 
@@ -25,7 +25,7 @@ What's already built: `MCP_CHANGELOG.md`.
 ## Architecture
 
 - [ ] **Headless later** (optional): run CPU + bus in Node for CI / batch. Requires decoupling
-      commands from Vue composables (`useMachine`, `useGemini`, …).
+      commands from Vue composables (`useMachine`, …).
 
 ## Tools
 
@@ -66,5 +66,4 @@ Lower: exec_command already reaches them, or they are comfort.
   pause condition or timeout, then return state.
 - **Output volume**: hexdump / disasm get big — cap and paginate.
 - **Determinism**: save states make experiments repeatable (restore → patch → compare).
-- **Overlap with Gemini `explain`**: keep `explain` for quick in-app use; MCP for long investigations.
 - **Security**: bind to localhost only; `write_memory` / `exec` = arbitrary control of the session.

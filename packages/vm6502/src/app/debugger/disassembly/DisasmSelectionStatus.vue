@@ -59,15 +59,6 @@
 		</div>
 		<div class="flex items-center pl-2 border-l border-gray-700">
 			<button
-				:title="'Explain code with AI' + (isExplainConfigured ? '' : ' !! requires API Key in settings !!')"
-				@click="$emit('explain')"
-				:disabled="isLoading || start === end || !isExplainConfigured"
-				class="text-xs px-3 py-1 rounded text-gray-500 hover:text-white hover:bg-indigo-500 transition duration-150 shadow-md flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
-			>
-				{{ isLoading ? "Analyzing..." : "" }}
-				<component :is="isExplainConfigured ? Sparkles : KeyRound" class="w-4 h-4" />
-			</button>
-			<button
 				@click="$emit('generateLabels')"
 				title="Generate Labels"
 				:disabled="start === end"
@@ -91,7 +82,7 @@
 </template>
 
 <script lang="ts" setup>
-import { X, Wand2, Sparkles, KeyRound } from "lucide-vue-next";
+import { X, Wand2 } from "lucide-vue-next";
 import { Button } from "@/components/ui/button";
 import { formatAddress, toHex } from "@/lib/hex.utils";
 import { useDisasmSelection } from "@/composables/useDisasmSelection";
@@ -99,7 +90,6 @@ import { Kbd } from "@/components/ui/kbd";
 import { useFormatting } from "@/composables/useDataFormattings";
 import { useComments } from "@/composables/useComments";
 import { useSymbols } from "@/composables/useSymbols";
-import { useGemini } from "@/composables/useGemini";
 // import { generateLabels } from "@/lib/disassembler";
 // import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 // import { inject, type Ref } from "vue";
@@ -110,7 +100,6 @@ const { clearSelection, startSelectionAddr: start, endSelectionAddr: end } = use
 const { addFormatting, removeFormatting } = useFormatting();
 const { addComment, getBlockComment, editingBlockCommentAddr } = useComments();
 const { getLabelForAddress, addSymbol } = useSymbols();
-const { isLoading, isConfigured: isExplainConfigured } = useGemini();
 
 const addLabel = async () => {
 	if (start.value === null) return;
