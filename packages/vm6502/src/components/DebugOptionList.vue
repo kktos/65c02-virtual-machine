@@ -30,8 +30,11 @@
 							>
 								<label
 									:for="`${opt.id}${idSuffix}`"
-									class="text-xs text-gray-300 select-none flex-grow flex items-center whitespace-nowrap"
-									:class="isDisabled(opt) ? 'cursor-not-allowed' : 'cursor-pointer'"
+									class="text-xs text-gray-300 select-none flex items-center whitespace-nowrap"
+									:class="[
+										isDisabled(opt) ? 'cursor-not-allowed' : 'cursor-pointer',
+										opt.type === 'slider' ? 'flex-shrink-0 w-16' : 'flex-grow',
+									]"
 								>
 									<span>{{ opt.label }}</span>
 									<Save
@@ -73,6 +76,21 @@
 									class="bg-gray-700 text-yellow-300 font-mono text-xs rounded-md px-2 py-0.5 border border-gray-600 focus:ring-2 focus:ring-cyan-500 outline-none ml-2 flex-shrink-0 disabled:cursor-not-allowed"
 									:class="row.length > 1 ? 'w-14' : 'w-20'"
 								/>
+								<template v-if="opt.type === 'slider'">
+									<input
+										type="range"
+										:id="`${opt.id}${idSuffix}`"
+										:min="opt.min"
+										:max="opt.max"
+										:value="modelValue[opt.id] as number"
+										:disabled="isDisabled(opt)"
+										@input="updateValue(opt.id, ($event.target as HTMLInputElement).valueAsNumber)"
+										class="flex-1 min-w-0 h-1 ml-3 accent-cyan-500 cursor-pointer disabled:cursor-not-allowed"
+									/>
+									<span class="w-6 ml-2 text-right font-mono text-xs text-yellow-300 flex-shrink-0">
+										{{ modelValue[opt.id] }}
+									</span>
+								</template>
 								<DebugColorPicker
 									v-if="opt.type === 'color' && opt.options"
 									:id="`${opt.id}${idSuffix}`"

@@ -31,6 +31,7 @@ import {
 	cropVideoBuffer,
 	grayscalePalette,
 	VideoOutput,
+	type VideoScaling,
 	type VideoViewRect,
 } from "@/virtualmachine/video/video.output";
 import { useMemoryMap } from "../composables/useMemoryMap";
@@ -89,7 +90,7 @@ export class VirtualMachine {
 	private palette: Uint8Array | null = null;
 	private viewRect: VideoViewRect | null = null;
 	// The video options can arrive before the canvas is attached; kept here and applied in initVideo
-	private integerScaling = false;
+	private videoScaling: VideoScaling = "fit";
 	public busState: Dict = {};
 	private isRendering = false;
 	private _isRunning = false;
@@ -351,7 +352,7 @@ export class VirtualMachine {
 
 		if (this.palette) this.videoOutput.setPalette(this.palette);
 		if (this.viewRect) this.videoOutput.setViewRect(this.viewRect);
-		this.videoOutput.setIntegerScaling(this.integerScaling);
+		this.videoOutput.setScaling(this.videoScaling);
 
 		this.isRendering = true;
 		this.renderFrame();
@@ -796,10 +797,13 @@ export class VirtualMachine {
 	}
 
 	public setDebugOverrides(category: string, overrides: Dict) {
-		// Integer scaling is a display concern handled on the main thread, not by the machine's renderer
+		// Scaling is a display concern handled on the main thread, not by the machine's renderer.
+		// Scale (on unless turned off) fits the window, by whole multiples with integer scaling;
+		// off, the picture keeps its original size.
 		if (category === "video") {
-			this.integerScaling = !!overrides.integerScaling;
-			this.videoOutput?.setIntegerScaling(this.integerScaling);
+			this.videoScaling =
+				overrides.wannaScale === false ? "native" : overrides.integerScaling ? "integer" : "fit";
+			this.videoOutput?.setScaling(this.videoScaling);
 		}
 		this.worker.postMessage({
 			command: "setDebugOverrides",

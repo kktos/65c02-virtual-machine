@@ -24,12 +24,27 @@ export function cropVideoBuffer(buffer: Uint8Array, bufferWidth: number, rect: V
 	return pixels;
 }
 
-/** Where the picture is drawn in a canvas of `bufW` x `bufH` (backing store) pixels, in integer scaling */
-function integerViewport(bufW: number, bufH: number, view: VideoViewRect) {
+/**
+ * How the picture fills the canvas. fit: as large as it fits, keeping its aspect ratio. integer: the largest whole
+ * multiple of its size that fits. native: its original size, a buffer pixel per CSS pixel (a whole number of device
+ * pixels), shrunk only when the canvas is too small for it.
+ */
+export type VideoScaling = "fit" | "integer" | "native";
+
+/** Device pixels per buffer pixel at the original size: the device pixel ratio, rounded to keep pixels even */
+export function nativeScale(devicePixelRatio: number) {
+	return Math.max(1, Math.round(devicePixelRatio));
+}
+
+/**
+ * Where the picture is drawn in a canvas of `bufW` x `bufH` (backing store) pixels, in integer or native scaling:
+ * the largest whole multiple of the view that fits, at most `maxScale`
+ */
+function integerViewport(bufW: number, bufH: number, view: VideoViewRect, maxScale = Number.POSITIVE_INFINITY) {
 	// Whole multiple when it fits; a box smaller than the buffer can't be scaled by an
 	// integer, so fall back to the fractional fit there.
 	const fit = Math.min(bufW / view.width, bufH / view.height);
-	const scale = fit >= 1 ? Math.floor(fit) : fit;
+	const scale = Math.min(maxScale, fit >= 1 ? Math.floor(fit) : fit);
 	const width = Math.round(view.width * scale);
 	const height = Math.round(view.height * scale);
 	// Centered; gl.viewport counts y from the bottom
@@ -41,8 +56,8 @@ function integerViewport(bufW: number, bufH: number, view: VideoViewRect) {
 /**
  * The video buffer pixel under the point (`px`, `py`) of a canvas, in CSS pixels from its top-left corner, or
  * null outside the picture. `box`: the canvas' CSS size; `store`: its backing store size; `view`: the part of the
- * buffer shown. Fit mode: the store is the view, laid out by `object-fit: contain`. Integer scaling: the store
- * is the box in device pixels, the picture centered in it (see `integerViewport`).
+ * buffer shown. Fit mode: the store is the view, laid out by `object-fit: contain`. Integer and native scaling: the
+ * store is the box in device pixels, the picture centered in it (see `integerViewport`).
  */
 export function canvasPointToBuffer(
 	px: number,
@@ -50,18 +65,20 @@ export function canvasPointToBuffer(
 	box: { width: number; height: number },
 	store: { width: number; height: number },
 	view: VideoViewRect,
-	integerScaling: boolean,
+	scaling: VideoScaling,
+	devicePixelRatio = 1,
 ): { x: number; y: number } | null {
 	if (box.width <= 0 || box.height <= 0) return null;
 	let left: number;
 	let top: number;
 	let scale: number;
-	if (integerScaling) {
+	if (scaling !== "fit") {
 		// In backing store pixels
 		const toStore = store.width / box.width;
 		px *= toStore;
 		py *= toStore;
-		const viewport = integerViewport(store.width, store.height, view);
+		const maxScale = scaling === "native" ? nativeScale(devicePixelRatio) : undefined;
+		const viewport = integerViewport(store.width, store.height, view, maxScale);
 		left = viewport.x;
 		top = viewport.top;
 		scale = viewport.width / view.width;
@@ -89,10 +106,10 @@ export class VideoOutput {
 	// Only this part of the buffer is displayed (lets a machine crop its border)
 	private viewRect: VideoViewRect;
 
-	// Integer scaling: the canvas backing store matches the element's size in device pixels and
-	// the frame is drawn into a centered viewport that is a whole multiple of the buffer size,
+	// Integer and native scaling: the canvas backing store matches the element's size in device pixels
+	// and the frame is drawn into a centered viewport that is a whole multiple of the buffer size,
 	// so every source pixel becomes an identical k x k block of screen pixels.
-	private integerScaling = false;
+	private scaling: VideoScaling = "fit";
 	private resizeObserver: ResizeObserver | null = null;
 
 	constructor(canvas: HTMLCanvasElement, videoBuffer: Uint8Array, width: number, height: number) {
@@ -216,11 +233,14 @@ export class VideoOutput {
 		gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 256, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, palette);
 	}
 
-	public setIntegerScaling(enabled: boolean) {
-		if (enabled === this.integerScaling) return;
-		this.integerScaling = enabled;
+	public setScaling(scaling: VideoScaling) {
+		if (scaling === this.scaling) return;
+		const wasFit = this.scaling === "fit";
+		this.scaling = scaling;
+		// Integer <-> native only changes the viewport, drawn every frame
+		if (wasFit === (scaling === "fit")) return;
 
-		if (enabled) {
+		if (scaling !== "fit") {
 			// Size containment keeps the (now large) backing store from feeding back into layout:
 			// the element keeps the box it had in fit mode.
 			this.canvas.style.contain = "size";
@@ -251,7 +271,7 @@ export class VideoOutput {
 		this.viewRect = { x, y, width, height };
 		this.applyViewRect();
 		// In fit mode the backing store is the visible size, so object-fit keeps its aspect ratio
-		if (!this.integerScaling) {
+		if (this.scaling === "fit") {
 			this.canvas.width = width;
 			this.canvas.height = height;
 		}
@@ -288,12 +308,13 @@ export class VideoOutput {
 		const bufW = gl.drawingBufferWidth;
 		const bufH = gl.drawingBufferHeight;
 
-		if (!this.integerScaling) {
+		if (this.scaling === "fit") {
 			gl.viewport(0, 0, bufW, bufH);
 			return;
 		}
 
-		const { x, bottom, width, height } = integerViewport(bufW, bufH, this.viewRect);
+		const maxScale = this.scaling === "native" ? nativeScale(window.devicePixelRatio || 1) : undefined;
+		const { x, bottom, width, height } = integerViewport(bufW, bufH, this.viewRect, maxScale);
 		gl.viewport(0, 0, bufW, bufH);
 		gl.clearColor(0, 0, 0, 0);
 		gl.clear(gl.COLOR_BUFFER_BIT);
@@ -309,7 +330,8 @@ export class VideoOutput {
 			rect,
 			{ width: this.gl.drawingBufferWidth, height: this.gl.drawingBufferHeight },
 			this.viewRect,
-			this.integerScaling,
+			this.scaling,
+			window.devicePixelRatio || 1,
 		);
 	}
 

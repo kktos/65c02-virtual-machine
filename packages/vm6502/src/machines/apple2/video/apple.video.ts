@@ -45,7 +45,6 @@ interface AppleVideoOverrides {
 	borderColor: number;
 	textFgColor: number;
 	textBgColor: number;
-	wannaScale?: boolean;
 	mouseChars?: "AUTO" | "ON" | "OFF";
 	canvasSize?: "AUTO" | "CUSTOM";
 	customWidth?: number;
@@ -391,8 +390,6 @@ export class AppleVideo implements Video {
 	}
 
 	private updateRenderers() {
-		// this.textRenderer.wannaScale = !!this.overrides.wannaScale;
-
 		const tag = this.overrides.textRenderer === "FONT" ? "FNT" : "BMP";
 		if (tag !== this.textRendererTag) {
 			this.textRendererTag = tag;
