@@ -61,27 +61,18 @@
 			@close="isSettingsOpen = false"
 		/>
 	</div>
-	<ExplanationDrawer
-		v-model:open="isExplanationOpen"
-		:explanation="explanationText"
-		:is-loading="isExplainLoading"
-		@save-as-note="saveExplanationAsNote"
-	/>
 </template>
 
 <script lang="ts" setup>
 import { computed, inject, type Ref, ref, watch } from "vue";
 import DisassemblyToolbar from "@/app/debugger/disassembly/DisassemblyToolbar.vue";
 import DisassemblySettingsPanel from "@/app/debugger/disassembly/settings/DisassemblySettingsPanel.vue";
-import ExplanationDrawer from "@/app/debugger/disassembly/ExplanationDrawer.vue";
 import { useDebuggerNav } from "@/composables/useDebuggerNav";
 import { useDisassembly } from "@/composables/useDisassembly";
 import { useDisassemblyScroll } from "@/composables/useDisassemblyScroll";
 import { useFormatting } from "@/composables/useDataFormattings";
 import { useSettings } from "@/composables/useSettings";
-import { useGemini } from "@/composables/useGemini";
 import { useSymbols } from "@/composables/useSymbols";
-import { useNotes } from "@/composables/useNotes";
 import { disassemble } from "@/lib/disassembler";
 import type { DisassemblyLine } from "@/types/disassemblyline.interface";
 import type { EmulatorRegisters } from "@/types/emulatorstate.interface";
@@ -108,9 +99,7 @@ const { setMemoryViewAddress, setActiveTab } = useDebuggerNav();
 const { recordJump, trackLocation, historyNavigationEvent, clearHistory } = useAddressHistory("disassembly");
 const { settings } = useSettings();
 const { formattingState } = useFormatting();
-const { explanation: explanationText, isLoading: isExplainLoading } = useGemini();
 const { symbolsState } = useSymbols();
-const { addNote } = useNotes();
 const { comments } = useComments();
 
 const isSettingsOpen = ref(false);
@@ -264,9 +253,6 @@ const pcRowIndex = ref(-1);
 const pivotIndex = ref(0);
 
 const { startSelectionAddr, endSelectionAddr } = useDisasmSelection();
-const selectionStart = ref<number | null>(null);
-const selectionEnd = ref<number | null>(null);
-// const hasSelection = computed(() => selectionStart.value !== null && selectionEnd.value !== null);
 const hasSelection = computed(() => startSelectionAddr.value !== null && endSelectionAddr.value !== null);
 
 const gotoAddress = (addr: number) => {
@@ -394,48 +380,4 @@ watch(
 	},
 	{ immediate: true },
 );
-
-const isExplanationOpen = ref(false);
-
-watch(explanationText, (val) => {
-	if (val) isExplanationOpen.value = true;
-});
-
-const clearSelection = () => {
-	selectionStart.value = null;
-	selectionEnd.value = null;
-};
-
-const saveExplanationAsNote = () => {
-	if (explanationText.value) {
-		const startAddr = selectionStart.value ?? disassemblyStartAddress.value;
-		const scope = vm?.value?.getScope(startAddr) ?? "";
-		addNote(startAddr, scope, explanationText.value);
-		explanationText.value = "";
-	}
-	isExplanationOpen.value = false;
-	clearSelection();
-};
-
-// const handleExplain = async () => {
-// 	let codeBlock = "";
-
-// 	if (hasSelection.value) {
-// 		const start = selectionStart.value!;
-// 		const end = selectionEnd.value!;
-// 		const lines = await disassembleRange({
-// 			readByte,
-// 			scope: vm!.value.getScope(start),
-// 			fromAddress: start,
-// 			toAddress: end,
-// 			registers,
-// 			lowercase: settings.disassembly.lowercase,
-// 		});
-// 		codeBlock = formatDisassemblyAsText(lines);
-// 	} else {
-// 		codeBlock = formatDisassemblyAsText(disassembly.value);
-// 	}
-
-// 	await explainCode(codeBlock);
-// };
 </script>

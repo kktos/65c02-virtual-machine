@@ -1,6 +1,5 @@
 import type { DataBlock } from "@/composables/useDataFormattings";
 import type { SymbolDict } from "./useSymbols";
-import { ref } from "vue";
 
 /** What the library lists for a disk: no bytes. `lastUsed` (ms) and `pinned` order the library. */
 type DiskListing = { key: IDBValidKey; name: string; path: string; size: number; lastUsed?: number; pinned?: boolean };
@@ -17,8 +16,6 @@ export type StoredDisk =
 			symbols?: SymbolDict;
 			formatting?: Record<string, DataBlock>;
 	  });
-
-let lastLoadedDisk = ref<StoredDisk | null>(null);
 
 const DB_NAME = "vm6502_storage";
 /** The disks, whole (bytes, labels, formats), by key */
@@ -112,7 +109,6 @@ export function useDiskStorage() {
 						else result.path = result.filepath || result.name;
 					}
 				}
-				lastLoadedDisk.value = result;
 				resolve(result as StoredDisk);
 			};
 			request.onerror = () => reject(request.error);
@@ -216,6 +212,5 @@ export function useDiskStorage() {
 		setDiskPinned,
 		updateDiskData,
 		updateDiskFormatting,
-		lastLoadedDisk,
 	};
 }

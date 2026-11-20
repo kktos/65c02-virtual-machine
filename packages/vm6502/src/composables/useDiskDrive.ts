@@ -105,7 +105,6 @@ export function useDiskDrive() {
 	const insert = async (vm: VirtualMachine, disk: InsertedDisk, data: ArrayBuffer, mediaName: string) => {
 		vm.insertDisk(new Uint8Array(data), { name: mediaName });
 		inserted.value = disk;
-		await loadDisk(disk.key); // the disk the explain prompt names (`lastLoadedDisk`)
 		await setMetadataDisk(String(disk.key));
 	};
 
@@ -168,7 +167,6 @@ export function useDiskDrive() {
 	const insertUrl = async (vm: VirtualMachine, url: string) => {
 		await insertFromUrl(vm, url);
 		await saveUrlDisk(url, urlFileName(url), url);
-		await loadDisk(url); // now that it's saved, for `lastLoadedDisk`
 		remember(vm, { type: "url", key: url });
 		await markUsed(url);
 		return inserted.value as InsertedDisk;
@@ -187,7 +185,6 @@ export function useDiskDrive() {
 		await renameDisk(key, name);
 		if (inserted.value?.key !== key) return;
 		inserted.value = { ...inserted.value, name };
-		await loadDisk(key); // refreshes `lastLoadedDisk`
 	};
 
 	/**

@@ -27,10 +27,6 @@ interface DebuggerSettings {
 			info: string;
 			pcLine: string;
 		};
-		gemini: {
-			apiKey: string;
-			url: string;
-		};
 	};
 	floatingWindows: {
 		titleBarBg: string;
@@ -66,10 +62,6 @@ const defaultSettings: DebuggerSettings = {
 			info: "#99a1af",
 			bytes: "#99a1af",
 		},
-		gemini: {
-			apiKey: "",
-			url: "",
-		},
 	},
 	floatingWindows: {
 		titleBarBg: "#01214b", // bg-gray-900/70
@@ -97,10 +89,6 @@ const loadSettings = (): DebuggerSettings => {
 					syntax: {
 						...defaultSettings.disassembly.syntax,
 						...parsed.disassembly?.syntax,
-					},
-					gemini: {
-						...defaultSettings.disassembly.gemini,
-						...parsed.disassembly?.gemini,
 					},
 				},
 				floatingWindows: {
