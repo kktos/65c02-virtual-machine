@@ -12,6 +12,28 @@
 				Execution Trace
 			</h2>
 			<div class="flex items-center space-x-1">
+				<!-- Record / stop: tracing slows the CPU, it is off until started here -->
+				<button
+					@click="toggleTrace"
+					class="relative p-1 rounded transition-colors"
+					:class="
+						traceEnabled
+							? 'bg-red-900/40 text-red-400 hover:bg-red-900/60'
+							: 'text-gray-400 hover:text-red-400 hover:bg-gray-700'
+					"
+					:aria-pressed="traceEnabled"
+					:title="
+						(traceEnabled ? 'Stop tracing' : 'Start tracing (jumps and instructions)') +
+						(vm?.traceOverflow?.value ? ' — jumps buffer overflow' : '')
+					"
+				>
+					<span
+						v-if="vm?.traceOverflow?.value"
+						class="absolute top-0 right-0 w-1.5 h-1.5 bg-orange-400 rounded-full animate-pulse shadow-[0_0_4px_rgba(251,146,60,0.6)]"
+					></span>
+					<Square v-if="traceEnabled" class="h-4 w-4 fill-current" />
+					<Circle v-else class="h-4 w-4 fill-current" />
+				</button>
 				<div
 					class="flex rounded border border-gray-700 overflow-hidden text-[0.65rem] leading-none mr-1"
 					role="group"
@@ -145,7 +167,11 @@
 					</tr>
 					<tr v-if="traceHistory.length === 0">
 						<td colspan="3" class="py-4 text-center text-gray-600 italic">
-							No trace data. Enable tracing in controls.
+							{{
+								traceEnabled
+									? "No trace data yet: run the machine."
+									: "No trace data. Press ● to start tracing."
+							}}
 						</td>
 					</tr>
 				</tbody>
@@ -189,7 +215,11 @@
 					</tr>
 					<tr v-if="instructions.length === 0">
 						<td colspan="7" class="py-4 text-center text-gray-600 italic whitespace-normal">
-							No trace data. Enable tracing in controls.
+							{{
+								traceEnabled
+									? "No trace data yet: run the machine."
+									: "No trace data. Press ● to start tracing."
+							}}
 						</td>
 					</tr>
 				</tbody>
@@ -206,6 +236,7 @@
 
 <script lang="ts" setup>
 import { useLocalStorage } from "@vueuse/core";
+import { Circle, Square } from "lucide-vue-next";
 import { inject, onMounted, onUnmounted, type Ref, ref, watch } from "vue";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useDisassembly } from "@/composables/useDisassembly";
@@ -226,7 +257,8 @@ const ROWS_MAX = 5000;
 const RUNNING_REFRESH_MS = 1000;
 
 const vm = inject<Ref<VirtualMachine>>("vm");
-const { isRunning } = useMachine();
+const { isRunning, traceEnabled, setTraceEnabled } = useMachine();
+const toggleTrace = () => setTraceEnabled(!traceEnabled.value);
 const { requestJump } = useDisassembly();
 const mode = useLocalStorage<Mode>("trace-mode", "jumps");
 const traceHistory = ref<{ type: string; source: number; target: number }[]>([]);
