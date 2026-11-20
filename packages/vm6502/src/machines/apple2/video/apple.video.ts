@@ -1,5 +1,5 @@
 import type { Dict } from "@/types/dict.type";
-import type { Video } from "@/types/video.interface";
+import type { ScreenLocation, Video } from "@/types/video.interface";
 import {
 	MACHINE_STATE_OFFSET2,
 	MACHINE_STATE_OFFSET3,
@@ -13,6 +13,7 @@ import { DebugText } from "./debug/debug.text";
 import { LowGrRenderer } from "./gr";
 import { HGR_COLORS, HGRRenderer } from "./hgr";
 import { VideoTester } from "./tester/video.tester";
+import { type AppleDisplayMode, appleScreenToAddress } from "./screen.locate";
 import { TextRenderer } from "./text";
 
 // Machine State Flags (Byte 2 at MACHINE_STATE_OFFSET + 1)
@@ -132,6 +133,9 @@ export class AppleVideo implements Video {
 	}
 
 	private tester: VideoTester | undefined;
+
+	// The mode the last frame was drawn in, for screenToAddress
+	private frameMode: AppleDisplayMode | null = null;
 
 	private borderOverrideColorIdx = 0;
 	private borderOverrideColorLatch = false;
@@ -378,6 +382,14 @@ export class AppleVideo implements Video {
 		this.parent.postMessage({ command: "setViewRect", rect });
 	}
 
+	public screenToAddress(x: number, y: number): ScreenLocation | undefined {
+		if (!this.frameMode) return undefined;
+		// The picture is centered in the buffer (see the renderers)
+		const left = Math.floor((this.targetWidth - NATIVE_VIEW_WIDTH) / 2);
+		const top = Math.floor((this.targetHeight - NATIVE_VIEW_HEIGHT) / 2);
+		return appleScreenToAddress(this.frameMode, x - left, y - top);
+	}
+
 	private updateRenderers() {
 		// this.textRenderer.wannaScale = !!this.overrides.wannaScale;
 
@@ -462,6 +474,8 @@ export class AppleVideo implements Video {
 		const isAltCharset =
 			this.overrides.mouseChars === "ON" ||
 			(this.overrides.mouseChars === "OFF" ? false : (stateByte2 & APPLE_ALTCHAR_MASK) !== 0);
+
+		this.frameMode = { isText, isHgr, isMixed, is80Col, isPage2, isDblRes };
 
 		if (isText) {
 			this.drawText(0, is80Col, isPage2, bgIdx, fgIdx, isAltCharset);

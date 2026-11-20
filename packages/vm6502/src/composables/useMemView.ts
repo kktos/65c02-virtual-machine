@@ -1,8 +1,16 @@
 import { ref } from "vue";
 
+/** A range of memory a viewer marks (what was picked on the screen), linear addresses */
+export interface MemRange {
+	start: number;
+	length: number;
+}
+
 interface Viewer {
 	id: number;
 	address?: number;
+	/** Not saved with the layout */
+	highlight?: MemRange;
 }
 
 const STORAGE_KEY = "memory-viewers-layout";
@@ -11,7 +19,7 @@ const nextId = ref(1);
 const viewers = ref<Viewer[]>([{ id: 0 }]);
 
 const saveLayout = () => {
-	localStorage.setItem(STORAGE_KEY, JSON.stringify(viewers.value));
+	localStorage.setItem(STORAGE_KEY, JSON.stringify(viewers.value.map(({ highlight: _, ...viewer }) => viewer)));
 };
 
 const loadLayout = () => {
@@ -52,6 +60,25 @@ const removeViewer = (index: number) => {
 	saveLayout();
 };
 
+/**
+ * Shows `length` bytes at `address`, marked: in the active viewer, or in a new one opened below it (and made
+ * active). Through the viewer's address, not a navigation event: the viewer may not be mounted (an inactive tab).
+ */
+const showRange = (address: number, length: number, inNewViewer = false) => {
+	const highlight = { start: address, length };
+	const index = viewers.value.findIndex((v) => v.id === activeViewerId.value);
+	if (inNewViewer || index < 0) {
+		const id = nextId.value++;
+		viewers.value.splice(index + 1, 0, { id, address, highlight });
+		activeViewerId.value = id;
+	} else {
+		const viewer = viewers.value[index] as Viewer;
+		viewer.address = address;
+		viewer.highlight = highlight;
+	}
+	saveLayout();
+};
+
 export function useMemView() {
 	return {
 		activeViewerId,
@@ -60,5 +87,6 @@ export function useMemView() {
 		updateViewerAddress,
 		addViewer,
 		removeViewer,
+		showRange,
 	};
 }

@@ -283,6 +283,7 @@ import { useMachine } from "@/composables/useMachine";
 import MemorySelectionStatus from "./MemorySelectionStatus.vue";
 import MemorySettingsPanel from "./MemorySettingsPanel.vue";
 import { useDebugOptions } from "@/composables/useDebugOptions";
+import type { MemRange } from "@/composables/useMemView";
 
 const vm = inject<Ref<VirtualMachine>>("vm");
 const { addFormatting, updateFormatting, removeManyFormattings, getFormatCovering } = useFormatting();
@@ -292,6 +293,8 @@ const props = defineProps<{
 	id?: string;
 	canClose?: boolean;
 	initialAddress?: number;
+	/** The bytes to mark (picked on the screen) */
+	highlight?: MemRange;
 	listenToNav?: boolean;
 	isActive?: boolean;
 }>();
@@ -436,7 +439,7 @@ const handleGoto = (addr: number) => {
 	if (addr < totalMemory) startAddress.value = addr;
 };
 
-const highlightedRange = ref<{ start: number; length: number } | null>(null);
+const highlightedRange = computed(() => props.highlight ?? null);
 
 // --- Context Menu ---
 const contextMenu = ref({
@@ -543,6 +546,9 @@ onMounted(() => {
 		resizeObserver = new ResizeObserver((entries) => {
 			if (entries[0]) {
 				const { width, height } = entries[0].contentRect;
+				// Hidden (a closed floating panel is display: none): no size, keep the last layout. Else no
+				// byte per line (-1) breaks the memory read and the rows, and the viewer stops following its address.
+				if (width === 0 || height === 0) return;
 				containerHeight.value = height;
 
 				// Calculate columns: Addr(64) + Padding(~36) + Scroll(~20) = ~120px overhead

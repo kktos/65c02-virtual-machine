@@ -4,6 +4,7 @@ import type { SaveStateInfo, SaveStateMeta } from "./cpu/saveStates";
 import type { Dict } from "@/types/dict.type";
 import type { BusOptions, MachineConfig, MemoryChunk } from "@/types/machine.interface";
 import type { IBus, KeyboardState } from "@/types/bus.interface";
+import type { ScreenLocation } from "@/types/video.interface";
 import {
 	FLAG_B_MASK,
 	FLAG_C_MASK,
@@ -623,6 +624,17 @@ export class VirtualMachine {
 	public listMachineStates = () => this.stateRequest<SaveStateInfo[]>("listStates", {});
 	/** Without a name, deletes them all. Returns the names deleted. */
 	public deleteMachineStates = (name?: string) => this.stateRequest<string[]>("deleteStates", { name });
+
+	/**
+	 * The memory behind a point of the screen (a mouse event's clientX / clientY), as the machine's video
+	 * drew it. Undefined outside the picture, or when the machine doesn't map its screen.
+	 */
+	public async locateOnScreen(clientX: number, clientY: number): Promise<ScreenLocation | undefined> {
+		const point = this.videoOutput?.clientToBuffer(clientX, clientY);
+		if (!point) return undefined;
+		const { location } = await this.request<{ location?: ScreenLocation }>("screenToAddress", point);
+		return location;
+	}
 
 	/**
 	 * The screen as a PNG, as displayed: the visible part of the video buffer (border included), at its

@@ -24,6 +24,58 @@ export function cropVideoBuffer(buffer: Uint8Array, bufferWidth: number, rect: V
 	return pixels;
 }
 
+/** Where the picture is drawn in a canvas of `bufW` x `bufH` (backing store) pixels, in integer scaling */
+function integerViewport(bufW: number, bufH: number, view: VideoViewRect) {
+	// Whole multiple when it fits; a box smaller than the buffer can't be scaled by an
+	// integer, so fall back to the fractional fit there.
+	const fit = Math.min(bufW / view.width, bufH / view.height);
+	const scale = fit >= 1 ? Math.floor(fit) : fit;
+	const width = Math.round(view.width * scale);
+	const height = Math.round(view.height * scale);
+	// Centered; gl.viewport counts y from the bottom
+	const x = Math.floor((bufW - width) / 2);
+	const bottom = Math.floor((bufH - height) / 2);
+	return { x, top: bufH - height - bottom, bottom, width, height };
+}
+
+/**
+ * The video buffer pixel under the point (`px`, `py`) of a canvas, in CSS pixels from its top-left corner, or
+ * null outside the picture. `box`: the canvas' CSS size; `store`: its backing store size; `view`: the part of the
+ * buffer shown. Fit mode: the store is the view, laid out by `object-fit: contain`. Integer scaling: the store
+ * is the box in device pixels, the picture centered in it (see `integerViewport`).
+ */
+export function canvasPointToBuffer(
+	px: number,
+	py: number,
+	box: { width: number; height: number },
+	store: { width: number; height: number },
+	view: VideoViewRect,
+	integerScaling: boolean,
+): { x: number; y: number } | null {
+	if (box.width <= 0 || box.height <= 0) return null;
+	let left: number;
+	let top: number;
+	let scale: number;
+	if (integerScaling) {
+		// In backing store pixels
+		const toStore = store.width / box.width;
+		px *= toStore;
+		py *= toStore;
+		const viewport = integerViewport(store.width, store.height, view);
+		left = viewport.x;
+		top = viewport.top;
+		scale = viewport.width / view.width;
+	} else {
+		scale = Math.min(box.width / view.width, box.height / view.height);
+		left = (box.width - view.width * scale) / 2;
+		top = (box.height - view.height * scale) / 2;
+	}
+	const x = Math.floor((px - left) / scale);
+	const y = Math.floor((py - top) / scale);
+	if (x < 0 || y < 0 || x >= view.width || y >= view.height) return null;
+	return { x: view.x + x, y: view.y + y };
+}
+
 export class VideoOutput {
 	private canvas: HTMLCanvasElement;
 	private gl: WebGL2RenderingContext;
@@ -241,18 +293,24 @@ export class VideoOutput {
 			return;
 		}
 
-		// Whole multiple when it fits; a box smaller than the buffer can't be scaled by an
-		// integer, so fall back to the fractional fit there.
-		const { width: viewW, height: viewH } = this.viewRect;
-		const fit = Math.min(bufW / viewW, bufH / viewH);
-		const scale = fit >= 1 ? Math.floor(fit) : fit;
-		const w = Math.round(viewW * scale);
-		const h = Math.round(viewH * scale);
-
+		const { x, bottom, width, height } = integerViewport(bufW, bufH, this.viewRect);
 		gl.viewport(0, 0, bufW, bufH);
 		gl.clearColor(0, 0, 0, 0);
 		gl.clear(gl.COLOR_BUFFER_BIT);
-		gl.viewport(Math.floor((bufW - w) / 2), Math.floor((bufH - h) / 2), w, h);
+		gl.viewport(x, bottom, width, height);
+	}
+
+	/** The video buffer pixel under a point of the page (a mouse event's clientX / clientY), or null */
+	public clientToBuffer(clientX: number, clientY: number) {
+		const rect = this.canvas.getBoundingClientRect();
+		return canvasPointToBuffer(
+			clientX - rect.left,
+			clientY - rect.top,
+			rect,
+			{ width: this.gl.drawingBufferWidth, height: this.gl.drawingBufferHeight },
+			this.viewRect,
+			this.integerScaling,
+		);
 	}
 
 	public render() {

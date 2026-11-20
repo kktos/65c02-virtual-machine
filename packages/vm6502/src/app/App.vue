@@ -41,6 +41,7 @@
 		<template #video>
 			<!-- VideoOutput sizes it to 100% x 100%, aspect ratio kept (object-fit) -->
 			<canvas ref="videoCanvas" class="absolute inset-0"></canvas>
+			<ScreenPicker />
 		</template>
 
 		<template #state>
@@ -121,6 +122,7 @@ import type { MachineConfig } from "../types/machine.interface";
 import DebuggerControls from "./debugger/DebuggerControls.vue";
 import DisassemblyView from "./debugger/disassembly/DisassemblyView.vue";
 import MultiMemoryViewer from "./debugger/memoryview/MultiMemoryViewer.vue";
+import ScreenPicker from "./machine/ScreenPicker.vue";
 import RegistersView from "./debugger/RegistersView.vue";
 import StackView from "./debugger/StackView.vue";
 import TraceView from "./debugger/TraceView.vue";
