@@ -1,11 +1,7 @@
 <template>
-	<!-- The "Add" action lives in the host (BreakpointsDrawer header), which calls the exposed createBreakpoint() -->
 	<div class="flex flex-col h-full">
 		<ScrollArea class="flex-1 min-h-0 w-full" type="always">
 			<ul class="space-y-1.5 text-sm text-gray-300 p-1.5 min-h-full">
-				<li v-if="breakpoints.length === 0" class="text-gray-500 italic p-2 text-center">
-					No active breakpoints.
-				</li>
 				<li
 					v-for="(bp, index) in breakpoints"
 					:key="bp.address + bp.type + index"
@@ -134,6 +130,44 @@
 							>{{ bp.command }}</pre>
 					</div>
 				</li>
+
+				<!--
+					The new breakpoint: a draft until its address is confirmed, only then is it added (to the list and the VM).
+					PC type, the address starts as the current PC, selected: Enter breaks here, typing replaces it.
+					Enter adds it; Esc drops it, and so does leaving it untouched (a click elsewhere adds nothing).
+					The type can be changed afterwards, from its badge.
+				-->
+				<li v-if="draftValue !== null" class="flex items-stretch bg-gray-800 font-mono overflow-hidden">
+					<span
+						class="flex items-center justify-center w-15 text-xs font-bold text-white tracking-wider uppercase"
+						:class="getTypeStyles('pc').bg"
+					>
+						pc
+					</span>
+					<div class="flex-1 min-w-0 flex items-center gap-3 pl-10 pr-2 py-0.5">
+						<input
+							ref="draftInput"
+							v-model="draftValue"
+							class="bg-gray-900/90 px-1 py-0 rounded-sm text-indigo-200 font-mono text-sm w-36 focus:ring-1 focus:ring-indigo-400 focus:outline-none border border-indigo-700"
+							placeholder="addr or start-end"
+							title="Enter to add, Esc to cancel"
+							@blur="draftValue !== draftStart ? commitDraft() : dropDraft()"
+							@keydown.enter.prevent="commitDraft"
+							@keydown.esc.prevent="dropDraft"
+						/>
+					</div>
+				</li>
+				<li v-else>
+					<button
+						type="button"
+						class="flex w-full items-center justify-center gap-1.5 px-2 py-1 text-xs text-gray-400 border border-dashed border-gray-600 hover:text-cyan-300 hover:border-cyan-600 transition-colors"
+						title="Add a PC breakpoint, at the current PC by default"
+						@click="startDraft"
+					>
+						<Plus class="h-3.5 w-3.5" />
+						New breakpoint
+					</button>
+				</li>
 			</ul>
 		</ScrollArea>
 	</div>
@@ -147,7 +181,8 @@ import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import { ScrollArea } from "../../components/ui/scroll-area";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { formatAddress, toHex } from "@/lib/hex.utils";
-import { FishingHook } from "lucide-vue-next";
+import { FishingHook, Plus } from "lucide-vue-next";
+import { useMachine } from "@/composables/useMachine";
 
 const vm = inject<Ref<VirtualMachine>>("vm");
 
@@ -200,7 +235,7 @@ const onTypeMenuKeydown = (event: KeyboardEvent) => {
 	items[(index + delta + items.length) % items.length]?.focus();
 };
 
-// Breakpoints are loaded into each new VM by useMachine, so this list can mount/unmount freely (drawer).
+// Breakpoints are loaded into each new VM by useMachine, so this list can mount/unmount freely (its window).
 
 watch(editingBpKey, (newKey) => {
 	if (newKey) {
@@ -216,17 +251,50 @@ watch(editingBpKey, (newKey) => {
 	}
 });
 
-const createBreakpoint = () => {
-	const newBp = {
-		address: 0,
-		type: "pc",
-		enabled: true,
-	} satisfies Breakpoint;
-	addBreakpoint(newBp, vm?.value);
-	nextTick(() => startEditing(newBp, "address"));
+/** "1234", "$1234", "12:34" or a range "1234-12FF" (either order); null when it isn't hex */
+const parseRange = (value: string) => {
+	const parts = value.replace(/[$:]/g, "").trim().split("-");
+	const first = parseInt(parts[0], 16);
+	if (Number.isNaN(first)) return null;
+	const second = parts.length > 1 && parts[1].trim() ? parseInt(parts[1], 16) : Number.NaN;
+	if (Number.isNaN(second)) return { address: first, endAddress: first };
+	return { address: Math.min(first, second), endAddress: Math.max(first, second) };
 };
 
-defineExpose({ createBreakpoint });
+const { registers } = useMachine();
+
+// The new breakpoint's address field (null: no draft) and the value it started with
+const draftValue = ref<string | null>(null);
+const draftStart = ref("");
+const draftInput = ref<HTMLInputElement | null>(null);
+
+const startDraft = () => {
+	cancelEdit();
+	draftStart.value = toHex(registers.PC, 4);
+	draftValue.value = draftStart.value;
+	nextTick(() => draftInput.value?.select());
+};
+
+const dropDraft = () => {
+	draftValue.value = null;
+};
+
+/** Adds the breakpoint when the address is valid; the draft goes either way */
+const commitDraft = () => {
+	if (draftValue.value === null) return;
+	const range = parseRange(draftValue.value);
+	// Dropped first: the input unmounts, its blur must find no draft left
+	dropDraft();
+	if (!range) return;
+	addBreakpoint(
+		{
+			type: "pc",
+			address: range.address,
+			endAddress: range.endAddress !== range.address ? range.endAddress : undefined,
+		},
+		vm?.value,
+	);
+};
 
 // A disabled breakpoint only keeps its enable toggle and delete button interactive.
 const inactiveClass = (bp: BreakpointState) => (bp.enabled ? "" : "opacity-60 pointer-events-none");
@@ -264,22 +332,11 @@ const saveEdit = (bp: BreakpointState) => {
 				updateBreakpointCommand(bp, editValue.value);
 				break;
 			case "address": {
-				const cleanVal = editValue.value.replace(/[$:]/g, "").trim();
-				const parts = cleanVal.split("-");
-				let newAddr = parseInt(parts[0], 16);
-				let newEnd = newAddr;
-				if (parts.length > 1 && parts[1].trim()) {
-					const endVal = parseInt(parts[1], 16);
-					if (!Number.isNaN(endVal)) {
-						newEnd = Math.max(newAddr, endVal);
-						newAddr = Math.min(newAddr, endVal);
-					}
-				}
-
-				if (!Number.isNaN(newAddr) && (newAddr !== bp.address || newEnd !== (bp.endAddress ?? bp.address))) {
+				const range = parseRange(editValue.value);
+				if (range && (range.address !== bp.address || range.endAddress !== (bp.endAddress ?? bp.address))) {
 					removeBreakpoint(bp, vm?.value);
-					bp.address = newAddr;
-					bp.endAddress = newEnd !== newAddr ? newEnd : undefined;
+					bp.address = range.address;
+					bp.endAddress = range.endAddress !== range.address ? range.endAddress : undefined;
 					addBreakpoint(bp, vm?.value);
 				}
 				break;

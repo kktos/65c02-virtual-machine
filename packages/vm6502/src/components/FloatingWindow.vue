@@ -391,6 +391,7 @@ onMounted(() => {
 		open,
 		close,
 		toggle,
+		isOpen: () => isOpen.value,
 		title: props.title,
 	});
 });

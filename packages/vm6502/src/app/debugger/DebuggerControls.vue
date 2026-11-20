@@ -1,10 +1,7 @@
 <template>
 	<!-- Same frame as the machine toolbar (App.vue) so both bars line up edge to edge -->
 	<!-- @container: the BRK text label are dropped (icons + tooltips remain) when the toolbar is narrow -->
-	<div
-		ref="toolbarRoot"
-		class="@container flex flex-wrap items-center gap-1 p-1 bg-gray-800 border-b border-gray-700"
-	>
+	<div class="@container flex flex-wrap items-center gap-1 p-1 bg-gray-800 border-b border-gray-700">
 		<!-- Execution -->
 		<button
 			@click="toggle"
@@ -58,7 +55,7 @@
 		<div class="toolbar-sep"></div>
 
 		<!-- Tools -->
-		<BreakpointsDrawer :top="toolbarBottom" />
+		<BreakpointsWindow />
 		<MemoryMap />
 		<MachineState />
 		<Interrupts />
@@ -103,9 +100,8 @@ import {
 	RotateCcw,
 	Terminal,
 } from "lucide-vue-next";
-import { inject, type Ref, ref } from "vue";
-import { useElementBounding } from "@vueuse/core";
-import BreakpointsDrawer from "@/app/debugger/BreakpointsDrawer.vue";
+import { inject, type Ref } from "vue";
+import BreakpointsWindow from "@/app/debugger/BreakpointsWindow.vue";
 import MemoryMap from "@/app/debugger/memorymap/MemoryMap.vue";
 import MachineState from "@/app/debugger/MachineState.vue";
 import Interrupts from "@/app/debugger/Interrupts.vue";
@@ -120,10 +116,6 @@ interface Props {
 	isRunning: boolean;
 }
 const { isRunning } = defineProps<Props>();
-
-// The breakpoints drawer opens right below this toolbar (its height varies when it wraps)
-const toolbarRoot = ref<HTMLElement | null>(null);
-const { bottom: toolbarBottom } = useElementBounding(toolbarRoot);
 
 const toggle = () => {
 	if (isRunning) vm?.value.pause();

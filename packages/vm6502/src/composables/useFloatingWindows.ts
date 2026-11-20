@@ -4,6 +4,8 @@ export interface WindowInstance {
 	open: (options?: { x?: number; y?: number; width?: number; height?: number }) => void;
 	close: () => void;
 	toggle: () => void;
+	/** Reactive: reads the window's open state */
+	isOpen: () => boolean;
 	title: string;
 }
 
@@ -39,6 +41,9 @@ export function useFloatingWindows() {
 		if (instance) instance.toggle();
 	};
 
+	/** Reactive: false while the window is closed or not mounted */
+	const isOpen = (id: string) => windows.value.get(id)?.isOpen() ?? false;
+
 	const availableWindows = computed(() => {
 		return Array.from(windows.value.entries()).map(([id, instance]) => ({
 			id,
@@ -61,6 +66,7 @@ export function useFloatingWindows() {
 		open,
 		close,
 		toggle,
+		isOpen,
 		availableWindows,
 		activeWindowId,
 		setActiveWindow,
