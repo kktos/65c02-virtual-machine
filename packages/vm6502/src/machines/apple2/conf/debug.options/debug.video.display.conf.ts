@@ -14,12 +14,41 @@ export const debugVideoDisplayConf: DebugGroup = {
 		],
 		[
 			{
+				id: "borderLabel",
+				label: "Border",
+				type: "label",
+			},
+		],
+		[
+			{
 				id: "borderColor",
-				label: "Border Color",
+				label: "Color",
 				type: "color",
 				defaultValue: -1,
 				savable: true,
 				options: IIgsColours,
+			},
+		],
+		[
+			{
+				id: "borderWidth",
+				label: "Width",
+				type: "slider",
+				defaultValue: 40,
+				min: 0,
+				max: 40,
+				savable: true,
+			},
+		],
+		[
+			{
+				id: "borderHeight",
+				label: "Height",
+				type: "slider",
+				defaultValue: 48,
+				min: 0,
+				max: 48,
+				savable: true,
 			},
 		],
 		[

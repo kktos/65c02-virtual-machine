@@ -5,8 +5,11 @@ import type { Dict } from "@/types/dict.type";
 export interface DebugOption {
 	id: string;
 	label: string;
-	/** "label" is a sub-heading inside a group: only its label is shown, it holds no value */
-	type: "boolean" | "select" | "number" | "color" | "label";
+	/**
+	 * "label" is a sub-heading inside a group: only its label is shown, it holds no value.
+	 * "slider" is a number picked between `min` and `max`, its value shown beside it.
+	 */
+	type: "boolean" | "select" | "number" | "slider" | "color" | "label";
 	options?: { label: string; value: string | number; color?: string }[];
 	min?: number;
 	max?: number;
