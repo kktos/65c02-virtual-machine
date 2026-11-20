@@ -55,7 +55,7 @@
 					- narrow: the registers across the top, Stack | Trace below
 					- wide (>= 54rem): 3 columns, Registers | Stack | Trace
 					- floating: the registers alone, the stack and the trace have panels of their own
-					Breakpoints live in a drawer opened from the debugger toolbar.
+					Breakpoints live in a floating window opened from the debugger toolbar.
 				-->
 				<!--
 					Floating, no @container: its inline-size containment would give it no width of its own,

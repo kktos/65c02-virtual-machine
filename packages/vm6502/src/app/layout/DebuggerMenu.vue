@@ -4,6 +4,7 @@
 		a title bar to drag it, one item per panel below. An item opens or closes its panel; open ones
 		get a green dot (an empty ring when closed: same size, so the rows never move). Trace gets
 		a red one at the end while tracing.
+		Below a divider, the tool windows that go with them (the breakpoints, with their enabled count).
 		Always above the panels (the overlay z-index), it can't get lost under them.
 	-->
 	<nav
@@ -20,9 +21,10 @@
 			Debugger
 		</div>
 		<button
-			v-for="item in ITEMS"
+			v-for="(item, index) in ITEMS"
 			:key="item.id"
-			class="flex h-6 w-full items-center gap-2 border-b border-gray-800 px-2 text-left text-gray-300 last:border-b-0 hover:bg-gray-700 hover:text-cyan-300"
+			class="flex h-6 w-full items-center gap-2 px-2 text-left text-gray-300 hover:bg-gray-700 hover:text-cyan-300"
+			:class="{ 'border-b border-gray-800': index < ITEMS.length - 1 }"
 			:title="`${panels[item.id].open ? 'Close' : 'Open'} the ${item.title} panel`"
 			:aria-pressed="panels[item.id].open"
 			@click="toggle(item.id)"
@@ -39,13 +41,31 @@
 				title="Tracing"
 			></span>
 		</button>
+		<div class="border-t border-gray-600"></div>
+		<button
+			class="flex h-6 w-full items-center gap-2 px-2 text-left text-gray-300 hover:bg-gray-700 hover:text-cyan-300"
+			:title="`${breakpointsOpen ? 'Close' : 'Open'} the breakpoints window`"
+			:aria-pressed="breakpointsOpen"
+			@click="toggleWindow(BREAKPOINTS_WINDOW_ID)"
+		>
+			<span
+				class="h-2 w-2 shrink-0 rounded-full border"
+				:class="breakpointsOpen ? 'border-green-500 bg-green-500' : 'border-gray-500'"
+			></span>
+			Breakpoints
+			<span v-if="enabledCount > 0" class="ml-auto font-bold text-cyan-400" title="Enabled breakpoints">
+				{{ enabledCount }}
+			</span>
+		</button>
 	</nav>
 </template>
 
 <script setup lang="ts">
 import { useElementSize } from "@vueuse/core";
 import { computed, ref } from "vue";
+import { BREAKPOINTS_WINDOW_ID } from "@/app/debugger/BreakpointsWindow.vue";
 import { type PanelId, useAppLayout } from "@/composables/useAppLayout";
+import { useBreakpoints } from "@/composables/useBreakpoints";
 import { useFloatingWindows } from "@/composables/useFloatingWindows";
 import { useMachine } from "@/composables/useMachine";
 import { clamp, snapToEdge, trackPointer } from "./trackPointer";
@@ -64,8 +84,12 @@ const ITEMS: { id: PanelId; label: string; title: string }[] = [
 ];
 
 const { panels, menu, setPanelOpen, save } = useAppLayout();
-const { overlayZIndex } = useFloatingWindows();
+const { overlayZIndex, isOpen: isWindowOpen, toggle: toggleWindow } = useFloatingWindows();
 const { traceEnabled } = useMachine();
+const { breakpoints } = useBreakpoints();
+
+const breakpointsOpen = computed(() => isWindowOpen(BREAKPOINTS_WINDOW_ID));
+const enabledCount = computed(() => breakpoints.value.filter((bp) => bp.enabled).length);
 
 const el = ref<HTMLElement | null>(null);
 const { width, height } = useElementSize(el, undefined, { box: "border-box" });
