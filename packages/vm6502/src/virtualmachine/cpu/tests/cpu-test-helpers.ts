@@ -56,6 +56,15 @@ export const createMockBus = (memory: Uint8Array): IBus => ({
 });
 
 /**
+ * Stands for MessageChannel, which the run loop yields through at max speed: the next slice never comes (as with
+ * a stubbed setTimeout), so that `setRunning(true)` runs one slice, synchronously.
+ */
+export class NoSliceChannel {
+	port1 = { onmessage: null as unknown };
+	port2 = { postMessage: () => {} };
+}
+
+/**
  * CPU test context containing all necessary components
  */
 export interface CpuTestContext {

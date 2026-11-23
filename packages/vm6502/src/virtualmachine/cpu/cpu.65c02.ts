@@ -45,7 +45,22 @@ let stepOutTargetSP: number | null = null;
 // their hook), flagged `stepThrough` for the main thread to resume. Until the machine stops for something else.
 let stepThrough = false;
 let clockSpeedMhz = 1; // Default to 1 MHz
-let cyclesPerTimeslice = 10000; // Number of cycles to run before yielding
+
+// At max speed, a slice runs for this long before the worker yields (to take its messages, to draw a frame)...
+const MAX_SPEED_SLICE_MS = 8;
+// ...and this many cycles at most (when the clock doesn't move, as in the tests)
+const MAX_SPEED_SLICE_CYCLES = 4_000_000;
+// The clock is read every this many cycles
+const MAX_SPEED_CLOCK_CHECK = 20_000;
+// No frame drawn for this long (the frame callback starved by the slices): the run loop draws one itself
+const FRAME_FALLBACK_MS = 50;
+
+// Each `setRunning(true)` starts a new run loop (and frame loop): the slices and frames scheduled by an older one
+// are dropped, so that there is only ever one of each.
+let runGeneration = 0;
+let lastFrameTime = 0;
+// Max speed yields through a MessageChannel: a nested setTimeout(0) waits ~4 ms, as long as a slice runs
+let sliceChannel: MessageChannel | null = null;
 
 // Performance tracking
 let lastPerfTime = 0;
@@ -123,8 +138,6 @@ export function initCPU(
 	stackMetadataView = stackMetaView;
 	if (clockSpeedMhz > 0) registersView.setFloat64(REG_SPEED_OFFSET, clockSpeedMhz, true);
 
-	updateCyclesPerTimeslice();
-
 	// Wrap bus methods to check for breakpoints
 	const originalRead = bus.read.bind(bus);
 	bus.read = (address: number, isOpcodeFetch = false): number => {
@@ -171,9 +184,11 @@ export function setRunning(running: boolean, stop?: StopInfo) {
 		lastPerfTime = performance.now();
 		cyclesSinceLastPerf = 0;
 		lastRunTime = performance.now();
+		lastFrameTime = lastRunTime;
 		cycleAccumulator = 0;
-		run();
-		vblrun();
+		const generation = ++runGeneration;
+		run(generation);
+		vblrun(generation);
 	}
 }
 
@@ -209,7 +224,6 @@ const breakpointStop = (breakpointType: string, address: number): StopInfo => ({
 export function setClockSpeed(speed: number) {
 	if (speed >= 0) {
 		clockSpeedMhz = speed;
-		updateCyclesPerTimeslice();
 		if (clockSpeedMhz > 0) registersView?.setFloat64(REG_SPEED_OFFSET, clockSpeedMhz, true);
 	}
 }
@@ -236,16 +250,6 @@ function logTrace(type: string, source: number, target: number) {
 	const targetFullAddr = ((bus?.getBank?.(target) ?? 0) << 16) | target;
 	traceHistory.push({ type, source: sourceFullAddr, target: targetFullAddr });
 	if (traceHistory.length > maxTraceSize) traceHistory.shift();
-}
-
-function updateCyclesPerTimeslice() {
-	if (clockSpeedMhz === 0) {
-		// Unlimited speed: run a large batch of cycles per timeslice to minimize overhead
-		cyclesPerTimeslice = 1000000;
-	} else {
-		// Run for approx 10ms per timeslice
-		cyclesPerTimeslice = clockSpeedMhz * 1000000 * 0.01;
-	}
 }
 
 /**
@@ -377,45 +381,70 @@ export function resetCPU() {
 	dropStep();
 }
 
-function vblrun() {
+/** The machine's frame: the bus state for the UI, the screen drawn. */
+function drawFrame() {
+	lastFrameTime = performance.now();
 	bus?.syncState?.();
 	video?.tick(bus);
-	if (isRunning) requestAnimationFrame(vblrun);
+}
+
+function vblrun(generation: number) {
+	if (generation !== runGeneration) return;
+	drawFrame();
+	if (isRunning) requestAnimationFrame(() => vblrun(generation));
+}
+
+/** The next slice of the run loop `generation`: paced by a timer, or at once at max speed. */
+function scheduleSlice(generation: number) {
+	// At a set speed, the slices are sized by the time gone by: the timer's ~4 ms delay is no loss
+	if (clockSpeedMhz > 0) {
+		setTimeout(() => run(generation), 0);
+		return;
+	}
+	if (!sliceChannel) {
+		sliceChannel = new MessageChannel();
+		sliceChannel.port1.onmessage = (event: MessageEvent<number>) => run(event.data);
+	}
+	sliceChannel.port2.postMessage(generation);
+}
+
+/** Runs instructions for up to `budget` cycles, the bus ticked after each one; less when the machine stops. */
+function runCycles(budget: number, systemBus: IBus) {
+	let cyclesLeft = budget;
+	while (cyclesLeft > 0) {
+		const cycles = executeInstruction();
+		systemBus.tick(cycles);
+		cyclesLeft -= cycles;
+		if (!isRunning) break;
+	}
+	return budget - cyclesLeft;
 }
 
 // --- Main Execution Loop ---
-function run() {
-	if (!isRunning || !registersView || !bus) return;
+function run(generation: number) {
+	if (generation !== runGeneration || !isRunning || !registersView || !bus) return;
 
-	let cyclesThisSlice = 0;
-	const now = performance.now();
+	const start = performance.now();
+	let executed = 0;
 
 	if (clockSpeedMhz > 0) {
-		// const now = performance.now();
 		// Cap delta time to 50ms to prevent "spiral of death" if tab was backgrounded
-		const dt = Math.min(now - lastRunTime, 50);
-		lastRunTime = now;
+		const dt = Math.min(start - lastRunTime, 50);
+		lastRunTime = start;
 
 		// Calculate cycles needed: MHz * 1000 = cycles/ms
 		cycleAccumulator += clockSpeedMhz * 1000 * dt;
-		cyclesThisSlice = Math.floor(cycleAccumulator);
+		const cyclesThisSlice = Math.floor(cycleAccumulator);
 		cycleAccumulator -= cyclesThisSlice;
+		executed = runCycles(cyclesThisSlice, bus);
 	} else {
-		cyclesThisSlice = cyclesPerTimeslice;
+		// As many as fit in the slice's time
+		do executed += runCycles(MAX_SPEED_CLOCK_CHECK, bus);
+		while (isRunning && executed < MAX_SPEED_SLICE_CYCLES && performance.now() - start < MAX_SPEED_SLICE_MS);
 	}
 
-	const initialCycles = cyclesThisSlice;
-
-	while (cyclesThisSlice > 0) {
-		const cycles = executeInstruction();
-		bus.tick(cycles);
-		cyclesThisSlice -= cycles;
-		if (!isRunning) break;
-	}
-
-	const executed = initialCycles - cyclesThisSlice;
+	const now = performance.now();
 	cyclesSinceLastPerf += executed;
-	// const now = performance.now();
 	if (now - lastPerfTime >= 1000) {
 		const elapsedSec = (now - lastPerfTime) / 1000;
 		const effectiveMhz = cyclesSinceLastPerf / elapsedSec / 1000000;
@@ -424,8 +453,10 @@ function run() {
 		cyclesSinceLastPerf = 0;
 	}
 
-	// Yield to the event loop and schedule the next run
-	if (isRunning) setTimeout(run, 0);
+	if (!isRunning) return;
+	// The frame callback can starve behind back-to-back slices: a frame drawn here then
+	if (now - lastFrameTime >= FRAME_FALLBACK_MS) drawFrame();
+	scheduleSlice(generation);
 }
 
 function setNZFlags(value: number) {

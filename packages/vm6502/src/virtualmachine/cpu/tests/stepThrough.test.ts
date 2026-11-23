@@ -12,7 +12,7 @@ import {
 	stepOverInstruction,
 } from "../cpu.65c02";
 import { REG_PC_OFFSET } from "../shared-memory";
-import { createMockBus } from "./cpu-test-helpers";
+import { createMockBus, NoSliceChannel } from "./cpu-test-helpers";
 
 // Step over / out, honouring the breakpoints on the way or going through them.
 // The program: $0300 JSR $0400 / $0303 NOP / $0304 BRK; the routine: $0400-$0402 NOPs / $0403 RTS.
@@ -49,6 +49,7 @@ describe("CPU 65C02 - step over / out and the breakpoints", () => {
 			vi.fn(() => 0),
 		);
 		vi.stubGlobal("setTimeout", vi.fn());
+		vi.stubGlobal("MessageChannel", NoSliceChannel); // nor at max speed
 
 		memory = new Uint8Array(0x10000);
 		memory.set([0x20, 0x00, 0x04, 0xea], 0x300);

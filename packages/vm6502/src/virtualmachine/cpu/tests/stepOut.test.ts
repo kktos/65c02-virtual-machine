@@ -1,6 +1,7 @@
 // c:\devwork\65c02-virtual-machine\packages\vm6502\src\cpu\tests\stepOut.test.ts
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { NoSliceChannel } from "./cpu-test-helpers";
 import type { IBus } from "../../../types/bus.interface";
 import { initCPU, setClockSpeed, setRunning, stepOutInstruction } from "../cpu.65c02";
 import { REG_PC_OFFSET, REG_SP_OFFSET } from "../shared-memory";
@@ -57,6 +58,7 @@ describe("CPU 65C02 - Step Out Instruction", () => {
 
 		// Mock setTimeout to prevent infinite loop in run()
 		vi.stubGlobal("setTimeout", vi.fn());
+		vi.stubGlobal("MessageChannel", NoSliceChannel); // nor at max speed
 
 		// Initialize CPU
 		initCPU(bus, registersView, null, memoryView, stackMetadataView);
