@@ -1,11 +1,6 @@
 import type { IBus } from "@/types/bus.interface";
-import {
-	FLAG_C_MASK,
-	INPUT_ANALOG_0_OFFSET,
-	INPUT_DIGITAL_OFFSET,
-	REG_A_OFFSET,
-	REG_STATUS_OFFSET,
-} from "@/virtualmachine/cpu/shared-memory";
+import { type CpuRegisters, viewRegisters } from "@/virtualmachine/cpu/cpuRegisters";
+import { FLAG_C_MASK, INPUT_ANALOG_0_OFFSET, INPUT_DIGITAL_OFFSET } from "@/virtualmachine/cpu/shared-memory";
 import type { ISlotCard } from "./slotcard.interface";
 
 // AppleMouse II User Manual
@@ -47,6 +42,7 @@ const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(ma
 
 export class MouseCard implements ISlotCard {
 	private registers!: DataView;
+	private cpuRegisters?: CpuRegisters;
 
 	// Mouse State (position in mouse units, inside the clamping window)
 	private x = 0;
@@ -153,6 +149,15 @@ export class MouseCard implements ISlotCard {
 		this.registers = view;
 	}
 
+	/** The CPU's registers (see CpuRegisters): the CPU's own, else (no CPU: the card tested alone) the view's. */
+	private get cpu(): CpuRegisters | undefined {
+		return this.cpuRegisters ?? (this.registers ? viewRegisters(this.registers) : undefined);
+	}
+
+	setCpuRegisters(registers: CpuRegisters) {
+		this.cpuRegisters = registers;
+	}
+
 	tick?(_cycles: number): void {
 		// Mouse axes: analog inputs 2 & 3 (offsets +8 & +12)
 		const mx = this.registers.getFloat32(INPUT_ANALOG_0_OFFSET + 8, true);
@@ -219,7 +224,7 @@ export class MouseCard implements ISlotCard {
 		this.lastReadX = 0;
 		this.lastReadY = 0;
 		this.mode = 0;
-		this.registers?.setUint8(REG_A_OFFSET, 0);
+		if (this.cpu) this.cpu.a = 0;
 		this.clearCarry();
 	}
 
@@ -242,7 +247,8 @@ export class MouseCard implements ISlotCard {
 
 	private cmdSetMouse() {
 		// A = Mode
-		if (this.registers) this.mode = this.registers.getUint8(REG_A_OFFSET);
+		const cpu = this.cpu;
+		if (cpu) this.mode = cpu.a;
 		this.clearCarry();
 	}
 
@@ -270,7 +276,7 @@ export class MouseCard implements ISlotCard {
 	private cmdClampMouse() {
 		const min = toInt16(this.bus.read(HOLE_X_LO), this.bus.read(HOLE_X_HI));
 		const max = toInt16(this.bus.read(HOLE_Y_LO), this.bus.read(HOLE_Y_HI));
-		if (this.registers.getUint8(REG_A_OFFSET) & 1) {
+		if ((this.cpu?.a ?? 0) & 1) {
 			this.minY = min;
 			this.maxY = max;
 			this.y = clamp(this.y, min, max);
@@ -327,9 +333,8 @@ export class MouseCard implements ISlotCard {
 	}
 
 	private clearCarry() {
-		if (!this.registers) return;
-		const status = this.registers.getUint8(REG_STATUS_OFFSET);
-		this.registers.setUint8(REG_STATUS_OFFSET, status & ~FLAG_C_MASK);
+		const cpu = this.cpu;
+		if (cpu) cpu.p &= ~FLAG_C_MASK;
 	}
 
 	/** The host's movement since the last tick, across the wrap at MOUSE_HOST_RANGE. */

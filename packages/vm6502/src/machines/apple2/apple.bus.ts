@@ -22,6 +22,7 @@ import {
 } from "@/virtualmachine/cpu/shared-memory";
 import { generateApple2Assets } from "./bus/apple.assets";
 import type { InterruptsState } from "@/types/interrupts.interface";
+import type { CpuRegisters } from "@/virtualmachine/cpu/cpuRegisters";
 import { IMU, IMU_IDS } from "../chips/imu";
 import { loadMemoryChunks } from "./bus/apple.loader";
 import { APPLE_SEARCH_REGIONS } from "./bus/apple.search";
@@ -113,6 +114,7 @@ type MemScopeOverride = { lcView: "BANK2" | "BANK1" | "ROM" | "AUTO"; lcAux: "MA
 export class AppleBus implements IBus {
 	public memory: Uint8Array;
 	private registers?: DataView;
+	private cpuRegisters?: CpuRegisters;
 
 	// Private storage for the system ROM ($D000-$FFFF)
 	public rom: Uint8Array;
@@ -351,6 +353,7 @@ export class AppleBus implements IBus {
 		}
 		this.slots[card.slot] = card;
 		if (this.registers && card.setRegisters) card.setRegisters(this.registers);
+		if (this.cpuRegisters) card.setCpuRegisters?.(this.cpuRegisters);
 		if (card.tick) {
 			this.registerTickHandler(card.tick.bind(card), card.nextEvent?.bind(card));
 			// Its I/O ($C0n0-$C0nF) and ROM ($Cn00-$CnFF) spaces
@@ -502,6 +505,11 @@ export class AppleBus implements IBus {
 
 	public setClockSpeed(mhz: number): void {
 		this.speaker.setClockSpeed(mhz);
+	}
+
+	public setCpuRegisters(registers: CpuRegisters) {
+		this.cpuRegisters = registers;
+		for (const card of this.slots) card?.setCpuRegisters?.(registers);
 	}
 
 	public setRegistersView(view: DataView) {

@@ -101,18 +101,20 @@ describe("CPU 65C02 - vectored IRQ (IMU)", () => {
 		setIrqLine(false);
 		calls = [];
 		let depth = 0;
+		// During an instruction, the registers are the CPU's (given to the bus), not the view's
+		const cpu = vi.mocked(ctx.bus.setCpuRegisters!).mock.calls[0]![0];
 		imu = new IMU({
 			irq: setIrqLine,
 			context: {
 				enter: (bank) => {
 					// what the stack holds when the context switches: the pushes are done
-					calls.push(`enter ${bank} sp=${sp().toString(16)}`);
+					calls.push(`enter ${bank} sp=${cpu.sp.toString(16)}`);
 					return depth++;
 				},
 				exit: (saved) => {
 					depth--;
 					// the pulls aren't done yet
-					calls.push(`exit ${saved} sp=${sp().toString(16)}`);
+					calls.push(`exit ${saved} sp=${cpu.sp.toString(16)}`);
 				},
 			},
 		});

@@ -10,7 +10,7 @@ declare const process: {
 };
 import { KlausTest_RAM } from "@/machines/klaus-test-suite/65C02_extended_opcodes_test";
 import { Bus } from "@/machines/klaus-test-suite/klaus.bus";
-import { executeInstruction, initCPU } from "../cpu.65c02";
+import { initCPU, runCycles } from "../cpu.65c02";
 import { REG_PC_OFFSET } from "../shared-memory";
 
 (globalThis as unknown as { self: unknown }).self = { postMessage: () => {} };
@@ -40,11 +40,7 @@ const run = (ms: number) => {
 	let passes = 0;
 	const end = performance.now() + ms;
 	while (performance.now() < end) {
-		for (let i = 0; i < 100_000; i++) {
-			const c = executeInstruction();
-			bus.tick(c);
-			cycles += c;
-		}
+		cycles += runCycles(300_000);
 		const pc = regs.getUint16(REG_PC_OFFSET, true);
 		if (pc >= SUCCESS_TRAP && pc <= SUCCESS_TRAP + 2) {
 			passes++;

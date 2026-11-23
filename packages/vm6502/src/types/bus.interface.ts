@@ -1,6 +1,7 @@
 import type { Dict } from "@/types/dict.type";
 import type { InterruptsState } from "@/types/interrupts.interface";
 import type { LoadedDevice } from "@/types/machine.interface";
+import type { CpuRegisters } from "@/virtualmachine/cpu/cpuRegisters";
 
 export interface MachineStateSpec {
 	id: string;
@@ -132,6 +133,11 @@ export interface IBus {
 	restoreSnapshot?(state: unknown): void;
 
 	setRegistersView?(view: DataView): void;
+	/**
+	 * The CPU's registers (given by the CPU), for the devices that read or set them during an instruction: while it
+	 * runs, the CPU keeps them out of the registers view.
+	 */
+	setCpuRegisters?(registers: CpuRegisters): void;
 	syncState?(): void;
 	syncStateFromBuffer?(view: DataView): Dict;
 	prepareWorkerPayloads?(): Promise<{ video?: unknown; bus?: unknown }>;
