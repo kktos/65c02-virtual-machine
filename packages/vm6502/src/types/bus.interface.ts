@@ -52,7 +52,11 @@ export interface IBus {
 	/** The IMU's state for the debugger (no side effects), with what each ID is wired to. Absent: no IMU. */
 	getInterrupts?(): InterruptsState;
 
-	registerTickHandler(handler: (cycles: number) => void): void;
+	/**
+	 * `handler` gets the cycles gone by since its last call (a bus may batch them). `nextEvent`: the cycles from
+	 * then until it must be called (it raises an interrupt), Infinity when nothing is coming.
+	 */
+	registerTickHandler(handler: (cycles: number) => void, nextEvent?: () => number): void;
 	unregisterTickHandler(handler: (cycles: number) => void): void;
 
 	search(

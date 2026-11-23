@@ -85,6 +85,14 @@ export class VIA6522 {
 		return (this.regs[REG_ORB]! & this.regs[REG_DDRB]!) | (~this.regs[REG_DDRB]! & 0xff);
 	}
 
+	/** The cycles until a timer sets its interrupt flag (`tick` with at least that many), Infinity if none will. */
+	public nextEvent() {
+		let next = Number.POSITIVE_INFINITY;
+		if (this.regs[REG_ACR]! & ACR_T1_FREE_RUN || this.t1Active) next = this.t1c + 1;
+		if (this.t2Active && !(this.regs[REG_ACR]! & ACR_T2_COUNT_PB6)) next = Math.min(next, this.t2c + 1);
+		return next;
+	}
+
 	public tick(cycles: number) {
 		// Timer 1
 		this.t1c -= cycles;

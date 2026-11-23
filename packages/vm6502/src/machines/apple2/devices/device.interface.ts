@@ -32,7 +32,10 @@ export interface AppleDevice {
 	/** One of the soft switches it takes over (`switches`), at its address. */
 	readSwitch?(address: number): number;
 	writeSwitch?(address: number, value: number): void;
+	/** The cycles gone by since its last tick: batched, and before any access to its registers or switches. */
 	tick?(cycles: number): void;
+	/** The cycles until it must be ticked (it raises an interrupt), Infinity when nothing is coming. */
+	nextEvent?(): number;
 	/** On any reset, after the IMU's. */
 	reset?(): void;
 	/** Its state in a save state (a structured-clonable value). */

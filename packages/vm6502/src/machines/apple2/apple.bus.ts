@@ -81,6 +81,18 @@ const DEVICE_SWITCHES_END = 0xc08f;
 /** Slot 3's I/O space up to here is the IMU's registers (see IMU.md). */
 const IMU_IO_START = 0xc0b0;
 const IMU_IO_END = 0xc0b7;
+/**
+ * The devices that count cycles (sound, timers, polled inputs) are ticked lazily: in batches of at most this many
+ * cycles, sooner when one of them has an event due (`nextEvent`: an interrupt), and before an access to their I/O.
+ */
+const MAX_TICK_BATCH = 1024;
+/** What an access to a $C000-$CFFF address brings up to date first (`ioSync`; 0: nothing). */
+const SYNC_SPEAKER = 1;
+const SYNC_ALL = 2;
+
+/** A tick handler, and the cycle it was last brought up to (`AppleBus.totalCycles`). */
+type TickHandler = { tick: (cycles: number) => void; nextEvent?: () => number; last: number };
+
 const hex4 = (value: number) => `$${value.toString(16).toUpperCase().padStart(4, "0")}`;
 /** Builds a card for a slot, `rom` being its $Cn00-$CnFF space (in slotRoms). One per card of slotsConfig. */
 const CARD_FACTORIES: Record<AppleCardId, (bus: AppleBus, slot: number, rom: Uint8Array) => ISlotCard> = {
@@ -179,7 +191,11 @@ export class AppleBus implements IBus {
 	// Speaker State
 	public speaker: Speaker;
 
-	private tickHandlers: ((cycles: number) => void)[] = [];
+	private tickHandlers: TickHandler[] = [];
+	/** `totalCycles` at which the handlers are ticked next (see MAX_TICK_BATCH). */
+	private flushAt = 0;
+	/** Per $C000-$CFFF address, what is brought up to date before an access to it: nothing (0), SYNC_SPEAKER / ALL. */
+	private readonly ioSync = new Uint8Array(0x1000);
 
 	// The CPU's interrupt inputs (see setInterruptLines)
 	private lines?: InterruptLines;
@@ -235,6 +251,12 @@ export class AppleBus implements IBus {
 		this.readHandlers = handlers.readHandlers;
 		this.writeHandlers = handlers.writeHandlers;
 
+		// The speaker's level, the joystick's buttons and paddles (polled by the handler below), the IMU's registers
+		this.ioSync.fill(SYNC_SPEAKER, 0x030, 0x040);
+		this.ioSync.fill(SYNC_ALL, 0x061, 0x064);
+		this.ioSync[0x070] = SYNC_ALL;
+		this.ioSync.fill(SYNC_ALL, IMU_IO_START - 0xc000, IMU_IO_END - 0xc000 + 1);
+
 		this.registerTickHandler((_cycles) => {
 			const registers = this.registers as DataView<ArrayBufferLike>;
 
@@ -258,22 +280,68 @@ export class AppleBus implements IBus {
 		});
 	}
 
-	public registerTickHandler(handler: (cycles: number) => void) {
-		this.tickHandlers.push(handler);
+	/**
+	 * `handler` gets the cycles gone by since its last call: not after every instruction, but in batches (see
+	 * MAX_TICK_BATCH). `nextEvent`: the cycles from then until it must be called (when it raises an interrupt), as
+	 * it is now; Infinity when nothing is coming. An access to its I/O must bring it up to date first (`ioSync`).
+	 */
+	public registerTickHandler(handler: (cycles: number) => void, nextEvent?: () => number) {
+		this.tickHandlers.push({ tick: handler, nextEvent, last: this.totalCycles });
+		this.flushAt = this.totalCycles; // its next event, from the next instruction
 	}
 
 	public unregisterTickHandler(handler: (cycles: number) => void) {
-		const index = this.tickHandlers.indexOf(handler);
+		const index = this.tickHandlers.findIndex(({ tick }) => tick === handler);
 		if (index > -1) this.tickHandlers.splice(index, 1);
 	}
 
 	public tick(deltaCycles: number): void {
 		if (deltaCycles <= 0) return;
 		this.totalCycles += deltaCycles;
+		if (this.totalCycles >= this.flushAt) this.flushTicks();
+	}
+
+	/** Brings every tick handler up to `totalCycles`, then sets when they are ticked next. */
+	public flushTicks() {
+		for (let index = 0; index < this.tickHandlers.length; index++) this.syncHandler(this.tickHandlers[index]!);
+		this.scheduleTicks();
+	}
+
+	private syncHandler(handler: TickHandler) {
+		const cycles = this.totalCycles - handler.last;
+		if (cycles <= 0) return;
+		handler.last = this.totalCycles;
+		handler.tick(cycles);
+	}
+
+	/** The next batch: in MAX_TICK_BATCH cycles at most, at the first handler's event if sooner. */
+	private scheduleTicks() {
+		let at = this.totalCycles + MAX_TICK_BATCH;
 		for (let index = 0; index < this.tickHandlers.length; index++) {
-			// biome-ignore lint/style/noNonNullAssertion: <if present then always defined>
-			this.tickHandlers[index]!(deltaCycles);
+			const { nextEvent, last } = this.tickHandlers[index]!;
+			if (!nextEvent) continue;
+			const due = last + nextEvent();
+			if (due < at) at = due;
 		}
+		this.flushAt = at;
+	}
+
+	/** `totalCycles` was set (reset, restored state): the handlers count from there, nothing pending. */
+	private restartTicks() {
+		for (const handler of this.tickHandlers) handler.last = this.totalCycles;
+		this.scheduleTicks();
+	}
+
+	/** Before an access to an I/O address: what it reads or changes is brought up to date. */
+	private syncIo(sync: number) {
+		if (sync === SYNC_ALL) {
+			for (let index = 0; index < this.tickHandlers.length; index++) this.syncHandler(this.tickHandlers[index]!);
+			return;
+		}
+		// The speaker alone: its level changes, the samples so far are at the previous one
+		const speakerTick = this.speaker.tickHandler;
+		for (let index = 0; index < this.tickHandlers.length; index++)
+			if (this.tickHandlers[index]!.tick === speakerTick) this.syncHandler(this.tickHandlers[index]!);
 	}
 
 	public installCard(card: ISlotCard) {
@@ -283,7 +351,12 @@ export class AppleBus implements IBus {
 		}
 		this.slots[card.slot] = card;
 		if (this.registers && card.setRegisters) card.setRegisters(this.registers);
-		if (card.tick) this.registerTickHandler(card.tick.bind(card));
+		if (card.tick) {
+			this.registerTickHandler(card.tick.bind(card), card.nextEvent?.bind(card));
+			// Its I/O ($C0n0-$C0nF) and ROM ($Cn00-$CnFF) spaces
+			this.ioSync.fill(SYNC_ALL, 0x080 + card.slot * 0x10, 0x090 + card.slot * 0x10);
+			this.ioSync.fill(SYNC_ALL, card.slot * 0x100, (card.slot + 1) * 0x100);
+		}
 		if (isAudioSource(card)) this.speaker.addSource(card);
 	}
 
@@ -329,7 +402,12 @@ export class AppleBus implements IBus {
 				this.readHandlers[address & 0xff] = () => device.readSwitch?.(address) ?? 0;
 			for (const address of switches?.write ?? [])
 				this.writeHandlers[address & 0xff] = (value) => device.writeSwitch?.(address, value);
-			if (device.tick) this.registerTickHandler(device.tick.bind(device));
+			if (device.tick) {
+				this.registerTickHandler(device.tick.bind(device), device.nextEvent?.bind(device));
+				if (io) this.ioSync.fill(SYNC_ALL, io.address - 0xc000, io.address - 0xc000 + io.size);
+				for (const address of [...(switches?.read ?? []), ...(switches?.write ?? [])])
+					this.ioSync[address & 0xff] = SYNC_ALL;
+			}
 			device.reset?.();
 		}
 	}
@@ -399,6 +477,7 @@ export class AppleBus implements IBus {
 
 	/** ID n: the card in slot n (IDs 0 and 3: nothing), or the device wired to it. */
 	public getInterrupts(): InterruptsState {
+		this.flushTicks();
 		const sources = Array.from({ length: IMU_IDS }, (_, id) => {
 			const cardId = this.cardIds[id];
 			const device = this.devices.find(({ wiring }) => wiring.irq === id);
@@ -450,6 +529,7 @@ export class AppleBus implements IBus {
 	// worker thread bus -> shared mem
 	public syncState() {
 		if (!this.registers) return;
+		this.flushTicks(); // the devices up to date while the machine is paused
 
 		this.fakingVBL = !this.fakingVBL;
 
@@ -523,6 +603,7 @@ export class AppleBus implements IBus {
 		this.paddleValues.fill(127);
 		this.paddleTimers.fill(0);
 		this.totalCycles = 0;
+		this.restartTicks();
 
 		for (const card of this.slots) card?.reset?.();
 		this.imu.reset();
@@ -603,11 +684,6 @@ export class AppleBus implements IBus {
 	}
 
 	read(address: number): number {
-		// biome-ignore lint/style/noNonNullAssertion: all handlers are defined
-		if (address >= 0xc000 && address <= 0xc0ff) return this.readHandlers[address & 0xff]!();
-
-		// this.lcPreWriteCount = 0;
-
 		let bankOffset = 0;
 
 		// $0000:01FF
@@ -637,8 +713,22 @@ export class AppleBus implements IBus {
 			return this.memory[RAM_OFFSET + address + bankOffset] ?? 0;
 		}
 
+		// $C000-$CFFF: the devices that count cycles brought up to date first, their next event set after
+		const sync = this.ioSync[address - 0xc000];
+		if (!sync) return this.readC000(address);
+		this.syncIo(sync);
+		const value = this.readC000(address);
+		if (sync === SYNC_ALL) this.scheduleTicks();
+		return value;
+	}
+
+	/** $C000-$CFFF: the soft switches and I/O, the slots' and internal ROMs. */
+	private readC000(address: number): number {
+		// biome-ignore lint/style/noNonNullAssertion: all handlers are defined
+		if (address <= 0xc0ff) return this.readHandlers[address & 0xff]!();
+
 		// Slot ROMs / Internal ROM ($C100-$CFFF)
-		if (address >= 0xc100 && address <= 0xcfff) {
+		if (address <= 0xcfff) {
 			const offset = address - 0xc100;
 
 			// Reading from $CFFF disables the internal Cx ROM and resets expansion
@@ -870,11 +960,6 @@ export class AppleBus implements IBus {
 	}
 
 	write(address: number, value: number): void {
-		if (address >= 0xc000 && address <= 0xc0ff) {
-			this.writeHandlers[address & 0xff]!(value);
-			return;
-		}
-
 		let bankOffset = 0;
 
 		// $0000:01FF
@@ -909,8 +994,24 @@ export class AppleBus implements IBus {
 			return;
 		}
 
+		// $C000-$CFFF: the devices that count cycles brought up to date first, their next event set after
+		const sync = this.ioSync[address - 0xc000];
+		if (!sync) return this.writeC000(address, value);
+		this.syncIo(sync);
+		this.writeC000(address, value);
+		if (sync === SYNC_ALL) this.scheduleTicks();
+	}
+
+	/** $C000-$CFFF: the soft switches and I/O, the slots' ROMs (cards that take writes there). */
+	private writeC000(address: number, value: number): void {
+		if (address <= 0xc0ff) {
+			// biome-ignore lint/style/noNonNullAssertion: all handlers are defined
+			this.writeHandlers[address & 0xff]!(value);
+			return;
+		}
+
 		// Slot ROMs / Internal ROM ($C100-$CFFF)
-		if (address >= 0xc100 && address <= 0xcfff) {
+		if (address <= 0xcfff) {
 			if (address === 0xcfff) {
 				this.intC8Rom = false;
 				this.activeExpansionSlot = 0;
@@ -1098,6 +1199,7 @@ export class AppleBus implements IBus {
 	}
 
 	public snapshot(): AppleBusSnapshot {
+		this.flushTicks();
 		const fields: Partial<Record<SnapshotField, number | boolean>> = {};
 		for (const key of SNAPSHOT_FIELDS) fields[key] = this[key];
 		return {
@@ -1137,6 +1239,7 @@ export class AppleBus implements IBus {
 			if (deviceState !== undefined && device.restoreSnapshot) device.restoreSnapshot(deviceState);
 			else device.reset?.();
 		}
+		this.restartTicks();
 		this.updateIrq();
 		this.syncState(); // the soft switches the main thread and the UI read
 		this.fakingVBL = fields.fakingVBL as boolean; // syncState toggles it (once per frame)

@@ -104,6 +104,10 @@ export class MockingboardCard implements ISlotCard, AudioSource {
 		this.vias[1]!.tick(cycles);
 	}
 
+	nextEvent() {
+		return Math.min(this.vias[0]!.nextEvent(), this.vias[1]!.nextEvent());
+	}
+
 	render(out: Float32Array, start: number, count: number, sampleRate: number) {
 		if (this.mixBuffer.length < count) this.mixBuffer = new Float32Array(count);
 		const mix = this.mixBuffer;
