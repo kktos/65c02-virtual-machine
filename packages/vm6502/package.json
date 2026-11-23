@@ -8,6 +8,7 @@
 		"build": "vue-tsc -b && vite build",
 		"test": "vitest",
 		"roms:pet": "node scripts/fetch-pet-roms.mjs",
+		"bench:cpu": "node scripts/bench-cpu.mjs",
 		"oxlint": "oxlint",
 		"oxfmt": "oxfmt -c ../../.oxfmtrc.json",
 		"preview": "vite preview"
