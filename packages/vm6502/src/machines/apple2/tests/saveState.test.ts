@@ -1,5 +1,6 @@
 // Save states on the real //e (ROMs + AppleBus, no video) in Node: the worker side of save_state / restore_state.
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { NoSliceChannel } from "@/virtualmachine/cpu/tests/cpu-test-helpers";
 import { parseHexData } from "@/lib/array.utils";
 import { initCPU, prepareForRestore, setRunning, stepInstruction } from "@/virtualmachine/cpu/cpu.65c02";
 import {
@@ -121,6 +122,7 @@ describe("save states on the //e", () => {
 		const messages: unknown[] = [];
 		vi.stubGlobal("self", { postMessage: (msg: unknown) => messages.push(msg) });
 		vi.stubGlobal("setTimeout", () => 0); // the run loop's next slice
+		vi.stubGlobal("MessageChannel", NoSliceChannel); // nor at max speed
 		vi.stubGlobal("requestAnimationFrame", () => 0);
 		setRunning(true);
 		messages.length = 0;

@@ -10,7 +10,7 @@ import {
 	stepOutInstruction,
 } from "../cpu.65c02";
 import { REG_A_OFFSET, REG_PC_OFFSET, REG_SP_OFFSET, REG_STATUS_OFFSET } from "../shared-memory";
-import { createMockBus } from "./cpu-test-helpers";
+import { createMockBus, NoSliceChannel } from "./cpu-test-helpers";
 
 // Read before any test changes it.
 const defaultBreakOnBrk = breakOnBrk;
@@ -52,6 +52,7 @@ describe("CPU 65C02 - BRK", () => {
 			vi.fn(() => 0),
 		);
 		vi.stubGlobal("setTimeout", vi.fn());
+		vi.stubGlobal("MessageChannel", NoSliceChannel); // nor at max speed
 
 		memory = new Uint8Array(0x10000);
 		registersView = new DataView(new ArrayBuffer(64));

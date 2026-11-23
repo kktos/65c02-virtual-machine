@@ -3,7 +3,7 @@ import { addBreakpoint, clearBreakpoints } from "../breakpoints";
 import { initCPU, setBreakOnBrk, setClockSpeed, setHypercalls, setRunning, stepInstructions } from "../cpu.65c02";
 import { readInstructionTrace, recordInstruction, setInstructionTrace, unpackTraceEntries } from "../instructionTrace";
 import { REG_PC_OFFSET, REG_SP_OFFSET, REG_STATUS_OFFSET } from "../shared-memory";
-import { createMockBus } from "./cpu-test-helpers";
+import { createMockBus, NoSliceChannel } from "./cpu-test-helpers";
 
 const addresses = (count?: number) => unpackTraceEntries(readInstructionTrace(count).words).map((e) => e.address);
 
@@ -50,6 +50,7 @@ describe("the CPU records executed instructions", () => {
 			vi.fn(() => 0),
 		);
 		vi.stubGlobal("setTimeout", vi.fn());
+		vi.stubGlobal("MessageChannel", NoSliceChannel); // nor at max speed
 
 		memory = new Uint8Array(0x10000);
 		registersView = new DataView(new ArrayBuffer(64));
