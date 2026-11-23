@@ -68,7 +68,14 @@ export class AY38910 {
 	}
 
 	/** Adds `count` samples (from `start`) of `level` times the output (0..1 summed over the 3 channels, /3). */
+	/** Its 3 channels at volume 0, none on the envelope: it outputs nothing, whatever its oscillators do. */
+	public get silent() {
+		return (this.regs[REG_AMPLITUDE_A]! | this.regs[REG_AMPLITUDE_A + 1]! | this.regs[REG_AMPLITUDE_A + 2]!) === 0;
+	}
+
 	public render(out: Float32Array, start: number, count: number, sampleRate: number, level: number) {
+		// Silent: not stepped (its oscillators' phases, not seen by the program, only shape what is heard)
+		if (this.silent) return;
 		const cyclesPerSample = AY_CLOCK_HZ / sampleRate;
 		for (let index = start; index < start + count; index++) {
 			this.phase += cyclesPerSample;

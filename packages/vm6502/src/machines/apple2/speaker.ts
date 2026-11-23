@@ -18,7 +18,8 @@ export class Speaker {
 	private speakerOn = false;
 	private accumulatedCycles = 0;
 
-	private boundTick = this.tick.bind(this);
+	/** What it registers as the bus's tick handler (the bus brings it up to date before a toggle). */
+	public readonly tickHandler = this.tick.bind(this);
 	private isEnabled = false;
 
 	private sampleBuffer = new Float32Array(CHUNK_SIZE);
@@ -34,8 +35,8 @@ export class Speaker {
 		if (this.isEnabled === enabled) return;
 		this.isEnabled = enabled;
 
-		if (enabled) this.bus.registerTickHandler(this.boundTick);
-		else this.bus.unregisterTickHandler(this.boundTick);
+		if (enabled) this.bus.registerTickHandler(this.tickHandler);
+		else this.bus.unregisterTickHandler(this.tickHandler);
 	}
 
 	public init(sampleRate: number) {

@@ -24,6 +24,8 @@ const AY_LATCH = PB_BDIR | PB_BC1;
 const AY_LEVEL = 0.25;
 /** The DC blocker's pole (the output is AC coupled): ~35 Hz at 44.1 kHz. */
 const DC_POLE = 0.995;
+/** Below this, the DC blocker's output (decaying once the AYs are silent) is taken as 0. */
+const DC_SETTLED = 1e-6;
 
 /**
  * Mockingboard (A/C): two 6522 VIAs, each driving an AY-3-8910 PSG. No ROM: the slot's $Cn00-$CnFF space
@@ -104,7 +106,17 @@ export class MockingboardCard implements ISlotCard, AudioSource {
 		this.vias[1]!.tick(cycles);
 	}
 
+	nextEvent() {
+		return Math.min(this.vias[0]!.nextEvent(), this.vias[1]!.nextEvent());
+	}
+
 	render(out: Float32Array, start: number, count: number, sampleRate: number) {
+		// Both AYs silent, the DC blocker settled: nothing to add (most of the time, for a program not using the card)
+		if (this.ays[0]!.silent && this.ays[1]!.silent && Math.abs(this.dcOutput) < DC_SETTLED) {
+			this.dcInput = 0;
+			this.dcOutput = 0;
+			return;
+		}
 		if (this.mixBuffer.length < count) this.mixBuffer = new Float32Array(count);
 		const mix = this.mixBuffer;
 		mix.fill(0, 0, count);

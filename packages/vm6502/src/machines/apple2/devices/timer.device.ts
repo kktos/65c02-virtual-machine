@@ -51,6 +51,11 @@ export class AppleTimer implements AppleDevice {
 		this.setFired(false);
 	}
 
+	/** The cycles until it fires (`tick` with at least that many), Infinity when stopped. */
+	nextEvent() {
+		return this.running ? this.remaining : Number.POSITIVE_INFINITY;
+	}
+
 	tick(cycles: number) {
 		if (!this.running) return;
 		this.remaining -= cycles;
