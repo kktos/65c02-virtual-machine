@@ -53,6 +53,7 @@ export const createMockBus = (memory: Uint8Array): IBus => ({
 	ioWrite: vi.fn(),
 	getBank: vi.fn(() => 0),
 	getMachineStateSpecs: vi.fn(() => []),
+	setCpuRegisters: vi.fn(),
 });
 
 /**

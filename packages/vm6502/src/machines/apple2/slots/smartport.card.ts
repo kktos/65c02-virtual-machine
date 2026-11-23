@@ -1,15 +1,8 @@
 import { toBlockOrder } from "@/lib/disk/formats/apple2/analyzeDisk";
 import { PHYS_TO_PRODOS } from "@/lib/disk/formats/apple2/diskImage";
 import type { IBus } from "@/types/bus.interface";
-import {
-	FLAG_C_MASK,
-	REG_A_OFFSET,
-	REG_PC_OFFSET,
-	REG_SP_OFFSET,
-	REG_STATUS_OFFSET,
-	REG_X_OFFSET,
-	REG_Y_OFFSET,
-} from "@/virtualmachine/cpu/shared-memory";
+import { type CpuRegisters, viewRegisters } from "@/virtualmachine/cpu/cpuRegisters";
+import { FLAG_C_MASK } from "@/virtualmachine/cpu/shared-memory";
 import type { ISlotCard } from "./slotcard.interface";
 import { absoluteInstructionLength, findRwtsCall, type IobResult, serveIob } from "./smartport.rwts";
 
@@ -24,6 +17,7 @@ const hex = (value: number, pad: number) => value.toString(16).toUpperCase().pad
 export class SmartPortCard implements ISlotCard {
 	private expansionRom = new Uint8Array(2048);
 	private registers?: DataView;
+	private cpuRegisters?: CpuRegisters;
 	private diskData: Uint8Array | null = null;
 	public loggingEnabled = false;
 	/** The RWTS call in progress, sent to RWTS_RESUME by `detourRwts`: the bytes the JMP replaced, its frame. */
@@ -184,6 +178,15 @@ export class SmartPortCard implements ISlotCard {
 		this.registers = view;
 	}
 
+	/** The CPU's registers (see CpuRegisters): the CPU's own, else (no CPU: the card tested alone) the view's. */
+	private get cpu(): CpuRegisters | undefined {
+		return this.cpuRegisters ?? (this.registers ? viewRegisters(this.registers) : undefined);
+	}
+
+	setCpuRegisters(registers: CpuRegisters) {
+		this.cpuRegisters = registers;
+	}
+
 	public setDebugOverrides(overrides: { diskLogging?: boolean }) {
 		if (typeof overrides.diskLogging === "boolean") this.loggingEnabled = overrides.diskLogging;
 	}
@@ -227,11 +230,12 @@ export class SmartPortCard implements ISlotCard {
 	 * instruction after this one (the CPU finishes this one) becomes JMP RWTS_RESUME, put back once there.
 	 */
 	private detourRwts() {
-		if (!this.registers || this.detour) return;
+		const cpu = this.cpu;
+		if (!cpu || this.detour) return;
 		const bus = this.bus;
-		const pc = this.registers.getUint16(REG_PC_OFFSET, true); // the instruction reading the latch
+		const pc = cpu.pc; // the instruction reading the latch
 		if (pc >= 0xc000) return;
-		const call = findRwtsCall(bus, this.registers.getUint8(REG_SP_OFFSET));
+		const call = findRwtsCall(bus, cpu.sp);
 		const length = absoluteInstructionLength(bus.read(pc));
 		if (!call || !length) {
 			if (!this.unknownLoaders.has(pc)) {
@@ -266,18 +270,20 @@ export class SmartPortCard implements ISlotCard {
 	/** RWTS_RESUME: the call caught by `detourRwts`, served; then the stub's RTS returns to its caller. */
 	private resumeRwtsCall() {
 		const detour = this.detour;
-		if (!this.registers || !detour) return;
+		const cpu = this.cpu;
+		if (!cpu || !detour) return;
 		this.detour = null;
 		detour.saved.forEach((byte, i) => this.bus.write(detour.at + i, byte));
-		this.registers.setUint8(REG_SP_OFFSET, detour.frame - 1);
+		cpu.sp = detour.frame - 1;
 		this.returnRwts(serveIob(this.bus, detour.iob, this.diskData, this.slot));
 	}
 
 	/** RWTS_HLE: a patched RWTS entry. Like the entry, keeps the IOB address (Y lo, A hi) at $48/$49. */
 	private handleRwtsCall() {
-		if (!this.registers) return;
-		const lo = this.registers.getUint8(REG_Y_OFFSET);
-		const hi = this.registers.getUint8(REG_A_OFFSET);
+		const cpu = this.cpu;
+		if (!cpu) return;
+		const lo = cpu.y;
+		const hi = cpu.a;
 		this.bus.write(0x48, lo);
 		this.bus.write(0x49, hi);
 		this.returnRwts(serveIob(this.bus, (hi << 8) | lo, this.diskData, this.slot));
@@ -285,7 +291,8 @@ export class SmartPortCard implements ISlotCard {
 
 	/** As RWTS returns: the error code in A, carry set on an error. */
 	private returnRwts(result: IobResult) {
-		if (!this.registers) return;
+		const cpu = this.cpu;
+		if (!cpu) return;
 		if (this.loggingEnabled && result.offset >= 0) {
 			postMessage({
 				type: "log",
@@ -294,9 +301,9 @@ export class SmartPortCard implements ISlotCard {
 				payload: { name: "SP51", type: "READ", block: result.offset >> 9, address: result.buffer },
 			});
 		}
-		this.registers.setUint8(REG_A_OFFSET, result.error);
-		const status = this.registers.getUint8(REG_STATUS_OFFSET);
-		this.registers.setUint8(REG_STATUS_OFFSET, result.error ? status | FLAG_C_MASK : status & ~FLAG_C_MASK);
+		cpu.a = result.error;
+		const status = cpu.p;
+		cpu.p = result.error ? status | FLAG_C_MASK : status & ~FLAG_C_MASK;
 	}
 
 	/**
@@ -306,7 +313,8 @@ export class SmartPortCard implements ISlotCard {
 	 * (t * 16 + PHYS_TO_PRODOS[s]) * 256 (on a bigger image, the same as if it had 16-sector tracks).
 	 */
 	private handleReadSector() {
-		if (!this.registers) return;
+		const cpu = this.cpu;
+		if (!cpu) return;
 		const bus = this.bus;
 		const track = bus.read(0x41);
 		const sector = bus.read(0x3d);
@@ -325,14 +333,14 @@ export class SmartPortCard implements ISlotCard {
 			});
 		}
 
-		let status = this.registers.getUint8(REG_STATUS_OFFSET);
+		let status = cpu.p;
 		if (ok) {
 			for (let i = 0; i < 256; i++) bus.write((buffer + i) & 0xffff, this.diskData?.[offset + i] ?? 0);
 			bus.write(0x27, (bus.read(0x27) + 1) & 0xff);
 			bus.write(0x3d, (sector + 1) & 0xff);
 			status &= ~FLAG_C_MASK;
 		} else status |= FLAG_C_MASK;
-		this.registers.setUint8(REG_STATUS_OFFSET, status);
+		cpu.p = status;
 	}
 
 	// Handle Standard Block Device call (zp addresses)
@@ -341,9 +349,9 @@ export class SmartPortCard implements ISlotCard {
 
 		const cmd = this.bus.read(0x42);
 		const paramAddr = 0x42;
-		// const cmd = this.registers.getUint8(REG_A_OFFSET);
-		// const paramLo = this.registers.getUint8(REG_X_OFFSET);
-		// const paramHi = this.registers.getUint8(REG_Y_OFFSET);
+		// const cmd = cpu.a;
+		// const paramLo = cpu.x;
+		// const paramHi = cpu.y;
 		// const paramAddr = (paramHi << 8) | paramLo;
 
 		this.executeCommand(cmd, paramAddr, false);
@@ -351,10 +359,11 @@ export class SmartPortCard implements ISlotCard {
 
 	// Handle SmartPort MLI call (Inline)
 	private handleSmartPortCommand() {
-		if (!this.registers || !this.bus) return;
+		const cpu = this.cpu;
+		if (!cpu || !this.bus) return;
 
 		// 1. Get Return Address from Stack
-		const sp = this.registers.getUint8(REG_SP_OFFSET);
+		const sp = cpu.sp;
 		const stackBase = 0x100;
 		// Stack contains Return Address - 1 (pointing to last byte of JSR)
 		const retLo = this.bus.read(stackBase + sp + 1);
@@ -381,7 +390,8 @@ export class SmartPortCard implements ISlotCard {
 	}
 
 	private executeCommand(cmd: number, paramAddr: number, isSmartPort: boolean) {
-		if (!this.registers) return;
+		const cpu = this.cpu;
+		if (!cpu) return;
 
 		let error = 0;
 
@@ -403,13 +413,13 @@ export class SmartPortCard implements ISlotCard {
 
 		// Update CPU State for return
 		if (error) {
-			this.registers.setUint8(REG_A_OFFSET, error);
-			const status = this.registers.getUint8(REG_STATUS_OFFSET) | FLAG_C_MASK; // Set Carry
-			this.registers.setUint8(REG_STATUS_OFFSET, status);
+			cpu.a = error;
+			const status = cpu.p | FLAG_C_MASK; // Set Carry
+			cpu.p = status;
 		} else {
-			this.registers.setUint8(REG_A_OFFSET, 0);
-			const status = this.registers.getUint8(REG_STATUS_OFFSET) & ~FLAG_C_MASK; // Clear Carry
-			this.registers.setUint8(REG_STATUS_OFFSET, status);
+			cpu.a = 0;
+			const status = cpu.p & ~FLAG_C_MASK; // Clear Carry
+			cpu.p = status;
 		}
 	}
 
@@ -430,8 +440,11 @@ export class SmartPortCard implements ISlotCard {
 
 		// ProDOS Status: Returns block count in X (Lo) and Y (Hi)
 		const blocks = Math.floor(this.diskData.length / 512);
-		this.registers?.setUint8(REG_X_OFFSET, blocks & 0xff);
-		this.registers?.setUint8(REG_Y_OFFSET, (blocks >> 8) & 0xff);
+		const cpu = this.cpu;
+		if (cpu) {
+			cpu.x = blocks & 0xff;
+			cpu.y = (blocks >> 8) & 0xff;
+		}
 
 		return 0;
 	}
@@ -448,8 +461,11 @@ export class SmartPortCard implements ISlotCard {
 		const code = bus.read(paramAddr + 4);
 		const write = (bytes: number[]) => {
 			bytes.forEach((byte, i) => bus.write((listPtr + i) & 0xffff, byte));
-			this.registers?.setUint8(REG_X_OFFSET, bytes.length & 0xff);
-			this.registers?.setUint8(REG_Y_OFFSET, bytes.length >> 8);
+			const cpu = this.cpu;
+			if (cpu) {
+				cpu.x = bytes.length & 0xff;
+				cpu.y = bytes.length >> 8;
+			}
 			return 0;
 		};
 

@@ -1,4 +1,5 @@
 import type { Dict } from "@/types/dict.type";
+import type { CpuRegisters } from "@/virtualmachine/cpu/cpuRegisters";
 
 export interface ISlotCard {
 	slot: number;
@@ -10,6 +11,8 @@ export interface ISlotCard {
 	readExpansion(offset: number): number;
 	writeExpansion?(offset: number, value: number): void;
 	setRegisters?(view: DataView): void;
+	/** The CPU's registers, for a card that reads or sets them as it serves a call (not the view's while it runs). */
+	setCpuRegisters?(registers: CpuRegisters): void;
 	insertMedia?(data: Uint8Array, metadata?: Record<string, unknown>): void;
 	ejectMedia?(): void;
 	/** The cycles gone by since its last tick: batched, and before any access to its I/O or ROM spaces. */

@@ -16,7 +16,7 @@ import { AppleKeyboard } from "@/machines/apple2/devices/keyboard.device";
 import { AppleTimer } from "@/machines/apple2/devices/timer.device";
 import { parseHexData } from "@/lib/array.utils";
 import type { LoadedDevice } from "@/types/machine.interface";
-import { executeInstruction, initCPU, resetCPU, setHypercalls } from "../cpu.65c02";
+import { initCPU, resetCPU, runCycles, setHypercalls } from "../cpu.65c02";
 import { MEMORY_OFFSET, REG_PC_OFFSET, STACK_METADATA_OFFSET } from "../shared-memory";
 
 (globalThis as unknown as { self: unknown }).self = { postMessage: () => {} };
@@ -49,12 +49,7 @@ const run = (ms: number) => {
 	let cycles = 0;
 	const end = performance.now() + ms;
 	while (performance.now() < end) {
-		for (let left = 1_000_000; left > 0;) {
-			const c = executeInstruction();
-			bus.tick(c);
-			left -= c;
-			cycles += c;
-		}
+		cycles += runCycles(1_000_000);
 		bus.syncState();
 	}
 	return cycles;
@@ -66,12 +61,7 @@ const checkCycles = Number(secondsArg?.startsWith("cycles=") ? secondsArg.slice(
 if (Number.isFinite(checkCycles)) {
 	let cycles = 0;
 	while (cycles < checkCycles) {
-		for (let left = Math.min(1_000_000, checkCycles - cycles); left > 0;) {
-			const c = executeInstruction();
-			bus.tick(c);
-			left -= c;
-			cycles += c;
-		}
+		cycles += runCycles(Math.min(1_000_000, checkCycles - cycles));
 		bus.syncState();
 	}
 	let hash = 0x811c9dc5;
