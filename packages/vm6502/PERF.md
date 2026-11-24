@@ -131,10 +131,3 @@ Mockingboard VIAs + AY render + mix ~18%, speaker ~5%, tick handler dispatch ~9%
 4. **Frame drawing in the worker.** `video.tick` runs on the worker's frame callback, so it competes with the CPU.
    It only matters in the browser; measure there.
 5. **`AppleBus.tick` dispatch**: already ~1%. Leave it.
-
-## Bugs noticed on the way (not fixed)
-
-- Indexed addressing (`abs,X`, `abs,Y`, `(zp),Y`: 32 sites of `addr = baseAddr + regX/regY`) doesn't wrap with
-  `& 0xffff`, so an address past `$FFFF` reaches `bus.read` / `bus.write`. `AppleBus` sends it to the `>= $D000`
-  branch, which reads past the 64K. Real hardware wraps to `$00xx`.
-- The 3-byte NOPs `$DC` / `$FC` count 8 cycles; the comment, and the 65C02, say 4.

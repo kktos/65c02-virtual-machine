@@ -914,7 +914,7 @@ function execute(): number {
 				const zeroPageAddr = bus.read(pc, true);
 				pc++;
 				const baseAddr = bus.read(zeroPageAddr) | (bus.read((zeroPageAddr + 1) & 0xff) << 8);
-				const addr = baseAddr + regY;
+				const addr = (baseAddr + regY) & 0xffff;
 				ora(bus.read(addr));
 				cycles = 5 + ((baseAddr & 0xff00) !== (addr & 0xff00) ? 1 : 0);
 				break;
@@ -963,7 +963,7 @@ function execute(): number {
 				// ORA Absolute,Y
 				const baseAddr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
 				pc += 2;
-				const addr = baseAddr + regY;
+				const addr = (baseAddr + regY) & 0xffff;
 				ora(bus.read(addr));
 				cycles = 4 + ((baseAddr & 0xff00) !== (addr & 0xff00) ? 1 : 0);
 				break;
@@ -985,7 +985,7 @@ function execute(): number {
 				// ORA Absolute,X
 				const baseAddr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
 				pc += 2;
-				const addr = baseAddr + regX;
+				const addr = (baseAddr + regX) & 0xffff;
 				ora(bus.read(addr));
 				cycles = 4 + ((baseAddr & 0xff00) !== (addr & 0xff00) ? 1 : 0);
 				break;
@@ -994,7 +994,7 @@ function execute(): number {
 				// ASL Absolute,X
 				const baseAddr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
 				pc += 2;
-				const addr = baseAddr + regX;
+				const addr = (baseAddr + regX) & 0xffff;
 				let value = bus.read(addr);
 				value = asl(value);
 				bus.write(addr, value);
@@ -1083,7 +1083,7 @@ function execute(): number {
 				// LDA Absolute,X
 				const baseAddr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
 				pc += 2;
-				const addr = baseAddr + regX;
+				const addr = (baseAddr + regX) & 0xffff;
 				const value = bus.read(addr);
 				regA = value & 0xff;
 				setNZFlags(value);
@@ -1094,7 +1094,7 @@ function execute(): number {
 				// LDA Absolute,Y
 				const baseAddr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
 				pc += 2;
-				const addr = baseAddr + regY;
+				const addr = (baseAddr + regY) & 0xffff;
 				const value = bus.read(addr);
 				regA = value & 0xff;
 				setNZFlags(value);
@@ -1139,7 +1139,7 @@ function execute(): number {
 				const zeroPageAddr = bus.read(pc, true);
 				pc++;
 				const baseAddr = bus.read(zeroPageAddr) | (bus.read((zeroPageAddr + 1) & 0xff) << 8);
-				const addr = baseAddr + regY;
+				const addr = (baseAddr + regY) & 0xffff;
 				const value = bus.read(addr);
 				regA = value & 0xff;
 				setNZFlags(value);
@@ -1182,7 +1182,7 @@ function execute(): number {
 				// LDX Absolute,Y
 				const baseAddr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
 				pc += 2;
-				const addr = baseAddr + regY;
+				const addr = (baseAddr + regY) & 0xffff;
 				const value = bus.read(addr);
 				regX = value & 0xff;
 				setNZFlags(value);
@@ -1193,7 +1193,7 @@ function execute(): number {
 				// LDY Absolute,X
 				const baseAddr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
 				pc += 2;
-				const addr = baseAddr + regX;
+				const addr = (baseAddr + regX) & 0xffff;
 				const value = bus.read(addr);
 				regY = value & 0xff;
 				setNZFlags(value);
@@ -1310,7 +1310,7 @@ function execute(): number {
 				const zeroPageAddr = bus.read(pc, true);
 				pc++;
 				const baseAddr = bus.read(zeroPageAddr) | (bus.read((zeroPageAddr + 1) & 0xff) << 8);
-				const addr = baseAddr + regY;
+				const addr = (baseAddr + regY) & 0xffff;
 				and(bus.read(addr));
 				cycles = 5 + ((baseAddr & 0xff00) !== (addr & 0xff00) ? 1 : 0);
 				break;
@@ -1336,7 +1336,7 @@ function execute(): number {
 				// AND Absolute,Y
 				const baseAddr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
 				pc += 2;
-				const addr = baseAddr + regY;
+				const addr = (baseAddr + regY) & 0xffff;
 				and(bus.read(addr));
 				cycles = 4 + ((baseAddr & 0xff00) !== (addr & 0xff00) ? 1 : 0);
 				break;
@@ -1345,7 +1345,7 @@ function execute(): number {
 				// AND Absolute,X
 				const baseAddr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
 				pc += 2;
-				const addr = baseAddr + regX;
+				const addr = (baseAddr + regX) & 0xffff;
 				and(bus.read(addr));
 				cycles = 4 + ((baseAddr & 0xff00) !== (addr & 0xff00) ? 1 : 0);
 				break;
@@ -1425,7 +1425,7 @@ function execute(): number {
 				const zeroPageAddr = bus.read(pc, true);
 				pc++;
 				const baseAddr = bus.read(zeroPageAddr) | (bus.read((zeroPageAddr + 1) & 0xff) << 8);
-				const addr = baseAddr + regY;
+				const addr = (baseAddr + regY) & 0xffff;
 				eor(bus.read(addr));
 				cycles = 5 + ((baseAddr & 0xff00) !== (addr & 0xff00) ? 1 : 0);
 				break;
@@ -1451,7 +1451,7 @@ function execute(): number {
 				// EOR Absolute,Y
 				const baseAddr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
 				pc += 2;
-				const addr = baseAddr + regY;
+				const addr = (baseAddr + regY) & 0xffff;
 				eor(bus.read(addr));
 				cycles = 4 + ((baseAddr & 0xff00) !== (addr & 0xff00) ? 1 : 0);
 				break;
@@ -1460,7 +1460,7 @@ function execute(): number {
 				// EOR Absolute,X
 				const baseAddr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
 				pc += 2;
-				const addr = baseAddr + regX;
+				const addr = (baseAddr + regX) & 0xffff;
 				eor(bus.read(addr));
 				cycles = 4 + ((baseAddr & 0xff00) !== (addr & 0xff00) ? 1 : 0);
 				break;
@@ -1508,7 +1508,7 @@ function execute(): number {
 				// LSR Absolute,X
 				const baseAddr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
 				pc += 2;
-				const addr = baseAddr + regX;
+				const addr = (baseAddr + regX) & 0xffff;
 				let value = bus.read(addr);
 				value = lsr(value);
 				bus.write(addr, value);
@@ -1583,7 +1583,7 @@ function execute(): number {
 				// ROR Absolute,X
 				const baseAddr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
 				pc += 2;
-				const addr = baseAddr + regX;
+				const addr = (baseAddr + regX) & 0xffff;
 				let value = bus.read(addr);
 				let status = regP;
 				const oldCarry = status & FLAG_C_MASK ? 0x80 : 0;
@@ -1663,7 +1663,7 @@ function execute(): number {
 				// ROL Absolute,X
 				const baseAddr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
 				pc += 2;
-				const addr = baseAddr + regX;
+				const addr = (baseAddr + regX) & 0xffff;
 				let value = bus.read(addr);
 				let status = regP;
 				const oldCarry = status & FLAG_C_MASK ? 1 : 0;
@@ -1714,7 +1714,7 @@ function execute(): number {
 				// ADC Absolute,X
 				const baseAddr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
 				pc += 2;
-				const addr = baseAddr + regX;
+				const addr = (baseAddr + regX) & 0xffff;
 				adc(bus.read(addr));
 				cycles = 4 + ((baseAddr & 0xff00) !== (addr & 0xff00) ? 1 : 0);
 				break;
@@ -1723,7 +1723,7 @@ function execute(): number {
 				// ADC Absolute,Y
 				const baseAddr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
 				pc += 2;
-				const addr = baseAddr + regY;
+				const addr = (baseAddr + regY) & 0xffff;
 				adc(bus.read(addr));
 				cycles = 4 + ((baseAddr & 0xff00) !== (addr & 0xff00) ? 1 : 0);
 				break;
@@ -1742,7 +1742,7 @@ function execute(): number {
 				const zeroPageAddr = bus.read(pc, true);
 				pc++;
 				const baseAddr = bus.read(zeroPageAddr) | (bus.read((zeroPageAddr + 1) & 0xff) << 8);
-				const addr = baseAddr + regY;
+				const addr = (baseAddr + regY) & 0xffff;
 				adc(bus.read(addr));
 				cycles = 5 + ((baseAddr & 0xff00) !== (addr & 0xff00) ? 1 : 0);
 				break;
@@ -1793,7 +1793,7 @@ function execute(): number {
 				// SBC Absolute,X
 				const baseAddr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
 				pc += 2;
-				const addr = baseAddr + regX;
+				const addr = (baseAddr + regX) & 0xffff;
 				sbc(bus.read(addr));
 				cycles = 4 + ((baseAddr & 0xff00) !== (addr & 0xff00) ? 1 : 0);
 				break;
@@ -1802,7 +1802,7 @@ function execute(): number {
 				// SBC Absolute,Y
 				const baseAddr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
 				pc += 2;
-				const addr = baseAddr + regY;
+				const addr = (baseAddr + regY) & 0xffff;
 				sbc(bus.read(addr));
 				cycles = 4 + ((baseAddr & 0xff00) !== (addr & 0xff00) ? 1 : 0);
 				break;
@@ -1821,7 +1821,7 @@ function execute(): number {
 				const zeroPageAddr = bus.read(pc, true);
 				pc++;
 				const baseAddr = bus.read(zeroPageAddr) | (bus.read((zeroPageAddr + 1) & 0xff) << 8);
-				const addr = baseAddr + regY;
+				const addr = (baseAddr + regY) & 0xffff;
 				sbc(bus.read(addr));
 				cycles = 5 + ((baseAddr & 0xff00) !== (addr & 0xff00) ? 1 : 0);
 				break;
@@ -1898,7 +1898,7 @@ function execute(): number {
 				// STA Absolute,X
 				const baseAddr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
 				pc += 2;
-				const addr = baseAddr + regX;
+				const addr = (baseAddr + regX) & 0xffff;
 				bus.write(addr, regA);
 				cycles = 5;
 				break;
@@ -1907,7 +1907,7 @@ function execute(): number {
 				// STA Absolute,Y
 				const baseAddr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
 				pc += 2;
-				const addr = baseAddr + regY;
+				const addr = (baseAddr + regY) & 0xffff;
 				bus.write(addr, regA);
 				cycles = 5;
 				break;
@@ -1944,7 +1944,7 @@ function execute(): number {
 				const zeroPageAddr = bus.read(pc, true);
 				pc++;
 				const baseAddr = bus.read(zeroPageAddr) | (bus.read((zeroPageAddr + 1) & 0xff) << 8);
-				const addr = baseAddr + regY;
+				const addr = (baseAddr + regY) & 0xffff;
 				bus.write(addr, regA);
 				cycles = 6;
 				break;
@@ -1989,7 +1989,7 @@ function execute(): number {
 				// STZ Absolute,X
 				const baseAddr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
 				pc += 2;
-				const addr = baseAddr + regX;
+				const addr = (baseAddr + regX) & 0xffff;
 				bus.write(addr, 0);
 				cycles = 5;
 				break;
@@ -2198,7 +2198,7 @@ function execute(): number {
 			}
 			case 0xde: {
 				// DEC Absolute,X
-				const addr = (bus.read(pc, true) | (bus.read(pc + 1, true) << 8)) + regX;
+				const addr = ((bus.read(pc, true) | (bus.read(pc + 1, true) << 8)) + regX) & 0xffff;
 				pc += 2;
 				const value = bus.read(addr);
 				const result = (value - 1) & 0xff;
@@ -2243,7 +2243,7 @@ function execute(): number {
 			}
 			case 0xfe: {
 				// INC Absolute,X
-				const addr = (bus.read(pc, true) | (bus.read(pc + 1, true) << 8)) + regX;
+				const addr = ((bus.read(pc, true) | (bus.read(pc + 1, true) << 8)) + regX) & 0xffff;
 				pc += 2;
 				const value = bus.read(addr);
 				const result = (value + 1) & 0xff;
@@ -2265,7 +2265,7 @@ function execute(): number {
 			case 0x6c: {
 				// JMP Indirect (6502 bug fixed in 65C02)
 				const pointer = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
-				const addr = bus.read(pointer) | (bus.read(pointer + 1) << 8);
+				const addr = bus.read(pointer) | (bus.read((pointer + 1) & 0xffff) << 8);
 				logTrace("JMP", startPC, addr);
 				pc = addr;
 				cycles = 6; // 65C02 is 6 cycles, 6502 is 5
@@ -2274,8 +2274,8 @@ function execute(): number {
 			case 0x7c: {
 				// JMP (Absolute,X) (65C02)
 				const basePointer = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
-				const pointer = basePointer + regX;
-				const addr = bus.read(pointer) | (bus.read(pointer + 1) << 8);
+				const pointer = (basePointer + regX) & 0xffff;
+				const addr = bus.read(pointer) | (bus.read((pointer + 1) & 0xffff) << 8);
 				logTrace("JMP", startPC, addr);
 				pc = addr;
 				cycles = 6;
@@ -2489,7 +2489,7 @@ function execute(): number {
 				// BIT Absolute,X (65C02)
 				const baseAddr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
 				pc += 2;
-				const addr = baseAddr + regX;
+				const addr = (baseAddr + regX) & 0xffff;
 				const value = bus.read(addr);
 				const accumulator = regA;
 				let status = regP;
@@ -2583,7 +2583,7 @@ function execute(): number {
 				const zeroPageAddr = bus.read(pc, true);
 				pc++;
 				const baseAddr = bus.read(zeroPageAddr) | (bus.read((zeroPageAddr + 1) & 0xff) << 8);
-				const addr = baseAddr + regY;
+				const addr = (baseAddr + regY) & 0xffff;
 				const value = bus.read(addr);
 				const accumulator = regA;
 				const result = accumulator - value;
@@ -2630,7 +2630,7 @@ function execute(): number {
 				// CMP Absolute,Y
 				const baseAddr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
 				pc += 2;
-				const addr = baseAddr + regY;
+				const addr = (baseAddr + regY) & 0xffff;
 				const value = bus.read(addr);
 				const accumulator = regA;
 				const result = accumulator - value;
@@ -2646,7 +2646,7 @@ function execute(): number {
 				// CMP Absolute,X
 				const baseAddr = bus.read(pc, true) | (bus.read(pc + 1, true) << 8);
 				pc += 2;
-				const addr = baseAddr + regX;
+				const addr = (baseAddr + regX) & 0xffff;
 				const value = bus.read(addr);
 				const accumulator = regA;
 				const result = accumulator - value;
@@ -2896,7 +2896,7 @@ function execute(): number {
 			case 0xdc:
 			case 0xfc: {
 				pc += 2;
-				cycles = 8;
+				cycles = 4;
 				break;
 			}
 
