@@ -59,14 +59,17 @@
 		<MemoryMap />
 		<MachineState />
 		<Interrupts />
+		<!-- Only meaningful while paused: the running VM redraws the screen every frame -->
 		<button
-			@click="vm?.refreshVideo"
+			@click="vm?.refreshVideo()"
 			:disabled="isRunning"
 			class="toolbar-btn group"
-			title="Force a video refresh (useful when paused)"
+			:title="isRunning ? 'Video refresh (pause the VM first)' : 'Force a video refresh'"
 		>
-			<Monitor class="h-4 w-4 text-gray-400 group-hover:text-cyan-300" />
-			<RefreshCw class="absolute h-2 w-2 -mt-1 text-cyan-400 group-hover:text-cyan-300" />
+			<Monitor class="h-4 w-4 text-gray-400 group-enabled:group-hover:text-cyan-300" />
+			<RefreshCw
+				class="absolute h-2 w-2 -mt-1 text-cyan-400 group-disabled:text-gray-400 group-enabled:group-hover:text-cyan-300"
+			/>
 		</button>
 		<button @click="pasteFromClipboard" class="toolbar-btn" title="Paste from Clipboard">
 			<ClipboardPaste class="h-4 w-4" />
