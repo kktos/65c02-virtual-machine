@@ -2896,7 +2896,7 @@ function execute(): number {
 			case 0xdc:
 			case 0xfc: {
 				pc += 2;
-				cycles = 8;
+				cycles = 4;
 				break;
 			}
 

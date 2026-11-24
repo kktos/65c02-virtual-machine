@@ -137,4 +137,3 @@ Mockingboard VIAs + AY render + mix ~18%, speaker ~5%, tick handler dispatch ~9%
 - Indexed addressing (`abs,X`, `abs,Y`, `(zp),Y`: 32 sites of `addr = baseAddr + regX/regY`) doesn't wrap with
   `& 0xffff`, so an address past `$FFFF` reaches `bus.read` / `bus.write`. `AppleBus` sends it to the `>= $D000`
   branch, which reads past the 64K. Real hardware wraps to `$00xx`.
-- The 3-byte NOPs `$DC` / `$FC` count 8 cycles; the comment, and the 65C02, say 4.
