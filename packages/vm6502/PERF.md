@@ -120,6 +120,10 @@ Mockingboard VIAs + AY render + mix ~18%, speaker ~5%, tick handler dispatch ~9%
       80STORE+PAGE2 (+HIRES) override RAMRD for `$400-$7FF` / `$2000-$3FFF`, LC bank 2 at `$D000-$DFFF` lives in
       separate arrays (`bank2` / `auxbank2`), and `$CFFF` / slot ROM selection has side effects.
     - Check: checksum + Klaus + `boot.test.ts`, `saveState.test.ts`, `peek.test.ts`.
+    - Expected gain, measured: `execute` runs out of V8's inlining budget (see "Inlining the opcode helpers by hand" below), so
+      almost every `bus.read` in it is a real call. With the budget raised by a flag, V8 inlined `bus.read` at 18
+      sites and Conan went from ~221 to ~251 MHz (+13%), the core alone unchanged. Cheaper reads should get a
+      similar gain, without depending on the inliner.
 2. **Per-instruction overhead in `execute`:**
     - The PC breakpoint check (`breakpointMap[pc] & BP_PC`, `resumeFromBreakpointAt`): one typed array read,
       acceptable.
@@ -131,3 +135,23 @@ Mockingboard VIAs + AY render + mix ~18%, speaker ~5%, tick handler dispatch ~9%
 4. **Frame drawing in the worker.** `video.tick` runs on the worker's frame callback, so it competes with the CPU.
    It only matters in the browser; measure there.
 5. **`AppleBus.tick` dispatch**: already ~1%. Leave it.
+
+## Tried and dropped
+
+### Inlining the opcode helpers by hand
+
+`setNZFlags`, `adc`, `sbc`, `and`, `ora`, `eor`, `asl`, `lsr` are module functions, called from 96 places in
+`execute`.
+
+- **V8 doesn't inline them.** TurboFan has a cumulative inlining budget per function
+  (`--max-inlined-bytecode-size-cumulative`, ~920 bytes of bytecode), and the ~2,300-line `execute` uses it up
+  at once. With `-- --trace-turbo-inlining`, the final `execute` considered `setNZFlags` at 54 sites and inlined
+  it at none; `bus.read` was inlined at only a couple. Even with the budget raised to 50000, the helpers stayed
+  calls (2 `sbc` sites aside): only `bus.read` got inlined.
+- **Measured by hand-inlining** `setNZFlags`, `and`, `ora`, `eor` (71 sites, as
+  `regP = (regP & 0x7d) | (v === 0 ? 0x02 : 0) | (v & 0x80)`). The checksums were unchanged.
+    - Core alone (Klaus): ~288 → ~306 MHz (+6%). Klaus runs every opcode.
+    - Conan: ~221 → ~224 MHz (+1%, within noise). Its hot loop (`utils.wait`) barely uses them.
+- Dropped: ~1% on a real program doesn't pay for a longer `execute`. `adc`/`sbc`/`asl`/`lsr` would add less.
+  Redo it only if a program is found that is dominated by ALU opcodes.
+- Benchmark noise: a Conan run varies by ±5% from one run to the next. Compare 3 runs on each side.
