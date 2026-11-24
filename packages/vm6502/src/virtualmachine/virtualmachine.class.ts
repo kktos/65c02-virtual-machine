@@ -42,6 +42,12 @@ import type { StepResult, StopInfo } from "@/types/stopinfo.interface";
 import type { EmulatorRegisters } from "@/types/emulatorstate.interface";
 import { installDevices } from "./cpu/loaders/device.loader";
 import { logBus } from "./logbus.class";
+import {
+	KeyboardJoystick,
+	type KeyboardJoystickConfig,
+	loadKeyboardJoystickConfig,
+	saveKeyboardJoystickConfig,
+} from "./keyboardJoystick";
 import { encodeIndexedPng } from "@/lib/png.lib";
 import type { InterruptsState } from "@/types/interrupts.interface";
 
@@ -121,7 +127,13 @@ export class VirtualMachine {
 	private keyUpHandler = this.handleKeyUp.bind(this);
 	private pasteHandler = this.handlePaste.bind(this);
 	// The page loses the focus: the keyup of the keys down won't come
-	private blurHandler = () => this.worker.postMessage({ command: "keyup" });
+	private blurHandler = () => {
+		this.keyboardJoystick.releaseAll();
+		this.worker.postMessage({ command: "keyup" });
+	};
+
+	/** Host keys as the joystick (off unless the user turned it on) */
+	public keyboardJoystick = new KeyboardJoystick(this);
 
 	private stateStack: number[][] = [];
 
@@ -131,6 +143,7 @@ export class VirtualMachine {
 		public readonly busOptions: BusOptions = {},
 	) {
 		this.machineConfig = machineConfig;
+		this.keyboardJoystick.configure(this.joystickControls(), loadKeyboardJoystickConfig(machineConfig.name));
 		if (machineConfig.video) this.videoAspect.value = machineConfig.video.width / machineConfig.video.height;
 
 		const { addRegion, clearRegions } = useMemoryMap();
@@ -419,6 +432,12 @@ export class VirtualMachine {
 			return;
 		}
 
+		// A key of the keyboard joystick: the joystick's, not the machine keyboard's (shortcuts still pass)
+		if (!event.ctrlKey && !event.metaKey && this.keyboardJoystick.handleKey(event.code, true)) {
+			event.preventDefault();
+			return;
+		}
+
 		this.worker.postMessage({
 			command: "keydown",
 			key: event.key,
@@ -444,6 +463,7 @@ export class VirtualMachine {
 		const target = event.target as HTMLElement;
 		if (target && (kbdElements.has(target.tagName) || target.isContentEditable)) return;
 
+		if (this.keyboardJoystick.handleKey(event.code, false)) return;
 		this.worker.postMessage({ command: "keyup", key: event.key, code: event.code });
 	}
 
@@ -810,6 +830,17 @@ export class VirtualMachine {
 			category,
 			overrides: { ...overrides },
 		});
+	}
+
+	/** The machine's joystick controls (none if it has no joystick) */
+	public joystickControls() {
+		return this.machineConfig.inputs?.filter((d) => d.type === "joystick").flatMap((d) => d.controls) ?? [];
+	}
+
+	/** Turns the keyboard joystick on / off, binds its keys, and remembers it for this machine. */
+	public setKeyboardJoystick(config: KeyboardJoystickConfig) {
+		saveKeyboardJoystickConfig(this.machineConfig.name, config);
+		this.keyboardJoystick.configure(this.joystickControls(), config);
 	}
 
 	public setAnalogInput(index: number, value: number) {
