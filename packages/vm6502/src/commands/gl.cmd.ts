@@ -19,7 +19,7 @@ export const glCmd = defineCommand({
 			from,
 			scope?.text ?? vm.getScope(from),
 			to,
-			{ read: (addr) => vm.read(addr), getScope: (addr) => vm.getScope(addr) },
+			{ read: (addr) => vm.readDebug(addr), getScope: (addr) => vm.getScope(addr) },
 			(p) => {
 				progress.value = p;
 			},

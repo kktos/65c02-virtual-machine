@@ -139,13 +139,25 @@ The switch uses `type`, but `setPalette` and `setViewRect` arrive with `command`
 - Some members are arrow-function fields and others are methods, with no clear rule.
 - Nearly every field is `public`, including `worker` and `sharedBuffer`.
 
-**Done:** the register stack holds `readRegisters()` objects; `P` keeps `FLAG_B_MASK | FLAG_5_MASK` and the flag masks are a module constant; `loadBus` indexes the module by the class name; `checkedRequest` unwraps the `error` for the keyboard and save-state requests. The rule is now: every member is a method (the VM is held `markRaw`, nothing passes them detached). `sharedBuffer`, `videoBuffer` and `videoMemory` are private, and the fields set once are `readonly`. `sharedRegisters` stays public: `set`, `run`, `useCommands` and the expression parser read or write it directly, and the writes skip `assertPaused`. Moving them onto `getRegisters` / `updateRegister` is a follow-up.
+**Done:** the register stack holds `readRegisters()` objects; `P` keeps `FLAG_B_MASK | FLAG_5_MASK` and the flag masks are a module constant; `loadBus` indexes the module by the class name; `checkedRequest` unwraps the `error` for the keyboard and save-state requests. The rule is now: every member is a method (the VM is held `markRaw`, nothing passes them detached). `sharedBuffer`, `videoBuffer` and `videoMemory` are private, and the fields set once are `readonly`. `sharedRegisters` stays public: `set`, `run`, `useCommands` and the expression parser read or write it directly, and the writes skip `assertPaused`. Moving them onto `getRegisters` / `updateRegister` is a follow-up: see 15.
 
-### 14. [To check] `read()` goes through the main thread's copy of the bus
+### 14. ✅ DONE — [Bug] `read()` goes through the main thread's copy of the bus
 
 `virtualmachine.class.ts:699-701`
 
 On the Apple, reading `$C0xx` through `bus.read` can flip the main-thread copy's soft switches. Callers that only want to look at memory (`disassembler.ts`, the expression parser, `hexdump`) probably want `peek()`. Not verified.
+
+**Verified:** the main-thread bus has no `registers`, so a flip stays in that copy (the worker never sees it) and is undone at the next frame's `syncBusState`. Until then it skews the reads after it: `PEEK($C055)` turns `page2` on, so with 80STORE `[$400]` reads the aux page; reading through `$C080-$C08F` (`gl c000.ffff`, an expression) switches the language card, so `$D000-$FFFF` reads the wrong bank. `$Cnxx` also sets `activeExpansionSlot`, which no sync resets. And the main-thread devices are copies: what their I/O returns isn't the machine's.
+
+**Done:** `VirtualMachine.read` is gone. The expression's `[addr]` and `PEEK`, and a virtual register's `r` mode read with `peek` (the CPU's view, no side effects); the one-byte `hexdump` and `gl` with `readDebug`, as the range dump and `disasm` already do. `disassembler.ts` takes the read it's given (`gl`'s). A real I/O read (a VR on a soft switch) would need a worker round-trip, as `writeIO` does for writes; not done, `peek` gives 0 there.
+
+### 15. [Hygiene] Callers write `sharedRegisters` directly, past `assertPaused`
+
+`set.cmd.ts:50-56`, `run.cmd.ts:39`, `builtin.functions.ts` (`INC`), `expressionParser.ts:451-462`, `useCommands.ts:116-120`
+
+Follow-up of 13. `set A $12`, `run <address>` and the expression's `INC` write the shared buffer themselves, so on a running machine the write is lost without an error (the CPU writes its locals back at the end of the slice), which is what `assertPaused` is there to say. `run <address>` on a running machine is the likely one to hit. The readers (expression registers, `handleJsrOutput`, MCP `tools.ts:167` with `readRegisters`) are fine but would read better through `getRegisters()`.
+
+Fix: writers go through `updateRegister` (`set` and `run` pause and wait first when running, as the console's G does, or report the error); readers use `getRegisters()`. Then `sharedRegisters` can be private (the joystick inputs and the bus sync are inside the class already).
 
 ---
 

@@ -328,7 +328,7 @@ export class ExpressionParser {
 				if (!this.match(TokenType.RBRACKET)) throw new Error("Expected ']'");
 				if (typeof addr === "string") addr = this.resolveIdentifier(addr);
 				if (typeof addr !== "number") throw new Error("Expected a number for 'mem[]'");
-				const value = addr !== undefined ? this.vm.read(addr) : undefined;
+				const value = addr !== undefined ? this.vm.peek(addr) : undefined;
 				return { type: TokenType.INTEGER, value, raw: token.text };
 			}
 			case TokenType.LPAREN: {

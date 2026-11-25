@@ -633,12 +633,13 @@ export class VirtualMachine {
 		return this.bus?.search(pattern, startAddress, endAddress, is7Bit, candidates);
 	}
 
-	public read(address: number): number {
-		return this.bus ? this.bus.read(address) : (this.sharedMemory[address] ?? 0);
-	}
+	// No `read`: the bus here is a copy, its I/O reads ($C0xx on the Apple) would flip this copy's soft switches and
+	// skew the reads after them (banking resynced at the next frame only). Look with `readDebug` or `peek`.
 
+	/** The byte at `address` without side effects; banked addresses (`$1:2000`) and `overrides` per the bus. */
 	public readDebug(address: number, overrides?: Dict | string): number {
-		return this.bus?.readDebug ? this.bus.readDebug(address, overrides) : this.read(address);
+		if (this.bus?.readDebug) return this.bus.readDebug(address, overrides);
+		return this.bus ? this.bus.read(address) : (this.sharedMemory[address] ?? 0);
 	}
 
 	/** What the CPU would read at `address` (current banking), without I/O side effects. */
