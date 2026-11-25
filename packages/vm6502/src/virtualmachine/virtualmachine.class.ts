@@ -1,4 +1,3 @@
-import { ref } from "vue";
 import { INSTRUCTION_TRACE_DEFAULT_SIZE, type TraceSnapshot } from "./cpu/instructionTrace";
 import type { SaveStateInfo, SaveStateMeta } from "./cpu/saveStates";
 import type { Dict } from "@/types/dict.type";
@@ -34,10 +33,9 @@ import {
 	type VideoScaling,
 	type VideoViewRect,
 } from "@/virtualmachine/video/video.output";
-import { useMemoryMap } from "../composables/useMemoryMap";
 import { parseHexData } from "../lib/array.utils";
 import type { Breakpoint } from "../types/breakpoint.interface";
-import { applyHypercall } from "./hypercall";
+import type { Hypercall } from "@/lib/hypercalls.lib";
 import type { StepResult, StopInfo } from "@/types/stopinfo.interface";
 import type { EmulatorRegisters } from "@/types/emulatorstate.interface";
 import { installDevices } from "./cpu/loaders/device.loader";
@@ -110,11 +108,17 @@ export class VirtualMachine {
 	public onmessage?: (event: MessageEvent) => void;
 	public onStateChange?: (state: Dict) => void;
 	public onTraceReceived?: (history: { type: string; source: number; target: number }[]) => void;
+	/** `traceOverflow` changed */
+	public onTraceOverflow?: (overflow: boolean) => void;
+	/** `videoAspect` changed */
+	public onVideoAspect?: (aspect: number) => void;
+	/** The worker ran `BRK <cmd>` (and stopped if the call asked to): the app applies its effect (`applyHypercall`). */
+	public onHypercall?: (call: Hypercall) => void;
 
 	public isTraceEnabled = false;
-	public traceOverflow = ref(false);
+	private _traceOverflow = false;
 	/** Width / height of the displayed frame (the view rect): the app layout sizes the video area from it */
-	public videoAspect = ref(4 / 3);
+	private _videoAspect = 4 / 3;
 	private lastTraceHead = "";
 	private tracePollInterval: number | undefined;
 
@@ -127,16 +131,7 @@ export class VirtualMachine {
 	) {
 		this.machineConfig = machineConfig;
 		this.input.joystick.configure(this.joystickControls(), loadKeyboardJoystickConfig(machineConfig.name));
-		if (machineConfig.video) this.videoAspect.value = machineConfig.video.width / machineConfig.video.height;
-
-		const { addRegion, clearRegions } = useMemoryMap();
-		clearRegions();
-
-		if (this.machineConfig.regions) {
-			this.machineConfig.regions.forEach((region) => {
-				addRegion(region);
-			});
-		}
+		if (machineConfig.video) this._videoAspect = machineConfig.video.width / machineConfig.video.height;
 
 		this.client = new WorkerClient((event) => this.handleWorkerMessage(event));
 
@@ -192,8 +187,7 @@ export class VirtualMachine {
 				this.onmessage?.(event);
 				break;
 			case "hypercall":
-				// The worker ran `BRK <cmd>` (and stopped if the call asked to): apply its effect.
-				applyHypercall(event.data.call);
+				this.onHypercall?.(event.data.call);
 				break;
 			case "break":
 				this.onmessage?.(event);
@@ -209,7 +203,7 @@ export class VirtualMachine {
 					this.viewRect = event.data.rect;
 					this.videoOutput?.setViewRect(event.data.rect);
 					const { width, height } = event.data.rect;
-					if (width > 0 && height > 0) this.videoAspect.value = width / height;
+					if (width > 0 && height > 0) this.setVideoAspect(width / height);
 				} else {
 					this.onmessage?.(event);
 				}
@@ -313,6 +307,28 @@ export class VirtualMachine {
 		return this._isRunning || (this._playPending && !this.client.failure);
 	}
 
+	/** The jumps trace lost entries between two polls (its buffer wrapped). */
+	public get traceOverflow() {
+		return this._traceOverflow;
+	}
+
+	private setTraceOverflow(overflow: boolean) {
+		if (overflow === this._traceOverflow) return;
+		this._traceOverflow = overflow;
+		this.onTraceOverflow?.(overflow);
+	}
+
+	/** Width / height of the displayed frame (the view rect): the app layout sizes the video area from it. */
+	public get videoAspect() {
+		return this._videoAspect;
+	}
+
+	private setVideoAspect(aspect: number) {
+		if (aspect === this._videoAspect) return;
+		this._videoAspect = aspect;
+		this.onVideoAspect?.(aspect);
+	}
+
 	/** Host keys as the joystick (off unless the user turned it on) */
 	public get keyboardJoystick() {
 		return this.input.joystick;
@@ -370,7 +386,7 @@ export class VirtualMachine {
 
 	private handleTraceReceived(history: { type: string; source: number; target: number }[]) {
 		const newHead = history.length > 0 ? JSON.stringify(history[0]) : "";
-		this.traceOverflow.value = !!this.lastTraceHead && !!newHead && this.lastTraceHead !== newHead;
+		this.setTraceOverflow(!!this.lastTraceHead && !!newHead && this.lastTraceHead !== newHead);
 		this.lastTraceHead = newHead;
 		this.onTraceReceived?.(history);
 	}
@@ -457,7 +473,7 @@ export class VirtualMachine {
 			this.startTracePolling();
 		} else {
 			this.stopTracePolling();
-			this.traceOverflow.value = false;
+			this.setTraceOverflow(false);
 			this.lastTraceHead = "";
 		}
 	};
@@ -488,7 +504,7 @@ export class VirtualMachine {
 	public clearTrace = () => {
 		this.client.post({ command: "clearTrace" });
 		this.client.post({ command: "clearInstructionTrace" });
-		this.traceOverflow.value = false;
+		this.setTraceOverflow(false);
 		this.lastTraceHead = "";
 	};
 	/** Redraws the frame from memory (the screen isn't redrawn while paused); resolves once it is drawn. */

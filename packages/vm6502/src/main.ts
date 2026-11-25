@@ -2,7 +2,7 @@ import { createApp } from "vue";
 import "./style.css";
 import App from "./app/App.vue";
 import { startMcp } from "./lib/mcp";
-import { routeHypercallLogs } from "./virtualmachine/hypercall";
+import { routeHypercallLogs } from "./lib/hypercallEffects";
 
 createApp(App).mount("#app");
 

@@ -24,11 +24,11 @@
 					:aria-pressed="traceEnabled"
 					:title="
 						(traceEnabled ? 'Stop tracing' : 'Start tracing (jumps and instructions)') +
-						(vm?.traceOverflow?.value ? ' — jumps buffer overflow' : '')
+						(traceOverflow ? ' — jumps buffer overflow' : '')
 					"
 				>
 					<span
-						v-if="vm?.traceOverflow?.value"
+						v-if="traceOverflow"
 						class="absolute top-0 right-0 w-1.5 h-1.5 bg-orange-400 rounded-full animate-pulse shadow-[0_0_4px_rgba(251,146,60,0.6)]"
 					></span>
 					<Square v-if="traceEnabled" class="h-4 w-4 fill-current" />
@@ -257,7 +257,7 @@ const ROWS_MAX = 5000;
 const RUNNING_REFRESH_MS = 1000;
 
 const vm = inject<Ref<VirtualMachine>>("vm");
-const { isRunning, traceEnabled, setTraceEnabled } = useMachine();
+const { isRunning, traceEnabled, setTraceEnabled, traceOverflow } = useMachine();
 const toggleTrace = () => setTraceEnabled(!traceEnabled.value);
 const { requestJump } = useDisassembly();
 const mode = useLocalStorage<Mode>("trace-mode", "jumps");

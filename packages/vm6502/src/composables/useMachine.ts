@@ -18,6 +18,8 @@ import { slotLayoutFor } from "./useSlots";
 import type { RegisterDescriptor } from "@/types/registers";
 import type { StopInfo } from "@/types/stopinfo.interface";
 import { setHypercallDisassembly } from "@/lib/hypercalls.lib";
+import { applyHypercall } from "@/lib/hypercallEffects";
+import { useMemoryMap } from "./useMemoryMap";
 
 // Initialize global state with the default machine (same default as App.vue used)
 const selectedMachine = ref<MachineConfig>(availableMachines[1] as MachineConfig);
@@ -32,6 +34,9 @@ const traceEnabled = ref(false);
 const keyDelay = ref<number | null>(null);
 const videoCanvas = ref<HTMLCanvasElement | null>(null);
 const vm = shallowRef<VirtualMachine | null>(null);
+// The VM's plain state, mirrored for the views (set from its callbacks in setupVmListeners)
+const videoAspect = ref(4 / 3);
+const traceOverflow = ref(false);
 const registers: EmulatorRegisters = reactive({
 	A: 0,
 	X: 0,
@@ -87,6 +92,12 @@ const onUiFrame = (cb: () => void) => {
 const setupVmListeners = (targetVm: VirtualMachine) => {
 	const { executeCommand } = useCommands();
 	const { handleStop } = useRunUntil();
+
+	videoAspect.value = targetVm.videoAspect;
+	traceOverflow.value = targetVm.traceOverflow;
+	targetVm.onVideoAspect = (aspect) => (videoAspect.value = aspect);
+	targetVm.onTraceOverflow = (overflow) => (traceOverflow.value = overflow);
+	targetVm.onHypercall = applyHypercall;
 
 	targetVm.onmessage = async (event) => {
 		const { type, error, message, address, breakpointType } = event.data;
@@ -166,6 +177,12 @@ const loadMachine = async (newMachine?: MachineConfig) => {
 	console.log(`Main: Loading machine ${selectedMachine.value.name}`);
 
 	setHypercallDisassembly(!!selectedMachine.value.hypercalls);
+	// The memory map starts over with the machine's own regions (a program adds its own, by hypercalls)
+	{
+		const { addRegion, clearRegions } = useMemoryMap();
+		clearRegions();
+		for (const region of selectedMachine.value.regions ?? []) addRegion(region);
+	}
 	const newVm = new VirtualMachine(selectedMachine.value, { slots: slotLayoutFor(selectedMachine.value) });
 	vm.value = markRaw<VirtualMachine>(newVm);
 	setupVmListeners(newVm);
@@ -277,6 +294,10 @@ export function useMachine() {
 		videoCanvas,
 		loadMachine,
 		vm,
+		/** The displayed frame's width / height: the layout sizes the video area from it. */
+		videoAspect: readonly(videoAspect),
+		/** The jumps trace lost entries between two polls. */
+		traceOverflow: readonly(traceOverflow),
 		/** The UI's copy of the CPU registers, synced by the frame loop: for the views. Code reads `vm.getRegisters()`. */
 		registers: readonly(registers),
 		onUiFrame,

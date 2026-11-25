@@ -14,7 +14,7 @@ import { toHex } from "./hex.utils";
  *
  * Decoding is pure (memory in, data out) so that the CPU worker, which runs the call, and the
  * disassembler, which shows it, use the same code. The main thread only applies the effect
- * (`applyHypercall` in virtualmachine/hypercall.ts).
+ * (`applyHypercall` in lib/hypercallEffects.ts).
  */
 
 export const HC_LOG_STRING = 0x01;

@@ -86,9 +86,11 @@ It handles worker RPC, the audio sink, global DOM keyboard and paste listeners, 
 
 **Done:** `workerClient.class.ts`, `audioSink.class.ts` and `inputController.class.ts` hold those parts; `VirtualMachine` keeps its public API and delegates. Video, trace and registers stay in it.
 
-### 7. [Design] The class depends on Vue and global app state
+### 7. ✅ DONE — [Design] The class depends on Vue and global app state
 
 `traceOverflow` and `videoAspect` are `ref()`s, and the constructor calls `useMemoryMap().clearRegions()`. A domain object shouldn't reset a global composable as a side effect of being created. Expose plain state plus callbacks or events, and let the composable layer (`useMachine`) wire it to Vue.
+
+**Done:** `traceOverflow` and `videoAspect` are plain getters with `onTraceOverflow` / `onVideoAspect` callbacks, and hypercalls go out through `onHypercall`. `useMachine` resets the memory map to the machine's regions, mirrors the two values into refs (`App.vue` and `TraceView` read those), and wires `applyHypercall` (moved from `virtualmachine/hypercall.ts` to `lib/hypercallEffects.ts`). Nothing in `virtualmachine/` imports Vue or a composable any more.
 
 ### 8. ✅ DONE — [Design] The audio state is module-level
 
