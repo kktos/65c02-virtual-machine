@@ -219,6 +219,7 @@ async function handleMessage(event: MessageEvent) {
 			break;
 		case "pause":
 			setRunning(false, { reason: "pause" });
+			reply(event); // pauseAndWait (after `isRunning`, so the main thread has the stop first)
 			break;
 		case "step": {
 			const result = stepInstructions(event.data.count ?? 1);

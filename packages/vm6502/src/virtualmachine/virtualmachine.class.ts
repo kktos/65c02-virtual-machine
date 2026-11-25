@@ -220,12 +220,6 @@ export class VirtualMachine {
 			if (loader) {
 				await loader();
 				console.log(`VM: Loaded CSS ${key}`);
-
-				const isFontLoaded = document.fonts.check("16px PrintChar21");
-				console.log("Font loaded:", isFontLoaded);
-				if (!isFontLoaded) {
-					await document.fonts.load("16px PrintChar21");
-				}
 			} else {
 				console.warn(`VM: CSS module not found: ${key}`);
 			}
@@ -417,6 +411,11 @@ export class VirtualMachine {
 	public pause = () => {
 		this._playPending = false;
 		this.client.post({ command: "pause" });
+	};
+	/** Pauses; resolves once the worker has stopped (its registers are then in the shared buffer, see `updateRegister`). */
+	public pauseAndWait = (): Promise<void> => {
+		this._playPending = false;
+		return this.request("pause").then(() => undefined);
 	};
 	/**
 	 * Resolves once the worker has reset (the machine is then stopped, PC on the reset vector). `cold`: a power-up
@@ -629,8 +628,12 @@ export class VirtualMachine {
 		this.stateStack.push(state);
 	}
 
-	/** Pops what saveRegisters pushed. `keepFlags`: the P bits that stay as they are now (the others are restored). */
+	/**
+	 * Pops what saveRegisters pushed. `keepFlags`: the P bits that stay as they are now (the others are restored).
+	 * Paused only, as `updateRegister`.
+	 */
 	public restoreRegisters(keepFlags = 0) {
+		this.assertPaused("restoreRegisters");
 		const state = this.stateStack.pop();
 		if (state) {
 			const status = this.sharedRegisters.getUint8(REG_STATUS_OFFSET);
@@ -643,7 +646,12 @@ export class VirtualMachine {
 		}
 	}
 
+	/**
+	 * Paused only (throws otherwise, `pauseAndWait` first): while the CPU runs, it holds its registers in locals and
+	 * writes them back over the shared buffer at the end of each slice, so a write here would be lost.
+	 */
 	public updateRegister(reg: keyof EmulatorRegisters, value: number) {
+		this.assertPaused("updateRegister");
 		switch (reg) {
 			case "A":
 				this.sharedRegisters.setUint8(REG_A_OFFSET, value);
@@ -693,6 +701,11 @@ export class VirtualMachine {
 				break;
 			}
 		}
+	}
+
+	/** Running, or about to (`play()` sent): the registers can't be written. */
+	private assertPaused(what: string) {
+		if (this.isRunningOrStarting) throw new Error(`${what}: the machine is running, pause it first`);
 	}
 
 	public setDebugOverrides(category: string, overrides: Dict) {
