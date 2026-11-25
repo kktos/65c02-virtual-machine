@@ -8,7 +8,7 @@ import {
 	HC_REMOVE_REGIONS,
 	type Hypercall,
 } from "@/lib/hypercalls.lib";
-import { logBus } from "./logbus.class";
+import { logBus } from "@/virtualmachine/logbus.class";
 
 /**
  * Second half of a hypercall, on the main thread: apply its effect. The CPU worker already decoded it

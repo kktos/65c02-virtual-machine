@@ -187,3 +187,42 @@ describe("VirtualMachine.initVideo", () => {
 		expect(outputs.map((o) => o.destroyed)).toEqual([true, false]);
 	});
 });
+
+describe("VirtualMachine state callbacks", () => {
+	it("reports the frame's aspect as the view rect changes", () => {
+		const vm = new VirtualMachine(machine());
+		const aspects: number[] = [];
+		vm.onVideoAspect = (aspect) => aspects.push(aspect);
+		expect(vm.videoAspect).toBe(1);
+		const rect = (width: number, height: number) =>
+			FakeWorker.last.emit({ command: "setViewRect", rect: { x: 0, y: 0, width, height } });
+		rect(8, 4);
+		rect(8, 4);
+		rect(0, 0);
+		expect(aspects).toEqual([2]);
+		expect(vm.videoAspect).toBe(2);
+	});
+
+	it("reports a trace overflow, and its end when the trace is cleared", () => {
+		const vm = new VirtualMachine(machine());
+		const changes: boolean[] = [];
+		vm.onTraceOverflow = (overflow) => changes.push(overflow);
+		const trace = (source: number) =>
+			FakeWorker.last.emit({ type: "trace", history: [{ type: "JSR", source, target: 0 }] });
+		trace(1);
+		trace(1);
+		trace(2);
+		expect(vm.traceOverflow).toBe(true);
+		vm.clearTrace();
+		expect(changes).toEqual([true, false]);
+	});
+
+	it("hands the hypercalls to onHypercall", () => {
+		const vm = new VirtualMachine(machine());
+		const onHypercall = vi.fn();
+		vm.onHypercall = onHypercall;
+		const call = { cmd: 0x01, address: 0x300, length: 2, stop: false, message: "hi" };
+		FakeWorker.last.emit({ type: "hypercall", call });
+		expect(onHypercall).toHaveBeenCalledWith(call);
+	});
+});

@@ -7,7 +7,7 @@ import {
 	setHypercallDisassembly,
 	type Hypercall,
 } from "../hypercalls.lib";
-import { applyHypercall, routeHypercallLogs } from "@/virtualmachine/hypercall";
+import { applyHypercall, routeHypercallLogs } from "@/lib/hypercallEffects";
 import { logBus } from "@/virtualmachine/logbus.class";
 import { useMemoryMap } from "@/composables/useMemoryMap";
 import { useLogWindows } from "@/composables/useLogWindows";

@@ -9,7 +9,7 @@
 		<FormattingManager @goto-address="gotoDisassembly" />
 	</template>
 	<CmdConsole />
-	<AppLayout v-if="vm" class="bg-gray-900 text-white" :aspect="vm.videoAspect.value">
+	<AppLayout v-if="vm" class="bg-gray-900 text-white" :aspect="videoAspect">
 		<!-- Toolbar: its width drives the @container breakpoints used inside the controls -->
 		<!-- The row only wraps below 26rem, where the separators are hidden, so a separator never ends a wrapped row -->
 		<!-- (a container query can't target the @container element itself, hence the inner flex row) -->
@@ -144,7 +144,8 @@ import FormattingManager from "@/app/debugger/FormattingManager/FormattingManage
 import SymbolManager from "@/app/debugger/SymbolManager/SymbolManager.vue";
 import { useDisassembly } from "@/composables/useDisassembly";
 
-const { vm, registers, selectedMachine, isRunning, videoCanvas, loadMachine, virtualRegisters } = useMachine();
+const { vm, registers, selectedMachine, isRunning, videoCanvas, loadMachine, virtualRegisters, videoAspect } =
+	useMachine();
 const { showConsole } = useCmdConsole();
 const { logWindows } = useLogWindows();
 const { kind } = useAppLayout();
