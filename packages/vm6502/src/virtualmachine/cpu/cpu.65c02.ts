@@ -73,6 +73,8 @@ let cycleAccumulator = 0;
 let traceEnabled = false;
 const traceHistory: { type: string; source: number; target: number }[] = [];
 let maxTraceSize = 200;
+/** Entries logged since the last clear, dropped ones included: the main thread tells an overflow by it */
+let traceTotal = 0;
 
 // Shared memory references, to be initialized from the worker
 let registersView: DataView | null = null;
@@ -317,8 +319,12 @@ export function getTrace() {
 	return traceHistory;
 }
 
+/** Entries logged since the last clear, those the buffer dropped included. */
+export const getTraceTotal = () => traceTotal;
+
 export function clearTrace() {
 	traceHistory.length = 0;
+	traceTotal = 0;
 }
 
 function logTrace(type: string, source: number, target: number) {
@@ -326,6 +332,7 @@ function logTrace(type: string, source: number, target: number) {
 	const sourceFullAddr = ((bus?.getBank?.(source) ?? 0) << 16) | source;
 	const targetFullAddr = ((bus?.getBank?.(target) ?? 0) << 16) | target;
 	traceHistory.push({ type, source: sourceFullAddr, target: targetFullAddr });
+	traceTotal++;
 	if (traceHistory.length > maxTraceSize) traceHistory.shift();
 }
 
