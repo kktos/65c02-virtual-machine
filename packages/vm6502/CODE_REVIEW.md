@@ -1,111 +1,138 @@
-# Code Review — `feat/compact-debugger-toolbar`
+# Code Review — `VirtualMachine` class
 
-**Date:** 2026-11-07
-**Scope:** `main...feat/compact-debugger-toolbar` (2 commits: `1c116da` compact emulator toolbar, `edbb905` compact debugger toolbar)
-**Files:** 11 changed, +173 / −237, all under `packages/vm6502/src`
+**Date:** 2026-11-25
+**Scope:** `src/virtualmachine/virtualmachine.class.ts` (883 lines) at `d0f383b`, with the parts of `cpu.worker.ts`, `cpu.65c02.ts`, `keyboardJoystick.ts` and the callers needed to confirm the findings.
 
 ## Summary
 
-This branch replaces the per-control "card" chrome (each control had its own `bg-gray-800 p-2 rounded-lg border` wrapper and 40px buttons) with one dense toolbar. Two new Tailwind v4 utilities, `toolbar-btn` and `toolbar-sep`, carry the shared styling. Container queries (`@container` / `@[26rem]` / `@[48rem]`) show or hide the text labels as the panel gets wider or narrower. `DebuggerControls` drops the shadcn `Button`/`ButtonGroup` in favour of plain `toolbar-btn` buttons. `SpeedControl` changes from an inline `<select>` plus a "custom" input mode to a single popover.
+`VirtualMachine` is the main-thread side of the emulator. It owns the worker, the shared buffers, video, audio and keyboard input, and it is the API the debugger, the commands and the MCP tools call. The core design is sound: shared memory gives cheap synchronous reads, the request/reply RPC is clean, and video state can arrive in any order.
 
-Overall this is a clean simplification. It deletes more code than it adds, removes the inline SVGs in favour of lucide icons, and makes the toolbar styling consistent. There is one functional regression (custom speed input) and a few small UX and consistency points.
-
-**Checks run**
-
-- `vue-tsc -b --noEmit`: passes
-- `vite build`: passes
-- Tailwind override ordering: verified in the built CSS. `.toolbar-btn` comes before `.text-gray-400`, `.text-white`, `.hover:bg-red-500` and the other utilities that callers use to override it, so those overrides win as intended.
+The weak spots are failure and teardown. A machine that fails to initialize can leave `ready`, and every request after it, pending forever. `terminate()` leaves in-flight requests unanswered. There are also two input and render bugs that are cheap to fix. Beyond those, the class does too much and is tied to Vue.
 
 ---
 
-## Findings
+## The good
 
-### 1. ✅ DONE (`0f26d76`) — [Medium] Clearing the custom speed field sets the clock to 0, which means _unlimited_ on the 65C02 core
-
-`src/app/machine/SpeedControl.vue` (`onCustomChange`)
-
-```ts
-const value = Number((event.target as HTMLInputElement).value);
-if (Number.isFinite(value) && value >= 0) targetSpeed.value = value;
-```
-
-`Number("")` is `0`, so if the user empties the field and tabs or clicks away, the speed is set to `0`. In `cpu.65c02.ts:170`, `clockSpeedMhz === 0` switches to free-running mode (`cyclesPerTimeslice = 1000000`), so the emulator suddenly runs flat out. `useEmulatorSpeed` also saves the `0` to `localStorage`, so it comes back on the next load. On the 6502 core, `setClockSpeed` ignores `0`, so the UI and the CPU disagree.
-
-This is a regression. Before, `v-model.number` left an empty field as `""`, and the worker's `typeof speed === "number"` guard dropped it.
-
-**Suggested fix:** ignore empty input and require `> 0` (or make "Max / unlimited" an explicit preset if 0 is meant to be reachable):
-
-```ts
-const raw = (event.target as HTMLInputElement).value.trim();
-const value = Number(raw);
-if (raw !== "" && Number.isFinite(value) && value > 0) targetSpeed.value = value;
-else (event.target as HTMLInputElement).value = String(targetSpeed.value);
-```
-
-### 2. ✅ DONE (`0f26d76`) — [Low] A rejected custom speed stays in the input
-
-`src/app/machine/SpeedControl.vue`
-
-The input is bound one way (`:value="targetSpeed"`). When `onCustomChange` rejects a value (for example a typed `-3`), `targetSpeed` does not change, so Vue never re-renders the field. The invalid text stays there and looks applied. The `else` branch in the fix for finding 1 also covers this.
-
-### 3. ✅ DONE — [Low / UX] Reset now sits right next to Step Out
-
-`src/app/debugger/DebuggerControls.vue`
-
-Reset ("Reset the CPU and memory") used to be in its own group after BRK and Trace. It is now the fifth button in the execution cluster, immediately after Step Out, at the same size and with no separator. While stepping quickly, one slip of the mouse wipes the machine state, and there is no confirmation. The red tint helps, but I'd suggest one of these:
-
-- Put a `toolbar-sep` before it, or move it to the end of the toolbar.
-- Require a confirmation, or a modifier key (for example Shift-click) to reset.
-
-**Resolution:** Reset moved back to its own group after BRK / Trace, with a separator on each side.
-
-### 4. ⏭️ DROPPED (not important) — [Low / UX] The speed trigger shows only the measured speed, not the target
-
-`src/app/machine/SpeedControl.vue`
-
-The old UI showed the measured MHz next to the selected target. The new trigger shows only the measured `speedMhz`, so the target is visible only by opening the popover. Since `isManual` was removed, a custom target also has no indicator: no preset gets a check mark and the trigger looks the same. Consider showing the target in the trigger's `title`, for example `Clock Speed (target: 2.8 MHz)`, or marking the input row when the target isn't a preset.
-
-### 5. ✅ DONE — [Nit] Toggle state is exposed inconsistently
-
-- `DebuggerControls.vue`: BRK and Trace now have `aria-pressed`, which is good. The console toggle (`isConsoleVisible`) does not, and its title still says "Open Command Interface" while the console is open.
-- `MemoryMap.vue` and `MouseControl.vue` are also on/off toggles without `aria-pressed`.
-
-Adding `:aria-pressed` to these would make all the toggles behave alike.
-
-**Resolution:** the console, Memory Map and mouse-capture toggles now have `:aria-pressed`; the console title switches between "Open" and "Close Command Interface".
-
-### 6. ✅ DONE — [Nit] Unused `disabled:` classes in `MouseControl.vue`
-
-`class="toolbar-btn group disabled:opacity-50 disabled:cursor-not-allowed"`. The button never gets a `disabled` attribute, and `toolbar-btn` already defines disabled styling (`disabled:opacity-40`). These classes are unused and differ from the shared style. Remove them.
-
-**Resolution:** removed; the button relies on `toolbar-btn` alone.
-
-### 7. ✅ DONE — [Nit] Separators can be left at the end of a wrapped row
-
-`src/app/App.vue`
-
-The toolbar is `flex-wrap`, and the separators show at widths of `@[26rem]` and up. Just above that width, the speed control can wrap to a second row and leave a `toolbar-sep` alone at the end of the first row. This only affects looks. Options are `flex-nowrap` above 26rem, or hiding the separators until a larger breakpoint.
-
-**Resolution:** the toolbar row is `@[26rem]:flex-nowrap` (inside a separate `@container` wrapper, since a container query cannot target the container itself), so it only wraps when the separators are hidden. The widest content fits: about 25rem with icons only (26–48rem), about 40rem with the video and disk labels (48rem and up).
-
-### 8. ✅ DONE — [Nit] The machine selector button styles itself differently from the others
-
-`MachineSelector.vue` adds `bg-gray-700 hover:bg-gray-600` on top of `toolbar-btn`, so it is the only toolbar button with a background when idle. If that is meant to mark it as the main control, fine. If not, drop the extra classes.
-
-**Resolution:** extra classes dropped; it now looks like the other toolbar buttons. The machine name and a chevron (the menu cue) are now inside the trigger, so clicking the name opens the menu too.
+- **Shared memory design.** Registers, memory, stack metadata and video all live in `SharedArrayBuffer`s. `getRegisters`, `read` and `getSpeed` are synchronous and copy nothing, so the debugger never waits on a message round trip just to show state.
+- **Clean request/reply RPC.** `request<T>` matches replies by `id`. The worker queues messages that arrive before `init`, so callers don't have to wait for `ready` to send something.
+- **Video state can arrive in any order.** `palette`, `viewRect` and `videoScaling` are kept when they arrive and applied in `initVideo`, so it doesn't matter whether the canvas or the worker's messages come first.
+- **`screenshot()` builds the image from the video buffer and the palette, not the canvas.** You get exact pixels whatever the canvas size or CSS scaling.
+- **Audio scheduling is solid.** It restarts a little ahead of now after an underrun and drops chunks once more than 150 ms is queued, so the sound never drifts into growing lag.
+- **Optional bus features degrade well.** `peek` falls back to `readDebug`, which falls back to `read`. `readDebugRange` falls back to a loop.
+- **Small things done right:** `chunkData` catches the dev server answering a missing ROM with `index.html`, `blur` releases held keys, and `lastStop` is recorded before `onmessage` fires. The comments explain why, not what.
 
 ---
 
-## Positives
+## The bad (bugs)
 
-- **Shared utilities:** `@utility toolbar-btn` and `toolbar-sep` replace about ten copies of the same long class string.
-- **Labels that collapse with width:** container queries hide them on narrow panels instead of breaking the layout. The labels' content moved into the `title` attributes (machine name, video mode, disk file name), so nothing is lost.
-- **Hover fix in `DiskDriveControl`:** the icon used `hover:` where `group-hover:` was needed, so hovering the button didn't recolour it. This is fixed.
-- **Lucide icons:** the inline SVGs for clipboard and the hamburger menu are now lucide icons (`ClipboardPaste`, `ChevronDown`, `Check`).
-- **Trace overflow:** the warning moved into the button's `title`. Before, it was only on a tiny dot that was hard to hover.
-- **Simpler `SpeedControl`:** with `isManual`, `switchToPresets` and `onSelectChange` gone, the component has much less state.
-- **Unused imports:** the `Button` and `ButtonGroup` imports were removed. Other components still use them, so nothing else needs cleaning up.
+### 1. ✅ DONE — [High] A failed init leaves `ready` stuck forever
+
+`virtualmachine.class.ts:277-286` (`loadBus`), `cpu.worker.ts` (`self.onmessage`, `init`)
+
+There are two paths:
+
+- In `loadBus`, a missing bus module or class does `console.error` and `return`. `ready` **resolves** with `bus === undefined`, and the worker never gets `init`.
+- When the worker's `init()` returns `false`, it sets `initState = "failed"` but never tells the main thread. `workerReadyPromise` never settles, so `ready` hangs.
+
+In both cases the "could not start" toast in `useMachine.ts:188` never shows. Every `request()` sent after that hangs too, because `notInitialized` drops it without replying. Through MCP this looks like a tool that never returns.
+
+**Suggested fix:** `throw` in `loadBus` instead of returning. Have the worker post `{ type: "initFailed", error }` (and answer queued requests with an error). On the main thread, reject `ready` and every pending request when that message arrives.
+
+### 2. ✅ DONE — [Medium] `terminate()` leaves pending requests hanging
+
+`virtualmachine.class.ts:548-557`, `:870-882`
+
+`requests` is never drained. An MCP `step`, `reset` or `saveState` call that is in flight when the user switches machines never resolves. `request()` also has no timeout, so a reply the worker never sends hangs forever.
+
+**Suggested fix:** store `{ resolve, reject }` in `requests`. In `terminate()`, reject every entry (`"VM terminated"`) and clear the map. An optional timeout per request would cover worker-side gaps too.
+
+### 3. ✅ DONE — [Medium] Ctrl/Cmd plus a joystick key leaves a key stuck on the machine
+
+`virtualmachine.class.ts:436`, `:466`
+
+On keydown, the joystick is skipped when Ctrl or Meta is held, so Ctrl+ArrowLeft goes to the worker as a keydown. On keyup, `keyboardJoystick.handleKey(code, false)` is checked without looking at modifiers and takes the key, so the worker never sees the keyup. Turning the keyboard joystick on while an arrow is held does the same thing. The key stays down on the machine until the page loses focus.
+
+**Suggested fix:** keep a set of codes whose keydown went to the worker, and always send the keyup for those, whatever the joystick does with it.
+
+### 4. ✅ DONE — [Low] `initVideo` can run twice
+
+`virtualmachine.class.ts:354-372`, callers `App.vue:196` and `useMachine.ts:175`
+
+Each call creates a new `VideoOutput` without destroying the previous one, and calls `renderFrame()`, which starts another `requestAnimationFrame` loop. A second call means double rendering and a leaked output.
+
+**Suggested fix:** `this.videoOutput?.destroy()` first, and only call `renderFrame()` when `isRendering` was false.
+
+### 5. [Low] The trace overflow check can miss overflows
+
+`virtualmachine.class.ts:502-507`
+
+Overflow is detected by comparing `JSON.stringify(history[0])` between polls. Tight loops write identical JSR entries, so the first entry can look the same even after the ring buffer has wrapped.
+
+**Suggested fix:** have the worker send a running total or sequence number with the trace and compare that.
+
+---
+
+## The ugly (design and hygiene)
+
+### 6. [Design] One class does too much
+
+It handles worker RPC, the audio sink, global DOM keyboard and paste listeners, the joystick, video, trace polling, register editing, memory access and CSS/font loading. A natural split:
+
+- `WorkerClient`: request/reply, the message dispatch, teardown
+- `AudioSink`: the `AudioContext` and the scheduling
+- `InputController`: keydown/keyup/paste/blur and the keyboard joystick
+
+`VirtualMachine` would then be a thin façade over them.
+
+### 7. [Design] The class depends on Vue and global app state
+
+`traceOverflow` and `videoAspect` are `ref()`s, and the constructor calls `useMemoryMap().clearRegions()`. A domain object shouldn't reset a global composable as a side effect of being created. Expose plain state plus callbacks or events, and let the composable layer (`useMachine`) wire it to Vue.
+
+### 8. [Design] The audio state is module-level
+
+`audioCtx` and `nextStartTime` (`:61-62`) are shared by every VM instance and outlive `terminate()`. Chunks already scheduled keep playing after teardown, and `nextStartTime` carries over to the next machine. Move them into the instance, or into the `AudioSink` from finding 6.
+
+### 9. [Design] Register writes are only safe while paused, but the class doesn't enforce it
+
+`updateRegister`, `restoreRegisters`
+
+While the CPU runs, its registers are held in locals (`registersLive` in `cpu.65c02.ts`), so writes to `sharedRegisters` are silently lost. Every caller guards this today (`StatusFlagsView`, the MCP `load_binary` tool, the `JSR` hook). Add a check or at least a doc line in the methods themselves so the next caller doesn't get it wrong.
+
+### 10. [Hygiene] The worker's message protocol mixes two discriminators
+
+`virtualmachine.class.ts:166-219`
+
+The switch uses `type`, but `setPalette` and `setViewRect` arrive with `command` and fall into `default`. The `break` and `breakpointHit` cases (`:199-204`) do exactly what `default` does. Give every worker-to-main message a `type` and drop the redundant cases.
+
+### 11. [Hygiene] The generic VM hard-codes the Apple font
+
+`virtualmachine.class.ts:262-266`
+
+`loadCSS` checks and loads `"16px PrintChar21"` after every CSS file, whatever the machine, and leaves a `console.log("Font loaded:")` debug line. The fonts to wait for belong in the machine config (or `document.fonts.ready` after all the CSS is in).
+
+### 12. [Nit] A doc comment is on the wrong member
+
+`virtualmachine.class.ts:617-618`
+
+"The last `count` instructions recorded" sits above `getInterrupts`, not `getInstructionTrace`.
+
+### 13. [Nit] Smaller cleanups
+
+- `saveRegisters` stores a positional `number[]`; use `readRegisters()` and an object instead.
+- `updateRegister("P")` uses the magic number `0x30`, but the flag-mask constants are already imported. The `flagMasks` object is also rebuilt on every call; hoist it.
+- `loadBus` does `Object.entries(...).find(...)` where `BusModule[busConfig.class]` would do.
+- `keyboardRequest` and `stateRequest` duplicate the same unwrap-or-throw-on-`error` logic; one helper would cover both.
+- Some members are arrow-function fields and others are methods, with no clear rule.
+- Nearly every field is `public`, including `worker` and `sharedBuffer`.
+
+### 14. [To check] `read()` goes through the main thread's copy of the bus
+
+`virtualmachine.class.ts:699-701`
+
+On the Apple, reading `$C0xx` through `bus.read` can flip the main-thread copy's soft switches. Callers that only want to look at memory (`disassembler.ts`, the expression parser, `hexdump`) probably want `peek()`. Not verified.
+
+---
 
 ## Verdict
 
-Fix finding 1 (the empty input that switches to unlimited speed) before merging. Everything else is optional polish.
+The core design is good. Fix 1 and 2 first: together they cause most of the hangs that would show up for no apparent reason in MCP sessions. 3 and 4 are small and worth doing at the same time. 6 to 8 are a refactor to plan, not urgent.
