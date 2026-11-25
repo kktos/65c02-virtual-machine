@@ -60,7 +60,7 @@ export const BUILTINS: Record<string, BuiltinFunctionDef> = {
 		impl: (args, vm) => {
 			const val = args[0];
 			if (val.type !== "number") throw new Error("PEEK expects a number");
-			const res = vm.read(val.value);
+			const res = vm.peek(val.value);
 			return { type: TokenType.INTEGER, value: res, raw: res.toString() };
 		},
 	},

@@ -38,7 +38,7 @@ export const virtualRegisterCmd = defineCommand({
 			isVirtual: true,
 		};
 
-		if (am === "r" || am === "rw") vr.read = () => vm.value?.read(address) ?? 0;
+		if (am === "r" || am === "rw") vr.read = () => vm.value?.peek(address) ?? 0;
 		if (am === "w" || am === "rw") vr.write = (value: number) => vm.value?.writeIO(address, value);
 
 		addVirtualRegister(vr);

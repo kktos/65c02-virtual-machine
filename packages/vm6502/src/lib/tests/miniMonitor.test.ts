@@ -14,7 +14,6 @@ vi.mock("@/lib/mini-monitor/disassembly.cmd", () => ({
 const { minimonitor } = await import("@/lib/mini-monitor/mini-monitor");
 
 const vm = {
-	read: (addr: number) => addr & 0xff,
 	readDebug: (addr: number) => addr & 0xff,
 	readDebugRange: (addr: number, len: number) => Uint8Array.from({ length: len }, (_, i) => (addr + i) & 0xff),
 	writeDebug: vi.fn(),
