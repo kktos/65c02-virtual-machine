@@ -163,8 +163,17 @@ const reply = (event: MessageEvent, data: object = {}) => {
 
 self.onmessage = async (event: MessageEvent) => {
 	if (event.data.command === "init") {
-		if (!(await init(event.data.machine))) {
+		let error: string | undefined;
+		try {
+			if (!(await init(event.data.machine))) error = "the worker could not set up the machine (see the console)";
+		} catch (e) {
+			console.error("Worker: init failed:", e);
+			error = e instanceof Error ? e.message : String(e);
+		}
+		if (error) {
 			initState = "failed";
+			// The main thread fails `ready` and its requests: the messages dropped here get no reply
+			self.postMessage({ type: "initFailed", error });
 			for (const pending of pendingMessages.splice(0)) notInitialized(pending);
 			return;
 		}

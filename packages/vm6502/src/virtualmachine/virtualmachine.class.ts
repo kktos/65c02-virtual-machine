@@ -80,6 +80,8 @@ async function chunkData(chunk: MemoryChunk): Promise<Uint8Array> {
 	return data;
 }
 
+const logShortcutError = (e: unknown) => console.error("Debugger shortcut:", e);
+
 /** The screen as a PNG image of `width` x `height` pixels. */
 export type Screenshot = { width: number; height: number; png: Uint8Array };
 
@@ -111,6 +113,10 @@ export class VirtualMachine {
 
 	private workerReadyPromise: Promise<void>;
 	private resolveWorkerReady!: () => void;
+	private rejectWorkerReady!: (error: Error) => void;
+	private workerReady = false;
+	/** Why the machine couldn't start, or that it was shut down: requests then fail at once with it. */
+	private failure?: Error;
 
 	public onmessage?: (event: MessageEvent) => void;
 	public onStateChange?: (state: Dict) => void;
@@ -129,8 +135,11 @@ export class VirtualMachine {
 	// The page loses the focus: the keyup of the keys down won't come
 	private blurHandler = () => {
 		this.keyboardJoystick.releaseAll();
+		this.keysSentDown.clear();
 		this.worker.postMessage({ command: "keyup" });
 	};
+	// The keys whose keydown went to the machine: their keyup goes too, whatever the keyboard joystick does with it
+	private keysSentDown = new Set<string>();
 
 	/** Host keys as the joystick (off unless the user turned it on) */
 	public keyboardJoystick = new KeyboardJoystick(this);
@@ -159,9 +168,19 @@ export class VirtualMachine {
 			type: "module",
 		});
 
-		this.workerReadyPromise = new Promise<void>((resolve) => {
+		this.workerReadyPromise = new Promise<void>((resolve, reject) => {
 			this.resolveWorkerReady = resolve;
+			this.rejectWorkerReady = reject;
 		});
+		// Only loadBus awaits it: a failure before it gets there is reported through `ready` anyway
+		this.workerReadyPromise.catch(() => undefined);
+
+		// The worker's script failed to load (or threw) before it was up: the machine can't start
+		this.worker.onerror = (event) => {
+			if (this.workerReady) return;
+			event.preventDefault();
+			this.fail(new Error(event.message || "The CPU worker failed to load"));
+		};
 
 		this.worker.onmessage = (event) => {
 			const { command, colors, type, history, buffer, channel, text, payload } = event.data;
@@ -171,11 +190,15 @@ export class VirtualMachine {
 					this.queueAudioChunk(buffer);
 					break;
 				case "ready":
+					this.workerReady = true;
 					this.resolveWorkerReady();
+					break;
+				case "initFailed":
+					this.fail(new Error(event.data.error));
 					break;
 				case "reply": {
 					const { id, type: _type, ...data } = event.data;
-					this.requests.get(id)?.(data);
+					this.requests.get(id)?.resolve(data);
 					this.requests.delete(id);
 					break;
 				}
@@ -240,7 +263,11 @@ export class VirtualMachine {
 		// and document.fonts.load() would resolve at once, with no face to load, on a fallback font.
 		this.ready = this.loadCSS()
 			.catch((e) => console.warn("VM: Failed to load CSS:", e))
-			.then(() => this.loadBus());
+			.then(() => this.loadBus())
+			.catch((e) => {
+				this.fail(e instanceof Error ? e : new Error(String(e)));
+				throw e;
+			});
 
 		// Attach keyboard listener
 		window.addEventListener("keydown", this.keyHandler);
@@ -274,16 +301,10 @@ export class VirtualMachine {
 		const busConfig = this.machineConfig.bus;
 		const busModuleKey = `${MACHINES_BASE_PATH}/${busConfig.path}.ts`;
 		const busModuleLoader = busModules[busModuleKey];
-		if (!busModuleLoader) {
-			console.error(`VM: Could not find a bus module loader for key: ${busModuleKey}`);
-			return;
-		}
+		if (!busModuleLoader) throw new Error(`Could not find the bus module ${busModuleKey}`);
 		const BusModule = await busModuleLoader();
 		const exportedBusEntry = Object.entries(BusModule as object).find(([name]) => name === busConfig.class);
-		if (!exportedBusEntry) {
-			console.error(`VM: Could not find class ${busConfig.class} for module ${busModuleKey}`);
-			return;
-		}
+		if (!exportedBusEntry) throw new Error(`Could not find the class ${busConfig.class} in ${busModuleKey}`);
 		const [, BusClass]: [unknown, new (mem: Uint8Array, options?: BusOptions) => IBus] = exportedBusEntry;
 		this.bus = new BusClass(this.sharedMemory, this.busOptions);
 		await installDevices(this.bus, this.machineConfig.devices);
@@ -337,6 +358,20 @@ export class VirtualMachine {
 		return this._lastStop;
 	}
 
+	/** The machine can't start: `ready` and the requests waiting (or to come) fail with `error`. */
+	private fail(error: Error) {
+		if (this.failure) return;
+		this.failure = error;
+		this._playPending = false;
+		this.rejectWorkerReady(error);
+		this.rejectRequests(error);
+	}
+
+	private rejectRequests(error: Error) {
+		for (const { reject } of this.requests.values()) reject(error);
+		this.requests.clear();
+	}
+
 	private recordStop(stop: StopInfo | undefined) {
 		if (!stop) return;
 		this._lastStop = stop;
@@ -356,6 +391,7 @@ export class VirtualMachine {
 			console.warn("This machine does not have video output.");
 			return;
 		}
+		this.videoOutput?.destroy();
 		this.videoOutput = new VideoOutput(
 			canvas,
 			this.videoMemory,
@@ -367,6 +403,8 @@ export class VirtualMachine {
 		if (this.viewRect) this.videoOutput.setViewRect(this.viewRect);
 		this.videoOutput.setScaling(this.videoScaling);
 
+		// Called again (another canvas): the frame loop already runs, on the new output
+		if (this.isRendering) return;
 		this.isRendering = true;
 		this.renderFrame();
 	}
@@ -416,13 +454,12 @@ export class VirtualMachine {
 		// Debugger Shortcuts; with Alt, step over / out go through the breakpoints
 		if (event.code === "F10") {
 			event.preventDefault();
-			this.stepOver(event.altKey);
+			this.stepOver(event.altKey).catch(logShortcutError);
 			return;
 		}
 		if (event.code === "F11") {
 			event.preventDefault();
-			if (event.shiftKey) this.stepOut(event.altKey);
-			else this.step();
+			(event.shiftKey ? this.stepOut(event.altKey) : this.step()).catch(logShortcutError);
 			return;
 		}
 		if (event.code === "F5") {
@@ -438,6 +475,7 @@ export class VirtualMachine {
 			return;
 		}
 
+		this.keysSentDown.add(event.code);
 		this.worker.postMessage({
 			command: "keydown",
 			key: event.key,
@@ -463,7 +501,10 @@ export class VirtualMachine {
 		const target = event.target as HTMLElement;
 		if (target && (kbdElements.has(target.tagName) || target.isContentEditable)) return;
 
-		if (this.keyboardJoystick.handleKey(event.code, false)) return;
+		// A joystick key pressed with Ctrl / Cmd went down on the machine's keyboard: it goes up there too
+		const joystickKey = this.keyboardJoystick.handleKey(event.code, false);
+		const sentDown = this.keysSentDown.delete(event.code);
+		if (joystickKey && !sentDown) return;
 		this.worker.postMessage({ command: "keyup", key: event.key, code: event.code });
 	}
 
@@ -525,6 +566,7 @@ export class VirtualMachine {
 	public getSpeed = () => this.sharedRegisters.getFloat64(REG_SPEED_OFFSET, true);
 	public setBreakOnBrk = (enabled: boolean) => this.worker.postMessage({ command: "setBreakOnBrk", enabled });
 	public play = () => {
+		if (this.failure) return;
 		this._playPending = true;
 		this.worker.postMessage({ command: "run" });
 	};
@@ -545,13 +587,17 @@ export class VirtualMachine {
 			return result;
 		});
 
-	private requests = new Map<number, (data: unknown) => void>();
+	private requests = new Map<number, { resolve: (data: unknown) => void; reject: (error: Error) => void }>();
 	private nextRequestId = 1;
-	/** Sends a worker command that answers with a `reply` message (see `reply` in cpu.worker.ts). */
+	/**
+	 * Sends a worker command that answers with a `reply` message (see `reply` in cpu.worker.ts).
+	 * Rejects when the machine couldn't start, or is shut down before the answer comes.
+	 */
 	private request<T>(command: string, data: object = {}): Promise<T> {
+		if (this.failure) return Promise.reject(this.failure);
 		const id = this.nextRequestId++;
-		return new Promise<T>((resolve) => {
-			this.requests.set(id, resolve as (data: unknown) => void);
+		return new Promise<T>((resolve, reject) => {
+			this.requests.set(id, { resolve: resolve as (data: unknown) => void, reject });
 			this.worker.postMessage({ command, id, ...data });
 		});
 	}
@@ -871,6 +917,9 @@ export class VirtualMachine {
 		this.isRendering = false;
 		this.videoOutput?.destroy();
 		this.worker.terminate();
+		// The requests under way fail. Not `ready`: a machine still starting is just dropped, nothing goes on with it.
+		this.failure ??= new Error("The machine was shut down");
+		this.rejectRequests(this.failure);
 		window.removeEventListener("keydown", this.keyHandler);
 		window.removeEventListener("keyup", this.keyUpHandler);
 		window.removeEventListener("paste", this.pasteHandler);
