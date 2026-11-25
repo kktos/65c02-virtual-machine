@@ -74,7 +74,7 @@ Overflow is detected by comparing `JSON.stringify(history[0])` between polls. Ti
 
 ## The ugly (design and hygiene)
 
-### 6. [Design] One class does too much
+### 6. ✅ DONE — [Design] One class does too much
 
 It handles worker RPC, the audio sink, global DOM keyboard and paste listeners, the joystick, video, trace polling, register editing, memory access and CSS/font loading. A natural split:
 
@@ -84,13 +84,17 @@ It handles worker RPC, the audio sink, global DOM keyboard and paste listeners, 
 
 `VirtualMachine` would then be a thin façade over them.
 
+**Done:** `workerClient.class.ts`, `audioSink.class.ts` and `inputController.class.ts` hold those parts; `VirtualMachine` keeps its public API and delegates. Video, trace and registers stay in it.
+
 ### 7. [Design] The class depends on Vue and global app state
 
 `traceOverflow` and `videoAspect` are `ref()`s, and the constructor calls `useMemoryMap().clearRegions()`. A domain object shouldn't reset a global composable as a side effect of being created. Expose plain state plus callbacks or events, and let the composable layer (`useMachine`) wire it to Vue.
 
-### 8. [Design] The audio state is module-level
+### 8. ✅ DONE — [Design] The audio state is module-level
 
 `audioCtx` and `nextStartTime` (`:61-62`) are shared by every VM instance and outlive `terminate()`. Chunks already scheduled keep playing after teardown, and `nextStartTime` carries over to the next machine. Move them into the instance, or into the `AudioSink` from finding 6.
+
+**Done:** each VM has its own `AudioSink` (schedule and queued sources); `terminate()` stops what it queued. The `AudioContext` itself stays shared: browsers cap them, and once unlocked by a gesture it stays usable for the next machine.
 
 ### 9. [Design] Register writes are only safe while paused, but the class doesn't enforce it
 

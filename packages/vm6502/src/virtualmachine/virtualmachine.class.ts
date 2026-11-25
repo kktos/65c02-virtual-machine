@@ -43,27 +43,19 @@ import type { EmulatorRegisters } from "@/types/emulatorstate.interface";
 import { installDevices } from "./cpu/loaders/device.loader";
 import { logBus } from "./logbus.class";
 import {
-	KeyboardJoystick,
 	type KeyboardJoystickConfig,
 	loadKeyboardJoystickConfig,
 	saveKeyboardJoystickConfig,
 } from "./keyboardJoystick";
 import { encodeIndexedPng } from "@/lib/png.lib";
 import type { InterruptsState } from "@/types/interrupts.interface";
+import { WorkerClient } from "./workerClient.class";
+import { AudioSink } from "./audioSink.class";
+import { InputController } from "./inputController.class";
 
 const MACHINES_BASE_PATH = "../machines";
 const busModules = import.meta.glob("../machines/*/*.bus.ts");
 const cssModules = import.meta.glob("../machines/**/*.css");
-
-const kbdElements = new Set<string>(["INPUT", "TEXTAREA", "SELECT"]);
-
-// 1. Initialize AudioContext (Must be created after a user gesture like a click)
-let audioCtx: AudioContext | null = null;
-let nextStartTime = 0;
-// The sound queued ahead is kept between these (seconds): enough to absorb the jitter of the worker's
-// messages, never a growing lag (the main thread busy, the clock of the worker drifting from the audio's).
-const AUDIO_PREBUFFER = 0.03;
-const AUDIO_MAX_LATENCY = 0.15;
 
 /** A memory chunk's bytes: its `data` (hex text parsed), or its `src` file fetched. */
 async function chunkData(chunk: MemoryChunk): Promise<Uint8Array> {
@@ -80,11 +72,13 @@ async function chunkData(chunk: MemoryChunk): Promise<Uint8Array> {
 	return data;
 }
 
-const logShortcutError = (e: unknown) => console.error("Debugger shortcut:", e);
-
 /** The screen as a PNG image of `width` x `height` pixels. */
 export type Screenshot = { width: number; height: number; png: Uint8Array };
 
+/**
+ * The machine, main-thread side: a façade over the CPU worker (`WorkerClient`), the sound (`AudioSink`) and the
+ * host keyboard (`InputController`), plus the shared memory, the video, the trace and the bus on this thread.
+ */
 export class VirtualMachine {
 	public sharedBuffer: SharedArrayBuffer;
 	public sharedRegisters: DataView;
@@ -106,17 +100,12 @@ export class VirtualMachine {
 	private _playPending = false;
 	private _lastStop?: StopInfo;
 
-	public worker: Worker;
+	private readonly client: WorkerClient;
+	private readonly audio = new AudioSink();
+	private readonly input = new InputController(this, (message) => this.client.post(message));
 	public machineConfig: MachineConfig;
 	public bus?: IBus;
 	public ready: Promise<void>;
-
-	private workerReadyPromise: Promise<void>;
-	private resolveWorkerReady!: () => void;
-	private rejectWorkerReady!: (error: Error) => void;
-	private workerReady = false;
-	/** Why the machine couldn't start, or that it was shut down: requests then fail at once with it. */
-	private failure?: Error;
 
 	public onmessage?: (event: MessageEvent) => void;
 	public onStateChange?: (state: Dict) => void;
@@ -129,21 +118,6 @@ export class VirtualMachine {
 	private lastTraceHead = "";
 	private tracePollInterval: number | undefined;
 
-	private keyHandler = this.handleKeyDown.bind(this);
-	private keyUpHandler = this.handleKeyUp.bind(this);
-	private pasteHandler = this.handlePaste.bind(this);
-	// The page loses the focus: the keyup of the keys down won't come
-	private blurHandler = () => {
-		this.keyboardJoystick.releaseAll();
-		this.keysSentDown.clear();
-		this.worker.postMessage({ command: "keyup" });
-	};
-	// The keys whose keydown went to the machine: their keyup goes too, whatever the keyboard joystick does with it
-	private keysSentDown = new Set<string>();
-
-	/** Host keys as the joystick (off unless the user turned it on) */
-	public keyboardJoystick = new KeyboardJoystick(this);
-
 	private stateStack: number[][] = [];
 
 	/** `busOptions`: the machine as the user set it up (its slots…), for its bus on both threads. */
@@ -152,7 +126,7 @@ export class VirtualMachine {
 		public readonly busOptions: BusOptions = {},
 	) {
 		this.machineConfig = machineConfig;
-		this.keyboardJoystick.configure(this.joystickControls(), loadKeyboardJoystickConfig(machineConfig.name));
+		this.input.joystick.configure(this.joystickControls(), loadKeyboardJoystickConfig(machineConfig.name));
 		if (machineConfig.video) this.videoAspect.value = machineConfig.video.width / machineConfig.video.height;
 
 		const { addRegion, clearRegions } = useMemoryMap();
@@ -164,82 +138,7 @@ export class VirtualMachine {
 			});
 		}
 
-		this.worker = new Worker(new URL("./cpu/cpu.worker.ts", import.meta.url), {
-			type: "module",
-		});
-
-		this.workerReadyPromise = new Promise<void>((resolve, reject) => {
-			this.resolveWorkerReady = resolve;
-			this.rejectWorkerReady = reject;
-		});
-		// Only loadBus awaits it: a failure before it gets there is reported through `ready` anyway
-		this.workerReadyPromise.catch(() => undefined);
-
-		// The worker's script failed to load (or threw) before it was up: the machine can't start
-		this.worker.onerror = (event) => {
-			if (this.workerReady) return;
-			event.preventDefault();
-			this.fail(new Error(event.message || "The CPU worker failed to load"));
-		};
-
-		this.worker.onmessage = (event) => {
-			const { command, colors, type, history, buffer, channel, text, payload } = event.data;
-
-			switch (type) {
-				case "audio":
-					this.queueAudioChunk(buffer);
-					break;
-				case "ready":
-					this.workerReady = true;
-					this.resolveWorkerReady();
-					break;
-				case "initFailed":
-					this.fail(new Error(event.data.error));
-					break;
-				case "reply": {
-					const { id, type: _type, ...data } = event.data;
-					this.requests.get(id)?.resolve(data);
-					this.requests.delete(id);
-					break;
-				}
-				case "trace":
-					this.handleTraceReceived(history);
-					break;
-				case "log":
-					logBus.emit(channel, text, payload);
-					// this.emitLog({ kind, name, text, data, color });
-					break;
-				case "isRunning":
-					this._isRunning = event.data.isRunning;
-					if (this._isRunning) this._playPending = false;
-					else this.recordStop(event.data.stop);
-					this.onmessage?.(event);
-					break;
-				case "hypercall":
-					// The worker ran `BRK <cmd>` (and stopped if the call asked to): apply its effect.
-					applyHypercall(event.data.call);
-					break;
-				case "break":
-					this.onmessage?.(event);
-					break;
-				case "breakpointHit":
-					this.onmessage?.(event);
-					break;
-				default:
-					if (command === "setPalette") {
-						this.palette = colors;
-						this.videoOutput?.setPalette(colors);
-					} else if (command === "setViewRect") {
-						this.viewRect = event.data.rect;
-						this.videoOutput?.setViewRect(event.data.rect);
-						const { width, height } = event.data.rect;
-						if (width > 0 && height > 0) this.videoAspect.value = width / height;
-					} else {
-						this.onmessage?.(event);
-					}
-					break;
-			}
-		};
+		this.client = new WorkerClient((event) => this.handleWorkerMessage(event));
 
 		// 1. Initialize memory on the main thread
 		const bufferSize = MEMORY_OFFSET + this.machineConfig.memory.size;
@@ -265,15 +164,57 @@ export class VirtualMachine {
 			.catch((e) => console.warn("VM: Failed to load CSS:", e))
 			.then(() => this.loadBus())
 			.catch((e) => {
-				this.fail(e instanceof Error ? e : new Error(String(e)));
+				this.client.fail(e instanceof Error ? e : new Error(String(e)));
 				throw e;
 			});
 
-		// Attach keyboard listener
-		window.addEventListener("keydown", this.keyHandler);
-		window.addEventListener("keyup", this.keyUpHandler);
-		window.addEventListener("paste", this.pasteHandler);
-		window.addEventListener("blur", this.blurHandler);
+		this.input.attach();
+	}
+
+	/** The worker's messages other than the start-up and the replies (`WorkerClient` takes those). */
+	private handleWorkerMessage(event: MessageEvent) {
+		const { command, colors, type, history, buffer, channel, text, payload } = event.data;
+
+		switch (type) {
+			case "audio":
+				this.audio.queue(buffer);
+				break;
+			case "trace":
+				this.handleTraceReceived(history);
+				break;
+			case "log":
+				logBus.emit(channel, text, payload);
+				break;
+			case "isRunning":
+				this._isRunning = event.data.isRunning;
+				if (this._isRunning) this._playPending = false;
+				else this.recordStop(event.data.stop);
+				this.onmessage?.(event);
+				break;
+			case "hypercall":
+				// The worker ran `BRK <cmd>` (and stopped if the call asked to): apply its effect.
+				applyHypercall(event.data.call);
+				break;
+			case "break":
+				this.onmessage?.(event);
+				break;
+			case "breakpointHit":
+				this.onmessage?.(event);
+				break;
+			default:
+				if (command === "setPalette") {
+					this.palette = colors;
+					this.videoOutput?.setPalette(colors);
+				} else if (command === "setViewRect") {
+					this.viewRect = event.data.rect;
+					this.videoOutput?.setViewRect(event.data.rect);
+					const { width, height } = event.data.rect;
+					if (width > 0 && height > 0) this.videoAspect.value = width / height;
+				} else {
+					this.onmessage?.(event);
+				}
+				break;
+		}
 	}
 
 	private async loadCSS() {
@@ -319,7 +260,7 @@ export class VirtualMachine {
 			(this.machineConfig.memory.chunks ?? []).map(async (chunk) => ({ ...chunk, data: await chunkData(chunk) })),
 		);
 
-		this.worker.postMessage({
+		this.client.post({
 			command: "init",
 			machine: {
 				name: this.machineConfig.name,
@@ -347,7 +288,7 @@ export class VirtualMachine {
 		});
 
 		this.setSpeed(this.machineConfig.speed ?? 1);
-		await this.workerReadyPromise;
+		await this.client.started;
 	}
 
 	/**
@@ -356,20 +297,6 @@ export class VirtualMachine {
 	 */
 	public get lastStop() {
 		return this._lastStop;
-	}
-
-	/** The machine can't start: `ready` and the requests waiting (or to come) fail with `error`. */
-	private fail(error: Error) {
-		if (this.failure) return;
-		this.failure = error;
-		this._playPending = false;
-		this.rejectWorkerReady(error);
-		this.rejectRequests(error);
-	}
-
-	private rejectRequests(error: Error) {
-		for (const { reject } of this.requests.values()) reject(error);
-		this.requests.clear();
 	}
 
 	private recordStop(stop: StopInfo | undefined) {
@@ -383,7 +310,12 @@ export class VirtualMachine {
 
 	/** Running, or `play()` was sent and the worker hasn't answered yet: a stop seen now is about to end. */
 	public get isRunningOrStarting() {
-		return this._isRunning || this._playPending;
+		return this._isRunning || (this._playPending && !this.client.failure);
+	}
+
+	/** Host keys as the joystick (off unless the user turned it on) */
+	public get keyboardJoystick() {
+		return this.input.joystick;
 	}
 
 	public initVideo(canvas: HTMLCanvasElement) {
@@ -409,114 +341,10 @@ export class VirtualMachine {
 		this.renderFrame();
 	}
 
+	/** Starts the sound (after a user gesture): the worker sends its chunks from then on. */
 	public async initAudio() {
-		if (!audioCtx) audioCtx = new AudioContext({ sampleRate: 22050 });
-		if (audioCtx.state === "suspended") {
-			await audioCtx.resume();
-		}
-
-		// Use main thread audio instead of AudioWorklet
-		// Audio will be sent from worker and played here
-		this.worker.postMessage({ command: "initAudio", sampleRate: audioCtx.sampleRate });
-	}
-
-	private queueAudioChunk(samples: Float32Array) {
-		if (!audioCtx) return;
-
-		// Ensure context is running (browsers suspend it until user interaction)
-		if (audioCtx.state === "suspended") audioCtx.resume();
-
-		const audioBuffer = audioCtx.createBuffer(1, samples.length, audioCtx.sampleRate);
-		audioBuffer.copyToChannel(samples as Float32Array<ArrayBuffer>, 0);
-
-		const source = audioCtx.createBufferSource();
-		source.buffer = audioBuffer;
-		source.connect(audioCtx.destination);
-
-		// --- Scheduling Logic ---
-		const currentTime = audioCtx.currentTime;
-
-		// Underrun (a gap in the audio data): restart a little ahead of now, so the next chunks join up.
-		// Too much queued (sound produced faster than played): drop the chunk rather than lag behind.
-		if (nextStartTime < currentTime) nextStartTime = currentTime + AUDIO_PREBUFFER;
-		else if (nextStartTime - currentTime > AUDIO_MAX_LATENCY) return;
-
-		source.start(nextStartTime);
-
-		// Schedule the next chunk to start right after this one finishes
-		nextStartTime += audioBuffer.duration;
-	}
-
-	private handleKeyDown(event: KeyboardEvent) {
-		const target = event.target as HTMLElement;
-		if (target && (kbdElements.has(target.tagName) || target.isContentEditable)) return;
-
-		// Debugger Shortcuts; with Alt, step over / out go through the breakpoints
-		if (event.code === "F10") {
-			event.preventDefault();
-			this.stepOver(event.altKey).catch(logShortcutError);
-			return;
-		}
-		if (event.code === "F11") {
-			event.preventDefault();
-			(event.shiftKey ? this.stepOut(event.altKey) : this.step()).catch(logShortcutError);
-			return;
-		}
-		if (event.code === "F5") {
-			event.preventDefault();
-			if (this._isRunning) this.pause();
-			else this.play();
-			return;
-		}
-
-		// A key of the keyboard joystick: the joystick's, not the machine keyboard's (shortcuts still pass)
-		if (!event.ctrlKey && !event.metaKey && this.keyboardJoystick.handleKey(event.code, true)) {
-			event.preventDefault();
-			return;
-		}
-
-		this.keysSentDown.add(event.code);
-		this.worker.postMessage({
-			command: "keydown",
-			key: event.key,
-			code: event.code,
-			ctrl: event.ctrlKey,
-			shift: event.shiftKey,
-			alt: event.altKey,
-			meta: event.metaKey,
-		});
-
-		// Prevent default browser actions for handled keys (except F-keys, etc)
-		if (!event.metaKey && (!event.altKey || event.key === "Alt")) {
-			if (
-				event.key.length === 1 ||
-				["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Backspace", "Enter"].includes(event.key)
-			) {
-				event.preventDefault();
-			}
-		}
-	}
-
-	private handleKeyUp(event: KeyboardEvent) {
-		const target = event.target as HTMLElement;
-		if (target && (kbdElements.has(target.tagName) || target.isContentEditable)) return;
-
-		// A joystick key pressed with Ctrl / Cmd went down on the machine's keyboard: it goes up there too
-		const joystickKey = this.keyboardJoystick.handleKey(event.code, false);
-		const sentDown = this.keysSentDown.delete(event.code);
-		if (joystickKey && !sentDown) return;
-		this.worker.postMessage({ command: "keyup", key: event.key, code: event.code });
-	}
-
-	private handlePaste(event: ClipboardEvent) {
-		const target = event.target as HTMLElement;
-		if (target && (kbdElements.has(target.tagName) || target.isContentEditable)) return;
-
-		const text = event.clipboardData?.getData("text");
-		if (text) {
-			event.preventDefault();
-			this.typeText(text).catch((e) => console.error("Paste:", e));
-		}
+		const sampleRate = await this.audio.open();
+		this.client.post({ command: "initAudio", sampleRate });
 	}
 
 	/**
@@ -562,17 +390,17 @@ export class VirtualMachine {
 		requestAnimationFrame(() => this.renderFrame());
 	}
 
-	public setSpeed = (speed: number) => this.worker.postMessage({ command: "setSpeed", speed });
+	public setSpeed = (speed: number) => this.client.post({ command: "setSpeed", speed });
 	public getSpeed = () => this.sharedRegisters.getFloat64(REG_SPEED_OFFSET, true);
-	public setBreakOnBrk = (enabled: boolean) => this.worker.postMessage({ command: "setBreakOnBrk", enabled });
+	public setBreakOnBrk = (enabled: boolean) => this.client.post({ command: "setBreakOnBrk", enabled });
 	public play = () => {
-		if (this.failure) return;
+		if (this.client.failure) return;
 		this._playPending = true;
-		this.worker.postMessage({ command: "run" });
+		this.client.post({ command: "run" });
 	};
 	public pause = () => {
 		this._playPending = false;
-		this.worker.postMessage({ command: "pause" });
+		this.client.post({ command: "pause" });
 	};
 	/**
 	 * Resolves once the worker has reset (the machine is then stopped, PC on the reset vector). `cold`: a power-up
@@ -587,19 +415,8 @@ export class VirtualMachine {
 			return result;
 		});
 
-	private requests = new Map<number, { resolve: (data: unknown) => void; reject: (error: Error) => void }>();
-	private nextRequestId = 1;
-	/**
-	 * Sends a worker command that answers with a `reply` message (see `reply` in cpu.worker.ts).
-	 * Rejects when the machine couldn't start, or is shut down before the answer comes.
-	 */
 	private request<T>(command: string, data: object = {}): Promise<T> {
-		if (this.failure) return Promise.reject(this.failure);
-		const id = this.nextRequestId++;
-		return new Promise<T>((resolve, reject) => {
-			this.requests.set(id, { resolve: resolve as (data: unknown) => void, reject });
-			this.worker.postMessage({ command, id, ...data });
-		});
+		return this.client.request<T>(command, data);
 	}
 	/**
 	 * Step over (a JSR: runs to the instruction after it; else one step) / step out (runs until the routine returns).
@@ -608,7 +425,7 @@ export class VirtualMachine {
 	 */
 	public stepOver = (through = false) => this.stepRun("stepOver", through);
 	/** The step over / out under way stops going through the breakpoints (it stays armed). */
-	public endStepThrough = () => this.worker.postMessage({ command: "endStepThrough" });
+	public endStepThrough = () => this.client.post({ command: "endStepThrough" });
 	public stepOut = (through = false) => this.stepRun("stepOut", through);
 	private stepRun(command: "stepOver" | "stepOut", through: boolean) {
 		return this.request<{ running: boolean; step?: StepResult }>(command, { through }).then(({ running, step }) => {
@@ -619,14 +436,14 @@ export class VirtualMachine {
 	}
 
 	public addBP = (type: Breakpoint["type"], address: number, endAddress?: number) =>
-		this.worker.postMessage({ command: "addBP", type, address, endAddress });
+		this.client.post({ command: "addBP", type, address, endAddress });
 	public removeBP = (type: Breakpoint["type"], address: number, endAddress?: number) =>
-		this.worker.postMessage({ command: "removeBP", type, address, endAddress });
-	public clearBPs = () => this.worker.postMessage({ command: "clearBPs" });
+		this.client.post({ command: "removeBP", type, address, endAddress });
+	public clearBPs = () => this.client.post({ command: "clearBPs" });
 
 	public insertDisk = (data: Uint8Array, metadata: Dict = {}) =>
-		this.worker.postMessage({ command: "insertMedia", data, metadata });
-	public ejectDisk = (metadata: Dict = {}) => this.worker.postMessage({ command: "ejectMedia", metadata });
+		this.client.post({ command: "insertMedia", data, metadata });
+	public ejectDisk = (metadata: Dict = {}) => this.client.post({ command: "ejectMedia", metadata });
 
 	/** Instructions the trace switch keeps (the instruction trace's size, rounded up to a power of 2). */
 	public instructionTraceSize = INSTRUCTION_TRACE_DEFAULT_SIZE;
@@ -634,8 +451,8 @@ export class VirtualMachine {
 	/** The trace switch: the JSR / JMP / interrupt log and the instruction trace (restarted, cleared). */
 	public setTrace = (enabled: boolean) => {
 		this.isTraceEnabled = enabled;
-		this.worker.postMessage({ command: "setTrace", enabled });
-		this.worker.postMessage({ command: "setInstructionTrace", enabled, size: this.instructionTraceSize });
+		this.client.post({ command: "setTrace", enabled });
+		this.client.post({ command: "setInstructionTrace", enabled, size: this.instructionTraceSize });
 		if (enabled) {
 			this.startTracePolling();
 		} else {
@@ -665,12 +482,12 @@ export class VirtualMachine {
 	public getInterrupts = () =>
 		this.request<{ state: InterruptsState | null }>("getInterrupts").then((answer) => answer.state);
 	public getInstructionTrace = (count?: number) => this.request<TraceSnapshot>("getInstructionTrace", { count });
-	public setTraceSize = (size: number) => this.worker.postMessage({ command: "setTraceSize", size });
-	public getTrace = () => this.worker.postMessage({ command: "getTrace" });
+	public setTraceSize = (size: number) => this.client.post({ command: "setTraceSize", size });
+	public getTrace = () => this.client.post({ command: "getTrace" });
 	/** Clears both traces (the jumps log and the instruction trace). */
 	public clearTrace = () => {
-		this.worker.postMessage({ command: "clearTrace" });
-		this.worker.postMessage({ command: "clearInstructionTrace" });
+		this.client.post({ command: "clearTrace" });
+		this.client.post({ command: "clearInstructionTrace" });
 		this.traceOverflow.value = false;
 		this.lastTraceHead = "";
 	};
@@ -718,7 +535,7 @@ export class VirtualMachine {
 		const png = await encodeIndexedPng(width, height, pixels, this.palette ?? grayscalePalette());
 		return { width, height, png };
 	}
-	public mute = (enabled: boolean) => this.worker.postMessage({ command: "mute", enabled });
+	public mute = (enabled: boolean) => this.client.post({ command: "mute", enabled });
 
 	public getBank(address: number) {
 		return this.bus?.getBank?.(address) ?? 0;
@@ -773,7 +590,7 @@ export class VirtualMachine {
 
 	// write from the thread for I/O (only mem is shared)
 	public writeIO(address: number, value: number) {
-		this.bus?.ioWrite(address, value, this.worker);
+		this.bus?.ioWrite(address, value, this.client.worker);
 	}
 
 	public updateMemory(addr: number, value: number) {
@@ -871,7 +688,7 @@ export class VirtualMachine {
 				overrides.wannaScale === false ? "native" : overrides.integerScaling ? "integer" : "fit";
 			this.videoOutput?.setScaling(this.videoScaling);
 		}
-		this.worker.postMessage({
+		this.client.post({
 			command: "setDebugOverrides",
 			category,
 			overrides: { ...overrides },
@@ -886,7 +703,7 @@ export class VirtualMachine {
 	/** Turns the keyboard joystick on / off, binds its keys, and remembers it for this machine. */
 	public setKeyboardJoystick(config: KeyboardJoystickConfig) {
 		saveKeyboardJoystickConfig(this.machineConfig.name, config);
-		this.keyboardJoystick.configure(this.joystickControls(), config);
+		this.input.joystick.configure(this.joystickControls(), config);
 	}
 
 	public setAnalogInput(index: number, value: number) {
@@ -916,15 +733,9 @@ export class VirtualMachine {
 	public terminate() {
 		this.isRendering = false;
 		this.videoOutput?.destroy();
-		this.worker.terminate();
-		// The requests under way fail. Not `ready`: a machine still starting is just dropped, nothing goes on with it.
-		this.failure ??= new Error("The machine was shut down");
-		this.rejectRequests(this.failure);
-		window.removeEventListener("keydown", this.keyHandler);
-		window.removeEventListener("keyup", this.keyUpHandler);
-		window.removeEventListener("paste", this.pasteHandler);
-		window.removeEventListener("blur", this.blurHandler);
-		// this.logListeners.length = 0;
+		this.input.detach();
+		this.audio.close();
+		this.client.terminate();
 		this.stopTracePolling();
 
 		console.log("VM: Worker terminated.");
