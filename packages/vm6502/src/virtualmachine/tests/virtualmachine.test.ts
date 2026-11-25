@@ -195,7 +195,7 @@ describe("VirtualMachine state callbacks", () => {
 		vm.onVideoAspect = (aspect) => aspects.push(aspect);
 		expect(vm.videoAspect).toBe(1);
 		const rect = (width: number, height: number) =>
-			FakeWorker.last.emit({ command: "setViewRect", rect: { x: 0, y: 0, width, height } });
+			FakeWorker.last.emit({ type: "setViewRect", rect: { x: 0, y: 0, width, height } });
 		rect(8, 4);
 		rect(8, 4);
 		rect(0, 0);
@@ -207,14 +207,20 @@ describe("VirtualMachine state callbacks", () => {
 		const vm = new VirtualMachine(machine());
 		const changes: boolean[] = [];
 		vm.onTraceOverflow = (overflow) => changes.push(overflow);
-		const trace = (source: number) =>
-			FakeWorker.last.emit({ type: "trace", history: [{ type: "JSR", source, target: 0 }] });
+		// A one-entry buffer: `total` entries logged, the same JSR each time (a tight loop)
+		const trace = (total: number) =>
+			FakeWorker.last.emit({ type: "trace", history: [{ type: "JSR", source: 1, target: 0 }], total });
 		trace(1);
 		trace(1);
-		trace(2);
+		expect(vm.traceOverflow).toBe(false);
+		trace(5);
 		expect(vm.traceOverflow).toBe(true);
+		trace(5);
+		expect(vm.traceOverflow).toBe(false);
+		trace(9);
 		vm.clearTrace();
-		expect(changes).toEqual([true, false]);
+		trace(3); // the first poll after a clear sets the baseline
+		expect(changes).toEqual([true, false, true, false]);
 	});
 
 	it("hands the hypercalls to onHypercall", () => {

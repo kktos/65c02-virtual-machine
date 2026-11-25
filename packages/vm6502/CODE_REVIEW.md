@@ -62,13 +62,15 @@ Each call creates a new `VideoOutput` without destroying the previous one, and c
 
 **Suggested fix:** `this.videoOutput?.destroy()` first, and only call `renderFrame()` when `isRendering` was false.
 
-### 5. [Low] The trace overflow check can miss overflows
+### 5. ✅ DONE — [Low] The trace overflow check can miss overflows
 
 `virtualmachine.class.ts:502-507`
 
 Overflow is detected by comparing `JSON.stringify(history[0])` between polls. Tight loops write identical JSR entries, so the first entry can look the same even after the ring buffer has wrapped.
 
 **Suggested fix:** have the worker send a running total or sequence number with the trace and compare that.
+
+**Done:** the worker counts the entries logged since the last clear (`getTraceTotal`) and sends that `total` with the trace. The main thread flags an overflow when the entries dropped (`total - history.length`) grew since the previous poll. The first poll after a clear or a restart only sets the baseline, so a poll in flight across the clear can't raise a false one.
 
 ---
 
@@ -106,11 +108,13 @@ While the CPU runs, its registers are held in locals (`registersLive` in `cpu.65
 
 **Done:** `updateRegister` and `restoreRegisters` throw while the machine runs or is starting (`assertPaused`), and say why in their doc. New `pauseAndWait()`: the worker now answers `pause` when asked, after its `isRunning`. The console's G wrote SP and PC straight into the shared buffer even on a running machine (racy, not guarded as thought). It now pauses and waits first, writes through `updateRegister`, and resumes as before.
 
-### 10. [Hygiene] The worker's message protocol mixes two discriminators
+### 10. ✅ DONE — [Hygiene] The worker's message protocol mixes two discriminators
 
 `virtualmachine.class.ts:166-219`
 
 The switch uses `type`, but `setPalette` and `setViewRect` arrive with `command` and fall into `default`. The `break` and `breakpointHit` cases (`:199-204`) do exactly what `default` does. Give every worker-to-main message a `type` and drop the redundant cases.
+
+**Done:** the videos (Apple, PET, Klaus) post `setPalette` / `setViewRect` with `type`, which now get their own cases; the `break` / `breakpointHit` cases are gone (`default` forwards them). Klaus's per-frame `{ command: "syncState" }` post is removed: its bus has no `saveState`, so it never fired, and nothing handled it.
 
 ### 11. ✅ DONE — [Hygiene] The generic VM hard-codes the Apple font
 

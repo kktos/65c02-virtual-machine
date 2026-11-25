@@ -200,7 +200,7 @@ export class AppleVideo implements Video {
 
 	private sendPalette() {
 		// postMessage sends a copy, so the palette can keep being updated here
-		this.parent.postMessage({ command: "setPalette", colors: this.palette });
+		this.parent.postMessage({ type: "setPalette", colors: this.palette });
 	}
 
 	/**
@@ -378,7 +378,7 @@ export class AppleVideo implements Video {
 		this.viewRect = rect;
 		// The debug bar follows the top of the view: repaint the border over where it used to be
 		this.borderOverrideColorLatch = true;
-		this.parent.postMessage({ command: "setViewRect", rect });
+		this.parent.postMessage({ type: "setViewRect", rect });
 	}
 
 	public screenToAddress(x: number, y: number): ScreenLocation | undefined {

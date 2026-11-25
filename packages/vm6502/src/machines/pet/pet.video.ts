@@ -21,7 +21,7 @@ export class PetVideo implements Video {
 		const palette = new Uint8Array(256 * 4);
 		palette.set([0x00, 0x00, 0x00, 0xff], BLACK * 4);
 		palette.set([0x41, 0xff, 0x00, 0xff], GREEN * 4);
-		parent.postMessage({ command: "setPalette", colors: palette });
+		parent.postMessage({ type: "setPalette", colors: palette });
 	}
 
 	tick() {

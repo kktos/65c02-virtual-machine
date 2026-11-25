@@ -7,6 +7,7 @@ import {
 	clearBreakpoints,
 	clearTrace,
 	getTrace,
+	getTraceTotal,
 	initCPU,
 	isStoppedOnBrk,
 	isStoppedOnAccess,
@@ -289,7 +290,7 @@ async function handleMessage(event: MessageEvent) {
 			setTraceSize(event.data.size);
 			break;
 		case "getTrace":
-			self.postMessage({ type: "trace", history: getTrace() });
+			self.postMessage({ type: "trace", history: getTrace(), total: getTraceTotal() });
 			break;
 		case "clearTrace":
 			clearTrace();

@@ -119,7 +119,8 @@ export class VirtualMachine {
 	private _traceOverflow = false;
 	/** Width / height of the displayed frame (the view rect): the app layout sizes the video area from it */
 	private _videoAspect = 4 / 3;
-	private lastTraceHead = "";
+	/** Entries the jumps buffer had dropped at the last poll (null: none seen since the trace was cleared or restarted) */
+	private lastTraceDropped: number | null = null;
 	private tracePollInterval: number | undefined;
 
 	private stateStack: number[][] = [];
@@ -168,14 +169,14 @@ export class VirtualMachine {
 
 	/** The worker's messages other than the start-up and the replies (`WorkerClient` takes those). */
 	private handleWorkerMessage(event: MessageEvent) {
-		const { command, colors, type, history, buffer, channel, text, payload } = event.data;
+		const { type, history, total, buffer, channel, text, payload } = event.data;
 
 		switch (type) {
 			case "audio":
 				this.audio.queue(buffer);
 				break;
 			case "trace":
-				this.handleTraceReceived(history);
+				this.handleTraceReceived(history, total);
 				break;
 			case "log":
 				logBus.emit(channel, text, payload);
@@ -189,24 +190,19 @@ export class VirtualMachine {
 			case "hypercall":
 				this.onHypercall?.(event.data.call);
 				break;
-			case "break":
-				this.onmessage?.(event);
+			case "setPalette":
+				this.palette = event.data.colors;
+				this.videoOutput?.setPalette(event.data.colors);
 				break;
-			case "breakpointHit":
-				this.onmessage?.(event);
+			case "setViewRect": {
+				const { rect } = event.data;
+				this.viewRect = rect;
+				this.videoOutput?.setViewRect(rect);
+				if (rect.width > 0 && rect.height > 0) this.setVideoAspect(rect.width / rect.height);
 				break;
+			}
 			default:
-				if (command === "setPalette") {
-					this.palette = colors;
-					this.videoOutput?.setPalette(colors);
-				} else if (command === "setViewRect") {
-					this.viewRect = event.data.rect;
-					this.videoOutput?.setViewRect(event.data.rect);
-					const { width, height } = event.data.rect;
-					if (width > 0 && height > 0) this.setVideoAspect(width / height);
-				} else {
-					this.onmessage?.(event);
-				}
+				this.onmessage?.(event);
 				break;
 		}
 	}
@@ -378,10 +374,11 @@ export class VirtualMachine {
 		return answer as { state: KeyboardState; queued?: number; skipped?: number };
 	};
 
-	private handleTraceReceived(history: { type: string; source: number; target: number }[]) {
-		const newHead = history.length > 0 ? JSON.stringify(history[0]) : "";
-		this.setTraceOverflow(!!this.lastTraceHead && !!newHead && this.lastTraceHead !== newHead);
-		this.lastTraceHead = newHead;
+	/** `total`: entries logged since the clear. The buffer dropped more since the last poll: an overflow. */
+	private handleTraceReceived(history: { type: string; source: number; target: number }[], total: number) {
+		const dropped = total - history.length;
+		this.setTraceOverflow(this.lastTraceDropped !== null && dropped > this.lastTraceDropped);
+		this.lastTraceDropped = dropped;
 		this.onTraceReceived?.(history);
 	}
 
@@ -473,7 +470,7 @@ export class VirtualMachine {
 		} else {
 			this.stopTracePolling();
 			this.setTraceOverflow(false);
-			this.lastTraceHead = "";
+			this.lastTraceDropped = null;
 		}
 	};
 
@@ -504,7 +501,7 @@ export class VirtualMachine {
 		this.client.post({ command: "clearTrace" });
 		this.client.post({ command: "clearInstructionTrace" });
 		this.setTraceOverflow(false);
-		this.lastTraceHead = "";
+		this.lastTraceDropped = null;
 	};
 	/** Redraws the frame from memory (the screen isn't redrawn while paused); resolves once it is drawn. */
 	public refreshVideo = (): Promise<void> => this.request("refreshVideo").then(() => undefined);
