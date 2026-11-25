@@ -98,11 +98,13 @@ It handles worker RPC, the audio sink, global DOM keyboard and paste listeners, 
 
 **Done:** each VM has its own `AudioSink` (schedule and queued sources); `terminate()` stops what it queued. The `AudioContext` itself stays shared: browsers cap them, and once unlocked by a gesture it stays usable for the next machine.
 
-### 9. [Design] Register writes are only safe while paused, but the class doesn't enforce it
+### 9. ✅ DONE — [Design] Register writes are only safe while paused, but the class doesn't enforce it
 
 `updateRegister`, `restoreRegisters`
 
 While the CPU runs, its registers are held in locals (`registersLive` in `cpu.65c02.ts`), so writes to `sharedRegisters` are silently lost. Every caller guards this today (`StatusFlagsView`, the MCP `load_binary` tool, the `JSR` hook). Add a check or at least a doc line in the methods themselves so the next caller doesn't get it wrong.
+
+**Done:** `updateRegister` and `restoreRegisters` throw while the machine runs or is starting (`assertPaused`), and say why in their doc. New `pauseAndWait()`: the worker now answers `pause` when asked, after its `isRunning`. The console's G wrote SP and PC straight into the shared buffer even on a running machine (racy, not guarded as thought). It now pauses and waits first, writes through `updateRegister`, and resumes as before.
 
 ### 10. [Hygiene] The worker's message protocol mixes two discriminators
 
@@ -110,11 +112,13 @@ While the CPU runs, its registers are held in locals (`registersLive` in `cpu.65
 
 The switch uses `type`, but `setPalette` and `setViewRect` arrive with `command` and fall into `default`. The `break` and `breakpointHit` cases (`:199-204`) do exactly what `default` does. Give every worker-to-main message a `type` and drop the redundant cases.
 
-### 11. [Hygiene] The generic VM hard-codes the Apple font
+### 11. ✅ DONE — [Hygiene] The generic VM hard-codes the Apple font
 
 `virtualmachine.class.ts:262-266`
 
 `loadCSS` checks and loads `"16px PrintChar21"` after every CSS file, whatever the machine, and leaves a `console.log("Font loaded:")` debug line. The fonts to wait for belong in the machine config (or `document.fonts.ready` after all the CSS is in).
+
+**Done:** the font check and its debug log are gone from `loadCSS`. The Apple's bus already waits for its own fonts (`generateApple2Assets`, `document.fonts.load` on PrintChar21 and PRNumber3) once the CSS is in, and its video does the same in the worker.
 
 ### 12. [Nit] A doc comment is on the wrong member
 

@@ -108,7 +108,11 @@ export function defineCommand<O extends readonly OptionItemDef[]>(def: {
 	} as Command<O>;
 }
 
-function handleJsrOutput(output: any, vm: VirtualMachine, result: CommandRunResult) {
+async function handleJsrOutput(output: any, vm: VirtualMachine, result: CommandRunResult) {
+	// The registers can only be written paused (see updateRegister): a running machine is paused first, resumed after
+	const wasRunning = vm.isRunningOrStarting;
+	if (wasRunning) await vm.pauseAndWait();
+
 	const jsrAddress = output.address ?? vm.sharedRegisters.getUint16(REG_PC_OFFSET, true);
 	const fakeReturnAddress = 0xfffe;
 	const breakpointAddress = 0xffff;
@@ -116,6 +120,7 @@ function handleJsrOutput(output: any, vm: VirtualMachine, result: CommandRunResu
 	const sp = vm.sharedRegisters.getUint8(REG_SP_OFFSET);
 	if (sp < 2) {
 		result.error = "Stack overflow risk.  SP < 2.  Cannot execute JSR command.";
+		if (wasRunning) vm.play();
 		return;
 	}
 
@@ -123,16 +128,16 @@ function handleJsrOutput(output: any, vm: VirtualMachine, result: CommandRunResu
 	// The routine's I flag holds (its CLI / SEI), as after the Monitor's G
 	const lines = [`regs return`, `print "done"`];
 	// Back to where it was: running on, or paused
-	if (vm.isRunningOrStarting) lines.push("run");
+	if (wasRunning) lines.push("run");
 	// A hook left by a G whose routine never returned would keep its command: replaced
 	const hook = { type: "pc", address: breakpointAddress } as const;
 	removeBreakpoint(hook, vm);
 	addBreakpoint({ ...hook, isTemporary: true, command: lines.join(";") }, vm);
 
-	vm.sharedRegisters.setUint8(REG_SP_OFFSET, sp - 2);
+	vm.updateRegister("SP", sp - 2);
 	vm.writeDebug(0x0100 + sp, fakeReturnAddress >> 8);
 	vm.writeDebug(0x0100 + sp - 1, fakeReturnAddress & 0xff);
-	vm.sharedRegisters.setUint16(REG_PC_OFFSET, jsrAddress, true);
+	vm.updateRegister("PC", jsrAddress);
 	vm.play();
 }
 
@@ -239,7 +244,7 @@ export async function executeSubQueue(
 				const currentSink: Sink = (output: CommandOutput | MiniMonitorCommandRequest | ErrorOutput) => {
 					if (isLastInChain) {
 						if (isMiniMonitorCommandRequest(output)) {
-							if (output.type === "JSR") handleJsrOutput(output, vm, result);
+							if (output.type === "JSR") return handleJsrOutput(output, vm, result);
 						} else {
 							if ("error" in output) {
 								result.error = output.error;
@@ -254,7 +259,7 @@ export async function executeSubQueue(
 
 				if (!isValidCmd) {
 					const output = await minimonitor(item.source, vm);
-					currentSink(output);
+					await currentSink(output);
 					continue;
 				}
 

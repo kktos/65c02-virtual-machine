@@ -7,4 +7,5 @@ type QueueItemLine = {
 };
 type QueueItemMarker = { type: "marker"; value: string };
 export type QueueItem = QueueItemLine | QueueItemMarker;
-type Sink = (output: any) => void;
+/** Can return a promise: a G (JSR) waits for the machine to pause. */
+type Sink = (output: any) => void | Promise<void>;
