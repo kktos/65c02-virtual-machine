@@ -2,6 +2,7 @@ import "fake-indexeddb/auto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { REG_A_OFFSET, REG_PC_OFFSET, REG_SP_OFFSET, REG_STATUS_OFFSET } from "@/virtualmachine/cpu/shared-memory";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
+import type { EmulatorRegisters } from "@/types/emulatorstate.interface";
 
 vi.stubGlobal("localStorage", { getItem: () => null, setItem: () => undefined });
 
@@ -24,7 +25,8 @@ const fake = {
 	addBP: vi.fn(),
 	removeBP: vi.fn(),
 	sharedRegisters: registers,
-	stateStack: [] as number[][],
+	stateStack: [] as EmulatorRegisters[],
+	getRegisters: VM.prototype.getRegisters,
 	saveRegisters: VM.prototype.saveRegisters,
 	restoreRegisters: VM.prototype.restoreRegisters,
 	updateRegister: VM.prototype.updateRegister,

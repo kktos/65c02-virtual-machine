@@ -124,13 +124,13 @@ The switch uses `type`, but `setPalette` and `setViewRect` arrive with `command`
 
 **Done:** the font check and its debug log are gone from `loadCSS`. The Apple's bus already waits for its own fonts (`generateApple2Assets`, `document.fonts.load` on PrintChar21 and PRNumber3) once the CSS is in, and its video does the same in the worker.
 
-### 12. [Nit] A doc comment is on the wrong member
+### 12. ✅ DONE — [Nit] A doc comment is on the wrong member
 
 `virtualmachine.class.ts:617-618`
 
 "The last `count` instructions recorded" sits above `getInterrupts`, not `getInstructionTrace`.
 
-### 13. [Nit] Smaller cleanups
+### 13. ✅ DONE — [Nit] Smaller cleanups
 
 - `saveRegisters` stores a positional `number[]`; use `readRegisters()` and an object instead.
 - `updateRegister("P")` uses the magic number `0x30`, but the flag-mask constants are already imported. The `flagMasks` object is also rebuilt on every call; hoist it.
@@ -138,6 +138,8 @@ The switch uses `type`, but `setPalette` and `setViewRect` arrive with `command`
 - `keyboardRequest` and `stateRequest` duplicate the same unwrap-or-throw-on-`error` logic; one helper would cover both.
 - Some members are arrow-function fields and others are methods, with no clear rule.
 - Nearly every field is `public`, including `worker` and `sharedBuffer`.
+
+**Done:** the register stack holds `readRegisters()` objects; `P` keeps `FLAG_B_MASK | FLAG_5_MASK` and the flag masks are a module constant; `loadBus` indexes the module by the class name; `checkedRequest` unwraps the `error` for the keyboard and save-state requests. The rule is now: every member is a method (the VM is held `markRaw`, nothing passes them detached). `sharedBuffer`, `videoBuffer` and `videoMemory` are private, and the fields set once are `readonly`. `sharedRegisters` stays public: `set`, `run`, `useCommands` and the expression parser read or write it directly, and the writes skip `assertPaused`. Moving them onto `getRegisters` / `updateRegister` is a follow-up.
 
 ### 14. [To check] `read()` goes through the main thread's copy of the bus
 

@@ -5,6 +5,7 @@ import type { BusOptions, MachineConfig, MemoryChunk } from "@/types/machine.int
 import type { IBus, KeyboardState } from "@/types/bus.interface";
 import type { ScreenLocation } from "@/types/video.interface";
 import {
+	FLAG_5_MASK,
 	FLAG_B_MASK,
 	FLAG_C_MASK,
 	FLAG_D_MASK,
@@ -70,6 +71,17 @@ async function chunkData(chunk: MemoryChunk): Promise<Uint8Array> {
 	return data;
 }
 
+/** The P bit of each flag `updateRegister` sets alone. */
+const FLAG_MASKS = {
+	N: FLAG_N_MASK,
+	V: FLAG_V_MASK,
+	B: FLAG_B_MASK,
+	D: FLAG_D_MASK,
+	I: FLAG_I_MASK,
+	Z: FLAG_Z_MASK,
+	C: FLAG_C_MASK,
+} as const;
+
 /** The screen as a PNG image of `width` x `height` pixels. */
 export type Screenshot = { width: number; height: number; png: Uint8Array };
 
@@ -78,12 +90,12 @@ export type Screenshot = { width: number; height: number; png: Uint8Array };
  * host keyboard (`InputController`), plus the shared memory, the video, the trace and the bus on this thread.
  */
 export class VirtualMachine {
-	public sharedBuffer: SharedArrayBuffer;
-	public sharedRegisters: DataView;
-	public sharedStackMetadata: Uint8Array;
-	public sharedMemory: Uint8Array;
-	public videoBuffer?: SharedArrayBuffer;
-	public videoMemory?: Uint8Array;
+	private readonly sharedBuffer: SharedArrayBuffer;
+	public readonly sharedRegisters: DataView;
+	public readonly sharedStackMetadata: Uint8Array;
+	public readonly sharedMemory: Uint8Array;
+	private readonly videoBuffer?: SharedArrayBuffer;
+	private readonly videoMemory?: Uint8Array;
 	private videoOutput?: VideoOutput;
 	// The palette and the visible part of the video buffer, as last sent by the machine's video.
 	// They can arrive before the canvas is attached (applied in initVideo); screenshot uses them too.
@@ -101,9 +113,9 @@ export class VirtualMachine {
 	private readonly client: WorkerClient;
 	private readonly audio = new AudioSink();
 	private readonly input = new InputController(this, (message) => this.client.post(message));
-	public machineConfig: MachineConfig;
+	public readonly machineConfig: MachineConfig;
 	public bus?: IBus;
-	public ready: Promise<void>;
+	public readonly ready: Promise<void>;
 
 	public onmessage?: (event: MessageEvent) => void;
 	public onStateChange?: (state: Dict) => void;
@@ -123,7 +135,7 @@ export class VirtualMachine {
 	private lastTraceDropped: number | null = null;
 	private tracePollInterval: number | undefined;
 
-	private stateStack: number[][] = [];
+	private stateStack: EmulatorRegisters[] = [];
 
 	/** `busOptions`: the machine as the user set it up (its slots…), for its bus on both threads. */
 	constructor(
@@ -227,10 +239,11 @@ export class VirtualMachine {
 		const busModuleKey = `${MACHINES_BASE_PATH}/${busConfig.path}.ts`;
 		const busModuleLoader = busModules[busModuleKey];
 		if (!busModuleLoader) throw new Error(`Could not find the bus module ${busModuleKey}`);
-		const BusModule = await busModuleLoader();
-		const exportedBusEntry = Object.entries(BusModule as object).find(([name]) => name === busConfig.class);
-		if (!exportedBusEntry) throw new Error(`Could not find the class ${busConfig.class} in ${busModuleKey}`);
-		const [, BusClass]: [unknown, new (mem: Uint8Array, options?: BusOptions) => IBus] = exportedBusEntry;
+		const BusModule = (await busModuleLoader()) as Record<string, unknown>;
+		const BusClass = BusModule[busConfig.class] as
+			| (new (mem: Uint8Array, options?: BusOptions) => IBus)
+			| undefined;
+		if (!BusClass) throw new Error(`Could not find the class ${busConfig.class} in ${busModuleKey}`);
 		this.bus = new BusClass(this.sharedMemory, this.busOptions);
 		await installDevices(this.bus, this.machineConfig.devices);
 		console.log(`VM: Bus ${busConfig.class} loaded on main thread.`);
@@ -357,22 +370,30 @@ export class VirtualMachine {
 	 * Types `text` on the machine's keyboard: queued in the worker, and given to the program as it reads the keys
 	 * (paused, they wait). Resolves with how many were queued and skipped (no key for them), and the keyboard state.
 	 */
-	public typeText = (text: string) => this.keyboardRequest("type", { text });
+	public typeText(text: string) {
+		return this.keyboardRequest("type", { text });
+	}
 	/** Holds a key down (a character, or a key code) until `holdKey(null)`. */
-	public holdKey = (key: string | number | null) => this.keyboardRequest("hold", { key });
+	public holdKey(key: string | number | null) {
+		return this.keyboardRequest("hold", { key });
+	}
 	/** Empties the typed keys queue. */
-	public clearKeys = () => this.keyboardRequest("clear");
+	public clearKeys() {
+		return this.keyboardRequest("clear");
+	}
 	/** Cycles after the program consumes a typed key before it gets the next one. */
-	public setKeyDelay = (cycles: number) => this.keyboardRequest("delay", { cycles });
-	public getKeyboardState = () => this.keyboardRequest("state");
-	private keyboardRequest = async (action: string, data: object = {}) => {
-		const answer = await this.request<{ state?: KeyboardState; queued?: number; skipped?: number; error?: string }>(
-			"keyboard",
-			{ action, ...data },
-		);
-		if (answer.error) throw new Error(answer.error);
-		return answer as { state: KeyboardState; queued?: number; skipped?: number };
-	};
+	public setKeyDelay(cycles: number) {
+		return this.keyboardRequest("delay", { cycles });
+	}
+	public getKeyboardState() {
+		return this.keyboardRequest("state");
+	}
+	private keyboardRequest(action: string, data: object = {}) {
+		return this.checkedRequest<{ state: KeyboardState; queued?: number; skipped?: number }>("keyboard", {
+			action,
+			...data,
+		});
+	}
 
 	/** `total`: entries logged since the clear. The buffer dropped more since the last poll: an overflow. */
 	private handleTraceReceived(history: { type: string; source: number; target: number }[], total: number) {
@@ -397,71 +418,96 @@ export class VirtualMachine {
 		requestAnimationFrame(() => this.renderFrame());
 	}
 
-	public setSpeed = (speed: number) => this.client.post({ command: "setSpeed", speed });
-	public getSpeed = () => this.sharedRegisters.getFloat64(REG_SPEED_OFFSET, true);
-	public setBreakOnBrk = (enabled: boolean) => this.client.post({ command: "setBreakOnBrk", enabled });
-	public play = () => {
+	public setSpeed(speed: number) {
+		this.client.post({ command: "setSpeed", speed });
+	}
+	public getSpeed() {
+		return this.sharedRegisters.getFloat64(REG_SPEED_OFFSET, true);
+	}
+	public setBreakOnBrk(enabled: boolean) {
+		this.client.post({ command: "setBreakOnBrk", enabled });
+	}
+	public play() {
 		if (this.client.failure) return;
 		this._playPending = true;
 		this.client.post({ command: "run" });
-	};
-	public pause = () => {
+	}
+	public pause() {
 		this._playPending = false;
 		this.client.post({ command: "pause" });
-	};
+	}
 	/** Pauses; resolves once the worker has stopped (its registers are then in the shared buffer, see `updateRegister`). */
-	public pauseAndWait = (): Promise<void> => {
+	public async pauseAndWait(): Promise<void> {
 		this._playPending = false;
-		return this.request("pause").then(() => undefined);
-	};
+		await this.request("pause");
+	}
 	/**
 	 * Resolves once the worker has reset (the machine is then stopped, PC on the reset vector). `cold`: a power-up
 	 * (the ROM cold-starts: on the Apple, it boots the disk).
 	 */
-	public reset = (opts: { cold?: boolean } = {}): Promise<void> =>
-		this.request("reset", { cold: opts.cold === true }).then(() => undefined);
+	public async reset(opts: { cold?: boolean } = {}): Promise<void> {
+		await this.request("reset", { cold: opts.cold === true });
+	}
 	/** Steps `count` instructions (fewer if something stops it, see `StepResult`); resolves when done. */
-	public step = (count = 1): Promise<StepResult> =>
-		this.request<StepResult>("step", { count }).then((result) => {
-			this.recordStop(result.stop ?? { reason: "step", address: result.address });
-			return result;
-		});
+	public async step(count = 1): Promise<StepResult> {
+		const result = await this.request<StepResult>("step", { count });
+		this.recordStop(result.stop ?? { reason: "step", address: result.address });
+		return result;
+	}
 
 	private request<T>(command: string, data: object = {}): Promise<T> {
 		return this.client.request<T>(command, data);
+	}
+	/** A request whose answer carries `error` when it fails: throws it, else resolves with the answer. */
+	private async checkedRequest<T extends object>(command: string, data: object = {}): Promise<T> {
+		const answer = await this.request<T & { error?: string }>(command, data);
+		if (answer.error) throw new Error(answer.error);
+		return answer;
 	}
 	/**
 	 * Step over (a JSR: runs to the instruction after it; else one step) / step out (runs until the routine returns).
 	 * `through`: the breakpoints on the way don't stop it (their hooks still run). Resolves with `running`, and
 	 * `step` (its result) for a step over that isn't on a JSR: that one is a single step.
 	 */
-	public stepOver = (through = false) => this.stepRun("stepOver", through);
+	public stepOver(through = false) {
+		return this.stepRun("stepOver", through);
+	}
 	/** The step over / out under way stops going through the breakpoints (it stays armed). */
-	public endStepThrough = () => this.client.post({ command: "endStepThrough" });
-	public stepOut = (through = false) => this.stepRun("stepOut", through);
-	private stepRun(command: "stepOver" | "stepOut", through: boolean) {
-		return this.request<{ running: boolean; step?: StepResult }>(command, { through }).then(({ running, step }) => {
-			// A step over not on a JSR: a single step, done (as `step` records it)
-			if (step?.executed) this.recordStop(step.stop ?? { reason: "step", address: step.address });
-			return { running, step };
-		});
+	public endStepThrough() {
+		this.client.post({ command: "endStepThrough" });
+	}
+	public stepOut(through = false) {
+		return this.stepRun("stepOut", through);
+	}
+	private async stepRun(command: "stepOver" | "stepOut", through: boolean) {
+		const { running, step } = await this.request<{ running: boolean; step?: StepResult }>(command, { through });
+		// A step over not on a JSR: a single step, done (as `step` records it)
+		if (step?.executed) this.recordStop(step.stop ?? { reason: "step", address: step.address });
+		return { running, step };
 	}
 
-	public addBP = (type: Breakpoint["type"], address: number, endAddress?: number) =>
+	public addBP(type: Breakpoint["type"], address: number, endAddress?: number) {
 		this.client.post({ command: "addBP", type, address, endAddress });
-	public removeBP = (type: Breakpoint["type"], address: number, endAddress?: number) =>
+	}
+	public removeBP(type: Breakpoint["type"], address: number, endAddress?: number) {
 		this.client.post({ command: "removeBP", type, address, endAddress });
-	public clearBPs = () => this.client.post({ command: "clearBPs" });
+	}
+	public clearBPs() {
+		this.client.post({ command: "clearBPs" });
+	}
 
-	public insertDisk = (data: Uint8Array, metadata: Dict = {}) =>
+	public insertDisk(data: Uint8Array, metadata: Dict = {}) {
 		this.client.post({ command: "insertMedia", data, metadata });
-	public ejectDisk = (metadata: Dict = {}) => this.client.post({ command: "ejectMedia", metadata });
+	}
+	public ejectDisk(metadata: Dict = {}) {
+		this.client.post({ command: "ejectMedia", metadata });
+	}
 
 	/** Instructions the trace switch keeps (the instruction trace's size, rounded up to a power of 2). */
 	public instructionTraceSize = INSTRUCTION_TRACE_DEFAULT_SIZE;
 
 	/** The trace switch: the JSR / JMP / interrupt log and the instruction trace (restarted, cleared). */
-	public setTrace = (enabled: boolean) => {
+	public setTrace(enabled: boolean) {
 		this.isTraceEnabled = enabled;
 		this.client.post({ command: "setTrace", enabled });
 		this.client.post({ command: "setInstructionTrace", enabled, size: this.instructionTraceSize });
@@ -472,7 +518,7 @@ export class VirtualMachine {
 			this.setTraceOverflow(false);
 			this.lastTraceDropped = null;
 		}
-	};
+	}
 
 	private startTracePolling() {
 		if (this.tracePollInterval) return;
@@ -487,39 +533,53 @@ export class VirtualMachine {
 	}
 
 	/** Instruction trace (last instructions + registers): on (cleared, `size` entries) or off (kept). */
-	public setInstructionTrace = (enabled: boolean, size?: number) =>
-		this.request<TraceSnapshot>("setInstructionTrace", { enabled, size });
-	/** The last `count` instructions recorded (all if omitted), oldest first. */
+	public setInstructionTrace(enabled: boolean, size?: number) {
+		return this.request<TraceSnapshot>("setInstructionTrace", { enabled, size });
+	}
 	/** The machine's interrupt controller (IMU), null when it has none. */
-	public getInterrupts = () =>
-		this.request<{ state: InterruptsState | null }>("getInterrupts").then((answer) => answer.state);
-	public getInstructionTrace = (count?: number) => this.request<TraceSnapshot>("getInstructionTrace", { count });
-	public setTraceSize = (size: number) => this.client.post({ command: "setTraceSize", size });
-	public getTrace = () => this.client.post({ command: "getTrace" });
+	public async getInterrupts() {
+		return (await this.request<{ state: InterruptsState | null }>("getInterrupts")).state;
+	}
+	/** The last `count` instructions recorded (all if omitted), oldest first. */
+	public getInstructionTrace(count?: number) {
+		return this.request<TraceSnapshot>("getInstructionTrace", { count });
+	}
+	public setTraceSize(size: number) {
+		this.client.post({ command: "setTraceSize", size });
+	}
+	public getTrace() {
+		this.client.post({ command: "getTrace" });
+	}
 	/** Clears both traces (the jumps log and the instruction trace). */
-	public clearTrace = () => {
+	public clearTrace() {
 		this.client.post({ command: "clearTrace" });
 		this.client.post({ command: "clearInstructionTrace" });
 		this.setTraceOverflow(false);
 		this.lastTraceDropped = null;
-	};
+	}
 	/** Redraws the frame from memory (the screen isn't redrawn while paused); resolves once it is drawn. */
-	public refreshVideo = (): Promise<void> => this.request("refreshVideo").then(() => undefined);
+	public async refreshVideo(): Promise<void> {
+		await this.request("refreshVideo");
+	}
 
 	/** Save states (cpu/saveStates.ts), kept in the worker: lost when the VM is rebuilt. */
-	private stateRequest = async <T>(command: string, data: object): Promise<T> => {
-		const answer = await this.request<{ result?: T; error?: string }>(command, data);
-		if (answer.error) throw new Error(answer.error);
-		return answer.result as T;
-	};
-	public saveMachineState = (name: string, meta: SaveStateMeta = {}) =>
-		this.stateRequest<SaveStateInfo>("saveState", { name, meta });
+	private async stateRequest<T>(command: string, data: object = {}): Promise<T> {
+		return (await this.checkedRequest<{ result: T }>(command, data)).result;
+	}
+	public saveMachineState(name: string, meta: SaveStateMeta = {}) {
+		return this.stateRequest<SaveStateInfo>("saveState", { name, meta });
+	}
 	/** Stops the machine (as paused) and puts the state back; undefined when there is no state `name`. */
-	public restoreMachineState = (name: string) =>
-		this.stateRequest<SaveStateInfo | undefined>("restoreState", { name });
-	public listMachineStates = () => this.stateRequest<SaveStateInfo[]>("listStates", {});
+	public restoreMachineState(name: string) {
+		return this.stateRequest<SaveStateInfo | undefined>("restoreState", { name });
+	}
+	public listMachineStates() {
+		return this.stateRequest<SaveStateInfo[]>("listStates");
+	}
 	/** Without a name, deletes them all. Returns the names deleted. */
-	public deleteMachineStates = (name?: string) => this.stateRequest<string[]>("deleteStates", { name });
+	public deleteMachineStates(name?: string) {
+		return this.stateRequest<string[]>("deleteStates", { name });
+	}
 
 	/**
 	 * The memory behind a point of the screen (a mouse event's clientX / clientY), as the machine's video
@@ -547,7 +607,9 @@ export class VirtualMachine {
 		const png = await encodeIndexedPng(width, height, pixels, this.palette ?? grayscalePalette());
 		return { width, height, png };
 	}
-	public mute = (enabled: boolean) => this.client.post({ command: "mute", enabled });
+	public mute(enabled: boolean) {
+		this.client.post({ command: "mute", enabled });
+	}
 
 	public getBank(address: number) {
 		return this.bus?.getBank?.(address) ?? 0;
@@ -611,18 +673,12 @@ export class VirtualMachine {
 	}
 
 	/** The CPU registers as they are now in the shared buffer (the worker writes them as it runs). */
-	public getRegisters = () => readRegisters(this.sharedRegisters);
+	public getRegisters() {
+		return readRegisters(this.sharedRegisters);
+	}
 
 	public saveRegisters() {
-		const state = [
-			this.sharedRegisters.getUint8(REG_A_OFFSET),
-			this.sharedRegisters.getUint8(REG_X_OFFSET),
-			this.sharedRegisters.getUint8(REG_Y_OFFSET),
-			this.sharedRegisters.getUint8(REG_SP_OFFSET),
-			this.sharedRegisters.getUint8(REG_STATUS_OFFSET),
-			this.sharedRegisters.getUint16(REG_PC_OFFSET, true),
-		];
-		this.stateStack.push(state);
+		this.stateStack.push(this.getRegisters());
 	}
 
 	/**
@@ -634,12 +690,12 @@ export class VirtualMachine {
 		const state = this.stateStack.pop();
 		if (state) {
 			const status = this.sharedRegisters.getUint8(REG_STATUS_OFFSET);
-			this.sharedRegisters.setUint8(REG_A_OFFSET, state[0]);
-			this.sharedRegisters.setUint8(REG_X_OFFSET, state[1]);
-			this.sharedRegisters.setUint8(REG_Y_OFFSET, state[2]);
-			this.sharedRegisters.setUint8(REG_SP_OFFSET, state[3]);
-			this.sharedRegisters.setUint8(REG_STATUS_OFFSET, (state[4] & ~keepFlags) | (status & keepFlags));
-			this.sharedRegisters.setUint16(REG_PC_OFFSET, state[5], true);
+			this.sharedRegisters.setUint8(REG_A_OFFSET, state.A);
+			this.sharedRegisters.setUint8(REG_X_OFFSET, state.X);
+			this.sharedRegisters.setUint8(REG_Y_OFFSET, state.Y);
+			this.sharedRegisters.setUint8(REG_SP_OFFSET, state.SP);
+			this.sharedRegisters.setUint8(REG_STATUS_OFFSET, (state.P & ~keepFlags) | (status & keepFlags));
+			this.sharedRegisters.setUint16(REG_PC_OFFSET, state.PC, true);
 		}
 	}
 
@@ -666,12 +722,10 @@ export class VirtualMachine {
 				this.sharedRegisters.setUint16(REG_PC_OFFSET, value, true);
 				break;
 			case "P": {
-				// This handles setting the entire status register from a single byte value.
-				// The B flag (bit 4) and the unused flag (bit 5) are typically not modified this way.
-				// We'll preserve them from the current status.
+				// The whole status byte, but B and bit 5 (not real flags) stay as they are
+				const keep = FLAG_B_MASK | FLAG_5_MASK;
 				const currentStatus = this.sharedRegisters.getUint8(REG_STATUS_OFFSET);
-				const newStatus = (value & ~0x30) | (currentStatus & 0x30);
-				this.sharedRegisters.setUint8(REG_STATUS_OFFSET, newStatus);
+				this.sharedRegisters.setUint8(REG_STATUS_OFFSET, (value & ~keep) | (currentStatus & keep));
 				break;
 			}
 			case "N":
@@ -681,16 +735,7 @@ export class VirtualMachine {
 			case "I":
 			case "Z":
 			case "C": {
-				const flagMasks = {
-					N: FLAG_N_MASK,
-					V: FLAG_V_MASK,
-					B: FLAG_B_MASK,
-					D: FLAG_D_MASK,
-					I: FLAG_I_MASK,
-					Z: FLAG_Z_MASK,
-					C: FLAG_C_MASK,
-				};
-				const mask = flagMasks[reg];
+				const mask = FLAG_MASKS[reg];
 				let status = this.sharedRegisters.getUint8(REG_STATUS_OFFSET);
 				if (value) status |= mask;
 				else status &= ~mask;
