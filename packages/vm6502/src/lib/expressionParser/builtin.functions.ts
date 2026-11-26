@@ -1,13 +1,9 @@
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import { type ExpressionParser, type ParsedResult, TokenType } from "./expressionParser";
 import { toHex } from "../hex.utils";
-import {
-	REG_A_OFFSET,
-	REG_X_OFFSET,
-	REG_Y_OFFSET,
-	REG_SP_OFFSET,
-	REG_PC_OFFSET,
-} from "@/virtualmachine/cpu/shared-memory";
+
+/** The registers INC can step, and the mask of each */
+const INC_REGISTERS = { A: 0xff, X: 0xff, Y: 0xff, SP: 0xff, PC: 0xffff } as const;
 
 export type BuiltinFunctionArgIdentifer = { type: "identifier"; value: number; text: string };
 export type BuiltinFunctionArg =
@@ -124,37 +120,16 @@ export const BUILTINS: Record<string, BuiltinFunctionDef> = {
 			const val = args[0];
 			if (val.type !== "identifier") throw new Error("INC expects an identifier");
 			const reg = val.text.toUpperCase();
-			const registers = vm.sharedRegisters;
-			let result: number;
 			let inc = 1;
 			if (args.length > 1) {
 				if (args[1].type !== "number") throw new Error("INC expects a number for increment");
 				inc = args[1].value;
 			}
-			switch (reg) {
-				case "A":
-					result = (inc + registers.getUint8(REG_A_OFFSET)) & 0xff;
-					registers.setUint8(REG_A_OFFSET, result);
-					break;
-				case "X":
-					result = (inc + registers.getUint8(REG_X_OFFSET)) & 0xff;
-					registers.setUint8(REG_X_OFFSET, result);
-					break;
-				case "Y":
-					result = (inc + registers.getUint8(REG_Y_OFFSET)) & 0xff;
-					registers.setUint8(REG_Y_OFFSET, result);
-					break;
-				case "SP":
-					result = (inc + registers.getUint8(REG_SP_OFFSET)) & 0xff;
-					registers.setUint8(REG_SP_OFFSET, result);
-					break;
-				case "PC":
-					result = (inc + registers.getUint16(REG_PC_OFFSET, true)) & 0xffff;
-					registers.setUint16(REG_PC_OFFSET, result, true);
-					break;
-				default:
-					throw new Error(`Unknown register ${reg}`);
-			}
+			if (!Object.hasOwn(INC_REGISTERS, reg)) throw new Error(`Unknown register ${reg}`);
+			const name = reg as keyof typeof INC_REGISTERS;
+			const result = (vm.getRegisters()[name] + inc) & INC_REGISTERS[name];
+			// Paused only: throws on a running machine, where the write would be lost
+			vm.updateRegister(name, result);
 			return { type: TokenType.INTEGER, value: result, raw: "" };
 		},
 	},

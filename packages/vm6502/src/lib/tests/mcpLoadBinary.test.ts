@@ -1,24 +1,24 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ref, shallowRef } from "vue";
 import { REG_PC_OFFSET } from "@/virtualmachine/cpu/shared-memory";
+import { fakeRegisters } from "@/lib/tests/fakeRegisters";
 
 vi.stubGlobal("localStorage", { getItem: () => null, setItem: () => undefined });
 
 // 128 KB, like main + aux; $C000-$C0FF is I/O and ignores debug writes, as on the Apple bus.
 const memory = new Uint8Array(0x20000);
 const isRunning = ref(false);
+const registers = fakeRegisters();
 const vm = {
 	ready: Promise.resolve(),
-	sharedRegisters: new DataView(new ArrayBuffer(64)),
+	...registers,
 	syncBusState: vi.fn(),
 	readDebugRange: (address: number, length: number) => memory.slice(address, address + length),
 	writeDebug: vi.fn((address: number, value: number) => {
 		if ((address & 0xffff) >= 0xc000 && (address & 0xffff) <= 0xc0ff) return;
 		memory[address] = value;
 	}),
-	updateRegister: vi.fn((reg: string, value: number) => {
-		if (reg === "PC") vm.sharedRegisters.setUint16(REG_PC_OFFSET, value, true);
-	}),
+	updateRegister: vi.fn(registers.updateRegister),
 };
 
 vi.mock("@/composables/useMachine", () => ({ useMachine: () => ({ vm: shallowRef(vm), isRunning }) }));
@@ -45,7 +45,7 @@ describe("load_binary tool", () => {
 	beforeEach(() => {
 		memory.fill(0);
 		isRunning.value = false;
-		vm.sharedRegisters.setUint16(REG_PC_OFFSET, 0xfa62, true);
+		vm.registers.setUint16(REG_PC_OFFSET, 0xfa62, true);
 		vi.clearAllMocks();
 	});
 

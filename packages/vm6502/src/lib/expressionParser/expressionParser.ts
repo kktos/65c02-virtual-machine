@@ -1,12 +1,4 @@
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
-import {
-	REG_A_OFFSET,
-	REG_PC_OFFSET,
-	REG_SP_OFFSET,
-	REG_STATUS_OFFSET,
-	REG_X_OFFSET,
-	REG_Y_OFFSET,
-} from "@/virtualmachine/cpu/shared-memory";
 import { useSymbols } from "@/composables/useSymbols";
 import { BUILTINS, type BuiltinFunctionArg, type BuiltinFunctionArgIdentifer } from "./builtin.functions";
 
@@ -448,18 +440,14 @@ export class ExpressionParser {
 		const up = name.toUpperCase();
 		switch (up) {
 			case "A":
-				return this.vm.sharedRegisters.getUint8(REG_A_OFFSET);
 			case "X":
-				return this.vm.sharedRegisters.getUint8(REG_X_OFFSET);
 			case "Y":
-				return this.vm.sharedRegisters.getUint8(REG_Y_OFFSET);
 			case "SP":
-				return this.vm.sharedRegisters.getUint8(REG_SP_OFFSET);
 			case "PC":
-				return this.vm.sharedRegisters.getUint16(REG_PC_OFFSET, true);
 			case "P":
+				return this.vm.getRegisters()[up];
 			case "FLAGS":
-				return this.vm.sharedRegisters.getUint8(REG_STATUS_OFFSET);
+				return this.vm.getRegisters().P;
 		}
 
 		const addr = this.resolveSymbol(name, namespace);

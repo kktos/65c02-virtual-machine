@@ -151,13 +151,15 @@ On the Apple, reading `$C0xx` through `bus.read` can flip the main-thread copy's
 
 **Done:** `VirtualMachine.read` is gone. The expression's `[addr]` and `PEEK`, and a virtual register's `r` mode read with `peek` (the CPU's view, no side effects); the one-byte `hexdump` and `gl` with `readDebug`, as the range dump and `disasm` already do. `disassembler.ts` takes the read it's given (`gl`'s). A real I/O read (a VR on a soft switch) would need a worker round-trip, as `writeIO` does for writes; not done, `peek` gives 0 there.
 
-### 15. [Hygiene] Callers write `sharedRegisters` directly, past `assertPaused`
+### 15. ✅ DONE — [Hygiene] Callers write `sharedRegisters` directly, past `assertPaused`
 
 `set.cmd.ts:50-56`, `run.cmd.ts:39`, `builtin.functions.ts` (`INC`), `expressionParser.ts:451-462`, `useCommands.ts:116-120`
 
 Follow-up of 13. `set A $12`, `run <address>` and the expression's `INC` write the shared buffer themselves, so on a running machine the write is lost without an error (the CPU writes its locals back at the end of the slice), which is what `assertPaused` is there to say. `run <address>` on a running machine is the likely one to hit. The readers (expression registers, `handleJsrOutput`, MCP `tools.ts:167` with `readRegisters`) are fine but would read better through `getRegisters()`.
 
 Fix: writers go through `updateRegister` (`set` and `run` pause and wait first when running, as the console's G does, or report the error); readers use `getRegisters()`. Then `sharedRegisters` can be private (the joystick inputs and the bus sync are inside the class already).
+
+**Done:** `sharedRegisters` is private. The register switch moved to `writeRegister(view, reg, value)` in `shared-memory.ts`, next to `readRegisters`; `updateRegister` and `restoreRegisters` use it after `assertPaused`. `set <reg>` pauses and waits on a running machine, writes through `updateRegister`, and runs on, as G does; `run <address>` pauses first, then runs as before. `INC` writes through `updateRegister`, so on a running machine it throws instead of losing the write. The expression registers, `handleJsrOutput` and the MCP `describeRegisters` read `getRegisters()`. One change: `set P` now keeps B and bit 5, like the other `P` writers. The test fakes get the register API from `fakeRegisters()` (`lib/tests/fakeRegisters.ts`, over the same `readRegisters` / `writeRegister`); new tests for `set` / `run` on a running machine and for `INC`.
 
 ---
 

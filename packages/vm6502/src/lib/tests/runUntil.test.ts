@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ref, shallowRef } from "vue";
 import type { StopInfo } from "@/types/stopinfo.interface";
+import { fakeRegisters } from "@/lib/tests/fakeRegisters";
 
 vi.stubGlobal("localStorage", { getItem: () => null, setItem: () => undefined });
 
@@ -13,11 +14,11 @@ let hooks: Record<number, () => void> = {};
 const later = (ms: number, fn: () => void) => setTimeout(fn, ms);
 const vm = {
 	ready: Promise.resolve(),
-	sharedRegisters: new DataView(new ArrayBuffer(64)),
+	...fakeRegisters(),
 	lastStop: undefined as StopInfo | undefined,
 	machineConfig: { name: "Apple //e" },
 	playPending: false,
-	get isRunningOrStarting() {
+	get isRunningOrStarting(): boolean {
 		return isRunning.value || vm.playPending;
 	},
 	play: vi.fn(() => {

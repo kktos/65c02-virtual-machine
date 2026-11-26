@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ref, shallowRef } from "vue";
 import type { DiskConfig } from "@/types/machine.interface";
 import { REG_PC_OFFSET } from "@/virtualmachine/cpu/shared-memory";
+import { fakeRegisters } from "@/lib/tests/fakeRegisters";
 
 vi.stubGlobal("localStorage", { getItem: () => null, setItem: () => undefined });
 
@@ -35,10 +36,10 @@ const vm = {
 		name: "Apple //e",
 		disk: { enabled: true, name: "SPDisk", formats: ["apple2"] } as DiskConfig,
 	},
-	sharedRegisters: new DataView(new ArrayBuffer(64)),
+	...fakeRegisters(),
 	readDebug: (a: number) => memory[a] ?? 0,
 	writeDebug: vi.fn((a: number, v: number) => (memory[a] = v)),
-	reset: vi.fn(async (_opts?: { cold?: boolean }) => vm.sharedRegisters.setUint16(REG_PC_OFFSET, 0xfa62, true)),
+	reset: vi.fn(async (_opts?: { cold?: boolean }) => vm.registers.setUint16(REG_PC_OFFSET, 0xfa62, true)),
 	typeText: vi.fn(async (_text: string) => ({ queued: 0, skipped: 0 })),
 	play: vi.fn(() => (isRunning.value = true)),
 };

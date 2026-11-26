@@ -4,7 +4,6 @@ import { ExpressionParser } from "@/lib/expressionParser/expressionParser";
 import { COMMAND_LIST } from "@/commands";
 import { minimonitor, type MiniMonitorCommandRequest } from "@/lib/mini-monitor/mini-monitor";
 import { useBreakpoints } from "./useBreakpoints";
-import { REG_PC_OFFSET, REG_SP_OFFSET } from "@/virtualmachine/cpu/shared-memory";
 import type {
 	MultiLineRequest,
 	CommandOutput,
@@ -113,11 +112,12 @@ async function handleJsrOutput(output: any, vm: VirtualMachine, result: CommandR
 	const wasRunning = vm.isRunningOrStarting;
 	if (wasRunning) await vm.pauseAndWait();
 
-	const jsrAddress = output.address ?? vm.sharedRegisters.getUint16(REG_PC_OFFSET, true);
+	const registers = vm.getRegisters();
+	const jsrAddress = output.address ?? registers.PC;
 	const fakeReturnAddress = 0xfffe;
 	const breakpointAddress = 0xffff;
 
-	const sp = vm.sharedRegisters.getUint8(REG_SP_OFFSET);
+	const sp = registers.SP;
 	if (sp < 2) {
 		result.error = "Stack overflow risk.  SP < 2.  Cannot execute JSR command.";
 		if (wasRunning) vm.play();

@@ -5,27 +5,15 @@ import type { BusOptions, MachineConfig, MemoryChunk } from "@/types/machine.int
 import type { IBus, KeyboardState } from "@/types/bus.interface";
 import type { ScreenLocation } from "@/types/video.interface";
 import {
-	FLAG_5_MASK,
-	FLAG_B_MASK,
-	FLAG_C_MASK,
-	FLAG_D_MASK,
-	FLAG_I_MASK,
-	FLAG_N_MASK,
-	FLAG_V_MASK,
-	FLAG_Z_MASK,
 	INPUT_ANALOG_0_OFFSET,
 	INPUT_DIGITAL_OFFSET,
 	MAX_ANALOG_INPUTS,
 	MEMORY_OFFSET,
-	REG_A_OFFSET,
-	REG_PC_OFFSET,
-	REG_SP_OFFSET,
 	REG_SPEED_OFFSET,
 	REG_STATUS_OFFSET,
-	REG_X_OFFSET,
-	REG_Y_OFFSET,
 	readRegisters,
 	STACK_METADATA_OFFSET,
+	writeRegister,
 } from "@/virtualmachine/cpu/shared-memory";
 import {
 	cropVideoBuffer,
@@ -71,17 +59,6 @@ async function chunkData(chunk: MemoryChunk): Promise<Uint8Array> {
 	return data;
 }
 
-/** The P bit of each flag `updateRegister` sets alone. */
-const FLAG_MASKS = {
-	N: FLAG_N_MASK,
-	V: FLAG_V_MASK,
-	B: FLAG_B_MASK,
-	D: FLAG_D_MASK,
-	I: FLAG_I_MASK,
-	Z: FLAG_Z_MASK,
-	C: FLAG_C_MASK,
-} as const;
-
 /** The screen as a PNG image of `width` x `height` pixels. */
 export type Screenshot = { width: number; height: number; png: Uint8Array };
 
@@ -91,7 +68,7 @@ export type Screenshot = { width: number; height: number; png: Uint8Array };
  */
 export class VirtualMachine {
 	private readonly sharedBuffer: SharedArrayBuffer;
-	public readonly sharedRegisters: DataView;
+	private readonly sharedRegisters: DataView;
 	public readonly sharedStackMetadata: Uint8Array;
 	public readonly sharedMemory: Uint8Array;
 	private readonly videoBuffer?: SharedArrayBuffer;
@@ -689,15 +666,10 @@ export class VirtualMachine {
 	public restoreRegisters(keepFlags = 0) {
 		this.assertPaused("restoreRegisters");
 		const state = this.stateStack.pop();
-		if (state) {
-			const status = this.sharedRegisters.getUint8(REG_STATUS_OFFSET);
-			this.sharedRegisters.setUint8(REG_A_OFFSET, state.A);
-			this.sharedRegisters.setUint8(REG_X_OFFSET, state.X);
-			this.sharedRegisters.setUint8(REG_Y_OFFSET, state.Y);
-			this.sharedRegisters.setUint8(REG_SP_OFFSET, state.SP);
-			this.sharedRegisters.setUint8(REG_STATUS_OFFSET, (state.P & ~keepFlags) | (status & keepFlags));
-			this.sharedRegisters.setUint16(REG_PC_OFFSET, state.PC, true);
-		}
+		if (!state) return;
+		const status = this.sharedRegisters.getUint8(REG_STATUS_OFFSET);
+		for (const reg of ["A", "X", "Y", "SP", "PC"] as const) writeRegister(this.sharedRegisters, reg, state[reg]);
+		this.sharedRegisters.setUint8(REG_STATUS_OFFSET, (state.P & ~keepFlags) | (status & keepFlags));
 	}
 
 	/**
@@ -706,44 +678,7 @@ export class VirtualMachine {
 	 */
 	public updateRegister(reg: keyof EmulatorRegisters, value: number) {
 		this.assertPaused("updateRegister");
-		switch (reg) {
-			case "A":
-				this.sharedRegisters.setUint8(REG_A_OFFSET, value);
-				break;
-			case "X":
-				this.sharedRegisters.setUint8(REG_X_OFFSET, value);
-				break;
-			case "Y":
-				this.sharedRegisters.setUint8(REG_Y_OFFSET, value);
-				break;
-			case "SP":
-				this.sharedRegisters.setUint8(REG_SP_OFFSET, value);
-				break;
-			case "PC":
-				this.sharedRegisters.setUint16(REG_PC_OFFSET, value, true);
-				break;
-			case "P": {
-				// The whole status byte, but B and bit 5 (not real flags) stay as they are
-				const keep = FLAG_B_MASK | FLAG_5_MASK;
-				const currentStatus = this.sharedRegisters.getUint8(REG_STATUS_OFFSET);
-				this.sharedRegisters.setUint8(REG_STATUS_OFFSET, (value & ~keep) | (currentStatus & keep));
-				break;
-			}
-			case "N":
-			case "V":
-			case "B": // Note: B is often read-only, but we allow toggling for debugging.
-			case "D":
-			case "I":
-			case "Z":
-			case "C": {
-				const mask = FLAG_MASKS[reg];
-				let status = this.sharedRegisters.getUint8(REG_STATUS_OFFSET);
-				if (value) status |= mask;
-				else status &= ~mask;
-				this.sharedRegisters.setUint8(REG_STATUS_OFFSET, status);
-				break;
-			}
-		}
+		writeRegister(this.sharedRegisters, reg, value);
 	}
 
 	/** Running, or about to (`play()` sent): the registers can't be written. */

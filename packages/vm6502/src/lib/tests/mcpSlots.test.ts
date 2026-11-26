@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ref, shallowRef } from "vue";
 import type { MachineConfig, SlotLayout } from "@/types/machine.interface";
+import { fakeRegisters } from "@/lib/tests/fakeRegisters";
 
 const store = new Map<string, string>();
 vi.stubGlobal("localStorage", {
@@ -26,7 +27,7 @@ const makeVm = (machineConfig: MachineConfig, slots?: SlotLayout) => ({
 	ready: Promise.resolve(),
 	machineConfig,
 	busOptions: { slots },
-	sharedRegisters: new DataView(new ArrayBuffer(64)),
+	...fakeRegisters(),
 });
 
 const isRunning = ref(false);

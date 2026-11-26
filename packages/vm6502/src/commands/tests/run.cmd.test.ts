@@ -1,6 +1,8 @@
 import "fake-indexeddb/auto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
+import { REG_PC_OFFSET } from "@/virtualmachine/cpu/shared-memory";
+import { fakeRegisters } from "@/lib/tests/fakeRegisters";
 
 vi.stubGlobal("localStorage", { getItem: () => null, setItem: () => undefined });
 
@@ -12,20 +14,25 @@ const { useRunUntil } = await import("@/composables/useRunUntil");
 
 const { runCommand } = useCommands();
 const registers = new DataView(new ArrayBuffer(64));
-const vm = {
+const fake = {
 	isRunningOrStarting: false,
 	play: vi.fn(),
+	pauseAndWait: vi.fn(async () => {
+		fake.isRunningOrStarting = false;
+	}),
 	addBP: vi.fn(),
 	removeBP: vi.fn(),
-	sharedRegisters: registers,
-} as unknown as VirtualMachine;
+	...fakeRegisters(registers),
+};
+const vm = fake as unknown as VirtualMachine;
 
 const run = (line: string) => runCommand(line, vm, { standalone: true });
 
 beforeEach(() => {
 	useRunUntil().cancelRunUntil(vm);
 	vi.clearAllMocks();
-	registers.setUint16(0, 0);
+	registers.setUint16(REG_PC_OFFSET, 0, true);
+	fake.isRunningOrStarting = false;
 });
 
 describe("RUN", () => {
@@ -34,6 +41,14 @@ describe("RUN", () => {
 		expect(vm.play).toHaveBeenCalledTimes(1);
 		await run("run $0800");
 		expect(useRunUntil().getRunUntilTarget()).toBeNull();
+	});
+
+	it("at an address on a running machine: pauses first (PC is written paused), then runs", async () => {
+		fake.isRunningOrStarting = true;
+		expect((await run("run $0800")).error).toBeUndefined();
+		expect(fake.pauseAndWait).toHaveBeenCalledTimes(1);
+		expect(registers.getUint16(REG_PC_OFFSET, true)).toBe(0x0800);
+		expect(vm.play).toHaveBeenCalledTimes(1);
 	});
 
 	it("until: arms the target, a temporary breakpoint", async () => {
