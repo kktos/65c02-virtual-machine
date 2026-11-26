@@ -132,7 +132,7 @@ describe("//e timer", () => {
 		expect(pending(bus)).not.toBe(0);
 	});
 
-	// The program of examples/imu-timer.asm (see IMU.md), at a period of one frame
+	// The program of examples/imu-timer.asm (see docs/IMU.md), at a period of one frame
 	it("vectored on ID 8: a handler counts the pulses at the top right of the text screen", () => {
 		const { bus, regs } = boot();
 		// oxfmt-ignore

@@ -208,7 +208,7 @@ export function installSoftSwitches(bus: AppleBus) {
 		const slot = ((addr >> 4) & 0x0f) - 8;
 		const offset = addr & 0x0f;
 		if (slot === IMU_SLOT) {
-			// Slot 3's I/O (no card in slot 3, see IMU.md): the IMU's registers, then nothing until a device takes it
+			// Slot 3's I/O (no card in slot 3, see docs/IMU.md): the IMU's registers, then nothing until a device takes it
 			if (offset < IMU_SIZE) {
 				onRead(addr, () => bus.imu.read(offset));
 				onWrite(addr, (v) => bus.imu.write(offset, v));

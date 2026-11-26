@@ -14,7 +14,7 @@ export type InterruptLineState = {
 	dispatches: number;
 };
 
-/** The IMU as the debugger shows it (see IMU.md). The masks have one bit per ID. */
+/** The IMU as the debugger shows it (see docs/IMU.md). The masks have one bit per ID. */
 export type IMUState = {
 	ctrl: number;
 	enabled: boolean;

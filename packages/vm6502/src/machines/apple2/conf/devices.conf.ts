@@ -3,7 +3,7 @@ import type { AppleDeviceWiring } from "../devices/device.interface";
 
 /** The IMU ID the timer drives (the slots take 1-7). */
 export const TIMER_IMU_ID = 8;
-/** Its registers: slot 3's I/O space after the IMU's (see IMU.md). */
+/** Its registers: slot 3's I/O space after the IMU's (see docs/IMU.md). */
 export const TIMER_IO = 0xc0b8;
 
 /** `count` addresses from `start`. */

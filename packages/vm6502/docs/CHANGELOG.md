@@ -1,10 +1,82 @@
-# TODO
+# CHANGELOG
 
-### 2026-11-17
+What's been done (from TODO.md and the `VirtualMachine` code review). Still open: `TODO.md`. The MCP server's: `MCP_CHANGELOG.md`.
 
-- //e devices as virtual slots: a SELECT register at `$C0B4` (the device number = its IMU ID, 8–15) and an 11-register
-  window at `$C0B5`–`$C0BF`, instead of a fixed I/O range per device. The selection across interrupts (manual save /
-  restore, or automatic on a vectored IRQ / its RTI) to decide. See DEVICES.md
+### 2026-11-25
+
+Code review of the `VirtualMachine` class (`virtualmachine.class.ts` at `d0f383b`, with what it needed of
+`cpu.worker.ts`, `cpu.65c02.ts`, `keyboardJoystick.ts` and the callers): 15 findings, all done (PRs #147–#154, the
+last merged 2026-11-26).
+
+- **FIXED** a machine that failed to start left `ready`, and every request after it, pending forever (an MCP tool that
+  never returns, no "could not start" toast): `loadBus` returned on a missing bus module / class, `ready` resolved
+  with no bus and the worker never got `init`; a worker `init()` that failed set `initState = "failed"` and told no
+  one (#147)
+    - `loadBus` throws; the worker posts `initFailed` and answers the queued requests with an error; the main thread
+      rejects `ready` and the pending requests
+- **FIXED** `terminate()` left the requests under way unanswered (an MCP `step` / `reset` / `saveState` in flight when
+  the machine is switched) (#147)
+    - `requests` holds `{ resolve, reject }`; `terminate()` rejects them (`"VM terminated"`) and the ones after it
+- **FIXED** Ctrl/Cmd + a joystick key left the key down on the machine until the page lost focus: the keydown skipped
+  the joystick (modifier held) and went to the worker, the keyup was taken by the joystick (no modifier check). Same
+  when turning the keyboard joystick on with an arrow held (#147)
+    - the codes whose keydown went to the worker always get their keyup there, whatever the joystick does
+- **FIXED** `initVideo` called twice (`App.vue`, `useMachine.ts`) leaked a `VideoOutput` and started a second
+  `requestAnimationFrame` loop (#147)
+    - it destroys the previous output first, and starts the frame loop only when it isn't running
+- **FIXED** trace overflow missed: detected by comparing `JSON.stringify(history[0])` between polls, which tight loops
+  (identical JSR entries) fool once the ring buffer wraps (#151)
+    - the worker counts the entries logged since the last clear (`getTraceTotal`) and sends that `total`; an overflow
+      is the entries dropped (`total - history.length`) growing since the previous poll. The first poll after a
+      clear / restart only sets the baseline
+- **DONE** one class did too much (worker RPC, audio, DOM keyboard / paste listeners, joystick, video, trace, registers,
+  memory, CSS / fonts) (#148)
+    - `workerClient.class.ts` (request / reply, dispatch, teardown), `audioSink.class.ts`,
+      `inputController.class.ts`; `VirtualMachine` keeps its public API and delegates. Video, trace and registers stay
+- **DONE** the class depended on Vue and global app state: `traceOverflow` / `videoAspect` were `ref()`s, the
+  constructor called `useMemoryMap().clearRegions()` (#149)
+    - plain getters with `onTraceOverflow` / `onVideoAspect`, hypercalls out through `onHypercall`. `useMachine`
+      resets the memory map, mirrors the two values into refs and wires `applyHypercall` (moved from
+      `virtualmachine/hypercall.ts` to `lib/hypercallEffects.ts`). Nothing in `virtualmachine/` imports Vue or a
+      composable
+- **FIXED** module-level audio state: `audioCtx` / `nextStartTime` shared by every VM and outliving `terminate()`, the
+  chunks scheduled played on after teardown, the schedule carried over to the next machine (#148)
+    - an `AudioSink` per VM; `terminate()` stops what it queued. The `AudioContext` stays shared (browsers cap them,
+      and once unlocked by a gesture it stays usable)
+- **FIXED** register writes lost while running (the CPU keeps them in locals, `registersLive`), and nothing said so
+  (#150)
+    - `updateRegister` / `restoreRegisters` throw while running or starting (`assertPaused`); `pauseAndWait()` (the
+      worker answers `pause`). The console's G wrote SP / PC into the shared buffer even when running: it now pauses,
+      writes through `updateRegister` and resumes
+- **FIXED** worker messages mixed two discriminators: `setPalette` / `setViewRect` came with `command` and fell into
+  `default`; the `break` / `breakpointHit` cases did what `default` does (#151)
+    - every video (Apple, PET, Klaus) posts them with `type`, own cases; the redundant cases gone. Klaus's per-frame
+      `{ command: "syncState" }` (never fired, never handled) removed
+- **FIXED** the generic VM hard-coded the Apple font: `loadCSS` checked `"16px PrintChar21"` after every CSS file,
+  whatever the machine, and logged `Font loaded:` (#150)
+    - removed: the Apple's bus (`generateApple2Assets`) and its video already wait for their own fonts
+- **FIXED** nits (#152)
+    - the "last `count` instructions recorded" doc comment moved from `getInterrupts` to `getInstructionTrace`
+    - the register stack holds `readRegisters()` objects (was a positional `number[]`); `P` writes keep
+      `FLAG_B_MASK | FLAG_5_MASK` (was `0x30`), the flag masks a module constant
+    - `loadBus` indexes the module by the class name; `checkedRequest` unwraps `error` for the keyboard and
+      save-state requests
+    - every member is a method (no arrow-function fields); `sharedBuffer`, `videoBuffer`, `videoMemory` private, the
+      fields set once `readonly`
+- **FIXED** `read()` went through the main thread's copy of the bus, so a look at `$C0xx` flipped that copy's soft
+  switches until the next `syncBusState`: `PEEK($C055)` turned `page2` on (80STORE: `[$400]` read aux), `gl
+  c000.ffff` switched the language card, `$Cnxx` set `activeExpansionSlot` (never reset), and the copied devices'
+  I/O isn't the machine's (#153)
+    - `VirtualMachine.read` removed. The expression's `[addr]` / `PEEK` and a virtual register's `r` mode read with
+      `peek`; the one-byte `hexdump` and `gl` with `readDebug`; `disassembler.ts` takes the read it's given. A real I/O
+      read (a VR on a soft switch) would need a worker round trip: not done, `peek` gives 0 there
+- **FIXED** callers wrote `sharedRegisters` directly, past `assertPaused`: `set A $12`, `run <address>`, the
+  expression's `INC` lost their write on a running machine, silently (#154)
+    - `writeRegister(view, reg, value)` in `shared-memory.ts`, next to `readRegisters`; `updateRegister` /
+      `restoreRegisters` use it. `set <reg>` pauses, writes, runs on (as G); `run <address>` pauses first; `INC`
+      throws on a running machine. Readers (expression registers, `handleJsrOutput`, MCP `describeRegisters`) use
+      `getRegisters()`; `sharedRegisters` private. `set P` keeps B and bit 5, like the other `P` writers
+    - test fakes: `fakeRegisters()` (`lib/tests/fakeRegisters.ts`); tests for `set` / `run` while running and `INC`
 
 ### 2026-11-15
 
@@ -30,10 +102,6 @@
     - `ProcContextFloatPanel.vue`: a leftover `jumpToAddress(0x2000)` (and `console.log`) before each jump, removed
 - **DONE** disassembly, Ctrl+click follows on mousedown (on macOS Ctrl+click is a right-click, no `click`); Ctrl+hover
   underlines what it follows; `JMP (abs)` / `JMP (abs,X)` follow the pointer; ZP / `(zp)` operands open the memory view
-- memory viewer, jump history: Back / Forward (and the history list) change the index but the view doesn't move:
-  `MemoryViewer.vue` doesn't watch `historyNavigationEvent` of its history (`"memory"`), and doesn't `trackLocation`,
-  so a jump records its target only. To decide: the split panes share that one history, which one follows Back /
-  Forward (the focused one? one history per pane?)
 
 - **DONE** disk editor, new disk and copying files: a DOS 3.3 disk doesn't boot (no Disk II, on purpose), its files
   copied to a ProDOS volume do
@@ -46,9 +114,6 @@
       ProDOS ones (`SOUND EDITOR 3.0` -> `SOUND.EDITOR.3`); a name taken, a full disk: refused, nothing written
     - DOS 3.3 -> ProDOS: B -> BIN at its address, A -> BAS $0801, I -> INT, T -> TXT (to the first $00), R -> REL
     - checked: PRODOS + BASIC.SYSTEM + a DOS 3.3 Applesoft HELLO copied to a new volume, it boots, CAT / LIST fine
-- disk editor, later: write to DOS 3.3 disks; copy a whole directory, make one, delete / rename a file; the
-  MCP tools for it (`create_disk`, `copy_files`)
-- disk editor, a disk in the drive copied to: the machine sees it once inserted again (the panel offers it)
 
 - **DONE** disk editor, machine agnostic: it knew only Apple disks (DOS 3.3, ProDOS, 35 x 16 sectors) and showed
   every viewer, HGR on a PET too. The machine's config now names them (`disk.formats`, `disk.viewers`)
@@ -58,11 +123,6 @@
       (D64: BAM, flat directory, PRG load address, PETSCII names, decimal T/S)
     - `app/diskeditor/viewers/index.ts`: hex (always there), hgr, disasm; a viewer can ask for more than a sector (HGR: 8K)
     - the editor lists the library disks of the machine's drive only
-- disk editor, viewers to add: PETSCII text, CBM BASIC listing, Applesoft listing; a default viewer by file type
-  (a PRG at $0401, an `A` file)
-- disk editor, disassembler viewer: always a 65C02 (`DiskDisasmView.vue`, "65C02 disassembly"), where the PET has an
-  NMOS 6502. The CPU should come from the machine: a `cpu` in `MachineConfig` (there's none today), or a parameter
-  of the viewer in the machine's `disk.viewers`
 
 Noticed while running `mock mini prodos T.dsk` (asimov `images/sound/`, a Mockingboard sample player: silent):
 
@@ -92,23 +152,6 @@ Noticed while running `mock mini prodos T.dsk` (asimov `images/sound/`, a Mockin
     - UI: `SlotsControl.vue` (toolbar, circuit-board icon, the machines with slots only): a select per slot, Defaults,
       Apply & power cycle
     - MCP: `get_slots` (`count` 0: no slots), `set_slots` (slot → card id / null, `default: true`), saved as the UI's
-- slots, later: per-disk slots, in the disk's notes (a disk that wants the Mockingboard in 4), over the user's
-  layout when the disk boots (a power cycle when they differ?)
-- slots, later: the mouse in `MachineConfig.inputs` (`MouseControl`, `hasMouse`) stays when no mouse card is in a
-  slot; the inputs could follow the cards
-- mouse, later: `MouseControl.vue` is generic UI but now follows the Apple II mouse card's protocol (the
-  CLAMPMOUSE / double-click fix): rethink it when another machine gets a mouse
-    - `HOST_RANGE = 1024` is a copy of the card's `MOUSE_HOST_RANGE` (`mouse.card.ts`), kept equal by hand
-    - it sends a position that wraps at 1024, as a float in the analog inputs 2 & 3, and the card turns it back into
-      motion (`setHostMouse`, the shortest way across the wrap). It is really a relative device going through an
-      absolute channel: a machine that wants deltas has to undo the wrap, and one that wants an absolute position
-      (clamped by the host, a tablet / light pen) doesn't fit at all
-    - the button inputs 4 & 5 (`apple.machine.ts`) are picked to stay clear of the //e's PB0-PB3 (digital 0-3, read
-      by the bus as Open Apple / Solid Apple / Shift): input indices that collide across devices are only avoided by
-      a comment in the config
-    - a way out: a mouse input that sends motion (deltas, summed until the machine reads them) and the buttons, as its
-      own kind of input, not analog / digital indices; each machine's device clamps or wraps as its hardware does
-- slots, later: a generic ROM card ($Cn00 ROM, $C800 expansion ROM, a user file or `rom/slotN.rom.ts`)
 
 Noticed while chasing the squares shown instead of `@` on a page refresh (//e, text renderer "Font"):
 
@@ -131,7 +174,6 @@ Noticed while chasing the squares shown instead of `@` on a page refresh (//e, t
       no `getImageData`, no colour matching
     - debug bar: the text renderer and its time per frame (`FNT 2.38` / `BMP 0.37`, ms, moving average) when text
       is on screen. Measured, same screen, running: 40 col FNT ~2.4 / BMP ~0.37 ms, 80 col FNT ~2.6 / BMP ~0.38 ms
-- text renderers: keep only "Bitmap" (6-7x faster, same pixels)? "Font" would then only matter to check the atlas
 - **FIXED** `loadFont` (`apple.video.ts`): the font URL is built from `import.meta.url.match(/http:\/\/[^/]+/)`, http only.
   Served over https, `baseurl` is undefined and `new URL("undefined/fonts/...")` throws in the `AppleVideo`
   constructor. `new URL(`fonts/${name}.ttf`, self.location.href)`? (Vite's `base` is `./`)
@@ -156,8 +198,6 @@ Noticed while chasing the speaker's sound (Conan late, Karateka silent):
       "Max" assumes 1.023 MHz). Faster than 1 MHz the pitch goes up, like an accelerator card with no slowdown
     - `virtualmachine.class.ts`: at most 150 ms of sound queued ahead (the extra chunks dropped), 30 ms of
       prebuffer after an underrun
-- speaker, later: slow down to 1 MHz on a speaker access, as the ZipChip / TransWarp do, so the sound keeps its
-  pitch at any speed?
 - **FIXED** a hook `log spk PC;run` (on an `access` `$C030`-`$C03F` range) stopped the machine on each hit, as a
   plain breakpoint: not the range, but `log` refusing a first arg that is a name (`log spk PC`, `log spk A X+1`:
   "Unknown subcommand"), so the `run` after it never ran
@@ -169,8 +209,6 @@ Noticed while chasing the speaker's sound (Conan late, Karateka silent):
   16rem column, so the horizontal scrollbar came and went as return addresses showed up (every 250 ms tick)
     - `StackView.vue`: addresses without the bank (`$01F5`, `$1234:JSR $5678`; the tooltips keep `$00:xxxx`),
       horizontal overflow hidden
-- stack view: a setting to show / hide the bank (`$00:01F5` vs `$01F5`). Shown, the stack column needs ~18.5rem
-  (`App.vue`'s grid) to fit a JSR row
 
 ### 2026-11-09
 
@@ -196,7 +234,6 @@ Noticed while chasing the speaker's sound (Conan late, Karateka silent):
   the memory at those addresses) and `labels: false`
 - **DONE** HGR viewer, sprites: a width in bytes (40, the default: the screen page, interleaved; less: rows one
   after the other, as sprites are stored), bytes skipped before the first row, zoom x1-x8 (`renderHgrRows`)
-- disk editor, later: edit bytes and save the image
 
 Noticed while adding Karateka's upside-down mode (a key held at boot):
 
@@ -223,28 +260,19 @@ Noticed while porting Karateka to a .po (its loader disassembled in the debugger
     - negative offsets to an unrelated label: `KBD-1` for `$BFFF`, `KBD-6` for `$BFFA`
     - offsets in decimal and in hex side by side: `MSLOT-20` (= `$07E4`), `INPUTBUF+$0C`, `line72+5`
     - a rule: `label+offset` only for an offset >= 0 and inside the symbol's size (when known), always in hex
-- disassembler: opcode `$02` shows as `COP` (65816) on the 65C02, where it's a 2-byte NOP
-- no Disk II card: an original disk (custom RWTS reading `$C08C,X` in slot 6) can't boot, only a block
-  device. A Disk II in slot 6 (.dsk / .do / .po, then .nib / .woz for nibble-level protections) would run them
-  as they are, and let their loaders be traced instead of read
-
-- the BPs should be saved for an image/machine and reset when a new machine/image is selected
 
 ### 2026-04-01
 
 - **DONE** need a cmd to desactivate a BP: `BD` / `BE [type] <address|range> | all`
-- let's have a BP on ACCESS HIRES that triggers Game Scan to identify the game that's running
 - **DONE** need to be triggered once; hence the need to desactivate a BP: `ON <type> <address> once do "..."`
 - **DONE** same apply for a HOOK (ON) -> OFF ?: `OFF <type> <address>` turns it off, `ON <type> <address>` back on
 - **DONE** ON PC = $300 do nop: unquoted, `do` takes one command, up to `;` or `|>`; several commands go quoted, or in a routine (`do &routine`)
-- ON ACCESS $C057 do "&identifyGame |> &applyPatch; run"
 
 ### 2026-03-31
 
 - **DONE** REFACTO: registers in useMachine.... updated at everyframe in App.... Not sure it's the best way to do it:
   the frame loop lives in useMachine (`onUiFrame` for per-frame callbacks), synced every frame when paused and
   every 100 ms when running; code reads `vm.getRegisters()`, the reactive copy is for the views only
-- REFACTO: I don't like the handleJsrOutput in useCommands where it's a mini monitor thing
 
 ### 2026-03-23
 
@@ -254,9 +282,6 @@ Noticed while porting Karateka to a .po (its loader disassembled in the debugger
 
 ### 2026
 
-- **NOT_YET**
-  Can we add a feature to highlight bytes that have changed since the last update in the Memory Viewer?
-- do we store the mods into a patch list... associated with the disk... patch manager ?
 - **DONE** "Run Until" Feature
   Enhance the run command (or create a new runUntil) to accept a target address. The VM would run and automatically pause when PC hits that address (effectively a temporary breakpoint).
   `run [<address>] until <target> [through]` (MCP: `run_until({ address, breakpoints: "honour" | "through" })`):
@@ -271,57 +296,6 @@ Noticed while porting Karateka to a .po (its loader disassembled in the debugger
     - also: resuming from a PC breakpoint runs its instruction instead of stepping it (a step out ending on that RTS
       still stops); step out started on a breakpoint doesn't stop there at once
 - **DONE** `set pc $300` fails: `params[0].match is not a function`
-- ⁠Add a command to set ROM/Memory data
-  ⁠Add a command to load a file into mem (already there in MemView: composable)
-- add some other options for disasm (like with or without comments) that we can set with the command
-- Add the worker to the Bus constructor to know whether it's in the main thread or not.
-  Or refactor the whole thing to have 2 different Buses
-
-- There are onXX in the VirtualMachine; replace them with a proper event messaging
-- Shared Memory - Shared State
-  We need something generic of X bytes; with a manager; instead of hardcoded values
-- Fix the errors in the console
-
-```
-Worker: Not initialized. Send 'init' command with buffer first. {"command":"setDebugOverrides","category":"bus","overrides":{"slot":5,"smartPortLogging":false}}
-```
-
-```
-useDataFormattings.ts:49 Uncaught (in promise) Error: No disk key provided
-    at getDb (useDataFormattings.ts:49:29)
-    at addFormatting (useDataFormattings.ts:184:20)
-    at Object.defDataFn [as fn] (defData.cmd.ts:16:2)
-    at processLine (useCommands.ts:437:37)
-    at async executeCommand (useCommands.ts:521:20)
-    at async loadMachine (useMachine.ts:130:4)
-```
-
-- store routines for the machine/disk
-- Now that we have regex support, can we add a `=~` operator to match a string against a regex?
-- add a rate limiter on LOG like "every 100" or "every100ms"
-  Meaning:
-
-```javascript
-if (countBased) {
-	if (++counter % N !== 0) return;
-}
-if (timeBased) {
-	if (now - lastTime < ms) return;
-	lastTime = now;
-}
-```
-
-log Acc every 100th time PC == main_loop  
-`hook pc main_loop log trace every 100 "A=", A`
-
-log Acc every 100ms time $C019 is accessed  
-`hook access $C019 log trace every 100ms "A=", A`
-
-- first logs once, then disables itself  
-  `log trace first "Entered IRQ"`  
-  last logs on hook removal / VM stop  
-  `log trace last "Leaving IRQ"`
-- let's refactor cmd search to uses the new wildcards
 
 # History
 
@@ -455,9 +429,6 @@ let's add some "virtual" registers to the machine; for the Apple 2e, $c019, BANK
 check if multiline command work with pipe
 print "print 65 \n end" |> routine test
 
--18- **WIP**
-define the .DB for the system; if useful, let's have a DATADEFS like LABELS to add many in one shot
-
 -29- **FIXED**
 init routine -> define a routine with pipe |> is not working
 
@@ -468,10 +439,3 @@ we need to add to the end of the queue the pipe....
 -32- **FIXED**
 when the console window is snapped to the bottom and the app is started with a smaller browser window
 the position of the window is not adjusted to the new bottom, i.e: it could be offscreen
-
--33-
-when the memory viewer tab is showing and the CPU stops (breakpoint, BRK, `BRK $8x` hypercall, step out...),
-the disassembly stays hidden: both are tabs of the same panel (`activeTab` in `useDebuggerNav.ts`) and nothing
-switches back to the disassembly on a stop.
-Fix: `setActiveTab("disassembly")` when the CPU stops. To decide: also on a plain user pause, or only on stops
-the user did not ask for (breakpoint, BRK, hypercall)?

@@ -38,7 +38,7 @@ export type IMUSnapshot = {
 };
 
 /**
- * The number of IDs (read back through IDS). More than 16 would follow the page layout of IMU.md ("More than 16
+ * The number of IDs (read back through IDS). More than 16 would follow the page layout of docs/IMU.md ("More than 16
  * IDs"): IDs 16n to 16n+15 in the registers $40*n to $40*n+$3F, laid out as $00-$3F.
  */
 export const IMU_IDS = 16;
@@ -57,7 +57,7 @@ export const IMU_REG_CTRL = 0x00;
 export const IMU_REG_MASK = 0x01;
 export const IMU_REG_PENDING = 0x02;
 export const IMU_REG_INSERVICE = 0x03;
-/** Read-only: the number of IDs (see IMU.md, "More than 16 IDs"). */
+/** Read-only: the number of IDs (see docs/IMU.md, "More than 16 IDs"). */
 export const IMU_REG_IDS = 0x04;
 export const IMU_REG_PRIO = 0x10;
 export const IMU_REG_HANDLER = 0x20;
@@ -70,7 +70,7 @@ export const IMU_CTRL_AUTO_EOI = 0x40;
 export const IMU_NONE = 0xff;
 
 /**
- * Interrupt Management Unit: vectored interrupts for the 6502 (see IMU.md). Up to 16 lines (IDs), each with a
+ * Interrupt Management Unit: vectored interrupts for the 6502 (see docs/IMU.md). Up to 16 lines (IDs), each with a
  * handler, a bank byte and a priority. The CPU asks it for the vector before it reads $FFFE (`irqVector`), and tells
  * it about every RTI (`onRti`). Disabled (the reset state), it only ORs its lines into the CPU's IRQ.
  *

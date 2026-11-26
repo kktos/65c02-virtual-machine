@@ -44,7 +44,7 @@ export interface IBus {
 	installDevices?(devices: LoadedDevice[]): void;
 
 	/**
-	 * Vectored IRQs (an IMU, see IMU.md). IRQ only, never BRK / NMI: called after the pushes, `sp` the SP after
+	 * Vectored IRQs (an IMU, see docs/IMU.md). IRQ only, never BRK / NMI: called after the pushes, `sp` the SP after
 	 * them. The winning ID and its handler, or undefined to fetch $FFFE/F.
 	 */
 	irqVector?(sp: number): { id: number; address: number } | undefined;

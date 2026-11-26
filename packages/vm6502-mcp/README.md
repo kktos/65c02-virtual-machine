@@ -71,4 +71,4 @@ Then run `pnpm dev` and open `http://localhost:5173/?mcp`.
 | `remove_breakpoint` | Remove one (same type + address/range), or all with `all: true` |
 | `list_breakpoints` | Breakpoints as JSON, optionally only those covering an address / overlapping a range |
 
-See `../vm6502/MCP_TODO.md` for what's next.
+See `../vm6502/docs/MCP_TODO.md` for what's next.
