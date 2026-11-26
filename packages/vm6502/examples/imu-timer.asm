@@ -1,5 +1,5 @@
 asm $300
-; IMU example: vectored interrupts on the //e (see IMU.md).
+; IMU example: vectored interrupts on the //e (see docs/IMU.md).
 ; The built-in timer (IMU ID 8, AppleTimer, $C0B8) pulses every second; its handler counts
 ; the seconds in BCD at the top right of the 40-column text screen.
 ;

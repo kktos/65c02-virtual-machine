@@ -79,7 +79,7 @@ const DEVICE_IO_END = 0xc0ff;
 /** The soft switches a device can take over (`switches`): the //e's own. */
 const DEVICE_SWITCHES_START = 0xc000;
 const DEVICE_SWITCHES_END = 0xc08f;
-/** Slot 3's I/O space up to here is the IMU's registers (see IMU.md). */
+/** Slot 3's I/O space up to here is the IMU's registers (see docs/IMU.md). */
 const IMU_IO_START = 0xc0b0;
 const IMU_IO_END = 0xc0b7;
 /**
@@ -202,7 +202,7 @@ export class AppleBus implements IBus {
 	// The CPU's interrupt inputs (see setInterruptLines)
 	private lines?: InterruptLines;
 	/**
-	 * The interrupt controller (see IMU.md): ID n is slot n's IRQ (1-7), the devices take the IDs from 8, its registers at
+	 * The interrupt controller (see docs/IMU.md): ID n is slot n's IRQ (1-7), the devices take the IDs from 8, its registers at
 	 * $C0B0-$C0B7 (slot 3's I/O). Disabled, it ORs its lines into the CPU's IRQ line.
 	 */
 	public readonly imu = new IMU({ irq: (active) => this.lines?.irq(active) });

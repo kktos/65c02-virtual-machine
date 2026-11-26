@@ -1226,7 +1226,7 @@ export const MCP_TOOLS: McpTool[] = [
 	{
 		name: "get_interrupts",
 		description:
-			"The machine's interrupt controller (IMU, vectored IRQs: see IMU.md), read without side effects. " +
+			"The machine's interrupt controller (IMU, vectored IRQs: see docs/IMU.md), read without side effects. " +
 			"`enabled` (vectoring on; off, the IMU only ORs its lines into the IRQ), `auto_eoi`, `irq_line` (the " +
 			"CPU's IRQ input as the IMU drives it), `current` (CURRENT: the ID whose handler runs, null if none), " +
 			"`index` (INDEX register), and per ID (`ids`): `source` (what drives it: on the //e ID n is slot n's card, ID 8 the timer at $C0B8), " +

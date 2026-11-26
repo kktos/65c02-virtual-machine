@@ -11,7 +11,7 @@ export interface AppleDeviceWiring {
 	 * `writeSwitch`, with its address. The machine's own handler there is replaced (the keyboard's $C000 / $C010).
 	 */
 	switches?: { read?: number[]; write?: number[] };
-	/** The IMU ID its line drives (the slots take 1-7, see IMU.md). None: it never interrupts. */
+	/** The IMU ID its line drives (the slots take 1-7, see docs/IMU.md). None: it never interrupts. */
 	irq?: number;
 }
 

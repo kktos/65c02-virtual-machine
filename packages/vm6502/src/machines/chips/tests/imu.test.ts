@@ -180,7 +180,7 @@ describe("IMU", () => {
 
 		it("reserved registers and ports read 0 and ignore writes", () => {
 			const { imu, set8, get } = setup();
-			// $40 and up: the pages of IDs 16 and up (IMU.md, "More than 16 IDs"), absent with 16 IDs
+			// $40 and up: the pages of IDs 16 and up (docs/IMU.md, "More than 16 IDs"), absent with 16 IDs
 			for (const reg of [0x05, 0x0f, 0x20, 0x41, 0x50, 0x60, 0xff]) {
 				set8(reg, 0xaa);
 				expect(get(reg)).toBe(0);
