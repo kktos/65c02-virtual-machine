@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 import type { CommandContext, ParamList } from "@/types/command";
+import { fakeRegisters } from "@/lib/tests/fakeRegisters";
 
 vi.stubGlobal("localStorage", { getItem: () => null, setItem: () => undefined });
 
@@ -15,7 +16,7 @@ const { listCmd } = await import("../list.cmd");
 const vm = {
 	addBP: vi.fn(),
 	removeBP: vi.fn(),
-	sharedRegisters: { getUint8: () => 0, getUint16: () => 0 },
+	...fakeRegisters(),
 } as unknown as VirtualMachine;
 const ctx = (...params: ParamList) => ({ vm, params }) as unknown as CommandContext;
 const list = async (...params: ParamList) => {

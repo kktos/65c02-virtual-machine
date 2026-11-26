@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
+import { fakeRegisters } from "@/lib/tests/fakeRegisters";
 
 const LABELS: Record<string, number> = { KEYIN: 0xfd1b };
 vi.mock("@/composables/useSymbols", () => ({
@@ -17,7 +18,7 @@ const vm = {
 	readDebug: (addr: number) => addr & 0xff,
 	readDebugRange: (addr: number, len: number) => Uint8Array.from({ length: len }, (_, i) => (addr + i) & 0xff),
 	writeDebug: vi.fn(),
-	sharedRegisters: new DataView(new ArrayBuffer(16)),
+	...fakeRegisters(),
 } as unknown as VirtualMachine;
 
 const run = async (line: string) => {

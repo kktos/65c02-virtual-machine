@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { ref, shallowRef } from "vue";
+import { fakeRegisters } from "@/lib/tests/fakeRegisters";
 
 vi.stubGlobal("localStorage", { getItem: () => null, setItem: () => undefined });
 
@@ -18,7 +19,7 @@ memory[0x324] = 0xea; // NOP
 
 const vm = {
 	ready: Promise.resolve(),
-	sharedRegisters: new DataView(new ArrayBuffer(64)),
+	...fakeRegisters(),
 	syncBusState: vi.fn(),
 	getScope: () => "main",
 	readDebug: (address: number) => memory[address] ?? 0,

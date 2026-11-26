@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ref, shallowRef } from "vue";
 import type { StepResult, StopInfo } from "@/types/stopinfo.interface";
 import { REG_PC_OFFSET } from "@/virtualmachine/cpu/shared-memory";
+import { fakeRegisters } from "@/lib/tests/fakeRegisters";
 
 vi.stubGlobal("localStorage", { getItem: () => null, setItem: () => undefined });
 
@@ -9,15 +10,15 @@ const isRunning = ref(false);
 let stepResult: StepResult = { executed: 1, address: 0x301 };
 const vm = {
 	ready: Promise.resolve(),
-	sharedRegisters: new DataView(new ArrayBuffer(64)),
+	...fakeRegisters(),
 	lastStop: undefined as StopInfo | undefined,
 	step: vi.fn(async (_count: number) => {
-		vm.sharedRegisters.setUint16(REG_PC_OFFSET, stepResult.address, true);
+		vm.registers.setUint16(REG_PC_OFFSET, stepResult.address, true);
 		return stepResult;
 	}),
 	reset: vi.fn(async () => {
 		isRunning.value = false;
-		vm.sharedRegisters.setUint16(REG_PC_OFFSET, 0xfa62, true);
+		vm.registers.setUint16(REG_PC_OFFSET, 0xfa62, true);
 	}),
 };
 

@@ -1,36 +1,27 @@
 import { defineCommand, isParamListItemIdentifier } from "@/composables/useCommands";
 import { toHex } from "@/lib/hex.utils";
 import type { CommandContext } from "@/types/command";
-import {
-	REG_A_OFFSET,
-	REG_PC_OFFSET,
-	REG_SP_OFFSET,
-	REG_STATUS_OFFSET,
-	REG_X_OFFSET,
-	REG_Y_OFFSET,
-} from "@/virtualmachine/cpu/shared-memory";
+import type { EmulatorRegisters } from "@/types/emulatorstate.interface";
+import type { VirtualMachine } from "@/virtualmachine/virtualmachine.class";
 
-type Register8 = keyof typeof BYTE_REGISTERS;
-type Register16 = keyof typeof WORD_REGISTERS;
-type Register = Register8 | Register16;
+const BYTE_REGISTERS = ["A", "X", "Y", "P", "SP"];
 
-const BYTE_REGISTERS = {
-	A: REG_A_OFFSET,
-	X: REG_X_OFFSET,
-	Y: REG_Y_OFFSET,
-	P: REG_STATUS_OFFSET,
-	SP: REG_SP_OFFSET,
-} as const;
-
-const WORD_REGISTERS = {
-	PC: REG_PC_OFFSET,
-} as const;
+/**
+ * The registers can only be written paused (see `updateRegister`): a running machine is paused first, resumed after,
+ * as the Monitor's G does.
+ */
+async function writeRegisterPaused(vm: VirtualMachine, reg: keyof EmulatorRegisters, value: number) {
+	const wasRunning = vm.isRunningOrStarting;
+	if (wasRunning) await vm.pauseAndWait();
+	vm.updateRegister(reg, value);
+	if (wasRunning) vm.play();
+}
 
 export const setCmd = defineCommand({
 	description: "Set register `name` value to `byte` or `word`",
 	paramDef: ["name", "byte|word"],
 	group: "Monitor",
-	fn: ({ vm, params }: CommandContext) => {
+	fn: async ({ vm, params }: CommandContext) => {
 		const val = params[1] as number;
 
 		// `set pc $300` hands over the parsed name ({ text, value });
@@ -43,17 +34,17 @@ export const setCmd = defineCommand({
 			return `$${toHex(addr)} = $${toHex(val)}`;
 		}
 
-		const reg = dest.toUpperCase() as Register;
+		const reg = dest.toUpperCase();
 
-		if (reg in BYTE_REGISTERS) {
+		if (BYTE_REGISTERS.includes(reg)) {
 			if (val > 0xff || val < 0) throw new Error(`Value out of range [0-255]`);
-			vm.sharedRegisters.setUint8(BYTE_REGISTERS[reg as Register8], val);
+			await writeRegisterPaused(vm, reg as keyof EmulatorRegisters, val);
 			return `Register ${reg} set to $${toHex(val)}`;
 		}
 
-		if (reg in WORD_REGISTERS) {
+		if (reg === "PC") {
 			if (val > 0xffff || val < 0) throw new Error(`Value out of range [0-65535]`);
-			vm.sharedRegisters.setUint16(WORD_REGISTERS[reg as Register16], val, true);
+			await writeRegisterPaused(vm, reg, val);
 			return `Register ${reg} set to $${toHex(val, 4)}`;
 		}
 

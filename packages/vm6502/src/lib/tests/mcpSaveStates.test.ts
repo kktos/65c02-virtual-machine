@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ref, shallowRef } from "vue";
 import type { SaveStateInfo } from "@/virtualmachine/cpu/saveStates";
+import { fakeRegisters } from "@/lib/tests/fakeRegisters";
 
 vi.stubGlobal("localStorage", { getItem: () => null, setItem: () => undefined });
 
@@ -10,7 +11,7 @@ const isRunning = ref(true);
 const inserted = shallowRef<{ key: string; name: string; type: "physical"; size: number } | null>(null);
 const vm = {
 	ready: Promise.resolve(),
-	sharedRegisters: new DataView(new ArrayBuffer(64)),
+	...fakeRegisters(),
 	syncBusState: vi.fn(),
 	saveMachineState: vi.fn(async (name: string, meta: Record<string, unknown>) => {
 		const info = { name, pc: 0xc28b, cycles: 1000, createdAt: Date.UTC(2026, 10, 8), bytes: 151_822, meta };

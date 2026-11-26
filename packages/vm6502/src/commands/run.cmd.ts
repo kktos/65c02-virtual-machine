@@ -2,7 +2,6 @@ import { defineCommand, isParamListItemIdentifier } from "@/composables/useComma
 import { useRunUntil } from "@/composables/useRunUntil";
 import { formatAddress } from "@/lib/hex.utils";
 import type { CommandContext, ParamListItem } from "@/types/command";
-import { REG_PC_OFFSET } from "@/virtualmachine/cpu/shared-memory";
 
 const keyword = (param: ParamListItem | undefined) =>
 	isParamListItemIdentifier(param) ? param.text.toLowerCase() : undefined;
@@ -34,9 +33,13 @@ export const run = defineCommand({
 	paramHelp: "[<address>] [until <target> [through]]",
 	closeOnSuccess: true,
 	group: "Execution",
-	fn: ({ vm, params }: CommandContext) => {
+	fn: async ({ vm, params }: CommandContext) => {
 		const { start, until, through } = parseRunParams(params);
-		if (start !== undefined) vm.sharedRegisters.setUint16(REG_PC_OFFSET, start, true);
+		if (start !== undefined) {
+			// PC can only be written paused (see updateRegister): a running machine is paused first, run again below
+			if (vm.isRunningOrStarting) await vm.pauseAndWait();
+			vm.updateRegister("PC", start);
+		}
 		if (until === undefined) {
 			vm.play();
 			return "Run the vm";

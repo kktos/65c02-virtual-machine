@@ -33,7 +33,6 @@ import {
 	type TraceSnapshot,
 } from "@/virtualmachine/cpu/instructionTrace";
 import { describeTraceEntries } from "@/lib/instructionTrace.lib";
-import { readRegisters } from "@/virtualmachine/cpu/shared-memory";
 import { availableMachines } from "@/machines";
 import type { MachineConfig, SlotLayout } from "@/types/machine.interface";
 import { applySlotChanges, resolveSlotLayout, sameSlotLayout } from "@/lib/slots.lib";
@@ -164,7 +163,7 @@ const addressSchema = {
 };
 
 const describeRegisters = (vm: VirtualMachine) => {
-	const r = readRegisters(vm.sharedRegisters);
+	const r = vm.getRegisters();
 	return {
 		running: useMachine().isRunning.value,
 		PC: hex(r.PC, 4),

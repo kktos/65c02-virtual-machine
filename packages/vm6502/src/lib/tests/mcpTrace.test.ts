@@ -7,6 +7,7 @@ import {
 	setInstructionTrace,
 	type TraceSnapshot,
 } from "@/virtualmachine/cpu/instructionTrace";
+import { fakeRegisters } from "@/lib/tests/fakeRegisters";
 
 vi.stubGlobal("localStorage", { getItem: () => null, setItem: () => undefined });
 
@@ -17,7 +18,7 @@ memory.set([0xa9, 0xc1], 0xfded); // $FDED COUT: LDA #$C1
 // The worker side, run in-process: the real ring buffer.
 const vm = {
 	ready: Promise.resolve(),
-	sharedRegisters: new DataView(new ArrayBuffer(64)),
+	...fakeRegisters(),
 	getScope: () => "main",
 	readDebug: (a: number) => memory[a] ?? 0,
 	setInstructionTrace: vi.fn(async (enabled: boolean, size?: number): Promise<TraceSnapshot> => {

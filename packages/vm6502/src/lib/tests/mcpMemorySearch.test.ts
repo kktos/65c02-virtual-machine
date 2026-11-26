@@ -1,12 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ref, shallowRef } from "vue";
+import { fakeRegisters } from "@/lib/tests/fakeRegisters";
 
 vi.stubGlobal("localStorage", { getItem: () => null, setItem: () => undefined });
 
 const memory = new Uint8Array(0x20000);
 const vm = {
 	ready: Promise.resolve(),
-	sharedRegisters: new DataView(new ArrayBuffer(64)),
+	...fakeRegisters(),
 	syncBusState: vi.fn(),
 	readDebugRange: vi.fn((address: number, length: number) => memory.slice(address, address + length)),
 };

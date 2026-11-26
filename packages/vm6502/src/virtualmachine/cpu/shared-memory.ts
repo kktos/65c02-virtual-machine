@@ -79,3 +79,50 @@ export const readRegisters = (view: DataView): EmulatorRegisters => {
 		N: (P & FLAG_N_MASK) !== 0,
 	};
 };
+
+/** The P bit of each flag `writeRegister` sets alone. */
+const FLAG_MASKS = {
+	N: FLAG_N_MASK,
+	V: FLAG_V_MASK,
+	B: FLAG_B_MASK,
+	D: FLAG_D_MASK,
+	I: FLAG_I_MASK,
+	Z: FLAG_Z_MASK,
+	C: FLAG_C_MASK,
+} as const;
+
+/**
+ * Writes one register (or one flag: non-zero sets it) into the shared registers view. `P` writes the whole status
+ * byte but B and bit 5 (not real flags), which stay as they are.
+ */
+export const writeRegister = (view: DataView, reg: keyof EmulatorRegisters, value: number) => {
+	switch (reg) {
+		case "A":
+			view.setUint8(REG_A_OFFSET, value);
+			break;
+		case "X":
+			view.setUint8(REG_X_OFFSET, value);
+			break;
+		case "Y":
+			view.setUint8(REG_Y_OFFSET, value);
+			break;
+		case "SP":
+			view.setUint8(REG_SP_OFFSET, value);
+			break;
+		case "PC":
+			view.setUint16(REG_PC_OFFSET, value, true);
+			break;
+		case "P": {
+			const keep = FLAG_B_MASK | FLAG_5_MASK;
+			const status = view.getUint8(REG_STATUS_OFFSET);
+			view.setUint8(REG_STATUS_OFFSET, (value & ~keep) | (status & keep));
+			break;
+		}
+		default: {
+			// B is not a real flag, but toggling it is allowed for debugging
+			const mask = FLAG_MASKS[reg];
+			const status = view.getUint8(REG_STATUS_OFFSET);
+			view.setUint8(REG_STATUS_OFFSET, value ? status | mask : status & ~mask);
+		}
+	}
+};
